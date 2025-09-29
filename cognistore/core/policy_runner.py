@@ -37,7 +37,11 @@ class PolicyRunner:
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
         for rec in records:
-            decision = self.policy.evaluate(rec.tier, rec.size)
+            # Prefer record-aware policy evaluation when available
+            if hasattr(self.policy, "evaluate_record"):
+                decision = getattr(self.policy, "evaluate_record")(rec)  # type: ignore[call-arg]
+            else:
+                decision = self.policy.evaluate(rec.tier, rec.size)
             if decision.action != "move" or not decision.dst_tier or decision.dst_tier == rec.tier:
                 continue
             # Ensure drivers exist

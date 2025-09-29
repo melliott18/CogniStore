@@ -92,7 +92,22 @@ Notes:
 - If `--catalog-db` is omitted, an in-memory catalog is used for the current run only.
 - `catalog-scan` captures metadata including sha256, mime, and a small sample length.
 - `policy-run` supports:
-	- `--policy simple|llm` (default: simple)
+	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions
 	- `--threshold` (and `--llm-threshold` for the LLM path)
+	- Content-aware flags:
+		- `--hot-name PATTERN` (repeatable) → glob patterns that should be placed in hot (e.g., `*.hot.txt`)
+		- `--warm-name PATTERN` (repeatable) → glob patterns for warm (e.g., `*.zip`)
+		- `--hot-mime PREFIX` (repeatable) → MIME prefix for hot (e.g., `text/`, `image/`)
+		- `--warm-mime PREFIX` (repeatable) → MIME prefix for warm (e.g., `application/zip`)
 	The LLM mode currently uses a threshold-based mock provider; you can swap in a real provider later.
+
+Example content-aware pass (ensure you ran `catalog-scan` first so MIME metadata exists):
+
+```bash
+python -m cognistore.cli.cognistore_cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+  policy-run demo-bucket --policy content \
+  --hot-name "*.txt" --hot-mime text/ \
+  --warm-name "*.zip" --warm-mime application/zip \
+  --threshold 1048576
+```

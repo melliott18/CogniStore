@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol, Sequence, Iterable
+import fnmatch
+
+# Local imports kept optional to avoid cycles at import time; used in type hints only
+try:  # pragma: no cover - type checking convenience
+    from .catalog import ObjectRecord  # type: ignore
+except Exception:  # pragma: no cover
+    ObjectRecord = object  # fallback for type checkers
 
 
 @dataclass
@@ -69,3 +76,70 @@ class LLMPolicy:
 class PolicyLLMProvider(Protocol):  # pragma: no cover - interface
     def decide(self, inputs: dict) -> dict:
         ...
+
+
+class ContentAwarePolicy:
+    """Policy that uses content metadata to decide placement.
+
+    Rules are evaluated in the following order (first match wins):
+      1. Filename patterns for hot (move to hot) and warm (move to warm)
+      2. MIME prefix lists for hot and warm
+      3. Fallback to size threshold (small -> hot, large -> warm)
+
+    Notes:
+      - Only tiers present in `allowed_tiers` are considered valid destinations.
+      - If the suggested destination equals the current tier, action is "stay".
+    """
+
+    def __init__(
+        self,
+        *,
+        size_threshold: int = 1024 * 1024,
+        allowed_tiers: Sequence[str] = ("hot", "warm"),
+        hot_name_patterns: Iterable[str] | None = None,
+        warm_name_patterns: Iterable[str] | None = None,
+        hot_mime_prefixes: Iterable[str] | None = None,
+        warm_mime_prefixes: Iterable[str] | None = None,
+    ) -> None:
+        self.size_threshold = size_threshold
+        self.allowed = set(allowed_tiers)
+        self.hot_name_patterns = [p for p in (hot_name_patterns or []) if p]
+        self.warm_name_patterns = [p for p in (warm_name_patterns or []) if p]
+        self.hot_mime_prefixes = [m for m in (hot_mime_prefixes or []) if m]
+        self.warm_mime_prefixes = [m for m in (warm_mime_prefixes or []) if m]
+
+    # Keep compatibility: provide size-based evaluate
+    def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
+        # Fallback purely on size if record-aware path isn't used
+        if size <= self.size_threshold and current_tier != "hot" and "hot" in self.allowed:
+            return PolicyDecision(action="move", dst_tier="hot", reason=f"<= {self.size_threshold} bytes")
+        if size > self.size_threshold and current_tier != "warm" and "warm" in self.allowed:
+            return PolicyDecision(action="move", dst_tier="warm", reason=f"> {self.size_threshold} bytes")
+        return PolicyDecision(action="stay", reason="meets content policy by size", dst_tier=None)
+
+    # Record-aware evaluation used by PolicyRunner when available
+    def evaluate_record(self, rec: "ObjectRecord") -> PolicyDecision:  # type: ignore[override]
+        current_tier = getattr(rec, "tier", "")
+        key = getattr(rec, "key", "")
+        size = getattr(rec, "size", 0)
+        metadata = getattr(rec, "metadata", {}) or {}
+        mime = metadata.get("mime") or ""
+
+        # 1) Name patterns
+        if key and self.hot_name_patterns and any(fnmatch.fnmatch(key, pat) for pat in self.hot_name_patterns):
+            if current_tier != "hot" and "hot" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="hot", reason="name pattern -> hot")
+        if key and self.warm_name_patterns and any(fnmatch.fnmatch(key, pat) for pat in self.warm_name_patterns):
+            if current_tier != "warm" and "warm" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="warm", reason="name pattern -> warm")
+
+        # 2) MIME prefixes
+        if mime and self.hot_mime_prefixes and any(mime.startswith(pfx) for pfx in self.hot_mime_prefixes):
+            if current_tier != "hot" and "hot" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="hot", reason=f"mime {mime} -> hot")
+        if mime and self.warm_mime_prefixes and any(mime.startswith(pfx) for pfx in self.warm_mime_prefixes):
+            if current_tier != "warm" and "warm" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="warm", reason=f"mime {mime} -> warm")
+
+        # 3) Fallback to size threshold
+        return self.evaluate(current_tier, size)

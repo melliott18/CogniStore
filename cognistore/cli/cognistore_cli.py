@@ -9,7 +9,7 @@ from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.core.mover import Mover
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
-from cognistore.core.policy import SimplePolicy, LLMPolicy
+from cognistore.core.policy import SimplePolicy, LLMPolicy, ContentAwarePolicy
 from cognistore.core.policy_runner import PolicyRunner
 from cognistore.core.indexer import Indexer
 
@@ -55,9 +55,14 @@ def main(argv=None):
 	p_policy.add_argument("bucket")
 	p_policy.add_argument("--prefix", default="")
 	p_policy.add_argument("--threshold", type=int, default=1024*1024, help="Size threshold for policies")
-	p_policy.add_argument("--policy", choices=["simple", "llm"], default="simple")
+	p_policy.add_argument("--policy", choices=["simple", "llm", "content"], default="simple")
 	p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
 	p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
+	# Content-aware options
+	p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
+	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
+	p_policy.add_argument("--hot-mime", action="append", help="MIME prefix(es) that should go to hot, e.g. text/ or image/")
+	p_policy.add_argument("--warm-mime", action="append", help="MIME prefix(es) that should go to warm, e.g. application/zip")
 
 	args = parser.parse_args(argv)
 	catalog = SQLiteCatalog(args.catalog_db) if args.catalog_db else Catalog()
@@ -140,6 +145,15 @@ def main(argv=None):
 					return {"action": "stay", "reason": "already optimal"}
 
 			policy = LLMPolicy(provider=_ThresholdProvider(), allowed_tiers=allowed)
+		elif args.policy == "content":
+			policy = ContentAwarePolicy(
+				size_threshold=args.threshold,
+				allowed_tiers=allowed,
+				hot_name_patterns=args.hot_name or [],
+				warm_name_patterns=args.warm_name or [],
+				hot_mime_prefixes=args.hot_mime or [],
+				warm_mime_prefixes=args.warm_mime or [],
+			)
 		else:
 			policy = SimplePolicy(size_threshold=args.threshold)
 		mv = Mover(drivers, catalog)
