@@ -16,7 +16,7 @@ from cognistore.core.indexer import Indexer
 
 def main(argv=None):
 	parser = argparse.ArgumentParser(prog="cognistore", description="CogniStore CLI")
-	parser.add_argument("base", nargs="?", help="Base path for POSIX storage (ignored if --drivers is used)")
+	parser.add_argument("--base", help="Base path for POSIX storage (used when --drivers is not provided)")
 	parser.add_argument("--drivers", help="Path to drivers.yaml to enable multi-tier operations")
 	parser.add_argument("--catalog-db", help="Path to SQLite catalog DB; if omitted uses in-memory catalog")
 	sub = parser.add_subparsers(dest="cmd", required=True)
@@ -72,7 +72,7 @@ def main(argv=None):
 		drivers = load_drivers(args.drivers)
 	else:
 		if not args.base:
-			parser.error("either --drivers or base path is required")
+			parser.error("either --drivers or --base is required")
 		driver = PosixDriver(args.base)
 
 	if args.cmd == "put":

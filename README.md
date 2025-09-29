@@ -21,9 +21,9 @@ pytest -q
 
 ```bash
 # Put and get a file using the filesystem as storage
-python -m cognistore.cli.cognistore_cli /tmp/cognistore put demo-bucket path/to/key.txt README.md
-python -m cognistore.cli.cognistore_cli /tmp/cognistore get demo-bucket path/to/key.txt /tmp/out.txt
-python -m cognistore.cli.cognistore_cli /tmp/cognistore ls demo-bucket --prefix path/
+python -m cognistore.cli.cognistore_cli --base /tmp/cognistore put demo-bucket path/to/key.txt README.md
+python -m cognistore.cli.cognistore_cli --base /tmp/cognistore get demo-bucket path/to/key.txt /tmp/out.txt
+python -m cognistore.cli.cognistore_cli --base /tmp/cognistore ls demo-bucket --prefix path/
 ```
 
 ### Driver configuration (optional)
