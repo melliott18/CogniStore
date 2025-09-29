@@ -1,0 +1,109 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		},
+		{
+			"label": "Run unit tests",
+			"type": "shell",
+			"command": "pytest -q",
+			"problemMatcher": [
+				"$pytest - stylish"
+			]
+		}
+	]
+}
