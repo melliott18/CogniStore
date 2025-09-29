@@ -1,0 +1,7 @@
+tiers:
+  hot:
+    driver: posix
+    path: /tmp/cognistore/hot
+  warm:
+    driver: posix
+    path: /tmp/cognistore/warm
