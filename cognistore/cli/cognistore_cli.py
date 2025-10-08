@@ -13,6 +13,8 @@ from cognistore.core.policy import SimplePolicy, LLMPolicy, ContentAwarePolicy
 from cognistore.core.policy_runner import PolicyRunner
 from cognistore.core.indexer import Indexer
 from cognistore.utils.tier_profiler import profile_path, save_metrics_json, load_metrics_json
+from cognistore.utils.device_info import discover_device_for_tier, save_hardware_json, load_hardware_json
+from cognistore.utils.drive_profiles import DEFAULT_PROFILES
 
 
 def main(argv=None):
@@ -56,6 +58,10 @@ def main(argv=None):
 	p_prof = sub.add_parser("tier-profile")
 	p_prof.add_argument("--metrics-out", help="Optional path to write JSON metrics for all tiers")
 
+	# Scan device hardware characteristics reported by the OS
+	p_dev = sub.add_parser("devices-scan")
+	p_dev.add_argument("--hardware-out", help="Optional path to write JSON hardware info for all tiers")
+
 	p_policy = sub.add_parser("policy-run")
 	p_policy.add_argument("bucket")
 	p_policy.add_argument("--prefix", default="")
@@ -64,6 +70,7 @@ def main(argv=None):
 	p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
 	p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
 	p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
+	p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
 	# Content-aware options
 	p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
 	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
@@ -164,6 +171,29 @@ def main(argv=None):
 			print(f"wrote metrics -> {args.metrics_out}")
 		return 0
 
+	if args.cmd == "devices-scan":
+		if not drivers:
+			parser.error("--drivers is required for devices-scan")
+			return 1
+		info = {}
+		for tier, drv in drivers.items():
+			base_path = None
+			if isinstance(drv, PosixDriver):
+				base_path = drv.base
+			else:
+				base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+			if not base_path:
+				print(f"skip {tier}: unsupported driver for devices-scan", file=sys.stderr)
+				continue
+			di = discover_device_for_tier(tier, str(base_path))
+			info[tier] = di
+			mt = di.media_type
+			print(f"{tier}: dev={di.device or '?'} base={di.base_device or '?'} type={mt} model={di.model or '?'} transport={di.transport or '?'}")
+		if args.hardware_out:
+			save_hardware_json(info, args.hardware_out)
+			print(f"wrote hardware -> {args.hardware_out}")
+		return 0
+
 	if args.cmd == "policy-run":
 		allowed = tuple([t.strip() for t in args.allowed_tiers.split(",") if t.strip()])
 		# Optionally derive a data-driven size threshold from measured tier metrics
@@ -188,6 +218,27 @@ def main(argv=None):
 						print(f"[policy] derived hot/warm threshold from metrics: {bytes_switch/1024/1024:.2f} MiB")
 			except Exception as e:
 				print(f"warning: failed to load/derive metrics from {args.metrics_in}: {e}", file=sys.stderr)
+		elif args.hardware_in:
+			# Fallback: use OS hardware classification + default profiles
+			try:
+				hw = load_hardware_json(args.hardware_in)
+				hot = hw.get("hot")
+				warm = hw.get("warm")
+				if hot and warm:
+					ph = DEFAULT_PROFILES.get(hot.media_type, DEFAULT_PROFILES["unknown"])
+					pw = DEFAULT_PROFILES.get(warm.media_type, DEFAULT_PROFILES["unknown"])
+					Lh = ph.first_byte_latency_ms / 1000.0
+					Lw = pw.first_byte_latency_ms / 1000.0
+					Bh = ph.seq_read_MBps * 1024 * 1024
+					Bw = pw.seq_read_MBps * 1024 * 1024
+					denom = (1.0 / Bw) - (1.0 / Bh)
+					if denom > 0:
+						bytes_switch = int((Lw - Lh) / denom)
+						bytes_switch = max(64 * 1024, min(bytes_switch, 1024 * 1024 * 1024))
+						derived_threshold = bytes_switch
+						print(f"[policy] derived hot/warm threshold from hardware: {bytes_switch/1024/1024:.2f} MiB")
+			except Exception as e:
+				print(f"warning: failed to load/derive hardware from {args.hardware_in}: {e}", file=sys.stderr)
 		if args.policy == "llm":
 			th = args.llm_threshold if args.llm_threshold is not None else args.threshold
 			# Minimal provider that mimics an LLM decision based on threshold
