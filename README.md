@@ -95,6 +95,10 @@ Notes:
 	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions
 	- `--threshold` (and `--llm-threshold` for the LLM path)
+	- `--metrics-in` to use measured tier metrics (see tier profiling below)
+	- `--hardware-in` to use OS-reported device types with default profiles
+	- `--auto-discover` to scan devices and profile tiers automatically when no inputs are supplied
+	- `--cache-dir` and `--cache-ttl` to control where/when auto caches are refreshed
 	- Content-aware flags:
 		- `--hot-name PATTERN` (repeatable) → glob patterns that should be placed in hot (e.g., `*.hot.txt`)
 		- `--warm-name PATTERN` (repeatable) → glob patterns for warm (e.g., `*.zip`)
@@ -112,9 +116,59 @@ python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
   --threshold 1048576
 ```
 
+### Hardware discovery and tier profiling
+
+CogniStore can automatically discover the hardware type of each tier and profile its performance to inform placement decisions.
+
+Commands:
+
+```bash
+# Discover OS-reported hardware for each tier, write to JSON
+python -m cognistore.cli --drivers drivers.yaml devices-scan --hardware-out .cognistore/hardware.json
+
+# Profile tiers (first-byte latency, seq read/write MB/s, random IOPS, capacity)
+python -m cognistore.cli --drivers drivers.yaml tier-profile --metrics-out .cognistore/tier_metrics.json
+
+# Use metrics in policy-run (preferred when available)
+python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+	policy-run demo-bucket --policy content \
+	--metrics-in .cognistore/tier_metrics.json --dry-run
+
+# Fallback: use hardware classification (nvme/ssd/hdd) with default profiles
+python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+	policy-run demo-bucket --policy content \
+	--hardware-in .cognistore/hardware.json --dry-run
+```
+
+Auto modes:
+
+```bash
+# Auto-discover on demand (no daemon); caches to .cognistore/
+python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+	policy-run demo-bucket --policy content \
+	--auto-discover --cache-dir .cognistore --cache-ttl 3600 --dry-run
+
+# Background refresher to keep caches up to date (run once)
+python -m cognistore.cli --drivers drivers.yaml auto-refresh --cache-dir .cognistore
+
+# Background refresher every 15 minutes
+python -m cognistore.cli --drivers drivers.yaml auto-refresh --cache-dir .cognistore --interval 900
+```
+
+Details live in `docs/tier_profiling.md`.
+
 ## Contributing
 
 Interested in contributing? Please read `CONTRIBUTING.md` and see:
 - `docs/git_workflows.md` for branching, PR, and release guidance
 - `docs/bug_tracker.md` for the bug tracker format
 - `docs/roadmap.md` for upcoming milestones
+
+### Architecture and OS support
+
+Device discovery is modular by OS:
+- macOS via `diskutil`
+- Linux via `lsblk`
+- Windows via PowerShell `Get-PhysicalDisk` (WMIC fallback)
+
+The orchestrator in `cognistore/utils/device_info.py` dispatches to per-OS modules. To support a new OS, add a `device_info_<os>.py` with an `inspect_device_<os>()` function and hook it into the orchestrator.
