@@ -35,6 +35,11 @@ If no metrics are provided, existing defaults and CLI `--threshold` behave as be
 - Re-run profiling after hardware or mount changes, or on different devices (NVMe vs SSD vs HDD).
 - You can check metrics into source or store them alongside your drivers YAML for reproducibility.
 
+## Auto modes
+
+- On-demand: `policy-run` supports `--auto-discover` which will scan hardware and profile tiers if no `--metrics-in`/`--hardware-in` are provided. Caches are written under `--cache-dir` (default `.cognistore`) and respected until `--cache-ttl` expires.
+- Background: `auto-refresh` keeps `.cognistore/hardware.json` and `.cognistore/tier_metrics.json` up to date on a schedule. Point `policy-run` at these files (or use `--auto-discover`) to consume them.
+
 ## Safety
 
 - The profiler writes and deletes a temporary file under each tier base path. It keeps the file small (default ~64 MiB) and uses large I/O blocks to reduce wear.
