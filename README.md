@@ -111,3 +111,10 @@ python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
   --warm-name "*.zip" --warm-mime application/zip \
   --threshold 1048576
 ```
+
+## Contributing
+
+Interested in contributing? Please read `CONTRIBUTING.md` and see:
+- `docs/git_workflows.md` for branching, PR, and release guidance
+- `docs/bug_tracker.md` for the bug tracker format
+- `docs/roadmap.md` for upcoming milestones

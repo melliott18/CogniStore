@@ -107,6 +107,9 @@ class ContentAwarePolicy:
         self.warm_name_patterns = [p for p in (warm_name_patterns or []) if p]
         self.hot_mime_prefixes = [m for m in (hot_mime_prefixes or []) if m]
         self.warm_mime_prefixes = [m for m in (warm_mime_prefixes or []) if m]
+        # Optional cold-tier hints
+        self.cold_name_patterns: list[str] = []
+        self.cold_mime_prefixes: list[str] = []
 
     # Keep compatibility: provide size-based evaluate
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
@@ -132,6 +135,9 @@ class ContentAwarePolicy:
         if key and self.warm_name_patterns and any(fnmatch.fnmatch(key, pat) for pat in self.warm_name_patterns):
             if current_tier != "warm" and "warm" in self.allowed:
                 return PolicyDecision(action="move", dst_tier="warm", reason="name pattern -> warm")
+        if key and self.cold_name_patterns and any(fnmatch.fnmatch(key, pat) for pat in self.cold_name_patterns):
+            if current_tier != "cold" and "cold" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="cold", reason="name pattern -> cold")
 
         # 2) MIME prefixes
         if mime and self.hot_mime_prefixes and any(mime.startswith(pfx) for pfx in self.hot_mime_prefixes):
@@ -140,6 +146,9 @@ class ContentAwarePolicy:
         if mime and self.warm_mime_prefixes and any(mime.startswith(pfx) for pfx in self.warm_mime_prefixes):
             if current_tier != "warm" and "warm" in self.allowed:
                 return PolicyDecision(action="move", dst_tier="warm", reason=f"mime {mime} -> warm")
+        if mime and self.cold_mime_prefixes and any(mime.startswith(pfx) for pfx in self.cold_mime_prefixes):
+            if current_tier != "cold" and "cold" in self.allowed:
+                return PolicyDecision(action="move", dst_tier="cold", reason=f"mime {mime} -> cold")
 
         # 3) Fallback to size threshold
         return self.evaluate(current_tier, size)
