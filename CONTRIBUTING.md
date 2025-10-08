@@ -46,3 +46,75 @@ Use Conventional Commits, e.g.:
 - [ ] Targets `dev` (unless hotfix to `main`)
 
 Thanks for contributing!
+
+---
+
+## End-to-end contribution flow
+
+This is the full, repeatable sequence—from creating your branch to merging and cleaning up.
+
+1) Sync your local `dev`
+```bash
+git checkout dev
+git fetch origin
+git pull --ff-only
+```
+
+2) Create a feature branch from `dev`
+```bash
+git switch -c feature/<topic>
+```
+
+3) Develop with tests
+```bash
+# write code + tests
+pytest -vv -rA
+```
+Commit using Conventional Commits:
+```bash
+git add -p
+git commit -m "feat(policy): add content-aware rules"
+```
+
+4) Keep your branch up to date (rebase on latest `dev`)
+```bash
+git fetch origin
+git rebase origin/dev
+# resolve conflicts if any, run tests again
+pytest -vv -rA
+```
+
+5) Push and open a PR targeting `dev`
+```bash
+git push -u origin feature/<topic>
+# open PR on GitHub → base: dev, compare: feature/<topic>
+```
+In the PR description, include what/why, test coverage, and docs changes.
+
+6) Address review feedback
+```bash
+# make changes
+git commit -m "fix: address review feedback on policy runner"
+# or use fixup commits and autosquash before merge
+git commit --fixup <reviewed-commit-sha>
+git rebase -i --autosquash origin/dev
+```
+
+7) Finalize and merge
+- Ensure CI/tests are green.
+- Prefer "Squash and merge" (clean history) or "Rebase and merge" if preserving commits matters.
+- The squash commit message should follow Conventional Commits.
+
+8) Delete the feature branch (cleanup)
+```bash
+# after merge
+git checkout dev && git pull --ff-only
+git branch -d feature/<topic>
+git push origin --delete feature/<topic>
+```
+
+9) (Optional) Release
+- Follow `docs/git_workflows.md` release steps to promote `dev` → `main` and tag.
+
+Notes:
+- For urgent fixes to `main`, use the hotfix flow described in `docs/git_workflows.md` and back-merge to `dev` after.

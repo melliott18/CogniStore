@@ -63,6 +63,10 @@ def main(argv=None):
 	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
 	p_policy.add_argument("--hot-mime", action="append", help="MIME prefix(es) that should go to hot, e.g. text/ or image/")
 	p_policy.add_argument("--warm-mime", action="append", help="MIME prefix(es) that should go to warm, e.g. application/zip")
+	p_policy.add_argument("--cold-name", action="append", help="Glob pattern(s) for keys that should go to cold")
+	p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
+	# Planning only
+	p_policy.add_argument("--dry-run", action="store_true", help="Plan moves but do not modify storage or catalog")
 
 	args = parser.parse_args(argv)
 	catalog = SQLiteCatalog(args.catalog_db) if args.catalog_db else Catalog()
@@ -154,11 +158,16 @@ def main(argv=None):
 				hot_mime_prefixes=args.hot_mime or [],
 				warm_mime_prefixes=args.warm_mime or [],
 			)
+			# Attach cold rules dynamically if present
+			if hasattr(policy, "cold_name_patterns"):
+				policy.cold_name_patterns = [p for p in (args.cold_name or []) if p]
+			if hasattr(policy, "cold_mime_prefixes"):
+				policy.cold_mime_prefixes = [m for m in (args.cold_mime or []) if m]
 		else:
 			policy = SimplePolicy(size_threshold=args.threshold)
 		mv = Mover(drivers, catalog)
 		runner = PolicyRunner(catalog, drivers, mv, policy)
-		actions = runner.run_once(args.bucket, prefix=args.prefix)
+		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)
 		for a in actions:
 			print(f"moved {a.bucket}/{a.key} {a.from_tier}->{a.to_tier} : {a.reason}")
 		print(f"actions={len(actions)}")

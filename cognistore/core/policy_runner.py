@@ -33,7 +33,7 @@ class PolicyRunner:
         self.mover = mover
         self.policy = policy
 
-    def run_once(self, bucket: str, prefix: str = "") -> List[ActionResult]:
+    def run_once(self, bucket: str, prefix: str = "", dry_run: bool = False) -> List[ActionResult]:
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
         for rec in records:
@@ -48,7 +48,8 @@ class PolicyRunner:
             if rec.tier not in self.drivers or decision.dst_tier not in self.drivers:
                 continue
             from_tier = rec.tier
-            self.mover.move(from_tier, decision.dst_tier, rec.bucket, rec.key)
+            if not dry_run:
+                self.mover.move(from_tier, decision.dst_tier, rec.bucket, rec.key)
             results.append(
                 ActionResult(
                     bucket=rec.bucket,
