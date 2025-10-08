@@ -88,6 +88,10 @@ def discover_device_for_tier(tier: str, base_path: str | Path) -> DeviceInfo:
                 from .device_info_linux import inspect_device_linux
 
                 info = inspect_device_linux(base_dev)
+            elif sysname == "windows":
+                from .device_info_windows import inspect_device_windows
+
+                info = inspect_device_windows(base_dev)
             else:
                 info = {}
         except Exception:
