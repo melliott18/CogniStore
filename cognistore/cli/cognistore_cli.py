@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+import os
+import time
 
 from cognistore.core.catalog import Catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
@@ -62,6 +64,11 @@ def main(argv=None):
 	p_dev = sub.add_parser("devices-scan")
 	p_dev.add_argument("--hardware-out", help="Optional path to write JSON hardware info for all tiers")
 
+	# Auto-refresh caches: hardware + metrics, once or periodically
+	p_auto = sub.add_parser("auto-refresh")
+	p_auto.add_argument("--cache-dir", default=".cognistore", help="Directory to store cache files (hardware.json, tier_metrics.json)")
+	p_auto.add_argument("--interval", type=int, default=0, help="Seconds between refresh cycles; 0 to run once and exit")
+
 	p_policy = sub.add_parser("policy-run")
 	p_policy.add_argument("bucket")
 	p_policy.add_argument("--prefix", default="")
@@ -71,6 +78,9 @@ def main(argv=None):
 	p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
 	p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
 	p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
+	p_policy.add_argument("--auto-discover", action="store_true", help="If no metrics/hardware provided, auto-scan devices and profile tiers, using a cache with TTL")
+	p_policy.add_argument("--cache-dir", default=".cognistore", help="Directory to read/write auto-discover cache files")
+	p_policy.add_argument("--cache-ttl", type=int, default=3600, help="Seconds a cache file is considered fresh for auto-discover")
 	# Content-aware options
 	p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
 	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
@@ -194,10 +204,104 @@ def main(argv=None):
 			print(f"wrote hardware -> {args.hardware_out}")
 		return 0
 
+	if args.cmd == "auto-refresh":
+		if not drivers:
+			parser.error("--drivers is required for auto-refresh")
+			return 1
+		cache_dir = Path(args.cache_dir)
+		cache_dir.mkdir(parents=True, exist_ok=True)
+		hw_path = cache_dir / "hardware.json"
+		m_path = cache_dir / "tier_metrics.json"
+
+		def do_refresh():
+			# Hardware scan
+			info = {}
+			for tier, drv in drivers.items():
+				base_path = None
+				if isinstance(drv, PosixDriver):
+					base_path = drv.base
+				else:
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+				if not base_path:
+					print(f"skip {tier}: unsupported driver for auto-refresh", file=sys.stderr)
+					continue
+				di = discover_device_for_tier(tier, str(base_path))
+				info[tier] = di
+			save_hardware_json(info, str(hw_path))
+			print(f"refreshed hardware -> {hw_path}")
+			# Metrics profile
+			results = {}
+			for tier, drv in drivers.items():
+				base_path = None
+				if isinstance(drv, PosixDriver):
+					base_path = drv.base
+				else:
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+				if not base_path:
+					continue
+				m = profile_path(str(base_path))
+				results[tier] = m
+			save_metrics_json(results, str(m_path))
+			print(f"refreshed metrics -> {m_path}")
+
+		if args.interval and args.interval > 0:
+			try:
+				while True:
+					do_refresh()
+					time.sleep(args.interval)
+			except KeyboardInterrupt:
+				return 0
+		else:
+			do_refresh()
+			return 0
+
 	if args.cmd == "policy-run":
 		allowed = tuple([t.strip() for t in args.allowed_tiers.split(",") if t.strip()])
 		# Optionally derive a data-driven size threshold from measured tier metrics
 		derived_threshold = None
+		# Auto-discover cache files if requested and no explicit inputs provided
+		if args.auto_discover and not args.metrics_in and not args.hardware_in:
+			cache_dir = Path(args.cache_dir)
+			hw_path = cache_dir / "hardware.json"
+			m_path = cache_dir / "tier_metrics.json"
+			cache_dir.mkdir(parents=True, exist_ok=True)
+			# Refresh caches if stale/missing
+			now = time.time()
+			# helper to compute age
+			def _is_stale(p: Path) -> bool:
+				try:
+					st = p.stat()
+					return (now - st.st_mtime) > args.cache_ttl
+				except FileNotFoundError:
+					return True
+			# Only possible with drivers available here
+			# Hardware
+			if _is_stale(hw_path):
+				info = {}
+				for tier, drv in drivers.items():
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+					if not base_path:
+						continue
+					di = discover_device_for_tier(tier, str(base_path))
+					info[tier] = di
+				save_hardware_json(info, str(hw_path))
+				print(f"[auto] wrote {hw_path}")
+			# Metrics
+			if _is_stale(m_path):
+				results = {}
+				for tier, drv in drivers.items():
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+					if not base_path:
+						continue
+					m = profile_path(str(base_path))
+					results[tier] = m
+				save_metrics_json(results, str(m_path))
+				print(f"[auto] wrote {m_path}")
+			# Point inputs to caches for downstream logic
+			if m_path.exists():
+				args.metrics_in = str(m_path)
+			elif hw_path.exists():
+				args.hardware_in = str(hw_path)
 		if args.metrics_in:
 			try:
 				metrics = load_metrics_json(args.metrics_in)
