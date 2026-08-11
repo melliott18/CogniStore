@@ -2,7 +2,7 @@
 
 ## 1. Vision — CogniStore
 
-**CogniStore** is an AI-Powered Data Lifecycle Manager is a next-generation data lifecycle management platform that unifies diverse storage backends into a single, intelligent system. 
+**CogniStore** is an AI-Powered Data Lifecycle Manager, a next-generation data lifecycle management platform that unifies diverse storage backends into a single, intelligent system.
 At its core, the system presents a **universal object API**, so that users and applications can store, retrieve, and query data without needing to understand or manage the complexity of the underlying storage hardware.
 
 ### What the system is
