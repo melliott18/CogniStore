@@ -132,4 +132,6 @@ python -m cognistore.cli --drivers drivers.rpi.yaml --catalog-db "$CAT_DB" \
 
 ---
 
-You’re now set to experiment with a three-tier Pi setup. If you’d like, we can add cold-tier demotion rules and a dry-run preview to policies next.
+You’re now set to experiment with a three-tier Pi setup. Add `--dry-run` to a
+`move` or `policy-run` command to validate and preview actions without storage
+or catalog writes; add `--json` when the preview will be consumed by tooling.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Literal
 
 from .catalog import Catalog, ObjectRecord
 from .mover import Mover
@@ -16,6 +16,7 @@ class ActionResult:
     from_tier: str
     to_tier: str
     reason: str
+    status: Literal["planned", "completed"] = "completed"
 
 
 class PolicyRunner:
@@ -26,12 +27,20 @@ class PolicyRunner:
         catalog: Catalog,
         drivers: Dict[str, StorageDriver],
         mover: Mover,
-    policy: Policy,
+        policy: Policy,
+        allowed_tiers: Iterable[str] | None = None,
     ) -> None:
         self.catalog = catalog
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
+        self.allowed_tiers = frozenset(
+            drivers if allowed_tiers is None else allowed_tiers
+        )
+        unknown_tiers = self.allowed_tiers.difference(drivers)
+        if unknown_tiers:
+            names = ", ".join(sorted(unknown_tiers))
+            raise ValueError(f"Unknown allowed tier(s): {names}")
 
     def run_once(self, bucket: str, prefix: str = "", dry_run: bool = False) -> List[ActionResult]:
         results: List[ActionResult] = []
@@ -44,12 +53,16 @@ class PolicyRunner:
                 decision = self.policy.evaluate(rec.tier, rec.size)
             if decision.action != "move" or not decision.dst_tier or decision.dst_tier == rec.tier:
                 continue
-            # Ensure drivers exist
-            if rec.tier not in self.drivers or decision.dst_tier not in self.drivers:
+            if decision.dst_tier not in self.allowed_tiers:
                 continue
             from_tier = rec.tier
-            if not dry_run:
-                self.mover.move(from_tier, decision.dst_tier, rec.bucket, rec.key)
+            # Validate the entire batch before any move executes. A known
+            # collision or invalid path must reject the run without partially
+            # applying earlier decisions.
+            self.mover.plan(from_tier, decision.dst_tier, rec.bucket, rec.key)
+            status: Literal["planned", "completed"] = (
+                "planned" if dry_run else "completed"
+            )
             results.append(
                 ActionResult(
                     bucket=rec.bucket,
@@ -57,6 +70,16 @@ class PolicyRunner:
                     from_tier=from_tier,
                     to_tier=decision.dst_tier,
                     reason=decision.reason,
+                    status=status,
                 )
             )
+
+        if not dry_run:
+            for result in results:
+                self.mover.move(
+                    result.from_tier,
+                    result.to_tier,
+                    result.bucket,
+                    result.key,
+                )
         return results

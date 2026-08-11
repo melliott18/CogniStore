@@ -17,6 +17,7 @@ class StorageDriver(ABC):
 		key: str,
 		data: bytes,
 		range: Optional[str] = None,
+		overwrite: bool = True,
 		**opts: Any,
 	) -> None:
 		"""Write an object.
@@ -26,6 +27,8 @@ class StorageDriver(ABC):
 			key: Object key within the bucket.
 			data: Bytes to write.
 			range: Optional HTTP-style byte range header, e.g. "bytes=0-99" for partial writes.
+			overwrite: Whether an existing object may be replaced. Implementations must
+				raise ``FileExistsError`` when this is false and the object exists.
 			**opts: Backend-specific kwargs.
 		"""
 
@@ -53,3 +56,11 @@ class StorageDriver(ABC):
 		Implementations may add more keys.
 		"""
 
+	def same_backend(self, other: "StorageDriver") -> bool:
+		"""Return whether two drivers address the same physical backend.
+
+		The identity default is conservative for generic drivers. Backends with a
+		canonical endpoint or root should override this method.
+		"""
+
+		return self is other

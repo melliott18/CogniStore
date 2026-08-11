@@ -63,9 +63,22 @@ python -m cognistore.cli --drivers drivers.yaml ls-tier hot demo-bucket --prefix
 # Move between tiers
 python -m cognistore.cli --drivers drivers.yaml move hot warm demo-bucket path/key.txt
 
+# Validate the same move without storage or catalog writes
+python -m cognistore.cli --drivers drivers.yaml move hot warm demo-bucket path/key.txt --dry-run
+
+# Emit a machine-readable plan
+python -m cognistore.cli --drivers drivers.yaml move hot warm demo-bucket path/key.txt --dry-run --json
+
 # Verify in warm tier
 python -m cognistore.cli --drivers drivers.yaml ls-tier warm demo-bucket --prefix path/
 ```
+
+Moves fail closed: source and destination tiers must be known and distinct,
+different tier names may not resolve to the same backend, and an existing
+destination object is never overwritten. Remove or relocate a destination
+collision explicitly before retrying a move. POSIX bucket and key paths must
+be relative, unambiguous paths beneath the tier root; parent traversal and
+symbolic-link components are rejected.
 
 ### Catalog and policy runner via CLI
 
@@ -83,6 +96,10 @@ python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
 python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
 	policy-run demo-bucket --prefix path/ --threshold 1048576
 
+# Preview planned actions as JSON without storage or catalog writes
+python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+	policy-run demo-bucket --prefix path/ --threshold 1048576 --dry-run --json
+
 # Inspect tiers after moves
 python -m cognistore.cli --drivers drivers.yaml ls-tier hot demo-bucket --prefix path/
 python -m cognistore.cli --drivers drivers.yaml ls-tier warm demo-bucket --prefix path/
@@ -94,10 +111,12 @@ Notes:
 - `policy-run` supports:
 	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions
+	- `--dry-run` to validate and report planned moves without writes
+	- `--json` for one machine-readable result object
 	- `--threshold` (and `--llm-threshold` for the LLM path)
 	- `--metrics-in` to use measured tier metrics (see tier profiling below)
 	- `--hardware-in` to use OS-reported device types with default profiles
-	- `--auto-discover` to scan devices and profile tiers automatically when no inputs are supplied
+	- `--auto-discover` to scan devices and profile tiers automatically when no inputs are supplied; dry-runs consume only fresh existing caches and never refresh them
 	- `--cache-dir` and `--cache-ttl` to control where/when auto caches are refreshed
 	- Content-aware flags:
 		- `--hot-name PATTERN` (repeatable) → glob patterns that should be placed in hot (e.g., `*.hot.txt`)
