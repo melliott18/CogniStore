@@ -17,8 +17,17 @@ class SQLiteCatalog:
               PRIMARY KEY(bucket, key))
     """
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, *, read_only: bool = False) -> None:
         self.db_path = str(db_path)
+        self.read_only = read_only
+        if read_only:
+            if self.db_path == ":memory:":
+                raise ValueError("An in-memory SQLite catalog cannot be opened read-only")
+            uri = f"{Path(self.db_path).expanduser().resolve().as_uri()}?mode=ro"
+            self._conn = sqlite3.connect(uri, uri=True)
+            self._conn.execute("PRAGMA query_only = ON")
+            return
+
         self._conn = sqlite3.connect(self.db_path)
         self._conn.execute(
             """
