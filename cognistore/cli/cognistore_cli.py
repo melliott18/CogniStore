@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+import os
+import time
 
 from cognistore.core.catalog import Catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
@@ -12,6 +14,9 @@ from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.core.policy import SimplePolicy, LLMPolicy, ContentAwarePolicy
 from cognistore.core.policy_runner import PolicyRunner
 from cognistore.core.indexer import Indexer
+from cognistore.utils.tier_profiler import profile_path, save_metrics_json, load_metrics_json
+from cognistore.utils.device_info import discover_device_for_tier, save_hardware_json, load_hardware_json
+from cognistore.utils.drive_profiles import DEFAULT_PROFILES
 
 
 def main(argv=None):
@@ -51,6 +56,19 @@ def main(argv=None):
 	p_scan.add_argument("bucket")
 	p_scan.add_argument("--prefix", default="")
 
+	# Profile tiers to derive latency/throughput/capacity metrics
+	p_prof = sub.add_parser("tier-profile")
+	p_prof.add_argument("--metrics-out", help="Optional path to write JSON metrics for all tiers")
+
+	# Scan device hardware characteristics reported by the OS
+	p_dev = sub.add_parser("devices-scan")
+	p_dev.add_argument("--hardware-out", help="Optional path to write JSON hardware info for all tiers")
+
+	# Auto-refresh caches: hardware + metrics, once or periodically
+	p_auto = sub.add_parser("auto-refresh")
+	p_auto.add_argument("--cache-dir", default=".cognistore", help="Directory to store cache files (hardware.json, tier_metrics.json)")
+	p_auto.add_argument("--interval", type=int, default=0, help="Seconds between refresh cycles; 0 to run once and exit")
+
 	p_policy = sub.add_parser("policy-run")
 	p_policy.add_argument("bucket")
 	p_policy.add_argument("--prefix", default="")
@@ -58,6 +76,11 @@ def main(argv=None):
 	p_policy.add_argument("--policy", choices=["simple", "llm", "content"], default="simple")
 	p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
 	p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
+	p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
+	p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
+	p_policy.add_argument("--auto-discover", action="store_true", help="If no metrics/hardware provided, auto-scan devices and profile tiers, using a cache with TTL")
+	p_policy.add_argument("--cache-dir", default=".cognistore", help="Directory to read/write auto-discover cache files")
+	p_policy.add_argument("--cache-ttl", type=int, default=3600, help="Seconds a cache file is considered fresh for auto-discover")
 	# Content-aware options
 	p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
 	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
@@ -133,8 +156,193 @@ def main(argv=None):
 			print(f"indexed {tier}:{args.bucket}/{key} size={st.get('size')}")
 		return 0
 
+	if args.cmd == "tier-profile":
+		# Ensure drivers available
+		if not drivers:
+			parser.error("--drivers is required for tier-profile")
+			return 1
+		results = {}
+		for tier, drv in drivers.items():
+			# We only know PosixDriver has a base path; fall back to the driver's repr if unavailable
+			base_path = None
+			if isinstance(drv, PosixDriver):
+				base_path = drv.base
+			else:
+				# Try to resolve to path-like if provided via stat or attribute
+				base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+			if not base_path:
+				print(f"skip {tier}: unsupported driver for profiling", file=sys.stderr)
+				continue
+			m = profile_path(str(base_path))
+			results[tier] = m
+			print(f"{tier}: read={m.seq_read_MBps:.1f} MB/s write={m.seq_write_MBps:.1f} MB/s randIOPS={m.random_read_IOPS:.0f} fbyte={m.first_byte_latency_ms:.2f} ms free={m.free_bytes/1e9:.1f}G/{m.total_bytes/1e9:.1f}G")
+		if args.metrics_out:
+			save_metrics_json(results, args.metrics_out)
+			print(f"wrote metrics -> {args.metrics_out}")
+		return 0
+
+	if args.cmd == "devices-scan":
+		if not drivers:
+			parser.error("--drivers is required for devices-scan")
+			return 1
+		info = {}
+		for tier, drv in drivers.items():
+			base_path = None
+			if isinstance(drv, PosixDriver):
+				base_path = drv.base
+			else:
+				base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+			if not base_path:
+				print(f"skip {tier}: unsupported driver for devices-scan", file=sys.stderr)
+				continue
+			di = discover_device_for_tier(tier, str(base_path))
+			info[tier] = di
+			mt = di.media_type
+			print(f"{tier}: dev={di.device or '?'} base={di.base_device or '?'} type={mt} model={di.model or '?'} transport={di.transport or '?'}")
+		if args.hardware_out:
+			save_hardware_json(info, args.hardware_out)
+			print(f"wrote hardware -> {args.hardware_out}")
+		return 0
+
+	if args.cmd == "auto-refresh":
+		if not drivers:
+			parser.error("--drivers is required for auto-refresh")
+			return 1
+		cache_dir = Path(args.cache_dir)
+		cache_dir.mkdir(parents=True, exist_ok=True)
+		hw_path = cache_dir / "hardware.json"
+		m_path = cache_dir / "tier_metrics.json"
+
+		def do_refresh():
+			# Hardware scan
+			info = {}
+			for tier, drv in drivers.items():
+				base_path = None
+				if isinstance(drv, PosixDriver):
+					base_path = drv.base
+				else:
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+				if not base_path:
+					print(f"skip {tier}: unsupported driver for auto-refresh", file=sys.stderr)
+					continue
+				di = discover_device_for_tier(tier, str(base_path))
+				info[tier] = di
+			save_hardware_json(info, str(hw_path))
+			print(f"refreshed hardware -> {hw_path}")
+			# Metrics profile
+			results = {}
+			for tier, drv in drivers.items():
+				base_path = None
+				if isinstance(drv, PosixDriver):
+					base_path = drv.base
+				else:
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+				if not base_path:
+					continue
+				m = profile_path(str(base_path))
+				results[tier] = m
+			save_metrics_json(results, str(m_path))
+			print(f"refreshed metrics -> {m_path}")
+
+		if args.interval and args.interval > 0:
+			try:
+				while True:
+					do_refresh()
+					time.sleep(args.interval)
+			except KeyboardInterrupt:
+				return 0
+		else:
+			do_refresh()
+			return 0
+
 	if args.cmd == "policy-run":
 		allowed = tuple([t.strip() for t in args.allowed_tiers.split(",") if t.strip()])
+		# Optionally derive a data-driven size threshold from measured tier metrics
+		derived_threshold = None
+		# Auto-discover cache files if requested and no explicit inputs provided
+		if args.auto_discover and not args.metrics_in and not args.hardware_in:
+			cache_dir = Path(args.cache_dir)
+			hw_path = cache_dir / "hardware.json"
+			m_path = cache_dir / "tier_metrics.json"
+			cache_dir.mkdir(parents=True, exist_ok=True)
+			# Refresh caches if stale/missing
+			now = time.time()
+			# helper to compute age
+			def _is_stale(p: Path) -> bool:
+				try:
+					st = p.stat()
+					return (now - st.st_mtime) > args.cache_ttl
+				except FileNotFoundError:
+					return True
+			# Only possible with drivers available here
+			# Hardware
+			if _is_stale(hw_path):
+				info = {}
+				for tier, drv in drivers.items():
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+					if not base_path:
+						continue
+					di = discover_device_for_tier(tier, str(base_path))
+					info[tier] = di
+				save_hardware_json(info, str(hw_path))
+				print(f"[auto] wrote {hw_path}")
+			# Metrics
+			if _is_stale(m_path):
+				results = {}
+				for tier, drv in drivers.items():
+					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+					if not base_path:
+						continue
+					m = profile_path(str(base_path))
+					results[tier] = m
+				save_metrics_json(results, str(m_path))
+				print(f"[auto] wrote {m_path}")
+			# Point inputs to caches for downstream logic
+			if m_path.exists():
+				args.metrics_in = str(m_path)
+			elif hw_path.exists():
+				args.hardware_in = str(hw_path)
+		if args.metrics_in:
+			try:
+				metrics = load_metrics_json(args.metrics_in)
+				hot = metrics.get("hot")
+				warm = metrics.get("warm")
+				if hot and warm:
+					# Convert to seconds and bytes/sec
+					Lh = max(hot.first_byte_latency_ms, 0.01) / 1000.0
+					Lw = max(warm.first_byte_latency_ms, 0.01) / 1000.0
+					Bh = max(hot.seq_read_MBps, 0.1) * 1024 * 1024
+					Bw = max(warm.seq_read_MBps, 0.1) * 1024 * 1024
+					denom = (1.0 / Bw) - (1.0 / Bh)
+					if denom > 0:
+						bytes_switch = int((Lw - Lh) / denom)
+						# Clamp to a reasonable range [64KiB, 1GiB]
+						bytes_switch = max(64 * 1024, min(bytes_switch, 1024 * 1024 * 1024))
+						derived_threshold = bytes_switch
+						print(f"[policy] derived hot/warm threshold from metrics: {bytes_switch/1024/1024:.2f} MiB")
+			except Exception as e:
+				print(f"warning: failed to load/derive metrics from {args.metrics_in}: {e}", file=sys.stderr)
+		elif args.hardware_in:
+			# Fallback: use OS hardware classification + default profiles
+			try:
+				hw = load_hardware_json(args.hardware_in)
+				hot = hw.get("hot")
+				warm = hw.get("warm")
+				if hot and warm:
+					ph = DEFAULT_PROFILES.get(hot.media_type, DEFAULT_PROFILES["unknown"])
+					pw = DEFAULT_PROFILES.get(warm.media_type, DEFAULT_PROFILES["unknown"])
+					Lh = ph.first_byte_latency_ms / 1000.0
+					Lw = pw.first_byte_latency_ms / 1000.0
+					Bh = ph.seq_read_MBps * 1024 * 1024
+					Bw = pw.seq_read_MBps * 1024 * 1024
+					denom = (1.0 / Bw) - (1.0 / Bh)
+					if denom > 0:
+						bytes_switch = int((Lw - Lh) / denom)
+						bytes_switch = max(64 * 1024, min(bytes_switch, 1024 * 1024 * 1024))
+						derived_threshold = bytes_switch
+						print(f"[policy] derived hot/warm threshold from hardware: {bytes_switch/1024/1024:.2f} MiB")
+			except Exception as e:
+				print(f"warning: failed to load/derive hardware from {args.hardware_in}: {e}", file=sys.stderr)
 		if args.policy == "llm":
 			th = args.llm_threshold if args.llm_threshold is not None else args.threshold
 			# Minimal provider that mimics an LLM decision based on threshold
@@ -151,7 +359,7 @@ def main(argv=None):
 			policy = LLMPolicy(provider=_ThresholdProvider(), allowed_tiers=allowed)
 		elif args.policy == "content":
 			policy = ContentAwarePolicy(
-				size_threshold=args.threshold,
+				size_threshold=(derived_threshold or args.threshold),
 				allowed_tiers=allowed,
 				hot_name_patterns=args.hot_name or [],
 				warm_name_patterns=args.warm_name or [],
@@ -163,8 +371,9 @@ def main(argv=None):
 				policy.cold_name_patterns = [p for p in (args.cold_name or []) if p]
 			if hasattr(policy, "cold_mime_prefixes"):
 				policy.cold_mime_prefixes = [m for m in (args.cold_mime or []) if m]
+			# Placeholder: in future, use metrics-in to adjust thresholds/hints
 		else:
-			policy = SimplePolicy(size_threshold=args.threshold)
+			policy = SimplePolicy(size_threshold=(derived_threshold or args.threshold))
 		mv = Mover(drivers, catalog)
 		runner = PolicyRunner(catalog, drivers, mv, policy)
 		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)
