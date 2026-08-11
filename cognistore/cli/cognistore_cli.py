@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 import os
@@ -12,11 +13,45 @@ from cognistore.core.mover import Mover
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.core.policy import SimplePolicy, LLMPolicy, ContentAwarePolicy
-from cognistore.core.policy_runner import PolicyRunner
+from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.indexer import Indexer
 from cognistore.utils.tier_profiler import profile_path, save_metrics_json, load_metrics_json
 from cognistore.utils.device_info import discover_device_for_tier, save_hardware_json, load_hardware_json
 from cognistore.utils.drive_profiles import DEFAULT_PROFILES
+
+
+def _render_actions(actions: list[ActionResult], *, dry_run: bool, json_output: bool) -> None:
+	if json_output:
+		print(
+			json.dumps(
+				{
+					"dry_run": dry_run,
+					"count": len(actions),
+					"actions": [
+						{
+							"status": action.status,
+							"bucket": action.bucket,
+							"key": action.key,
+							"from_tier": action.from_tier,
+							"to_tier": action.to_tier,
+							"reason": action.reason,
+						}
+						for action in actions
+					],
+				},
+				sort_keys=True,
+			)
+		)
+		return
+
+	for action in actions:
+		verb = "planned" if action.status == "planned" else "moved"
+		print(
+			f"{verb} {action.bucket}/{action.key} "
+			f"{action.from_tier}->{action.to_tier} : {action.reason}"
+		)
+	summary = "planned_actions" if dry_run else "completed_actions"
+	print(f"{summary}={len(actions)}")
 
 
 def main(argv=None):
@@ -45,6 +80,8 @@ def main(argv=None):
 	p_move.add_argument("dst")
 	p_move.add_argument("bucket")
 	p_move.add_argument("key")
+	p_move.add_argument("--dry-run", action="store_true", help="Validate and plan the move without writing")
+	p_move.add_argument("--json", action="store_true", help="Emit machine-readable action output")
 
 	p_lst = sub.add_parser("ls-tier")
 	p_lst.add_argument("tier")
@@ -90,9 +127,10 @@ def main(argv=None):
 	p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
 	# Planning only
 	p_policy.add_argument("--dry-run", action="store_true", help="Plan moves but do not modify storage or catalog")
+	p_policy.add_argument("--json", action="store_true", help="Emit machine-readable action output")
 
 	args = parser.parse_args(argv)
-	catalog = SQLiteCatalog(args.catalog_db) if args.catalog_db else Catalog()
+	dry_run = bool(getattr(args, "dry_run", False))
 	driver = None
 	drivers = None
 	if args.drivers:
@@ -101,6 +139,35 @@ def main(argv=None):
 		if not args.base:
 			parser.error("either --drivers or --base is required")
 		driver = PosixDriver(args.base)
+
+	if args.cmd not in {"put", "get", "ls"} and not drivers:
+		parser.error("--drivers is required for tier operations")
+
+	policy_allowed = None
+	if args.cmd == "policy-run":
+		policy_allowed = tuple(
+			dict.fromkeys(t.strip() for t in args.allowed_tiers.split(",") if t.strip())
+		)
+		if not policy_allowed:
+			parser.error("--allowed-tiers must contain at least one tier")
+		unknown_allowed = sorted(set(policy_allowed).difference(drivers))
+		if unknown_allowed:
+			parser.error(f"unknown allowed tier(s): {', '.join(unknown_allowed)}")
+	elif args.cmd == "move":
+		# Validate the full storage plan before a writable catalog is opened.
+		try:
+			Mover(drivers, Catalog()).plan(args.src, args.dst, args.bucket, args.key)
+		except (ValueError, FileExistsError, FileNotFoundError) as exc:
+			parser.error(str(exc))
+
+	if args.catalog_db and args.cmd == "policy-run" and dry_run:
+		if not Path(args.catalog_db).expanduser().exists():
+			parser.error("--catalog-db must already exist for policy-run --dry-run")
+		catalog = SQLiteCatalog(args.catalog_db, read_only=True)
+	elif args.catalog_db and not (args.cmd == "move" and dry_run):
+		catalog = SQLiteCatalog(args.catalog_db)
+	else:
+		catalog = Catalog()
 
 	if args.cmd == "put":
 		data = Path(args.file).read_bytes()
@@ -116,14 +183,24 @@ def main(argv=None):
 			print(k)
 		return 0
 
-	# Multi-tier ops require drivers
-	if not drivers:
-		parser.error("--drivers is required for tier operations")
-
 	# move between tiers
 	if args.cmd == "move":
 		mv = Mover(drivers, catalog)
-		mv.move(args.src, args.dst, args.bucket, args.key)
+		if args.dry_run:
+			mv.plan(args.src, args.dst, args.bucket, args.key)
+			status = "planned"
+		else:
+			mv.move(args.src, args.dst, args.bucket, args.key)
+			status = "completed"
+		action = ActionResult(
+			bucket=args.bucket,
+			key=args.key,
+			from_tier=args.src,
+			to_tier=args.dst,
+			reason="manual move",
+			status=status,
+		)
+		_render_actions([action], dry_run=args.dry_run, json_output=args.json)
 		return 0
 
 	if args.cmd == "ls-tier":
@@ -256,7 +333,12 @@ def main(argv=None):
 			return 0
 
 	if args.cmd == "policy-run":
-		allowed = tuple([t.strip() for t in args.allowed_tiers.split(",") if t.strip()])
+		assert policy_allowed is not None
+		allowed = policy_allowed
+
+		def _policy_info(message: str) -> None:
+			print(message, file=sys.stderr if args.json else sys.stdout)
+
 		# Optionally derive a data-driven size threshold from measured tier metrics
 		derived_threshold = None
 		# Auto-discover cache files if requested and no explicit inputs provided
@@ -264,7 +346,6 @@ def main(argv=None):
 			cache_dir = Path(args.cache_dir)
 			hw_path = cache_dir / "hardware.json"
 			m_path = cache_dir / "tier_metrics.json"
-			cache_dir.mkdir(parents=True, exist_ok=True)
 			# Refresh caches if stale/missing
 			now = time.time()
 			# helper to compute age
@@ -274,34 +355,47 @@ def main(argv=None):
 					return (now - st.st_mtime) > args.cache_ttl
 				except FileNotFoundError:
 					return True
-			# Only possible with drivers available here
-			# Hardware
-			if _is_stale(hw_path):
-				info = {}
-				for tier, drv in drivers.items():
-					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
-					if not base_path:
-						continue
-					di = discover_device_for_tier(tier, str(base_path))
-					info[tier] = di
-				save_hardware_json(info, str(hw_path))
-				print(f"[auto] wrote {hw_path}")
-			# Metrics
-			if _is_stale(m_path):
-				results = {}
-				for tier, drv in drivers.items():
-					base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
-					if not base_path:
-						continue
-					m = profile_path(str(base_path))
-					results[tier] = m
-				save_metrics_json(results, str(m_path))
-				print(f"[auto] wrote {m_path}")
-			# Point inputs to caches for downstream logic
-			if m_path.exists():
-				args.metrics_in = str(m_path)
-			elif hw_path.exists():
-				args.hardware_in = str(hw_path)
+			if args.dry_run:
+				# A preview may consume a fresh cache, but it must never refresh
+				# one: profiling performs writes inside configured tier roots.
+				if not _is_stale(m_path):
+					args.metrics_in = str(m_path)
+				elif not _is_stale(hw_path):
+					args.hardware_in = str(hw_path)
+				else:
+					print(
+						"warning: dry-run skipped auto-discovery refresh; using the configured threshold",
+						file=sys.stderr,
+					)
+			else:
+				cache_dir.mkdir(parents=True, exist_ok=True)
+				# Hardware
+				if _is_stale(hw_path):
+					info = {}
+					for tier, drv in drivers.items():
+						base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+						if not base_path:
+							continue
+						di = discover_device_for_tier(tier, str(base_path))
+						info[tier] = di
+					save_hardware_json(info, str(hw_path))
+					_policy_info(f"[auto] wrote {hw_path}")
+				# Metrics
+				if _is_stale(m_path):
+					results = {}
+					for tier, drv in drivers.items():
+						base_path = getattr(drv, "base", None) or getattr(drv, "base_path", None)
+						if not base_path:
+							continue
+						m = profile_path(str(base_path))
+						results[tier] = m
+					save_metrics_json(results, str(m_path))
+					_policy_info(f"[auto] wrote {m_path}")
+				# Point inputs to caches for downstream logic
+				if m_path.exists():
+					args.metrics_in = str(m_path)
+				elif hw_path.exists():
+					args.hardware_in = str(hw_path)
 		if args.metrics_in:
 			try:
 				metrics = load_metrics_json(args.metrics_in)
@@ -319,7 +413,7 @@ def main(argv=None):
 						# Clamp to a reasonable range [64KiB, 1GiB]
 						bytes_switch = max(64 * 1024, min(bytes_switch, 1024 * 1024 * 1024))
 						derived_threshold = bytes_switch
-						print(f"[policy] derived hot/warm threshold from metrics: {bytes_switch/1024/1024:.2f} MiB")
+						_policy_info(f"[policy] derived hot/warm threshold from metrics: {bytes_switch/1024/1024:.2f} MiB")
 			except Exception as e:
 				print(f"warning: failed to load/derive metrics from {args.metrics_in}: {e}", file=sys.stderr)
 		elif args.hardware_in:
@@ -340,7 +434,7 @@ def main(argv=None):
 						bytes_switch = int((Lw - Lh) / denom)
 						bytes_switch = max(64 * 1024, min(bytes_switch, 1024 * 1024 * 1024))
 						derived_threshold = bytes_switch
-						print(f"[policy] derived hot/warm threshold from hardware: {bytes_switch/1024/1024:.2f} MiB")
+						_policy_info(f"[policy] derived hot/warm threshold from hardware: {bytes_switch/1024/1024:.2f} MiB")
 			except Exception as e:
 				print(f"warning: failed to load/derive hardware from {args.hardware_in}: {e}", file=sys.stderr)
 		if args.policy == "llm":
@@ -373,17 +467,17 @@ def main(argv=None):
 				policy.cold_mime_prefixes = [m for m in (args.cold_mime or []) if m]
 			# Placeholder: in future, use metrics-in to adjust thresholds/hints
 		else:
-			policy = SimplePolicy(size_threshold=(derived_threshold or args.threshold))
+			policy = SimplePolicy(
+				size_threshold=(derived_threshold or args.threshold),
+				allowed_tiers=allowed,
+			)
 		mv = Mover(drivers, catalog)
-		runner = PolicyRunner(catalog, drivers, mv, policy)
+		runner = PolicyRunner(catalog, drivers, mv, policy, allowed_tiers=allowed)
 		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)
-		for a in actions:
-			print(f"moved {a.bucket}/{a.key} {a.from_tier}->{a.to_tier} : {a.reason}")
-		print(f"actions={len(actions)}")
+		_render_actions(actions, dry_run=args.dry_run, json_output=args.json)
 		return 0
 	return 1
 
 
 if __name__ == "__main__":
 	raise SystemExit(main())
-

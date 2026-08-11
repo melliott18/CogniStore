@@ -1,4 +1,7 @@
+import sqlite3
 from pathlib import Path
+
+import pytest
 
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 
@@ -31,3 +34,24 @@ def test_sqlite_catalog_crud(tmp_path: Path):
     assert cat.get(bucket, key) is None
 
     cat.close()
+
+
+def test_read_only_catalog_sees_committed_wal_records_and_rejects_writes(
+    tmp_path: Path,
+):
+    db = tmp_path / "catalog.db"
+    writer = SQLiteCatalog(db)
+    writer._conn.execute("PRAGMA journal_mode = WAL")
+    writer.upsert("bucket", "key", size=4, tier="hot")
+
+    reader = SQLiteCatalog(db, read_only=True)
+    record = reader.get("bucket", "key")
+
+    assert record is not None
+    assert record.tier == "hot"
+    with pytest.raises(sqlite3.OperationalError, match="readonly"):
+        reader.update_placement("bucket", "key", "warm")
+    assert writer.get("bucket", "key").tier == "hot"  # type: ignore[union-attr]
+
+    reader.close()
+    writer.close()

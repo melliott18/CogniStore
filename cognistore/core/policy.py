@@ -29,13 +29,26 @@ class SimplePolicy:
     In the future this will be replaced or augmented by LLM-based reasoning.
     """
 
-    def __init__(self, size_threshold: int = 1024 * 1024):
+    def __init__(
+        self,
+        size_threshold: int = 1024 * 1024,
+        allowed_tiers: Sequence[str] = ("hot", "warm"),
+    ):
         self.size_threshold = size_threshold
+        self.allowed_tiers = frozenset(allowed_tiers)
 
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
-        if size <= self.size_threshold and current_tier != "hot":
+        if (
+            size <= self.size_threshold
+            and current_tier != "hot"
+            and "hot" in self.allowed_tiers
+        ):
             return PolicyDecision(action="move", dst_tier="hot", reason="small object -> hot tier")
-        if size > self.size_threshold and current_tier != "warm":
+        if (
+            size > self.size_threshold
+            and current_tier != "warm"
+            and "warm" in self.allowed_tiers
+        ):
             return PolicyDecision(action="move", dst_tier="warm", reason="large object -> warm tier")
         return PolicyDecision(action="stay", dst_tier=None, reason="meets tier policy")
 
@@ -102,6 +115,8 @@ class ContentAwarePolicy:
         warm_mime_prefixes: Iterable[str] | None = None,
     ) -> None:
         self.size_threshold = size_threshold
+        # ``allowed`` predates the public ``allowed_tiers`` spelling and is
+        # intentionally mutable for callers that add runtime content rules.
         self.allowed = set(allowed_tiers)
         self.hot_name_patterns = [p for p in (hot_name_patterns or []) if p]
         self.warm_name_patterns = [p for p in (warm_name_patterns or []) if p]
@@ -110,6 +125,14 @@ class ContentAwarePolicy:
         # Optional cold-tier hints
         self.cold_name_patterns: list[str] = []
         self.cold_mime_prefixes: list[str] = []
+
+    @property
+    def allowed_tiers(self) -> set[str]:
+        return self.allowed
+
+    @allowed_tiers.setter
+    def allowed_tiers(self, tiers: Sequence[str]) -> None:
+        self.allowed = set(tiers)
 
     # Keep compatibility: provide size-based evaluate
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
