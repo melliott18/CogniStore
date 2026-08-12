@@ -51,6 +51,70 @@ hot = drivers["hot"]
 hot.put_object("bucket", "key.txt", b"hello")
 ```
 
+### S3-compatible tiers
+
+The `s3` driver works with AWS S3 and S3-compatible services such as MinIO.
+Keep credentials out of `drivers.yaml`: prefer the standard boto3 credential
+chain or an AWS profile, or use `access_key_env`, `secret_key_env`, and
+`session_token_env` to name environment variables that hold the values.
+Literal `access_key`, `secret_key`, and `session_token` fields are supported
+for controlled use but must not be committed.
+
+MinIO example:
+
+```yaml
+tiers:
+  object:
+    driver: s3
+    endpoint_url: http://127.0.0.1:9000
+    region_name: us-east-1
+    access_key_env: COGNISTORE_MINIO_ACCESS_KEY
+    secret_key_env: COGNISTORE_MINIO_SECRET_KEY
+    addressing_style: path
+    auto_create_bucket: true
+    list_page_size: 1000
+```
+
+For AWS, omit `endpoint`/`endpoint_url` and normally omit credential fields so
+boto3 can use a workload identity or its standard credential chain. Local
+development can instead select `profile`/`profile_name`. Both
+`region`/`region_name` spellings are accepted:
+
+```yaml
+tiers:
+  object:
+    driver: s3
+    region: us-west-2
+    profile: cognistore-dev
+    addressing_style: auto
+    auto_create_bucket: false
+```
+
+The driver supports complete and atomic no-overwrite puts, ranged reads such as
+`bytes=0-99`, idempotent deletes, metadata stat, and transparent
+`ListObjectsV2` pagination. Ranged writes are rejected. Missing objects raise
+`FileNotFoundError` on get and stat, while deleting a missing object succeeds.
+`list_page_size` controls the API page size rather than limiting total results.
+Bucket auto-creation is off by default; when enabled, a missing bucket is
+created for a write, not for read-only operations. Keep it off for
+pre-provisioned production buckets.
+
+MinIO integration tests are opt-in. With a separately managed test instance
+running, set its API endpoint and disposable credentials, then run the marked
+test module:
+
+```bash
+export COGNISTORE_MINIO_ENDPOINT_URL=http://127.0.0.1:9000
+export COGNISTORE_MINIO_ACCESS_KEY='<MinIO access key>'
+export COGNISTORE_MINIO_SECRET_KEY='<MinIO secret key>'
+pytest -q -m integration tests/integration/test_s3_minio.py
+```
+
+See [`docs/s3_driver.md`](docs/s3_driver.md) for every configuration option,
+credential guidance, AWS/MinIO examples, and the opt-in MinIO integration-test
+command. The repository-managed Docker Compose environment is intentionally
+tracked separately by [ticket #28](https://github.com/melliott18/CogniStore/issues/28).
+
 ### CLI with tiers
 
 ```bash

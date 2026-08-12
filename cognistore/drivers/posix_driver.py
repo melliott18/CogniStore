@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional
 
-from .storage_driver import StorageDriver
+from .storage_driver import DriverCapabilities, StorageDriver
 
 
 class PosixDriver(StorageDriver):
@@ -12,6 +12,12 @@ class PosixDriver(StorageDriver):
 
     Treats files as objects under a base directory, grouping by bucket.
     """
+
+    capabilities = DriverCapabilities(
+        range_reads=True,
+        range_writes=True,
+        atomic_no_overwrite=True,
+    )
 
     def __init__(self, base_path: str):
         # Resolve the configured root once so every containment comparison uses

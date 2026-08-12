@@ -5,3 +5,16 @@ tiers:
   warm:
     driver: posix
     path: /tmp/cognistore/warm
+
+  # Example S3-compatible tier. It remains commented out so the default
+  # POSIX-only configuration works without credentials or a running service.
+  # See docs/s3_driver.md for AWS S3 and MinIO variants.
+  # object:
+  #   driver: s3
+  #   endpoint_url: http://127.0.0.1:9000
+  #   region_name: us-east-1
+  #   access_key_env: COGNISTORE_MINIO_ACCESS_KEY
+  #   secret_key_env: COGNISTORE_MINIO_SECRET_KEY
+  #   addressing_style: path
+  #   auto_create_bucket: true
+  #   list_page_size: 1000
