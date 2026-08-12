@@ -1,7 +1,22 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Dict, Generator, Optional
+
+
+@dataclass(frozen=True)
+class DriverCapabilities:
+	"""Optional storage operations supported by a driver.
+
+	Capabilities let callers and the shared conformance suite distinguish a
+	backend limitation from an implementation error.  Operations in the base
+	contract remain required unless explicitly represented here.
+	"""
+
+	range_reads: bool = False
+	range_writes: bool = False
+	atomic_no_overwrite: bool = False
 
 
 class StorageDriver(ABC):
@@ -9,6 +24,8 @@ class StorageDriver(ABC):
 
 	Implementations should provide an object-style API across different backends.
 	"""
+
+	capabilities = DriverCapabilities()
 
 	@abstractmethod
 	def put_object(
