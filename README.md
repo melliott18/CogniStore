@@ -3,19 +3,41 @@ AI-Powered Data Lifecycle Manager
 
 ## Quickstart
 
-- Create a virtual environment and install deps
+CogniStore supports CPython 3.10 through 3.14. CI exercises every supported
+minor version.
+
+- Create a virtual environment and install the package with its development
+  tools:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
-- Run tests
+- Run the same quality gates used by pull requests:
 
 ```bash
-pytest -q
+python -m ruff check .
+python -m mypy cognistore
+python -m pytest tests/unit tests/conformance
+python -m pytest tests/integration
+python -m pytest --cov=cognistore --cov-report=term-missing --cov-report=xml
+python -m bandit -c pyproject.toml -r cognistore -ll -ii
+python -m pip_audit .
+python -m build
+python -m twine check dist/*
 ```
+
+The coverage command enforces the repository's 80% minimum. Integration tests
+that require NATS or MinIO skip unless their documented environment variables
+point to isolated test services; the filesystem/catalog integration suite runs
+without external services. Install Gitleaks separately and run
+`gitleaks git --redact .` to perform the same secret scan used in CI.
+
+For a runtime-only install, use `python -m pip install .`. The generated
+`cognistore` command and `python -m cognistore.cli` invoke the same CLI.
 
 - Try the POSIX driver via CLI
 
@@ -107,7 +129,7 @@ test module:
 export COGNISTORE_MINIO_ENDPOINT_URL=http://127.0.0.1:9000
 export COGNISTORE_MINIO_ACCESS_KEY='<MinIO access key>'
 export COGNISTORE_MINIO_SECRET_KEY='<MinIO secret key>'
-pytest -q -m integration tests/integration/test_s3_minio.py
+python -m pytest -q -m integration tests/integration/test_s3_minio.py
 ```
 
 See [`docs/s3_driver.md`](docs/s3_driver.md) for every configuration option,

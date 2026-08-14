@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import nats
-from nats.errors import NoRespondersError, TimeoutError as NatsTimeoutError
+from nats.errors import NoRespondersError
+from nats.errors import TimeoutError as NatsTimeoutError
 from nats.js.api import (
+    DEFAULT_PREFIX,
     AckPolicy,
     ConsumerConfig,
-    DEFAULT_PREFIX,
     DeliverPolicy,
     Header,
     ReplayPolicy,
@@ -21,7 +22,6 @@ from nats.js.api import (
 from nats.js.errors import APIError, NotFoundError, ServiceUnavailableError
 
 from .models import BusState, EnqueueReceipt, JobEnvelope, QueueHealth
-
 
 CORRELATION_HEADER = "CogniStore-Correlation-Id"
 JOB_TYPE_HEADER = "CogniStore-Job-Type"

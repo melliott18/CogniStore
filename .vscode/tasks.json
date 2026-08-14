@@ -4,7 +4,7 @@
     {
       "label": "Run unit tests",
       "type": "shell",
-      "command": "pytest -vv -rA",
+      "command": "python -m pytest",
       "problemMatcher": ["$python"],
       "options": {
         "env": {

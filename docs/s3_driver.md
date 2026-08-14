@@ -132,7 +132,7 @@ export COGNISTORE_MINIO_REGION=us-east-1
 # Optional when the test identity uses temporary credentials:
 # export COGNISTORE_MINIO_SESSION_TOKEN='<MinIO session token>'
 
-pytest -q -m integration tests/integration/test_s3_minio.py
+python -m pytest -q -m integration tests/integration/test_s3_minio.py
 ```
 
 Use a dedicated MinIO instance or credentials restricted to disposable test

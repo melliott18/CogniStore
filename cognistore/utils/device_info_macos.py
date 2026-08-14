@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import re
 import subprocess
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def _run(cmd: list[str]) -> str:
@@ -29,6 +28,7 @@ def inspect_device_macos(base_dev: str) -> Dict[str, Any]:
     ssd = None if solid_state_field is None else (solid_state_field.lower().startswith("y"))
     rotational = None if medium == "" else ("rotational" in medium)
 
+    transport: str | None
     if "nvme" in proto or "pci" in proto:
         media_type = "nvme"
         transport = "nvme"

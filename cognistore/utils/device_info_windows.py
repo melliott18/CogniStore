@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from typing import Any, Dict
 
@@ -20,7 +19,7 @@ def _powershell_json(ps_command: str) -> Any:
 
 
 def inspect_device_windows(base_dev: str) -> Dict[str, Any]:
-    """Return a dict with model, transport, rotational/solid_state, size_bytes, media_type for Windows.
+    r"""Return a dict with model, transport, rotational/solid_state, size_bytes, media_type for Windows.
 
     Note: `base_dev` may be like \\?\Volume{GUID} or a DOS device path; mapping to PhysicalDisk
     is best-effort here. We fallback to transport/media type heuristics.

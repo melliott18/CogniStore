@@ -6,10 +6,10 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
-from .catalog import ObjectRecord
+from .catalog import Catalog, ObjectRecord
 
 
-class SQLiteCatalog:
+class SQLiteCatalog(Catalog):
     """SQLite-backed catalog storing objects and their current placement.
 
     Schema:

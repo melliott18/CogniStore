@@ -18,7 +18,6 @@ from .models import (
 )
 from .protocols import JobDelivery, JobQueue
 
-
 LOGGER = logging.getLogger(__name__)
 JobHandler = Callable[[JobEnvelope, JobContext], Awaitable[None]]
 

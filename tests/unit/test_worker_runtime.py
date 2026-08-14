@@ -5,8 +5,8 @@ import threading
 from dataclasses import dataclass
 from typing import Callable
 
-from cognistore.jobs.models import BusState, JobEnvelope, JobEnvelopeError, QueueHealth
 from cognistore.jobs.handlers import _run_blocking_safely
+from cognistore.jobs.models import BusState, JobEnvelope, JobEnvelopeError, QueueHealth
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
-import time
 import json
+import os
 import random
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 @dataclass

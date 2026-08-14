@@ -7,9 +7,7 @@ from io import BytesIO
 from typing import Any
 
 import pytest
-
-pytest.importorskip("boto3")
-ClientError = pytest.importorskip("botocore.exceptions").ClientError
+from botocore.exceptions import ClientError
 
 from cognistore.drivers.s3_driver import S3Driver
 

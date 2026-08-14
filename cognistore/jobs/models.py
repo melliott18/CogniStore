@@ -7,7 +7,6 @@ from enum import Enum
 from typing import Any, Mapping, TypeAlias
 from uuid import UUID, uuid4
 
-
 JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 

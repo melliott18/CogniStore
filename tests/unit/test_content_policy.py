@@ -1,7 +1,7 @@
 import pytest
 
-from cognistore.core.policy import ContentAwarePolicy
 from cognistore.core.catalog import ObjectRecord
+from cognistore.core.policy import ContentAwarePolicy
 
 
 def make_rec(key: str, tier: str, size: int, mime: str | None = None):

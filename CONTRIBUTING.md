@@ -4,20 +4,36 @@ Welcome! This guide helps you get set up and contribute effectively.
 
 ## Quick start
 
-1) Clone and create a virtualenv
+CogniStore supports CPython 3.10 through 3.14.
+
+1) Clone, create a virtualenv, and install the editable package with all
+development tools:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
-2) Run tests to verify your env
+
+2) Run the local quality suite:
+
 ```bash
-pytest -vv -rA
+python -m ruff check .
+python -m mypy cognistore
+python -m pytest --cov=cognistore --cov-report=term-missing --cov-report=xml
+python -m bandit -c pyproject.toml -r cognistore -ll -ii
+python -m pip_audit .
+python -m build
+python -m twine check dist/*
 ```
+
 3) Start a branch
+
 ```bash
 git switch -c feature/<topic>
 ```
+
 4) Make changes + tests, then open a PR to `dev`.
 
 ## Workflows and guidelines
@@ -34,7 +50,13 @@ Use Conventional Commits, e.g.:
 
 ## Testing
 
-- Use `pytest -vv -rA` (configured via `pytest.ini`)
+- Use `python -m pytest` (configured in `pyproject.toml`).
+- Run unit and conformance tests with
+  `python -m pytest tests/unit tests/conformance`.
+- Run integration tests with `python -m pytest tests/integration`. NATS and
+  MinIO cases require the isolated services and environment variables described
+  in their respective documentation; local filesystem integration tests do not.
+- Coverage is measured against `cognistore` and must remain at or above 80%.
 - In VS Code, prefer the task “Run unit tests” (sets PYTHONPATH and verbosity)
 
 ## PR checklist
@@ -68,7 +90,9 @@ git switch -c feature/<topic>
 3) Develop with tests
 ```bash
 # write code + tests
-pytest -vv -rA
+python -m ruff check .
+python -m mypy cognistore
+python -m pytest --cov=cognistore --cov-report=term-missing
 ```
 Commit using Conventional Commits:
 ```bash
@@ -81,7 +105,7 @@ git commit -m "feat(policy): add content-aware rules"
 git fetch origin
 git rebase origin/dev
 # resolve conflicts if any, run tests again
-pytest -vv -rA
+python -m pytest --cov=cognistore --cov-report=term-missing
 ```
 
 5) Push and open a PR targeting `dev`

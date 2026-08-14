@@ -61,7 +61,9 @@ git rebase -i --autosquash origin/dev
   - Tests for new behavior and edge cases
   - Docs updated (README or docs/*)
 - Make CI green:
-  - Run tests locally before pushing: `pytest -vv -rA`
+  - Run the local gates documented in `CONTRIBUTING.md` before pushing.
+  - At minimum, run `python -m ruff check .`, `python -m mypy cognistore`,
+    and `python -m pytest --cov=cognistore --cov-report=term-missing`.
   - In VS Code, use the task “Run unit tests” (sets PYTHONPATH and verbosity)
 - Prefer rebase to keep history linear; avoid merge commits in feature branches
 - After approval, squash-merge or rebase-merge to keep history clean
@@ -109,7 +111,7 @@ git push --force-with-lease
 
 ## Testing and documentation
 
-- Tests: `pytest -vv -rA` (configured in `pytest.ini`)
+- Tests: `python -m pytest` (configured in `pyproject.toml`)
 - VS Code task: “Run unit tests” runs pytest with verbosity and sets `PYTHONPATH`
 - Docs: update `README.md` and `docs/*` for user-facing changes
 
@@ -145,7 +147,7 @@ git rebase origin/dev
 git switch -c feature/<topic>
 
 # Run tests
-pytest -vv -rA
+python -m pytest --cov=cognistore --cov-report=term-missing
 
 # Rebase on latest dev
 git fetch origin

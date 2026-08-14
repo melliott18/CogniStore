@@ -2,10 +2,10 @@
 
 from .models import (
     EnqueueReceipt,
+    InvalidJobError,
     JobContext,
     JobEnvelope,
     JobEnvelopeError,
-    InvalidJobError,
     QueueHealth,
 )
 from .nats_queue import NatsJetStreamConfig, NatsJetStreamQueue

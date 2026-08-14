@@ -11,7 +11,6 @@ from cognistore.jobs.models import JobEnvelope
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig
 
-
 NATS_URL = os.environ.get("COGNISTORE_NATS_URL")
 pytestmark = [
     pytest.mark.integration,
