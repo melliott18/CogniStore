@@ -95,11 +95,11 @@ CAT_DB=/mnt/hot/cognistore/catalog.db
 
 # Scan tiers (start with hot)
 python -m cognistore.cli --drivers drivers.rpi.yaml --catalog-db "$CAT_DB" \
-  catalog-scan hot demo-bucket --prefix demo/
+  catalog-scan hot demo-bucket --prefix demo/ --sync
 
 # Run simple size-based policy across the bucket (e.g., <=1MiB hot, >1MiB warm)
 python -m cognistore.cli --drivers drivers.rpi.yaml --catalog-db "$CAT_DB" \
-  policy-run demo-bucket --threshold 1048576 --allowed-tiers hot,warm
+  policy-run demo-bucket --threshold 1048576 --allowed-tiers hot,warm --sync
 ```
 
 ## 9) Adding the cold tier to policies
@@ -109,7 +109,7 @@ You can extend policies to demote large/rare objects to `cold`:
 - Example content-aware demotion pattern:
 ```bash
 python -m cognistore.cli --drivers drivers.rpi.yaml --catalog-db "$CAT_DB" \
-  policy-run demo-bucket --policy content --allowed-tiers hot,warm,cold \
+  policy-run demo-bucket --policy content --allowed-tiers hot,warm,cold --sync \
   --warm-name "*.zip" --warm-mime application/zip \
   --threshold 1048576
 # For very large archives, you could run an additional pass that maps patterns to cold (future enhancement).
