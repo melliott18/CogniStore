@@ -10,8 +10,13 @@ import os
 import uuid
 from collections.abc import Iterator
 
+import boto3
 import pytest
+from botocore.client import Config
+from botocore.exceptions import ClientError
 
+from cognistore.drivers.s3_driver import S3Driver
+from tests.conformance.storage_driver import StorageDriverConformance
 
 _REQUIRED_ENV = (
     "COGNISTORE_MINIO_ENDPOINT_URL",
@@ -24,14 +29,6 @@ if _missing_env:
         "MinIO conformance requires " + ", ".join(_missing_env),
         allow_module_level=True,
     )
-
-boto3 = pytest.importorskip("boto3")
-from botocore.client import Config
-from botocore.exceptions import ClientError
-
-from cognistore.drivers.s3_driver import S3Driver
-from tests.conformance.storage_driver import StorageDriverConformance
-
 
 pytestmark = pytest.mark.integration
 

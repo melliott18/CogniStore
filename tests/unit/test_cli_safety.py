@@ -10,7 +10,6 @@ from cognistore.core.catalog import Catalog
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.jobs.models import EnqueueReceipt
 
-
 BUCKET = "bk"
 KEY = "small.txt"
 DATA = b"12345"

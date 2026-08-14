@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, Optional, cast
 from urllib.parse import urlsplit, urlunsplit
 
 import boto3
@@ -9,7 +9,6 @@ from botocore.exceptions import ClientError
 from botocore.session import Session as BotocoreSession
 
 from .storage_driver import DriverCapabilities, StorageDriver
-
 
 _NOT_FOUND_CODES = frozenset({"404", "NoSuchBucket", "NoSuchKey", "NotFound"})
 _MISSING_BUCKET_CODES = frozenset({"NoSuchBucket", "NotFound"})
@@ -117,18 +116,13 @@ class S3Driver(StorageDriver):
             self._client = client
             return
 
-        session_options: Dict[str, str] = {}
-        if region_name is not None:
-            session_options["region_name"] = region_name
-        if profile_name is not None:
-            session_options["profile_name"] = profile_name
-        if access_key is not None:
-            session_options["aws_access_key_id"] = access_key
-            session_options["aws_secret_access_key"] = secret_key  # type: ignore[assignment]
-        if session_token is not None:
-            session_options["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_options)
+        session = boto3.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            aws_session_token=session_token,
+            region_name=region_name,
+            profile_name=profile_name,
+        )
         self.region_name = region_name or session.region_name or "us-east-1"
         self.partition = session.get_partition_for_region(self.region_name)
         client_options: Dict[str, Any] = {
@@ -136,7 +130,7 @@ class S3Driver(StorageDriver):
             "config": Config(
                 signature_version="s3v4",
                 retries={"total_max_attempts": 4, "mode": "standard"},
-                s3={"addressing_style": addressing_style},
+                s3=cast(Any, {"addressing_style": addressing_style}),
                 user_agent_extra="CogniStore",
             ),
         }

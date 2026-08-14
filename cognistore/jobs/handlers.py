@@ -14,7 +14,6 @@ from cognistore.drivers.storage_driver import StorageDriver
 from .models import InvalidJobError, JobContext, JobEnvelope
 from .runtime import JobHandler
 
-
 LOGGER = logging.getLogger(__name__)
 CATALOG_SCAN_JOB = "catalog.scan"
 POLICY_RUN_JOB = "policy.run"

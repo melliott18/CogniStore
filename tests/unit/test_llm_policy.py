@@ -1,4 +1,4 @@
-from cognistore.core.policy import LLMPolicy, PolicyLLMProvider
+from cognistore.core.policy import LLMPolicy
 
 
 class FakePolicyProvider:

@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Literal
 
-from .catalog import Catalog, ObjectRecord
-from .mover import Mover
-from .policy import PolicyDecision, Policy
 from cognistore.drivers.storage_driver import StorageDriver
+
+from .catalog import Catalog
+from .mover import Mover
+from .policy import Policy
 
 
 @dataclass
@@ -48,7 +49,7 @@ class PolicyRunner:
         for rec in records:
             # Prefer record-aware policy evaluation when available
             if hasattr(self.policy, "evaluate_record"):
-                decision = getattr(self.policy, "evaluate_record")(rec)  # type: ignore[call-arg]
+                decision = getattr(self.policy, "evaluate_record")(rec)
             else:
                 decision = self.policy.evaluate(rec.tier, rec.size)
             if decision.action != "move" or not decision.dst_tier or decision.dst_tier == rec.tier:

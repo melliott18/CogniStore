@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol, Sequence, Iterable
 import fnmatch
+from dataclasses import dataclass
+from typing import Iterable, Protocol, Sequence
 
-# Local imports kept optional to avoid cycles at import time; used in type hints only
-try:  # pragma: no cover - type checking convenience
-    from .catalog import ObjectRecord  # type: ignore
-except Exception:  # pragma: no cover
-    ObjectRecord = object  # fallback for type checkers
+from .catalog import ObjectRecord
 
 
 @dataclass
@@ -144,7 +140,7 @@ class ContentAwarePolicy:
         return PolicyDecision(action="stay", reason="meets content policy by size", dst_tier=None)
 
     # Record-aware evaluation used by PolicyRunner when available
-    def evaluate_record(self, rec: "ObjectRecord") -> PolicyDecision:  # type: ignore[override]
+    def evaluate_record(self, rec: "ObjectRecord") -> PolicyDecision:
         current_tier = getattr(rec, "tier", "")
         key = getattr(rec, "key", "")
         size = getattr(rec, "size", 0)

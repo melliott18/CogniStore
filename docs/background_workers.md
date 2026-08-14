@@ -99,7 +99,7 @@ Tests use unique streams and expect an isolated JetStream-enabled server:
 
 ```bash
 export COGNISTORE_NATS_URL=nats://127.0.0.1:4222
-pytest -q -m integration tests/integration/test_nats_worker.py
+python -m pytest -q -m integration tests/integration/test_nats_worker.py
 ```
 
 They cover publish/claim/ACK, explicit NAK redelivery, connection-loss restart

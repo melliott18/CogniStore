@@ -10,7 +10,6 @@ from .posix_driver import PosixDriver
 from .s3_driver import S3Driver
 from .storage_driver import StorageDriver
 
-
 _S3_FIELDS = frozenset(
     {
         "driver",

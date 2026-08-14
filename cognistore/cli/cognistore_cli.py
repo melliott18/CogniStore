@@ -4,20 +4,22 @@ import argparse
 import asyncio
 import json
 import logging
-import sys
-from pathlib import Path
 import os
 import signal
+import sys
 import time
+from pathlib import Path
+from typing import Literal
 
 from cognistore.core.catalog import Catalog
-from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.core.mover import Mover
+from cognistore.core.policy_factory import build_policy
+from cognistore.core.policy_runner import ActionResult, PolicyRunner
+from cognistore.core.scanner import scan_catalog
+from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
-from cognistore.core.policy_runner import ActionResult, PolicyRunner
-from cognistore.core.policy_factory import build_policy
-from cognistore.core.scanner import scan_catalog
+from cognistore.drivers.storage_driver import StorageDriver
 from cognistore.jobs.handlers import (
 	CATALOG_SCAN_JOB,
 	POLICY_RUN_JOB,
@@ -28,10 +30,13 @@ from cognistore.jobs.health import HealthServer
 from cognistore.jobs.models import JobEnvelope
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
-from cognistore.utils.tier_profiler import profile_path, save_metrics_json, load_metrics_json
-from cognistore.utils.device_info import discover_device_for_tier, save_hardware_json, load_hardware_json
+from cognistore.utils.device_info import (
+	discover_device_for_tier,
+	load_hardware_json,
+	save_hardware_json,
+)
 from cognistore.utils.drive_profiles import DEFAULT_PROFILES
-
+from cognistore.utils.tier_profiler import load_metrics_json, profile_path, save_metrics_json
 
 LOGGER = logging.getLogger(__name__)
 
@@ -268,8 +273,8 @@ def main(argv=None):
 		and not dry_run
 		and not getattr(args, "sync", False)
 	)
-	driver = None
-	drivers = None
+	driver: StorageDriver | None = None
+	drivers: dict[str, StorageDriver] | None = None
 	if args.drivers:
 		drivers = load_drivers(args.drivers)
 	else:
@@ -291,6 +296,7 @@ def main(argv=None):
 
 	policy_allowed = None
 	if args.cmd == "policy-run":
+		assert drivers is not None
 		policy_allowed = tuple(
 			dict.fromkeys(t.strip() for t in args.allowed_tiers.split(",") if t.strip())
 		)
@@ -300,12 +306,14 @@ def main(argv=None):
 		if unknown_allowed:
 			parser.error(f"unknown allowed tier(s): {', '.join(unknown_allowed)}")
 	elif args.cmd == "move":
+		assert drivers is not None
 		# Validate the full storage plan before a writable catalog is opened.
 		try:
 			Mover(drivers, Catalog()).plan(args.src, args.dst, args.bucket, args.key)
 		except (ValueError, FileExistsError, FileNotFoundError) as exc:
 			parser.error(str(exc))
 
+	catalog: Catalog | None
 	if background_submission:
 		catalog = None
 	elif args.catalog_db and args.cmd == "policy-run" and dry_run:
@@ -318,6 +326,7 @@ def main(argv=None):
 		catalog = Catalog()
 
 	if args.cmd == "worker":
+		assert drivers is not None
 		assert isinstance(catalog, SQLiteCatalog)
 		try:
 			return asyncio.run(_serve_worker(args, drivers, catalog))
@@ -326,24 +335,42 @@ def main(argv=None):
 
 	if args.cmd == "put":
 		data = Path(args.file).read_bytes()
-		(driver or drivers["hot"]).put_object(args.bucket, args.key, data)
+		if driver is None:
+			assert drivers is not None
+			active_driver = drivers["hot"]
+		else:
+			active_driver = driver
+		active_driver.put_object(args.bucket, args.key, data)
 		return 0
 	if args.cmd == "get":
-		data = (driver or drivers["hot"]).get_object(args.bucket, args.key)
+		if driver is None:
+			assert drivers is not None
+			active_driver = drivers["hot"]
+		else:
+			active_driver = driver
+		data = active_driver.get_object(args.bucket, args.key)
 		Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 		Path(args.out).write_bytes(data)
 		return 0
 	if args.cmd == "ls":
-		for k in (driver or drivers["hot"]).list_objects(args.bucket, prefix=args.prefix):
+		if driver is None:
+			assert drivers is not None
+			active_driver = drivers["hot"]
+		else:
+			active_driver = driver
+		for k in active_driver.list_objects(args.bucket, prefix=args.prefix):
 			print(k)
 		return 0
 
+	assert drivers is not None
+
 	# move between tiers
 	if args.cmd == "move":
+		assert catalog is not None
 		mv = Mover(drivers, catalog)
 		if args.dry_run:
 			mv.plan(args.src, args.dst, args.bucket, args.key)
-			status = "planned"
+			status: Literal["planned", "completed"] = "planned"
 		else:
 			mv.move(args.src, args.dst, args.bucket, args.key)
 			status = "completed"
@@ -383,14 +410,14 @@ def main(argv=None):
 			return 0
 
 		assert catalog is not None
-		results = scan_catalog(
+		scan_results = scan_catalog(
 			tier=args.tier,
 			bucket=args.bucket,
 			prefix=args.prefix,
 			driver=drivers[args.tier],
 			catalog=catalog,
 		)
-		for result in results:
+		for result in scan_results:
 			print(
 				f"indexed {result.tier}:{result.bucket}/{result.key} "
 				f"size={result.size}"
@@ -402,7 +429,7 @@ def main(argv=None):
 		if not drivers:
 			parser.error("--drivers is required for tier-profile")
 			return 1
-		results = {}
+		profile_results = {}
 		for tier, drv in drivers.items():
 			# We only know PosixDriver has a base path; fall back to the driver's repr if unavailable
 			base_path = None
@@ -415,10 +442,10 @@ def main(argv=None):
 				print(f"skip {tier}: unsupported driver for profiling", file=sys.stderr)
 				continue
 			m = profile_path(str(base_path))
-			results[tier] = m
+			profile_results[tier] = m
 			print(f"{tier}: read={m.seq_read_MBps:.1f} MB/s write={m.seq_write_MBps:.1f} MB/s randIOPS={m.random_read_IOPS:.0f} fbyte={m.first_byte_latency_ms:.2f} ms free={m.free_bytes/1e9:.1f}G/{m.total_bytes/1e9:.1f}G")
 		if args.metrics_out:
-			save_metrics_json(results, args.metrics_out)
+			save_metrics_json(profile_results, args.metrics_out)
 			print(f"wrote metrics -> {args.metrics_out}")
 		return 0
 
@@ -471,7 +498,7 @@ def main(argv=None):
 			save_hardware_json(info, str(hw_path))
 			print(f"refreshed hardware -> {hw_path}")
 			# Metrics profile
-			results = {}
+			refresh_metrics = {}
 			for tier, drv in drivers.items():
 				base_path = None
 				if isinstance(drv, PosixDriver):
@@ -481,8 +508,8 @@ def main(argv=None):
 				if not base_path:
 					continue
 				m = profile_path(str(base_path))
-				results[tier] = m
-			save_metrics_json(results, str(m_path))
+				refresh_metrics[tier] = m
+			save_metrics_json(refresh_metrics, str(m_path))
 			print(f"refreshed metrics -> {m_path}")
 
 		if args.interval and args.interval > 0:
@@ -563,14 +590,14 @@ def main(argv=None):
 		if args.metrics_in:
 			try:
 				metrics = load_metrics_json(args.metrics_in)
-				hot = metrics.get("hot")
-				warm = metrics.get("warm")
-				if hot and warm:
+				metrics_hot = metrics.get("hot")
+				metrics_warm = metrics.get("warm")
+				if metrics_hot and metrics_warm:
 					# Convert to seconds and bytes/sec
-					Lh = max(hot.first_byte_latency_ms, 0.01) / 1000.0
-					Lw = max(warm.first_byte_latency_ms, 0.01) / 1000.0
-					Bh = max(hot.seq_read_MBps, 0.1) * 1024 * 1024
-					Bw = max(warm.seq_read_MBps, 0.1) * 1024 * 1024
+					Lh = max(metrics_hot.first_byte_latency_ms, 0.01) / 1000.0
+					Lw = max(metrics_warm.first_byte_latency_ms, 0.01) / 1000.0
+					Bh = max(metrics_hot.seq_read_MBps, 0.1) * 1024 * 1024
+					Bw = max(metrics_warm.seq_read_MBps, 0.1) * 1024 * 1024
 					denom = (1.0 / Bw) - (1.0 / Bh)
 					if denom > 0:
 						bytes_switch = int((Lw - Lh) / denom)
@@ -584,11 +611,11 @@ def main(argv=None):
 			# Fallback: use OS hardware classification + default profiles
 			try:
 				hw = load_hardware_json(args.hardware_in)
-				hot = hw.get("hot")
-				warm = hw.get("warm")
-				if hot and warm:
-					ph = DEFAULT_PROFILES.get(hot.media_type, DEFAULT_PROFILES["unknown"])
-					pw = DEFAULT_PROFILES.get(warm.media_type, DEFAULT_PROFILES["unknown"])
+				hardware_hot = hw.get("hot")
+				hardware_warm = hw.get("warm")
+				if hardware_hot and hardware_warm:
+					ph = DEFAULT_PROFILES.get(hardware_hot.media_type, DEFAULT_PROFILES["unknown"])
+					pw = DEFAULT_PROFILES.get(hardware_warm.media_type, DEFAULT_PROFILES["unknown"])
 					Lh = ph.first_byte_latency_ms / 1000.0
 					Lw = pw.first_byte_latency_ms / 1000.0
 					Bh = ph.seq_read_MBps * 1024 * 1024
