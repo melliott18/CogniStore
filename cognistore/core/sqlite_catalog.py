@@ -97,6 +97,29 @@ class SQLiteCatalog(Catalog):
                 raise KeyError(f"Object not found: {bucket}/{key}")
             self._conn.commit()
 
+    def upsert_placement(
+        self,
+        bucket: str,
+        key: str,
+        *,
+        size: int,
+        tier: str,
+    ) -> None:
+        """Commit size and placement without replacing current metadata."""
+
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO objects(bucket, key, size, tier, metadata)
+                VALUES(?,?,?,?,?)
+                ON CONFLICT(bucket, key) DO UPDATE SET
+                    size=excluded.size,
+                    tier=excluded.tier
+                """,
+                (bucket, key, size, tier, json.dumps({})),
+            )
+            self._conn.commit()
+
     def delete(self, bucket: str, key: str) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM objects WHERE bucket=? AND key=?", (bucket, key))

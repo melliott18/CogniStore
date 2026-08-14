@@ -20,7 +20,9 @@ following fields:
 | `profile` or `profile_name` | A profile from the AWS shared configuration and credentials files. |
 | `addressing_style` | Botocore bucket addressing mode: `auto`, `virtual`, or `path`. Path style is commonly needed for local MinIO. |
 | `auto_create_bucket` | When `true`, create a missing bucket before the first write. Defaults to `false`. |
+| `chunk_size` | Streaming buffer and multipart part size in bytes. Defaults to 8388608 (8 MiB) and must be from 5242880 (5 MiB) through 5368709120 (5 GiB). |
 | `list_page_size` | Number of keys requested per `ListObjectsV2` page. Listing still yields every matching key. |
+| `multipart_threshold` | Positive object size in bytes at which multipart upload begins. Defaults to 8388608 (8 MiB); the boundary is inclusive. |
 
 Use only one spelling of an aliased field in a tier. Use one credential
 strategy per tier as well; combining a profile with explicit keys makes
@@ -47,7 +49,9 @@ tiers:
     secret_key_env: COGNISTORE_MINIO_SECRET_KEY
     addressing_style: path
     auto_create_bucket: true
+    chunk_size: 8388608
     list_page_size: 1000
+    multipart_threshold: 8388608
 ```
 
 `auto_create_bucket: true` is convenient for a disposable local MinIO
@@ -65,7 +69,9 @@ tiers:
     region: us-west-2
     addressing_style: auto
     auto_create_bucket: false
+    chunk_size: 8388608
     list_page_size: 1000
+    multipart_threshold: 8388608
 ```
 
 For local development, select a configured AWS profile without copying its
@@ -109,12 +115,31 @@ The driver advertises `range_reads=True`, `range_writes=False`, and
   number of results.
 - With `auto_create_bucket: true`, a missing bucket is created for a write.
   Read, stat, list, and delete operations do not create buckets.
+- Moves read and write sequentially. Each source read is bounded by
+  `chunk_size`, and an S3 destination uploads one multipart part at a time, so
+  memory use scales with the configured buffers rather than total object size.
+- Objects smaller than `multipart_threshold` and within S3's single-put limit
+  use a single conditional put.
+  Their validated content is staged in a spooled temporary file, which spills
+  to disk above `chunk_size` so memory remains chunk-bounded; local temporary
+  disk usage can approach the object's size. Objects at or above the threshold
+  use multipart upload. Objects above S3's 5 GiB
+  single-put limit use multipart regardless of the configured threshold. The
+  driver rejects transfers that would require more than S3's 10,000-part
+  limit. S3 requires every non-final part to be at least 5 MiB; the last part
+  may be smaller.
+- Multipart no-overwrite writes apply `If-None-Match: *` when completing the
+  upload, preserving the destination-collision guard across the final commit.
+- A catchable failure or cancellation before completion aborts the multipart
+  upload. The configured identity needs `s3:AbortMultipartUpload` in addition
+  to its write permissions.
 
-Ranged writes and multipart/streaming move orchestration are separate from
-this core driver and belong to ticket
-[#21](https://github.com/melliott18/CogniStore/issues/21). A repository-managed
-Docker Compose environment, including its MinIO service and health checks,
-belongs to ticket [#28](https://github.com/melliott18/CogniStore/issues/28).
+A process crash, `SIGKILL`, or machine loss cannot execute application cleanup.
+For production buckets, configure an S3 lifecycle rule with the
+`AbortIncompleteMultipartUpload` action as a defense-in-depth backstop for
+uploads that outlive the process. A repository-managed Docker Compose
+environment, including its MinIO service and health checks, belongs to ticket
+[#28](https://github.com/melliott18/CogniStore/issues/28).
 
 ## Opt-in MinIO integration tests
 

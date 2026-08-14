@@ -36,6 +36,28 @@ def test_sqlite_catalog_crud(tmp_path: Path):
     cat.close()
 
 
+def test_upsert_placement_preserves_metadata_and_creates_missing_record(
+    tmp_path: Path,
+) -> None:
+    cat = SQLiteCatalog(tmp_path / "catalog.db")
+    cat.upsert("bucket", "existing", size=1, tier="hot", metadata={"version": 2})
+
+    cat.upsert_placement("bucket", "existing", size=42, tier="warm")
+    cat.upsert_placement("bucket", "missing", size=7, tier="cold")
+
+    existing = cat.get("bucket", "existing")
+    assert existing is not None
+    assert (existing.size, existing.tier, existing.metadata) == (
+        42,
+        "warm",
+        {"version": 2},
+    )
+    missing = cat.get("bucket", "missing")
+    assert missing is not None
+    assert (missing.size, missing.tier, missing.metadata) == (7, "cold", {})
+    cat.close()
+
+
 def test_read_only_catalog_sees_committed_wal_records_and_rejects_writes(
     tmp_path: Path,
 ):

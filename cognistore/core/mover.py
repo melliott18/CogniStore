@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Any, Dict, Mapping
 
 from cognistore.core.catalog import Catalog
 from cognistore.drivers.storage_driver import StorageDriver
@@ -13,6 +13,8 @@ class MovePlan:
     dst_tier: str
     bucket: str
     key: str
+    size: int
+    metadata: Mapping[str, Any]
 
 
 class Mover:
@@ -49,7 +51,16 @@ class Mover:
         """
 
         src, dst = self._drivers_for_move(src_tier, dst_tier)
-        src.stat_object(bucket, key)
+        source_metadata = dict(src.stat_object(bucket, key))
+        source_size = source_metadata.get("size")
+        if (
+            isinstance(source_size, bool)
+            or not isinstance(source_size, int)
+            or source_size < 0
+        ):
+            raise ValueError(
+                f"Source object has invalid size metadata: {src_tier}:{bucket}/{key}"
+            )
         try:
             dst.stat_object(bucket, key)
         except FileNotFoundError:
@@ -64,21 +75,31 @@ class Mover:
             dst_tier=dst_tier,
             bucket=bucket,
             key=key,
+            size=source_size,
+            metadata=source_metadata,
         )
 
     def move(self, src_tier: str, dst_tier: str, bucket: str, key: str) -> None:
-        self.plan(src_tier, dst_tier, bucket, key)
+        plan = self.plan(src_tier, dst_tier, bucket, key)
         src, dst = self._drivers_for_move(src_tier, dst_tier)
 
-        data = src.get_object(bucket, key)
-        dst.put_object(bucket, key, data, overwrite=False)
-        src.delete_object(bucket, key)
+        with src.open_object_reader(bucket, key) as source:
+            transferred_size = dst.put_object_stream(
+                bucket,
+                key,
+                source,
+                size=plan.size,
+                overwrite=False,
+                metadata=plan.metadata,
+            )
 
-        # Update catalog
-        rec = self.catalog.get(bucket, key)
-        size = len(data)
-        if rec is None:
-            self.catalog.upsert(bucket=bucket, key=key, size=size, tier=dst_tier)
-        else:
-            rec.size = size
-            self.catalog.update_placement(bucket, key, dst_tier)
+        # The destination stream is committed before the source or catalog is
+        # mutated. A failed or interrupted write therefore leaves the source
+        # placement intact and available for a later retry.
+        src.delete_object(bucket, key)
+        self.catalog.upsert_placement(
+            bucket,
+            key,
+            size=transferred_size,
+            tier=dst_tier,
+        )

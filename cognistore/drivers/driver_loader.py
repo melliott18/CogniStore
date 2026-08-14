@@ -27,7 +27,9 @@ _S3_FIELDS = frozenset(
         "session_token_env",
         "addressing_style",
         "auto_create_bucket",
+        "chunk_size",
         "list_page_size",
+        "multipart_threshold",
     }
 )
 
@@ -80,11 +82,14 @@ def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
           hot:
             driver: posix
             path: /tmp/hot
+            chunk_size: 8388608
           warm:
             driver: s3
             endpoint_url: http://127.0.0.1:9000
             access_key_env: MINIO_ACCESS_KEY
             secret_key_env: MINIO_SECRET_KEY
+            chunk_size: 8388608
+            multipart_threshold: 8388608
     """
 
     with open(config_path, "r") as f:
@@ -109,7 +114,13 @@ def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
             path = info.get("path")
             if not isinstance(path, str) or not path.strip():
                 raise ValueError(f"POSIX tier '{tier}' requires a non-empty path")
-            driver = PosixDriver(base_path=path)
+            if "chunk_size" in info:
+                driver = PosixDriver(
+                    base_path=path,
+                    chunk_size=info["chunk_size"],
+                )
+            else:
+                driver = PosixDriver(base_path=path)
             existing_tier = posix_roots.get(driver.base)
             if existing_tier is not None:
                 raise ValueError(
@@ -129,17 +140,21 @@ def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
             endpoint_url = _aliased_value(info, tier, "endpoint_url", "endpoint")
             region_name = _aliased_value(info, tier, "region_name", "region")
             profile_name = _aliased_value(info, tier, "profile_name", "profile")
-            out[tier] = S3Driver(
-                endpoint_url=endpoint_url,
-                region_name=region_name,
-                access_key=_credential_value(info, tier, "access_key"),
-                secret_key=_credential_value(info, tier, "secret_key"),
-                session_token=_credential_value(info, tier, "session_token"),
-                profile_name=profile_name,
-                addressing_style=info.get("addressing_style", "auto"),
-                auto_create_bucket=info.get("auto_create_bucket", False),
-                list_page_size=info.get("list_page_size"),
-            )
+            driver_options: Dict[str, Any] = {
+                "endpoint_url": endpoint_url,
+                "region_name": region_name,
+                "access_key": _credential_value(info, tier, "access_key"),
+                "secret_key": _credential_value(info, tier, "secret_key"),
+                "session_token": _credential_value(info, tier, "session_token"),
+                "profile_name": profile_name,
+                "addressing_style": info.get("addressing_style", "auto"),
+                "auto_create_bucket": info.get("auto_create_bucket", False),
+                "list_page_size": info.get("list_page_size"),
+            }
+            for transfer_field in ("chunk_size", "multipart_threshold"):
+                if transfer_field in info:
+                    driver_options[transfer_field] = info[transfer_field]
+            out[tier] = S3Driver(**driver_options)
         else:
             raise ValueError(f"Unknown or unsupported driver type: {driver_type}")
 

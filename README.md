@@ -56,12 +56,14 @@ Example `drivers.yaml`:
 
 ```yaml
 tiers:
-	hot:
-		driver: posix
-		path: /tmp/cognistore/hot
-	warm:
-		driver: posix
-		path: /tmp/cognistore/warm
+  hot:
+    driver: posix
+    path: /tmp/cognistore/hot
+    chunk_size: 8388608
+  warm:
+    driver: posix
+    path: /tmp/cognistore/warm
+    chunk_size: 8388608
 ```
 
 Then in Python:
@@ -94,7 +96,9 @@ tiers:
     secret_key_env: COGNISTORE_MINIO_SECRET_KEY
     addressing_style: path
     auto_create_bucket: true
+    chunk_size: 8388608
     list_page_size: 1000
+    multipart_threshold: 8388608
 ```
 
 For AWS, omit `endpoint`/`endpoint_url` and normally omit credential fields so
@@ -120,6 +124,23 @@ The driver supports complete and atomic no-overwrite puts, ranged reads such as
 Bucket auto-creation is off by default; when enabled, a missing bucket is
 created for a write, not for read-only operations. Keep it off for
 pre-provisioned production buckets.
+
+Moves read and write sequentially with bounded buffers instead of loading an
+entire object into memory. `chunk_size` and `multipart_threshold` are raw byte
+counts and both default to 8388608 bytes (8 MiB). S3 requires `chunk_size` to be
+at least 5242880 bytes (5 MiB); the final multipart part may be smaller. Objects
+whose size is equal to or greater than `multipart_threshold` use multipart
+upload, while smaller objects use a single conditional put staged with
+chunk-bounded memory and temporary-file spillover. Objects above the 5 GiB
+single-put limit always use multipart upload. Temporary disk usage for a
+below-threshold single put can approach the object's size.
+
+Multipart moves upload one part at a time and retain atomic no-overwrite
+behavior by applying `If-None-Match: *` when the upload is completed. A
+catchable interruption aborts the incomplete upload. The S3 identity therefore
+needs `s3:AbortMultipartUpload`. Because a process crash or forced termination
+cannot run application cleanup, production buckets should also use an
+`AbortIncompleteMultipartUpload` lifecycle rule as a backstop.
 
 MinIO integration tests are opt-in. With a separately managed test instance
 running, set its API endpoint and disposable credentials, then run the marked

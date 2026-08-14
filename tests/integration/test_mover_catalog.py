@@ -1,13 +1,22 @@
+import hashlib
+import tracemalloc
 from pathlib import Path
 
 import pytest
 
 from cognistore.core.catalog import Catalog
 from cognistore.core.mover import Mover
+from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.drivers.posix_driver import PosixDriver
 
 
-def test_mover_updates_catalog_and_storage(tmp_path: Path):
+def _forbid_buffered_transfer(*_args, **_kwargs):
+	raise AssertionError("mover attempted a whole-object transfer")
+
+
+def test_mover_updates_catalog_and_storage(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
 	hot = PosixDriver(str(tmp_path / "hot"))
 	warm = PosixDriver(str(tmp_path / "warm"))
 	drivers = {"hot": hot, "warm": warm}
@@ -18,10 +27,66 @@ def test_mover_updates_catalog_and_storage(tmp_path: Path):
 	bucket = "bk"
 	key = "dir/file.txt"
 	data = b"hello mover"
+	catalog_metadata = {
+		"mime": "text/plain",
+		"sample_len": len(data),
+		"labels": ["important", "reviewed"],
+	}
 
 	# Put in hot tier and register in catalog
 	hot.put_object(bucket, key, data)
-	catalog.upsert(bucket=bucket, key=key, size=len(data), tier="hot")
+	catalog.upsert(
+		bucket=bucket,
+		key=key,
+		size=1,
+		tier="hot",
+		metadata=catalog_metadata,
+	)
+
+	original_stat = hot.stat_object
+
+	def stat_with_portable_metadata(bucket: str, key: str):
+		metadata = original_stat(bucket, key)
+		metadata.update(
+			{
+				"content_type": "text/plain",
+				"metadata": {"origin": "integration-test"},
+			}
+		)
+		return metadata
+
+	stream_calls = []
+	original_put_stream = warm.put_object_stream
+
+	def recording_put_stream(
+		bucket: str,
+		key: str,
+		source,
+		*,
+		size: int,
+		overwrite: bool = True,
+		metadata=None,
+	):
+		stream_calls.append(
+			{
+				"size": size,
+				"overwrite": overwrite,
+				"metadata": dict(metadata or {}),
+			}
+		)
+		return original_put_stream(
+			bucket,
+			key,
+			source,
+			size=size,
+			overwrite=overwrite,
+			metadata=metadata,
+		)
+
+	monkeypatch.setattr(hot, "stat_object", stat_with_portable_metadata)
+	monkeypatch.setattr(hot, "get_object", _forbid_buffered_transfer)
+	monkeypatch.setattr(warm, "put_object", _forbid_buffered_transfer)
+	monkeypatch.setattr(warm, "put_object_stream", recording_put_stream)
 
 	# Move to warm
 	mover.move("hot", "warm", bucket, key)
@@ -35,6 +100,221 @@ def test_mover_updates_catalog_and_storage(tmp_path: Path):
 	assert rec is not None
 	assert rec.tier == "warm"
 	assert rec.size == len(data)
+	assert rec.metadata == catalog_metadata
+	assert rec.metadata is not catalog_metadata
+	assert stream_calls[0]["size"] == len(data)
+	assert stream_calls[0]["overwrite"] is False
+	assert stream_calls[0]["metadata"]["content_type"] == "text/plain"
+	assert stream_calls[0]["metadata"]["metadata"] == {
+		"origin": "integration-test"
+	}
+
+
+def test_mover_streams_multiple_chunks_with_bounded_memory(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+	chunk_size = 64 * 1024
+	hot = PosixDriver(str(tmp_path / "hot"), chunk_size=chunk_size)
+	warm = PosixDriver(str(tmp_path / "warm"), chunk_size=chunk_size)
+	catalog = Catalog()
+	mover = Mover({"hot": hot, "warm": warm}, catalog)
+	bucket = "bk"
+	key = "large/many-chunks.bin"
+	block = bytes(range(256)) * (chunk_size // 256)
+	block_count = 128
+	size = len(block) * block_count
+
+	source_path = hot.base / bucket / key
+	source_path.parent.mkdir(parents=True)
+	expected_digest = hashlib.sha256()
+	with source_path.open("wb") as source:
+		for _ in range(block_count):
+			source.write(block)
+			expected_digest.update(block)
+	catalog.upsert(bucket, key, size=size, tier="hot", metadata={"mime": "application/octet-stream"})
+
+	monkeypatch.setattr(hot, "get_object", _forbid_buffered_transfer)
+	monkeypatch.setattr(warm, "put_object", _forbid_buffered_transfer)
+
+	tracemalloc.start()
+	try:
+		mover.move("hot", "warm", bucket, key)
+		_, peak = tracemalloc.get_traced_memory()
+	finally:
+		tracemalloc.stop()
+
+	# The payload is 128 chunks. Allow implementation overhead and a handful of
+	# simultaneous buffers while ensuring memory does not scale with object size.
+	assert peak < chunk_size * 16
+	with pytest.raises(FileNotFoundError):
+		hot.stat_object(bucket, key)
+	assert warm.stat_object(bucket, key)["size"] == size
+
+	actual_digest = hashlib.sha256()
+	with warm.open_object_reader(bucket, key) as destination:
+		while chunk := destination.read(chunk_size):
+			actual_digest.update(chunk)
+	assert actual_digest.digest() == expected_digest.digest()
+
+
+def test_mover_preserves_sqlite_catalog_metadata_and_corrects_size(tmp_path: Path):
+	hot = PosixDriver(str(tmp_path / "hot"))
+	warm = PosixDriver(str(tmp_path / "warm"))
+	data = b"sqlite catalog streaming move"
+	metadata = {
+		"mime": "text/plain",
+		"sample_len": len(data),
+		"classification": {"retention": "standard"},
+	}
+	hot.put_object("bucket", "nested/object.txt", data)
+	catalog = SQLiteCatalog(tmp_path / "catalog.sqlite")
+	catalog.upsert(
+		"bucket",
+		"nested/object.txt",
+		size=1,
+		tier="hot",
+		metadata=metadata,
+	)
+
+	try:
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", "bucket", "nested/object.txt"
+		)
+
+		record = catalog.get("bucket", "nested/object.txt")
+		assert record is not None
+		assert record.tier == "warm"
+		assert record.size == len(data)
+		assert record.metadata == metadata
+		assert warm.get_object("bucket", "nested/object.txt") == data
+		with pytest.raises(FileNotFoundError):
+			hot.stat_object("bucket", "nested/object.txt")
+	finally:
+		catalog.close()
+
+
+@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
+def test_mover_preserves_metadata_changed_during_transfer(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+	catalog_kind: str,
+) -> None:
+	hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
+	warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
+	catalog = (
+		SQLiteCatalog(tmp_path / "concurrent-catalog.sqlite")
+		if catalog_kind == "sqlite"
+		else Catalog()
+	)
+	bucket = "bucket"
+	key = "metadata-update.bin"
+	data = b"streamed data"
+	hot.put_object(bucket, key, data)
+	catalog.upsert(
+		bucket,
+		key,
+		size=1,
+		tier="hot",
+		metadata={"revision": "before-transfer"},
+	)
+	original_put_stream = warm.put_object_stream
+
+	def update_metadata_then_transfer(*args, **kwargs):
+		catalog.upsert(
+			bucket,
+			key,
+			size=2,
+			tier="hot",
+			metadata={"revision": "during-transfer", "scanner": "latest"},
+		)
+		return original_put_stream(*args, **kwargs)
+
+	monkeypatch.setattr(warm, "put_object_stream", update_metadata_then_transfer)
+
+	try:
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", bucket, key
+		)
+
+		record = catalog.get(bucket, key)
+		assert record is not None
+		assert (record.tier, record.size, record.metadata) == (
+			"warm",
+			len(data),
+			{"revision": "during-transfer", "scanner": "latest"},
+		)
+	finally:
+		if isinstance(catalog, SQLiteCatalog):
+			catalog.close()
+
+
+@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
+def test_mover_creates_catalog_record_when_missing_at_commit(
+	tmp_path: Path,
+	catalog_kind: str,
+) -> None:
+	hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
+	warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
+	catalog = (
+		SQLiteCatalog(tmp_path / "missing-record.sqlite")
+		if catalog_kind == "sqlite"
+		else Catalog()
+	)
+	bucket = "bucket"
+	key = "uncataloged.bin"
+	data = b"catalog after move"
+	hot.put_object(bucket, key, data)
+
+	try:
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", bucket, key
+		)
+
+		record = catalog.get(bucket, key)
+		assert record is not None
+		assert (record.tier, record.size, record.metadata) == (
+			"warm",
+			len(data),
+			{},
+		)
+	finally:
+		if isinstance(catalog, SQLiteCatalog):
+			catalog.close()
+
+
+def test_stream_failure_preserves_source_and_catalog(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+	hot = PosixDriver(str(tmp_path / "hot"))
+	warm = PosixDriver(str(tmp_path / "warm"))
+	bucket = "bk"
+	key = "failed-transfer.bin"
+	data = b"source must survive"
+	metadata = {"mime": "application/octet-stream"}
+	hot.put_object(bucket, key, data)
+	catalog = Catalog()
+	catalog.upsert(bucket, key, size=len(data), tier="hot", metadata=metadata)
+
+	def fail_stream(*_args, **_kwargs):
+		raise OSError("injected destination failure")
+
+	monkeypatch.setattr(warm, "put_object_stream", fail_stream)
+
+	with pytest.raises(OSError, match="injected destination failure"):
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", bucket, key
+		)
+
+	assert hot.get_object(bucket, key) == data
+	with pytest.raises(FileNotFoundError):
+		warm.stat_object(bucket, key)
+	record = catalog.get(bucket, key)
+	assert record is not None
+	assert (record.tier, record.size, record.metadata) == (
+		"hot",
+		len(data),
+		metadata,
+	)
 
 
 def test_same_tier_move_is_rejected_without_deleting_source(tmp_path: Path):

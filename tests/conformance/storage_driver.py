@@ -8,6 +8,7 @@ backends are held to exactly the same observable behavior.
 from __future__ import annotations
 
 import uuid
+from io import BytesIO
 
 import pytest
 
@@ -52,6 +53,63 @@ class StorageDriverConformance:
         assert metadata["size"] == len(payload)
         assert isinstance(metadata["mtime"], float)
         assert metadata["mtime"] >= 0
+
+    def test_streaming_put_and_reader_roundtrip(
+        self, driver: StorageDriver, bucket: str
+    ) -> None:
+        key = "nested/streaming-roundtrip.bin"
+        payload = b"streamed-in-several-small-reads"
+
+        written = driver.put_object_stream(
+            bucket,
+            key,
+            BytesIO(payload),
+            size=len(payload),
+            metadata={"content_type": "application/octet-stream"},
+        )
+
+        chunks: list[bytes] = []
+        with driver.open_object_reader(bucket, key) as source:
+            while chunk := source.read(3):
+                chunks.append(chunk)
+        assert written == len(payload)
+        assert b"".join(chunks) == payload
+
+    def test_streaming_zero_byte_object(
+        self, driver: StorageDriver, bucket: str
+    ) -> None:
+        key = "empty-stream.bin"
+
+        written = driver.put_object_stream(bucket, key, BytesIO(), size=0)
+
+        assert written == 0
+        with driver.open_object_reader(bucket, key) as source:
+            assert source.read(1) == b""
+        assert driver.stat_object(bucket, key)["size"] == 0
+
+    @pytest.mark.parametrize(
+        ("payload", "declared_size"),
+        [(b"short", 6), (b"too-long", 7)],
+    )
+    def test_stream_size_mismatch_does_not_publish_an_object(
+        self,
+        driver: StorageDriver,
+        bucket: str,
+        payload: bytes,
+        declared_size: int,
+    ) -> None:
+        key = f"mismatched-{declared_size}.bin"
+
+        with pytest.raises(ValueError):
+            driver.put_object_stream(
+                bucket,
+                key,
+                BytesIO(payload),
+                size=declared_size,
+            )
+
+        with pytest.raises(FileNotFoundError):
+            driver.stat_object(bucket, key)
 
     def test_list_objects_filters_prefix_and_returns_every_page(
         self, driver: StorageDriver, bucket: str

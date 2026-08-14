@@ -49,7 +49,9 @@ def test_loader_selects_s3_and_resolves_indirected_credentials(
         "    session_token_env: COGNISTORE_TEST_S3_SESSION\n"
         "    addressing_style: path\n"
         "    auto_create_bucket: true\n"
+        "    chunk_size: 5242880\n"
         "    list_page_size: 7\n"
+        "    multipart_threshold: 10485760\n"
     )
 
     loaded = driver_loader.load_drivers(str(config))
@@ -63,7 +65,9 @@ def test_loader_selects_s3_and_resolves_indirected_credentials(
     assert kwargs["session_token"] == session_token
     assert kwargs["addressing_style"] == "path"
     assert kwargs["auto_create_bucket"] is True
+    assert kwargs["chunk_size"] == 5 * 1024 * 1024
     assert kwargs["list_page_size"] == 7
+    assert kwargs["multipart_threshold"] == 10 * 1024 * 1024
 
 
 def test_loader_missing_credential_environment_variable_is_secret_safe(

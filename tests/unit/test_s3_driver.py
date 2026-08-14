@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import tracemalloc
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
@@ -9,7 +11,9 @@ from typing import Any
 import pytest
 from botocore.exceptions import ClientError
 
-from cognistore.drivers.s3_driver import S3Driver
+from cognistore.drivers.s3_driver import MultipartUploadCleanupError, S3Driver
+
+_MIB = 1024 * 1024
 
 
 def _client_error(code: str, status: int, operation: str) -> ClientError:
@@ -28,6 +32,16 @@ class _CloseTrackingBody(BytesIO):
     def close(self) -> None:
         self.closed_by_driver = True
         super().close()
+
+
+class _ReadTrackingStream(BytesIO):
+    def __init__(self, payload: bytes) -> None:
+        super().__init__(payload)
+        self.request_sizes: list[int] = []
+
+    def read(self, size: int = -1, /) -> bytes:
+        self.request_sizes.append(size)
+        return super().read(size)
 
 
 class _FakePaginator:
@@ -56,16 +70,28 @@ class _FakeS3Client:
         self.paginator_operations: list[str] = []
         self.head_bucket_calls: list[dict[str, Any]] = []
         self.create_bucket_calls: list[dict[str, Any]] = []
+        self.create_multipart_calls: list[dict[str, Any]] = []
+        self.upload_part_calls: list[dict[str, Any]] = []
+        self.complete_multipart_calls: list[dict[str, Any]] = []
+        self.abort_multipart_calls: list[dict[str, Any]] = []
         self.put_error: ClientError | None = None
         self.put_errors: list[ClientError] = []
         self.get_error: ClientError | None = None
         self.head_error: ClientError | None = None
         self.delete_error: ClientError | None = None
+        self.create_multipart_error: ClientError | None = None
+        self.upload_part_error: BaseException | None = None
+        self.complete_multipart_error: ClientError | None = None
+        self.abort_multipart_error: Exception | None = None
         self.get_payload = b"payload"
         self.last_body: _CloseTrackingBody | None = None
 
     def put_object(self, **kwargs: Any) -> dict[str, Any]:
-        self.put_calls.append(kwargs)
+        recorded = dict(kwargs)
+        body = recorded.get("Body")
+        if hasattr(body, "read"):
+            recorded["Body"] = body.read()
+        self.put_calls.append(recorded)
         if self.put_errors:
             raise self.put_errors.pop(0)
         if self.put_error is not None:
@@ -125,6 +151,30 @@ class _FakeS3Client:
         self.create_bucket_calls.append(kwargs)
         return {}
 
+    def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.create_multipart_calls.append(kwargs)
+        if self.create_multipart_error is not None:
+            raise self.create_multipart_error
+        return {"UploadId": "upload-1"}
+
+    def upload_part(self, **kwargs: Any) -> dict[str, Any]:
+        self.upload_part_calls.append(kwargs)
+        if self.upload_part_error is not None:
+            raise self.upload_part_error
+        return {"ETag": f'"part-{kwargs["PartNumber"]}"'}
+
+    def complete_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.complete_multipart_calls.append(kwargs)
+        if self.complete_multipart_error is not None:
+            raise self.complete_multipart_error
+        return {"ETag": '"complete"'}
+
+    def abort_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.abort_multipart_calls.append(kwargs)
+        if self.abort_multipart_error is not None:
+            raise self.abort_multipart_error
+        return {}
+
 
 class _InitiallyMissingBucketClient(_FakeS3Client):
     """Behave correctly with either preflight or optimistic bucket creation."""
@@ -149,6 +199,12 @@ class _InitiallyMissingBucketClient(_FakeS3Client):
         if not self.bucket_exists:
             raise _client_error("NoSuchBucket", 404, "PutObject")
         return {"ETag": '"etag"'}
+
+    def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.create_multipart_calls.append(kwargs)
+        if not self.bucket_exists:
+            raise _client_error("NoSuchBucket", 404, "CreateMultipartUpload")
+        return {"UploadId": "upload-1"}
 
 
 def test_s3_capabilities_match_supported_protocol_operations() -> None:
@@ -383,3 +439,367 @@ def test_same_backend_uses_normalized_custom_endpoint() -> None:
 
     assert first.same_backend(alias) is True
     assert first.same_backend(other) is False
+
+
+@pytest.mark.parametrize(
+    "chunk_size",
+    [False, 0, 5 * _MIB - 1, 5 * 1024 * _MIB + 1],
+)
+def test_multipart_chunk_size_is_validated(chunk_size: Any) -> None:
+    with pytest.raises(ValueError, match="chunk_size"):
+        S3Driver(client=_FakeS3Client(), chunk_size=chunk_size)
+
+
+@pytest.mark.parametrize("threshold", [False, 0, -1, "8 MiB"])
+def test_multipart_threshold_is_validated(threshold: Any) -> None:
+    with pytest.raises(ValueError, match="multipart_threshold"):
+        S3Driver(client=_FakeS3Client(), multipart_threshold=threshold)
+
+
+def test_stream_below_threshold_uses_bounded_conditional_put() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(
+        client=client,
+        chunk_size=5 * _MIB,
+        multipart_threshold=10 * _MIB,
+    )
+    payload = b"small streaming payload"
+
+    transferred = driver.put_object_stream(
+        "bucket",
+        "key",
+        BytesIO(payload),
+        size=len(payload),
+        overwrite=False,
+        metadata={"content_type": "text/plain", "metadata": {"owner": "test"}},
+    )
+
+    assert transferred == len(payload)
+    assert client.create_multipart_calls == []
+    assert client.put_calls == [
+        {
+            "Bucket": "bucket",
+            "Key": "key",
+            "Body": payload,
+            "ContentType": "text/plain",
+            "Metadata": {"owner": "test"},
+            "ContentLength": len(payload),
+            "IfNoneMatch": "*",
+        }
+    ]
+
+
+def test_single_put_staging_stays_chunk_bounded_when_threshold_is_large() -> None:
+    class GeneratedStream:
+        def __init__(self, size: int) -> None:
+            self.remaining = size
+
+        def read(self, size: int = -1, /) -> bytes:
+            amount = self.remaining if size < 0 else min(size, self.remaining)
+            self.remaining -= amount
+            return b"x" * amount
+
+    class ConsumingClient(_FakeS3Client):
+        def __init__(self) -> None:
+            super().__init__()
+            self.received = 0
+
+        def put_object(self, **kwargs: Any) -> dict[str, Any]:
+            body = kwargs["Body"]
+            while chunk := body.read(64 * 1024):
+                self.received += len(chunk)
+            return {"ETag": '"etag"'}
+
+    chunk_size = 5 * _MIB
+    object_size = 6 * chunk_size
+    client = ConsumingClient()
+    driver = S3Driver(
+        client=client,
+        chunk_size=chunk_size,
+        multipart_threshold=64 * _MIB,
+    )
+
+    tracemalloc.start()
+    try:
+        transferred = driver.put_object_stream(
+            "bucket",
+            "large-single-put.bin",
+            GeneratedStream(object_size),
+            size=object_size,
+        )
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert transferred == object_size
+    assert client.received == object_size
+    assert peak < 6 * chunk_size
+
+
+def test_short_stream_reads_do_not_accumulate_per_fragment_overhead() -> None:
+    class OneByteReader:
+        def __init__(self, size: int) -> None:
+            self.remaining = size
+
+        def read(self, size: int = -1, /) -> bytes:
+            if self.remaining == 0:
+                return b""
+            self.remaining -= 1
+            return b"x"
+
+    logical_chunk_size = 256 * 1024
+    driver = S3Driver(client=_FakeS3Client())
+
+    tracemalloc.start()
+    try:
+        chunk = driver._read_exact_chunk(
+            OneByteReader(logical_chunk_size), logical_chunk_size
+        )
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert chunk == b"x" * logical_chunk_size
+    assert peak < 4 * logical_chunk_size
+
+
+def test_stream_rejects_objects_requiring_more_than_ten_thousand_parts() -> None:
+    client = _FakeS3Client()
+    chunk_size = 5 * _MIB
+    driver = S3Driver(client=client, chunk_size=chunk_size)
+
+    with pytest.raises(ValueError, match="more than 10,000"):
+        driver.put_object_stream(
+            "bucket",
+            "too-large.bin",
+            BytesIO(),
+            size=chunk_size * 10_000 + 1,
+        )
+
+    assert client.put_calls == []
+    assert client.create_multipart_calls == []
+
+
+def test_object_above_single_put_limit_uses_multipart_even_with_high_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(
+        client=client,
+        chunk_size=5 * _MIB,
+        multipart_threshold=50 * 1024**4,
+    )
+    object_size = 5 * 1024**3 + 1
+    observed: dict[str, Any] = {}
+
+    def record_multipart(*args: Any, **kwargs: Any) -> int:
+        observed.update(kwargs)
+        return kwargs["size"]
+
+    monkeypatch.setattr(driver, "_put_multipart_stream", record_multipart)
+
+    transferred = driver.put_object_stream(
+        "bucket",
+        "multipart-required.bin",
+        BytesIO(),
+        size=object_size,
+    )
+
+    assert transferred == object_size
+    assert observed["size"] == object_size
+
+
+def test_staged_single_put_is_rewound_for_conditional_retry() -> None:
+    client = _FakeS3Client()
+    client.put_errors = [
+        _client_error("ConditionalRequestConflict", 409, "PutObject")
+    ]
+    driver = S3Driver(
+        client=client,
+        chunk_size=5 * _MIB,
+        multipart_threshold=10 * _MIB,
+    )
+    payload = b"retry the staged body"
+
+    driver.put_object_stream(
+        "bucket",
+        "retry.bin",
+        BytesIO(payload),
+        size=len(payload),
+        overwrite=False,
+    )
+
+    assert [call["Body"] for call in client.put_calls] == [payload, payload]
+
+
+def test_stream_exactly_at_threshold_uses_multipart_upload() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(
+        client=client,
+        chunk_size=5 * _MIB,
+        multipart_threshold=1,
+    )
+
+    transferred = driver.put_object_stream(
+        "bucket",
+        "threshold.bin",
+        BytesIO(b"x"),
+        size=1,
+    )
+
+    assert transferred == 1
+    assert len(client.create_multipart_calls) == 1
+    assert [call["ContentLength"] for call in client.upload_part_calls] == [1]
+    assert len(client.complete_multipart_calls) == 1
+
+
+def test_stream_above_threshold_uses_ordered_conditional_multipart_upload() -> None:
+    client = _FakeS3Client()
+    chunk_size = 5 * _MIB
+    payload = b"a" * chunk_size + b"tail"
+    driver = S3Driver(
+        client=client,
+        chunk_size=chunk_size,
+        multipart_threshold=chunk_size,
+    )
+    source = _ReadTrackingStream(payload)
+
+    transferred = driver.put_object_stream(
+        "bucket",
+        "large.bin",
+        source,
+        size=len(payload),
+        overwrite=False,
+        metadata={"content_type": "application/octet-stream"},
+    )
+
+    assert transferred == len(payload)
+    assert client.create_multipart_calls == [
+        {
+            "Bucket": "bucket",
+            "Key": "large.bin",
+            "ContentType": "application/octet-stream",
+        }
+    ]
+    assert [call["PartNumber"] for call in client.upload_part_calls] == [1, 2]
+    assert [call["ContentLength"] for call in client.upload_part_calls] == [
+        chunk_size,
+        len(b"tail"),
+    ]
+    assert source.request_sizes == [chunk_size, len(b"tail"), 1]
+    assert client.complete_multipart_calls == [
+        {
+            "Bucket": "bucket",
+            "Key": "large.bin",
+            "UploadId": "upload-1",
+            "MultipartUpload": {
+                "Parts": [
+                    {"PartNumber": 1, "ETag": '"part-1"'},
+                    {"PartNumber": 2, "ETag": '"part-2"'},
+                ]
+            },
+            "IfNoneMatch": "*",
+        }
+    ]
+    assert client.abort_multipart_calls == []
+
+
+def test_cancelled_multipart_stream_is_aborted_and_cancellation_propagates() -> None:
+    class InterruptingReader:
+        def __init__(self) -> None:
+            self.reads = 0
+
+        def read(self, size: int = -1, /) -> bytes:
+            self.reads += 1
+            if self.reads == 1:
+                return b"x" * size
+            raise asyncio.CancelledError
+
+    client = _FakeS3Client()
+    chunk_size = 5 * _MIB
+    driver = S3Driver(
+        client=client,
+        chunk_size=chunk_size,
+        multipart_threshold=chunk_size,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        driver.put_object_stream(
+            "bucket",
+            "cancelled.bin",
+            InterruptingReader(),
+            size=chunk_size + 1,
+        )
+
+    assert len(client.upload_part_calls) == 1
+    assert client.complete_multipart_calls == []
+    assert client.abort_multipart_calls == [
+        {"Bucket": "bucket", "Key": "cancelled.bin", "UploadId": "upload-1"}
+    ]
+
+
+def test_conditional_multipart_collision_aborts_and_maps_to_file_exists() -> None:
+    client = _FakeS3Client()
+    client.complete_multipart_error = _client_error(
+        "PreconditionFailed", 412, "CompleteMultipartUpload"
+    )
+    chunk_size = 5 * _MIB
+    driver = S3Driver(
+        client=client,
+        chunk_size=chunk_size,
+        multipart_threshold=chunk_size,
+    )
+
+    with pytest.raises(FileExistsError):
+        driver.put_object_stream(
+            "bucket",
+            "existing.bin",
+            BytesIO(b"x" * chunk_size),
+            size=chunk_size,
+            overwrite=False,
+        )
+
+    assert len(client.complete_multipart_calls) == 1
+    assert len(client.abort_multipart_calls) == 1
+
+
+def test_abort_failure_is_visible_to_the_caller() -> None:
+    client = _FakeS3Client()
+    client.upload_part_error = RuntimeError("upload failed")
+    client.abort_multipart_error = RuntimeError("abort failed")
+    chunk_size = 5 * _MIB
+    driver = S3Driver(
+        client=client,
+        chunk_size=chunk_size,
+        multipart_threshold=chunk_size,
+    )
+
+    with pytest.raises(MultipartUploadCleanupError, match="Failed to abort"):
+        driver.put_object_stream(
+            "bucket",
+            "cleanup.bin",
+            BytesIO(b"x" * chunk_size),
+            size=chunk_size,
+        )
+
+
+def test_auto_create_bucket_recovers_multipart_initiation() -> None:
+    client = _InitiallyMissingBucketClient()
+    chunk_size = 5 * _MIB
+    driver = S3Driver(
+        client=client,
+        auto_create_bucket=True,
+        chunk_size=chunk_size,
+        multipart_threshold=chunk_size,
+    )
+
+    driver.put_object_stream(
+        "new-bucket",
+        "large.bin",
+        BytesIO(b"x" * chunk_size),
+        size=chunk_size,
+    )
+
+    assert len(client.create_bucket_calls) == 1
+    assert len(client.create_multipart_calls) == 2
+    assert len(client.complete_multipart_calls) == 1

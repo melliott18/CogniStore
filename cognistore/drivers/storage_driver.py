@@ -1,8 +1,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, Mapping, Optional, Protocol
+
+DEFAULT_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
+
+
+class ReadableStream(Protocol):
+	"""Minimal binary stream interface consumed by storage drivers."""
+
+	def read(self, size: int = -1) -> bytes:
+		"""Read up to ``size`` bytes, or all remaining bytes when negative."""
+		...
 
 
 @dataclass(frozen=True)
@@ -54,6 +65,36 @@ class StorageDriver(ABC):
 		self, bucket: str, key: str, range: Optional[str] = None
 	) -> bytes:
 		"""Read an object or a ranged portion of it and return bytes."""
+
+	@abstractmethod
+	def open_object_reader(
+		self,
+		bucket: str,
+		key: str,
+		range: Optional[str] = None,
+	) -> AbstractContextManager[ReadableStream]:
+		"""Open a context-managed stream for an object or byte range.
+
+		The returned context manager owns any backend resources associated with
+		the stream and must release them on both normal and exceptional exits.
+		"""
+
+	@abstractmethod
+	def put_object_stream(
+		self,
+		bucket: str,
+		key: str,
+		source: ReadableStream,
+		*,
+		size: int,
+		overwrite: bool = True,
+		metadata: Optional[Mapping[str, Any]] = None,
+	) -> int:
+		"""Write exactly ``size`` bytes from ``source`` and return that count.
+
+		Implementations must not publish a partial object when the source ends
+		early, contains additional bytes, or raises while being consumed.
+		"""
 
 	@abstractmethod
 	def delete_object(self, bucket: str, key: str) -> None:

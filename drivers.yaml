@@ -2,9 +2,11 @@ tiers:
   hot:
     driver: posix
     path: /tmp/cognistore/hot
+    chunk_size: 8388608
   warm:
     driver: posix
     path: /tmp/cognistore/warm
+    chunk_size: 8388608
 
   # Example S3-compatible tier. It remains commented out so the default
   # POSIX-only configuration works without credentials or a running service.
@@ -17,4 +19,6 @@ tiers:
   #   secret_key_env: COGNISTORE_MINIO_SECRET_KEY
   #   addressing_style: path
   #   auto_create_bucket: true
+  #   chunk_size: 8388608
   #   list_page_size: 1000
+  #   multipart_threshold: 8388608
