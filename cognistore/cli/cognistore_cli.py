@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
 import os
+import signal
 import time
 
 from cognistore.core.catalog import Catalog
@@ -12,12 +15,116 @@ from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.core.mover import Mover
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
-from cognistore.core.policy import SimplePolicy, LLMPolicy, ContentAwarePolicy
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
-from cognistore.core.indexer import Indexer
+from cognistore.core.policy_factory import build_policy
+from cognistore.core.scanner import scan_catalog
+from cognistore.jobs.handlers import (
+	CATALOG_SCAN_JOB,
+	POLICY_RUN_JOB,
+	build_handlers,
+	policy_job_payload,
+)
+from cognistore.jobs.health import HealthServer
+from cognistore.jobs.models import JobEnvelope
+from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
+from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 from cognistore.utils.tier_profiler import profile_path, save_metrics_json, load_metrics_json
 from cognistore.utils.device_info import discover_device_for_tier, save_hardware_json, load_hardware_json
 from cognistore.utils.drive_profiles import DEFAULT_PROFILES
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _queue_config(args: argparse.Namespace, *, client_name: str) -> NatsJetStreamConfig:
+	servers = tuple(args.nats_url or [os.environ.get("COGNISTORE_NATS_URL", "nats://127.0.0.1:4222")])
+	return NatsJetStreamConfig(
+		servers=servers,
+		stream=args.job_stream,
+		subject=args.job_subject,
+		consumer=args.job_consumer,
+		ack_wait=args.ack_wait,
+		client_name=client_name,
+	)
+
+
+async def _enqueue_job(
+	config: NatsJetStreamConfig, job: JobEnvelope
+):
+	queue = NatsJetStreamQueue(config, consume=False)
+	try:
+		await queue.connect()
+		return await queue.enqueue(job)
+	finally:
+		# A PubAck means the job is already durable. Producer cleanup must not
+		# replace that success (or the original publish error) with a close error,
+		# since reporting an ambiguous failure encourages a duplicate retry.
+		try:
+			await queue.close(graceful=False)
+		except Exception:
+			LOGGER.warning("failed to close NATS publisher", exc_info=True)
+
+
+def _render_enqueue(job: JobEnvelope, receipt, *, json_output: bool) -> None:
+	payload = {
+		"status": "queued",
+		"job_id": receipt.job_id,
+		"correlation_id": receipt.correlation_id,
+		"job_type": job.job_type,
+		"stream": receipt.stream,
+		"sequence": receipt.sequence,
+		"duplicate": receipt.duplicate,
+	}
+	if json_output:
+		print(json.dumps(payload, sort_keys=True))
+	else:
+		print(
+			f"queued {job.job_type} job_id={job.job_id} "
+			f"correlation_id={job.correlation_id}"
+		)
+
+
+async def _serve_worker(
+	args: argparse.Namespace, drivers, catalog: SQLiteCatalog
+) -> int:
+	queue = NatsJetStreamQueue(_queue_config(args, client_name="cognistore-worker"))
+	worker = AsyncWorker(
+		queue,
+		build_handlers(drivers, catalog),
+		config=WorkerConfig(
+			fetch_timeout=args.fetch_timeout,
+			heartbeat_interval=args.heartbeat_interval,
+			shutdown_grace=args.shutdown_grace,
+			settlement_timeout=args.settlement_timeout,
+			stop_after_jobs=1 if args.once else None,
+		),
+	)
+	health = HealthServer(worker, host=args.health_host, port=args.health_port)
+	loop = asyncio.get_running_loop()
+	installed_signals: list[signal.Signals] = []
+	try:
+		await worker.start()
+		await health.start()
+		for signum in (signal.SIGINT, signal.SIGTERM):
+			try:
+				loop.add_signal_handler(signum, worker.request_shutdown)
+				installed_signals.append(signum)
+			except (NotImplementedError, RuntimeError):
+				pass
+		print(
+			f"worker ready health=http://{args.health_host}:{health.bound_port} "
+			f"stream={args.job_stream} consumer={args.job_consumer}",
+			flush=True,
+		)
+		await worker.wait_for_shutdown_request()
+		report = await worker.shutdown()
+		return 0 if report.graceful and worker.state == WorkerState.STOPPED else 1
+	finally:
+		for signum in installed_signals:
+			loop.remove_signal_handler(signum)
+		if worker.state not in (WorkerState.STOPPED, WorkerState.FAILED):
+			await worker.shutdown()
+		await health.close()
 
 
 def _render_actions(actions: list[ActionResult], *, dry_run: bool, json_output: bool) -> None:
@@ -59,6 +166,15 @@ def main(argv=None):
 	parser.add_argument("--base", help="Base path for POSIX storage (used when --drivers is not provided)")
 	parser.add_argument("--drivers", help="Path to drivers.yaml to enable multi-tier operations")
 	parser.add_argument("--catalog-db", help="Path to SQLite catalog DB; if omitted uses in-memory catalog")
+	parser.add_argument(
+		"--nats-url",
+		action="append",
+		help="NATS server URL (repeat for a cluster; defaults to COGNISTORE_NATS_URL)",
+	)
+	parser.add_argument("--job-stream", default="COGNISTORE_JOBS")
+	parser.add_argument("--job-subject", default="cognistore.jobs")
+	parser.add_argument("--job-consumer", default="cognistore-workers")
+	parser.add_argument("--ack-wait", type=float, default=30.0, help="Seconds before an unacknowledged job is redelivered")
 	sub = parser.add_subparsers(dest="cmd", required=True)
 
 	p_put = sub.add_parser("put")
@@ -92,6 +208,10 @@ def main(argv=None):
 	p_scan.add_argument("tier", help="Tier to scan (e.g., hot)")
 	p_scan.add_argument("bucket")
 	p_scan.add_argument("--prefix", default="")
+	p_scan.add_argument("--sync", action="store_true", help="Run inline instead of enqueueing (development only)")
+	p_scan.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
+	p_scan.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
+	p_scan.add_argument("--json", action="store_true", help="Emit machine-readable output")
 
 	# Profile tiers to derive latency/throughput/capacity metrics
 	p_prof = sub.add_parser("tier-profile")
@@ -127,10 +247,27 @@ def main(argv=None):
 	p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
 	# Planning only
 	p_policy.add_argument("--dry-run", action="store_true", help="Plan moves but do not modify storage or catalog")
+	p_policy.add_argument("--sync", action="store_true", help="Run writable work inline instead of enqueueing (development only)")
+	p_policy.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
+	p_policy.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
 	p_policy.add_argument("--json", action="store_true", help="Emit machine-readable action output")
+
+	p_worker = sub.add_parser("worker", help="Run the durable background worker")
+	p_worker.add_argument("--health-host", default="127.0.0.1")
+	p_worker.add_argument("--health-port", type=int, default=8081)
+	p_worker.add_argument("--fetch-timeout", type=float, default=1.0)
+	p_worker.add_argument("--heartbeat-interval", type=float, default=10.0)
+	p_worker.add_argument("--shutdown-grace", type=float, default=30.0)
+	p_worker.add_argument("--settlement-timeout", type=float, default=5.0)
+	p_worker.add_argument("--once", action="store_true", help="Stop after settling one delivery (primarily for tests)")
 
 	args = parser.parse_args(argv)
 	dry_run = bool(getattr(args, "dry_run", False))
+	background_submission = (
+		args.cmd in {"catalog-scan", "policy-run"}
+		and not dry_run
+		and not getattr(args, "sync", False)
+	)
 	driver = None
 	drivers = None
 	if args.drivers:
@@ -142,6 +279,15 @@ def main(argv=None):
 
 	if args.cmd not in {"put", "get", "ls"} and not drivers:
 		parser.error("--drivers is required for tier operations")
+	if args.cmd == "worker" and not args.catalog_db:
+		parser.error("--catalog-db is required for worker")
+	if args.cmd == "worker" and args.heartbeat_interval >= args.ack_wait:
+		parser.error("--heartbeat-interval must be less than --ack-wait")
+	if background_submission and args.catalog_db:
+		parser.error(
+			"--catalog-db configures inline work only; background jobs use the "
+			"worker's --catalog-db"
+		)
 
 	policy_allowed = None
 	if args.cmd == "policy-run":
@@ -160,7 +306,9 @@ def main(argv=None):
 		except (ValueError, FileExistsError, FileNotFoundError) as exc:
 			parser.error(str(exc))
 
-	if args.catalog_db and args.cmd == "policy-run" and dry_run:
+	if background_submission:
+		catalog = None
+	elif args.catalog_db and args.cmd == "policy-run" and dry_run:
 		if not Path(args.catalog_db).expanduser().exists():
 			parser.error("--catalog-db must already exist for policy-run --dry-run")
 		catalog = SQLiteCatalog(args.catalog_db, read_only=True)
@@ -168,6 +316,13 @@ def main(argv=None):
 		catalog = SQLiteCatalog(args.catalog_db)
 	else:
 		catalog = Catalog()
+
+	if args.cmd == "worker":
+		assert isinstance(catalog, SQLiteCatalog)
+		try:
+			return asyncio.run(_serve_worker(args, drivers, catalog))
+		finally:
+			catalog.close()
 
 	if args.cmd == "put":
 		data = Path(args.file).read_bytes()
@@ -210,27 +365,36 @@ def main(argv=None):
 		return 0
 
 	if args.cmd == "catalog-scan":
-		tier = args.tier
-		drv = drivers[tier]
-		indexer = Indexer()
-		for key in drv.list_objects(args.bucket, prefix=args.prefix):
-			st = drv.stat_object(args.bucket, key)
-			# Fetch a small sample for indexing
-			data = drv.get_object(args.bucket, key, range=f"bytes=0-{min(max(st.get('size', 0)-1, 0), 1024*1024)-1}" if st.get("size", 0) else None)
-			ix = indexer.index_bytes(data, filename=key)
-			catalog.upsert(
-				args.bucket,
-				key,
-				size=st.get("size", 0),
-				tier=tier,
-				metadata={
-					"path": st.get("path"),
-					"sha256": ix.sha256,
-					"mime": ix.mime,
-					"sample_len": len(ix.sample),
-				},
+		if args.tier not in drivers:
+			parser.error(f"unknown tier: {args.tier}")
+		if background_submission:
+			job = JobEnvelope.create(
+				CATALOG_SCAN_JOB,
+				{"tier": args.tier, "bucket": args.bucket, "prefix": args.prefix},
+				job_id=args.job_id,
+				correlation_id=args.correlation_id,
 			)
-			print(f"indexed {tier}:{args.bucket}/{key} size={st.get('size')}")
+			receipt = asyncio.run(
+				_enqueue_job(
+					_queue_config(args, client_name="cognistore-cli"), job
+				)
+			)
+			_render_enqueue(job, receipt, json_output=args.json)
+			return 0
+
+		assert catalog is not None
+		results = scan_catalog(
+			tier=args.tier,
+			bucket=args.bucket,
+			prefix=args.prefix,
+			driver=drivers[args.tier],
+			catalog=catalog,
+		)
+		for result in results:
+			print(
+				f"indexed {result.tier}:{result.bucket}/{result.key} "
+				f"size={result.size}"
+			)
 		return 0
 
 	if args.cmd == "tier-profile":
@@ -437,40 +601,53 @@ def main(argv=None):
 						_policy_info(f"[policy] derived hot/warm threshold from hardware: {bytes_switch/1024/1024:.2f} MiB")
 			except Exception as e:
 				print(f"warning: failed to load/derive hardware from {args.hardware_in}: {e}", file=sys.stderr)
-		if args.policy == "llm":
-			th = args.llm_threshold if args.llm_threshold is not None else args.threshold
-			# Minimal provider that mimics an LLM decision based on threshold
-			class _ThresholdProvider:
-				def decide(self, inputs: dict) -> dict:
-					size = int(inputs.get("size", 0))
-					current = inputs.get("current_tier")
-					if size <= th and "hot" in allowed and current != "hot":
-						return {"action": "move", "dst_tier": "hot", "reason": f"<= {th} bytes"}
-					if size > th and "warm" in allowed and current != "warm":
-						return {"action": "move", "dst_tier": "warm", "reason": f"> {th} bytes"}
-					return {"action": "stay", "reason": "already optimal"}
+		effective_threshold = (
+			derived_threshold if derived_threshold is not None else args.threshold
+		)
+		policy_threshold = (
+			args.threshold if args.policy == "llm" else effective_threshold
+		)
+		if background_submission:
+			job = JobEnvelope.create(
+				POLICY_RUN_JOB,
+				policy_job_payload(
+					bucket=args.bucket,
+					prefix=args.prefix,
+					policy=args.policy,
+					threshold=policy_threshold,
+					llm_threshold=args.llm_threshold,
+					allowed_tiers=allowed,
+					hot_name_patterns=args.hot_name or (),
+					warm_name_patterns=args.warm_name or (),
+					cold_name_patterns=args.cold_name or (),
+					hot_mime_prefixes=args.hot_mime or (),
+					warm_mime_prefixes=args.warm_mime or (),
+					cold_mime_prefixes=args.cold_mime or (),
+				),
+				job_id=args.job_id,
+				correlation_id=args.correlation_id,
+			)
+			receipt = asyncio.run(
+				_enqueue_job(
+					_queue_config(args, client_name="cognistore-cli"), job
+				)
+			)
+			_render_enqueue(job, receipt, json_output=args.json)
+			return 0
 
-			policy = LLMPolicy(provider=_ThresholdProvider(), allowed_tiers=allowed)
-		elif args.policy == "content":
-			policy = ContentAwarePolicy(
-				size_threshold=(derived_threshold or args.threshold),
-				allowed_tiers=allowed,
-				hot_name_patterns=args.hot_name or [],
-				warm_name_patterns=args.warm_name or [],
-				hot_mime_prefixes=args.hot_mime or [],
-				warm_mime_prefixes=args.warm_mime or [],
-			)
-			# Attach cold rules dynamically if present
-			if hasattr(policy, "cold_name_patterns"):
-				policy.cold_name_patterns = [p for p in (args.cold_name or []) if p]
-			if hasattr(policy, "cold_mime_prefixes"):
-				policy.cold_mime_prefixes = [m for m in (args.cold_mime or []) if m]
-			# Placeholder: in future, use metrics-in to adjust thresholds/hints
-		else:
-			policy = SimplePolicy(
-				size_threshold=(derived_threshold or args.threshold),
-				allowed_tiers=allowed,
-			)
+		policy = build_policy(
+			args.policy,
+			threshold=policy_threshold,
+			llm_threshold=args.llm_threshold,
+			allowed_tiers=allowed,
+			hot_name_patterns=args.hot_name or (),
+			warm_name_patterns=args.warm_name or (),
+			cold_name_patterns=args.cold_name or (),
+			hot_mime_prefixes=args.hot_mime or (),
+			warm_mime_prefixes=args.warm_mime or (),
+			cold_mime_prefixes=args.cold_mime or (),
+		)
+		assert catalog is not None
 		mv = Mover(drivers, catalog)
 		runner = PolicyRunner(catalog, drivers, mv, policy, allowed_tiers=allowed)
 		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)

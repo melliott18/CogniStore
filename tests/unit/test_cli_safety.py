@@ -8,6 +8,7 @@ import pytest
 from cognistore.cli import cognistore_cli
 from cognistore.core.catalog import Catalog
 from cognistore.drivers.posix_driver import PosixDriver
+from cognistore.jobs.models import EnqueueReceipt
 
 
 BUCKET = "bk"
@@ -72,6 +73,7 @@ def test_policy_output_distinguishes_planned_from_completed(
         BUCKET,
         "--threshold",
         str(len(DATA)),
+        "--sync",
     ]
     if dry_run:
         argv.append("--dry-run")
@@ -337,3 +339,101 @@ def test_policy_run_rejects_invalid_or_unknown_allowed_tiers(
 
     assert exc_info.value.code == 2
     assert message in capsys.readouterr().err
+
+
+def test_policy_run_enqueues_by_default_without_moving_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    catalog, hot, warm = _configured_policy_run(tmp_path, monkeypatch)
+    captured_jobs = []
+
+    async def enqueue(_config, job):
+        captured_jobs.append(job)
+        return EnqueueReceipt(
+            job_id=job.job_id,
+            correlation_id=job.correlation_id,
+            stream="TEST_JOBS",
+            sequence=12,
+        )
+
+    monkeypatch.setattr(cognistore_cli, "_enqueue_job", enqueue)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "ignored.yaml",
+                "policy-run",
+                BUCKET,
+                "--threshold",
+                str(len(DATA)),
+                "--correlation-id",
+                "request-18",
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "queued"
+    assert output["job_type"] == "policy.run"
+    assert output["correlation_id"] == "request-18"
+    assert output["sequence"] == 12
+    assert len(captured_jobs) == 1
+    assert captured_jobs[0].payload["bucket"] == BUCKET
+    assert captured_jobs[0].payload["allowed_tiers"] == ["hot", "warm"]
+    assert catalog.get(BUCKET, KEY).tier == "warm"  # type: ignore[union-attr]
+    assert warm.get_object(BUCKET, KEY) == DATA
+    with pytest.raises(FileNotFoundError):
+        hot.get_object(BUCKET, KEY)
+
+
+def test_catalog_scan_enqueues_job_and_correlation_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": hot})
+    captured_jobs = []
+
+    async def enqueue(_config, job):
+        captured_jobs.append(job)
+        return EnqueueReceipt(
+            job_id=job.job_id,
+            correlation_id=job.correlation_id,
+            stream="TEST_JOBS",
+            sequence=4,
+        )
+
+    monkeypatch.setattr(cognistore_cli, "_enqueue_job", enqueue)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "ignored.yaml",
+                "catalog-scan",
+                "hot",
+                BUCKET,
+                "--prefix",
+                "reports/",
+                "--correlation-id",
+                "scan-request",
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["job_type"] == "catalog.scan"
+    assert output["correlation_id"] == "scan-request"
+    assert captured_jobs[0].payload == {
+        "tier": "hot",
+        "bucket": BUCKET,
+        "prefix": "reports/",
+    }

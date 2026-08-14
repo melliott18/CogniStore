@@ -152,12 +152,12 @@ You can build a catalog from an existing tier and then run a simple policy pass 
 # Optionally use a persistent SQLite catalog
 CAT_DB=/tmp/cognistore/catalog.db
 
-# Scan a tier (e.g., hot) and index objects into the catalog
-python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+# Scan a tier (e.g., hot); the worker owns the persistent catalog
+python -m cognistore.cli --drivers drivers.yaml \
 	catalog-scan hot demo-bucket --prefix path/
 
 # Run a policy pass: files <= threshold go to hot; larger go to warm
-python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
+python -m cognistore.cli --drivers drivers.yaml \
 	policy-run demo-bucket --prefix path/ --threshold 1048576
 
 # Preview planned actions as JSON without storage or catalog writes
@@ -170,7 +170,9 @@ python -m cognistore.cli --drivers drivers.yaml ls-tier warm demo-bucket --prefi
 ```
 
 Notes:
-- If `--catalog-db` is omitted, an in-memory catalog is used for the current run only.
+- The worker must use a persistent `--catalog-db`; background submissions intentionally do not select a database.
+- Inline commands use an in-memory catalog when `--catalog-db` is omitted.
+- Writable `catalog-scan` and `policy-run` commands enqueue durable background jobs by default; run a worker with a persistent `--catalog-db`. Dry-runs stay synchronous, and `--sync` is available for explicit development-only inline execution.
 - `catalog-scan` captures metadata including sha256, mime, and a small sample length.
 - `policy-run` supports:
 	- `--policy simple|llm|content` (default: simple)
@@ -189,11 +191,35 @@ Notes:
 		- `--warm-mime PREFIX` (repeatable) → MIME prefix for warm (e.g., `application/zip`)
 	The LLM mode currently uses a threshold-based mock provider; you can swap in a real provider later.
 
+### Durable background workers
+
+CogniStore uses file-backed NATS JetStream and a durable pull consumer for
+at-least-once execution. Start NATS Server 2.10 or newer with JetStream
+enabled, then run:
+
+```bash
+python -m cognistore.cli --drivers drivers.yaml \
+  --catalog-db /tmp/cognistore/catalog.db \
+  --nats-url nats://127.0.0.1:4222 worker
+```
+
+Submit scans and policy passes with the commands above. Their output contains a
+stable job ID and correlation ID. A job may be delivered more than once, so
+handlers must use the job ID as an idempotency key; publish deduplication does
+not make consumer effects exactly once.
+
+Worker liveness is served at `http://127.0.0.1:8081/healthz`, and readiness
+(including a live JetStream stream/consumer probe) at `/readyz`. See
+[`docs/background_workers.md`](docs/background_workers.md) for setup,
+configuration, shutdown semantics, the complete consumer contract, and
+integration-test instructions. The stack choice is recorded in
+[`ADR 0001`](docs/adr/0001-nats-jetstream-workers.md).
+
 Example content-aware pass (ensure you ran `catalog-scan` first so MIME metadata exists):
 
 ```bash
 python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
-  policy-run demo-bucket --policy content \
+  policy-run demo-bucket --policy content --sync \
   --hot-name "*.txt" --hot-mime text/ \
   --warm-name "*.zip" --warm-mime application/zip \
   --threshold 1048576
