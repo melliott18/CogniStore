@@ -104,19 +104,28 @@ class SQLiteCatalog(Catalog):
         *,
         size: int,
         tier: str,
+        checksum: Optional[str] = None,
     ) -> None:
-        """Commit size and placement without replacing current metadata."""
+        """Commit verified placement data without replacing other metadata."""
 
         with self._lock:
+            row = self._conn.execute(
+                "SELECT metadata FROM objects WHERE bucket=? AND key=?",
+                (bucket, key),
+            ).fetchone()
+            metadata = json.loads(row[0]) if row and row[0] else {}
+            if checksum is not None:
+                metadata["sha256"] = checksum
             self._conn.execute(
                 """
                 INSERT INTO objects(bucket, key, size, tier, metadata)
                 VALUES(?,?,?,?,?)
                 ON CONFLICT(bucket, key) DO UPDATE SET
                     size=excluded.size,
-                    tier=excluded.tier
+                    tier=excluded.tier,
+                    metadata=excluded.metadata
                 """,
-                (bucket, key, size, tier, json.dumps({})),
+                (bucket, key, size, tier, json.dumps(metadata)),
             )
             self._conn.commit()
 

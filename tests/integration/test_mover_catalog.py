@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from cognistore.core.catalog import Catalog
-from cognistore.core.mover import Mover
+from cognistore.core.mover import Mover, MoveVerificationError
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.drivers.posix_driver import PosixDriver
 
@@ -89,7 +89,7 @@ def test_mover_updates_catalog_and_storage(
 	monkeypatch.setattr(warm, "put_object_stream", recording_put_stream)
 
 	# Move to warm
-	mover.move("hot", "warm", bucket, key)
+	verification = mover.move("hot", "warm", bucket, key)
 
 	# Verify storage: not in hot, present in warm
 	assert list(hot.list_objects(bucket)) == []
@@ -100,8 +100,18 @@ def test_mover_updates_catalog_and_storage(
 	assert rec is not None
 	assert rec.tier == "warm"
 	assert rec.size == len(data)
-	assert rec.metadata == catalog_metadata
+	assert rec.metadata == {
+		**catalog_metadata,
+		"sha256": hashlib.sha256(data).hexdigest(),
+	}
 	assert rec.metadata is not catalog_metadata
+	assert verification.verified is True
+	assert verification.status == "verified"
+	assert verification.algorithm == "sha256"
+	assert verification.source_size == len(data)
+	assert verification.destination_size == len(data)
+	assert verification.source_checksum == hashlib.sha256(data).hexdigest()
+	assert verification.destination_checksum == verification.source_checksum
 	assert stream_calls[0]["size"] == len(data)
 	assert stream_calls[0]["overwrite"] is False
 	assert stream_calls[0]["metadata"]["content_type"] == "text/plain"
@@ -185,7 +195,10 @@ def test_mover_preserves_sqlite_catalog_metadata_and_corrects_size(tmp_path: Pat
 		assert record is not None
 		assert record.tier == "warm"
 		assert record.size == len(data)
-		assert record.metadata == metadata
+		assert record.metadata == {
+			**metadata,
+			"sha256": hashlib.sha256(data).hexdigest(),
+		}
 		assert warm.get_object("bucket", "nested/object.txt") == data
 		with pytest.raises(FileNotFoundError):
 			hot.stat_object("bucket", "nested/object.txt")
@@ -241,7 +254,11 @@ def test_mover_preserves_metadata_changed_during_transfer(
 		assert (record.tier, record.size, record.metadata) == (
 			"warm",
 			len(data),
-			{"revision": "during-transfer", "scanner": "latest"},
+			{
+				"revision": "during-transfer",
+				"scanner": "latest",
+				"sha256": hashlib.sha256(data).hexdigest(),
+			},
 		)
 	finally:
 		if isinstance(catalog, SQLiteCatalog):
@@ -275,7 +292,7 @@ def test_mover_creates_catalog_record_when_missing_at_commit(
 		assert (record.tier, record.size, record.metadata) == (
 			"warm",
 			len(data),
-			{},
+			{"sha256": hashlib.sha256(data).hexdigest()},
 		)
 	finally:
 		if isinstance(catalog, SQLiteCatalog):
@@ -315,6 +332,98 @@ def test_stream_failure_preserves_source_and_catalog(
 		len(data),
 		metadata,
 	)
+
+
+@pytest.mark.parametrize("damage", ["truncate", "corrupt"])
+def test_destination_verification_failure_preserves_posix_source_and_catalog(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+	damage: str,
+) -> None:
+	hot = PosixDriver(str(tmp_path / f"{damage}-hot"))
+	warm = PosixDriver(str(tmp_path / f"{damage}-warm"))
+	bucket = "bk"
+	key = f"{damage}.bin"
+	data = b"source bytes must survive verification failure"
+	original_metadata = {"sha256": "stale-scan-digest", "revision": 7}
+	hot.put_object(bucket, key, data)
+	catalog = Catalog()
+	catalog.upsert(
+		bucket,
+		key,
+		size=len(data),
+		tier="hot",
+		metadata=original_metadata,
+	)
+	original_put_stream = warm.put_object_stream
+
+	def damage_committed_destination(*args, **kwargs):
+		written = original_put_stream(*args, **kwargs)
+		path = warm.base / bucket / key
+		if damage == "truncate":
+			with path.open("r+b") as destination:
+				destination.truncate(len(data) - 1)
+		else:
+			with path.open("r+b") as destination:
+				destination.seek(len(data) // 2)
+				original = destination.read(1)
+				destination.seek(len(data) // 2)
+				destination.write(bytes([original[0] ^ 0xFF]))
+		return written
+
+	monkeypatch.setattr(warm, "put_object_stream", damage_committed_destination)
+
+	with pytest.raises(MoveVerificationError) as captured:
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", bucket, key
+		)
+
+	result = captured.value.result
+	assert result.status == "failed"
+	assert result.verified is False
+	assert result.source_checksum == hashlib.sha256(data).hexdigest()
+	assert result.destination_checksum is not None
+	assert result.destination_checksum != result.source_checksum
+	assert result.source_checksum in str(captured.value)
+	assert result.destination_checksum in str(captured.value)
+	assert hot.get_object(bucket, key) == data
+	record = catalog.get(bucket, key)
+	assert record is not None
+	assert (record.tier, record.size, record.metadata) == (
+		"hot",
+		len(data),
+		original_metadata,
+	)
+
+
+def test_incomplete_destination_verification_preserves_source_and_catalog(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+	hot = PosixDriver(str(tmp_path / "hot"))
+	warm = PosixDriver(str(tmp_path / "warm"))
+	bucket = "bk"
+	key = "unreadable-destination.bin"
+	data = b"retain source when destination cannot be read"
+	hot.put_object(bucket, key, data)
+	catalog = Catalog()
+	catalog.upsert(bucket, key, len(data), "hot", metadata={"revision": 3})
+
+	def fail_verification_read(*_args, **_kwargs):
+		raise OSError("injected destination read failure")
+
+	monkeypatch.setattr(warm, "open_object_reader", fail_verification_read)
+
+	with pytest.raises(MoveVerificationError) as captured:
+		Mover({"hot": hot, "warm": warm}, catalog).move(
+			"hot", "warm", bucket, key
+		)
+
+	assert captured.value.result.destination_checksum is None
+	assert "injected destination read failure" in str(captured.value)
+	assert hot.get_object(bucket, key) == data
+	record = catalog.get(bucket, key)
+	assert record is not None
+	assert (record.tier, record.metadata) == ("hot", {"revision": 3})
 
 
 def test_same_tier_move_is_rejected_without_deleting_source(tmp_path: Path):
