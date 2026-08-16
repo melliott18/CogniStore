@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Mapping
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Dict, Literal, Mapping
+from uuid import uuid4
 
 from cognistore.core.catalog import Catalog
+from cognistore.core.move_jobs import (
+    MoveJob,
+    MoveJobFailedError,
+    MoveJobLeaseError,
+    MoveJobState,
+    MoveJobTransition,
+)
 from cognistore.drivers.storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     ReadableStream,
@@ -79,9 +88,24 @@ class _HashingReader:
 
 
 class Mover:
-    def __init__(self, drivers: Dict[str, StorageDriver], catalog: Catalog) -> None:
+    def __init__(
+        self,
+        drivers: Dict[str, StorageDriver],
+        catalog: Catalog,
+        *,
+        owner_id: str | None = None,
+        lease_seconds: float = 30.0,
+        clock: Callable[[], datetime] | None = None,
+        transition_hook: Callable[[MoveJob], None] | None = None,
+    ) -> None:
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be greater than zero")
         self.drivers = drivers
         self.catalog = catalog
+        self.owner_id = owner_id or str(uuid4())
+        self.lease_seconds = lease_seconds
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._transition_hook = transition_hook
 
     def _drivers_for_move(
         self, src_tier: str, dst_tier: str
@@ -144,7 +168,8 @@ class Mover:
     def _verification_result(
         plan: MovePlan,
         dst: StorageDriver,
-        source: _HashingReader,
+        source_size: int,
+        source_checksum: str,
         transferred_size: Any,
     ) -> MoveVerificationResult:
         failures: list[str] = []
@@ -166,9 +191,9 @@ class Mover:
                     f"expected {plan.size}"
                 )
 
-        if source.size != plan.size:
+        if source_size != plan.size:
             failures.append(
-                f"source stream produced {source.size} bytes; expected {plan.size}"
+                f"source stream produced {source_size} bytes; expected {plan.size}"
             )
 
         destination_stat_size: int | None = None
@@ -233,10 +258,10 @@ class Mover:
                     f"destination checksum read observed {destination_size} bytes; "
                     f"expected {plan.size}"
                 )
-            if destination_checksum != source.checksum:
+            if destination_checksum != source_checksum:
                 failures.append(
                     f"checksum mismatch ({CHECKSUM_ALGORITHM}): "
-                    f"source={source.checksum}, destination={destination_checksum}"
+                    f"source={source_checksum}, destination={destination_checksum}"
                 )
 
         status: Literal["verified", "failed"] = (
@@ -247,50 +272,335 @@ class Mover:
             algorithm=CHECKSUM_ALGORITHM,
             expected_size=plan.size,
             transferred_size=reported_size,
-            source_size=source.size,
+            source_size=source_size,
             destination_stat_size=destination_stat_size,
             destination_size=destination_size,
-            source_checksum=source.checksum,
+            source_checksum=source_checksum,
             destination_checksum=destination_checksum,
             failure_details=tuple(failures),
         )
 
     def move(
-        self, src_tier: str, dst_tier: str, bucket: str, key: str
+        self,
+        src_tier: str,
+        dst_tier: str,
+        bucket: str,
+        key: str,
+        *,
+        idempotency_key: str | None = None,
     ) -> MoveVerificationResult:
-        plan = self.plan(src_tier, dst_tier, bucket, key)
-        src, dst = self._drivers_for_move(src_tier, dst_tier)
+        """Execute or resume one durable, idempotent object move.
 
-        with src.open_object_reader(bucket, key) as source_stream:
-            source = _HashingReader(source_stream)
-            transferred_size = dst.put_object_stream(
-                bucket,
-                key,
-                source,
-                size=plan.size,
-                overwrite=False,
-                metadata=plan.metadata,
+        An explicit ``idempotency_key`` identifies the move across process and
+        message redelivery. Calls without one remain independent manual moves.
+        """
+
+        self._drivers_for_move(src_tier, dst_tier)
+        move_key = idempotency_key or str(uuid4())
+        existing = self.catalog.get_move_job(move_key)
+        was_new = existing is None
+        if existing is None:
+            plan = self.plan(src_tier, dst_tier, bucket, key)
+        else:
+            plan = MovePlan(
+                src_tier=src_tier,
+                dst_tier=dst_tier,
+                bucket=bucket,
+                key=key,
+                size=existing.expected_size,
+                metadata=existing.source_metadata,
             )
 
-        verification = self._verification_result(
-            plan,
-            dst,
-            source,
-            transferred_size,
+        now, lease_expires_at = self._lease_window()
+        job = self.catalog.claim_move_job(
+            move_key,
+            src_tier=src_tier,
+            dst_tier=dst_tier,
+            bucket=bucket,
+            key=key,
+            expected_size=plan.size,
+            source_metadata=plan.metadata,
+            owner_id=self.owner_id,
+            now=now,
+            lease_expires_at=lease_expires_at,
         )
-        if not verification.verified:
-            raise MoveVerificationError(plan, verification)
-        assert verification.destination_checksum is not None
+        if was_new:
+            self._after_transition(job)
+        if job.state == MoveJobState.COMPLETED:
+            return self._verification_from_job(job)
+        if job.state == MoveJobState.FAILED:
+            raise MoveJobFailedError(job)
+        return self._resume(job)
 
-        # The destination stream is committed before the source or catalog is
-        # mutated. Verification independently reads the committed destination,
-        # so a failed or interrupted write leaves the source placement intact.
-        src.delete_object(bucket, key)
-        self.catalog.upsert_placement(
-            bucket,
-            key,
-            size=verification.destination_size,
-            tier=dst_tier,
-            checksum=verification.destination_checksum,
+    def recover_incomplete(
+        self, *, idempotency_prefix: str | None = None
+    ) -> list[MoveVerificationResult]:
+        """Claim and resume every available non-terminal move job."""
+
+        terminal = {MoveJobState.COMPLETED, MoveJobState.FAILED}
+        jobs = self.catalog.list_move_jobs(idempotency_prefix=idempotency_prefix)
+        recovered: list[MoveVerificationResult] = []
+        for job in jobs:
+            if job.state in terminal:
+                continue
+            try:
+                recovered.append(
+                    self.move(
+                        job.src_tier,
+                        job.dst_tier,
+                        job.bucket,
+                        job.key,
+                        idempotency_key=job.idempotency_key,
+                    )
+                )
+            except MoveJobLeaseError:
+                continue
+        return recovered
+
+    def get_job(self, idempotency_key: str) -> MoveJob | None:
+        return self.catalog.get_move_job(idempotency_key)
+
+    def list_jobs(self) -> list[MoveJob]:
+        return self.catalog.list_move_jobs()
+
+    def get_job_transitions(
+        self, idempotency_key: str
+    ) -> list[MoveJobTransition]:
+        return self.catalog.list_move_job_transitions(idempotency_key)
+
+    def _resume(self, job: MoveJob) -> MoveVerificationResult:
+        plan = MovePlan(
+            src_tier=job.src_tier,
+            dst_tier=job.dst_tier,
+            bucket=job.bucket,
+            key=job.key,
+            size=job.expected_size,
+            metadata=job.source_metadata,
         )
-        return verification
+        src, dst = self._drivers_for_move(job.src_tier, job.dst_tier)
+
+        while True:
+            if job.state == MoveJobState.PREPARED:
+                try:
+                    destination_exists = True
+                    dst.stat_object(job.bucket, job.key)
+                except FileNotFoundError:
+                    destination_exists = False
+
+                if destination_exists:
+                    source_size, source_checksum = self._hash_object(
+                        src, job.bucket, job.key
+                    )
+                    transferred_size = job.expected_size
+                    reason = "existing destination recovered after transfer"
+                else:
+                    with src.open_object_reader(job.bucket, job.key) as source_stream:
+                        source = _HashingReader(source_stream)
+                        transferred_size = dst.put_object_stream(
+                            job.bucket,
+                            job.key,
+                            source,
+                            size=job.expected_size,
+                            overwrite=False,
+                            metadata=job.source_metadata,
+                        )
+                    source_size = source.size
+                    source_checksum = source.checksum
+                    reason = "destination transfer completed"
+                job = self._transition(
+                    job,
+                    MoveJobState.TRANSFERRED,
+                    reason,
+                    updates={
+                        "transferred_size": transferred_size,
+                        "source_size": source_size,
+                        "source_checksum": source_checksum,
+                    },
+                )
+
+            elif job.state == MoveJobState.TRANSFERRED:
+                if job.source_checksum is None or job.source_size is None:
+                    source_size, source_checksum = self._hash_object(
+                        src, job.bucket, job.key
+                    )
+                else:
+                    source_size = job.source_size
+                    source_checksum = job.source_checksum
+                verification = self._verification_result(
+                    plan,
+                    dst,
+                    source_size,
+                    source_checksum,
+                    job.transferred_size,
+                )
+                updates = {
+                    "destination_size": verification.destination_size,
+                    "destination_checksum": verification.destination_checksum,
+                    "verification_details": verification.failure_details,
+                }
+                if not verification.verified:
+                    reason = "; ".join(verification.failure_details)
+                    job = self._transition(
+                        job,
+                        MoveJobState.FAILED,
+                        reason,
+                        updates={**updates, "terminal_reason": reason},
+                    )
+                    raise MoveVerificationError(plan, verification)
+                job = self._transition(
+                    job,
+                    MoveJobState.VERIFIED,
+                    "destination size and checksum verified",
+                    updates=updates,
+                )
+
+            elif job.state == MoveJobState.VERIFIED:
+                assert job.destination_checksum is not None
+                assert job.destination_size is not None
+                now, lease_expires_at = self._lease_window()
+                job = self.catalog.commit_move_job_placement(
+                    job.idempotency_key,
+                    owner_id=self.owner_id,
+                    size=job.destination_size,
+                    tier=job.dst_tier,
+                    checksum=job.destination_checksum,
+                    now=now,
+                    lease_expires_at=lease_expires_at,
+                )
+                self._after_transition(job)
+
+            elif job.state == MoveJobState.COMMITTED:
+                job = self._transition(
+                    job,
+                    MoveJobState.CLEANUP,
+                    "source cleanup started",
+                )
+
+            elif job.state == MoveJobState.CLEANUP:
+                # A recovered cleanup rechecks the committed destination before
+                # repeating the only destructive effect. Source deletion is
+                # itself required to be idempotent by the driver contract.
+                self._verify_committed_destination(plan, dst, job)
+                src.delete_object(job.bucket, job.key)
+                job = self._transition(
+                    job,
+                    MoveJobState.COMPLETED,
+                    "source cleanup completed",
+                    updates={"terminal_reason": "move completed"},
+                )
+
+            elif job.state == MoveJobState.COMPLETED:
+                return self._verification_from_job(job)
+            elif job.state == MoveJobState.FAILED:
+                raise MoveJobFailedError(job)
+
+    def _transition(
+        self,
+        job: MoveJob,
+        to_state: MoveJobState,
+        reason: str,
+        *,
+        updates: Mapping[str, Any] | None = None,
+    ) -> MoveJob:
+        now, lease_expires_at = self._lease_window()
+        updated = self.catalog.transition_move_job(
+            job.idempotency_key,
+            owner_id=self.owner_id,
+            expected_state=job.state,
+            to_state=to_state,
+            reason=reason,
+            now=now,
+            lease_expires_at=lease_expires_at,
+            updates=updates,
+        )
+        self._after_transition(updated)
+        return updated
+
+    def _after_transition(self, job: MoveJob) -> None:
+        if self._transition_hook is not None:
+            self._transition_hook(job)
+
+    def _lease_window(self) -> tuple[str, str]:
+        now = self._clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("move-job clock must return a timezone-aware datetime")
+        now = now.astimezone(timezone.utc)
+        expires = now + timedelta(seconds=self.lease_seconds)
+        return self._timestamp(now), self._timestamp(expires)
+
+    @staticmethod
+    def _timestamp(value: datetime) -> str:
+        return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    @staticmethod
+    def _hash_object(
+        driver: StorageDriver, bucket: str, key: str
+    ) -> tuple[int, str]:
+        chunk_size = getattr(driver, "chunk_size", DEFAULT_STREAM_CHUNK_SIZE)
+        if (
+            isinstance(chunk_size, bool)
+            or not isinstance(chunk_size, int)
+            or chunk_size <= 0
+        ):
+            chunk_size = DEFAULT_STREAM_CHUNK_SIZE
+        size = 0
+        digest = hashlib.sha256()
+        with driver.open_object_reader(bucket, key) as stream:
+            while True:
+                chunk = stream.read(chunk_size)
+                if not isinstance(chunk, bytes):
+                    raise TypeError("Object stream read() must return bytes")
+                if not chunk:
+                    break
+                size += len(chunk)
+                digest.update(chunk)
+        return size, digest.hexdigest()
+
+    def _verify_committed_destination(
+        self, plan: MovePlan, dst: StorageDriver, job: MoveJob
+    ) -> None:
+        destination_size, destination_checksum = self._hash_object(
+            dst, job.bucket, job.key
+        )
+        if (
+            destination_size != job.destination_size
+            or destination_checksum != job.destination_checksum
+        ):
+            result = MoveVerificationResult(
+                status="failed",
+                algorithm=CHECKSUM_ALGORITHM,
+                expected_size=job.expected_size,
+                transferred_size=job.transferred_size,
+                source_size=job.source_size or job.expected_size,
+                destination_stat_size=destination_size,
+                destination_size=destination_size,
+                source_checksum=job.source_checksum or "",
+                destination_checksum=destination_checksum,
+                failure_details=(
+                    "committed destination changed before source cleanup",
+                ),
+            )
+            raise MoveVerificationError(plan, result)
+
+    @staticmethod
+    def _verification_from_job(job: MoveJob) -> MoveVerificationResult:
+        if (
+            job.source_checksum is None
+            or job.destination_checksum is None
+            or job.destination_size is None
+        ):
+            raise RuntimeError(
+                f"Completed move job {job.idempotency_key!r} lacks verification data"
+            )
+        return MoveVerificationResult(
+            status="verified",
+            algorithm=CHECKSUM_ALGORITHM,
+            expected_size=job.expected_size,
+            transferred_size=job.transferred_size,
+            source_size=job.source_size or job.expected_size,
+            destination_stat_size=job.destination_size,
+            destination_size=job.destination_size,
+            source_checksum=job.source_checksum,
+            destination_checksum=job.destination_checksum,
+            failure_details=(),
+        )

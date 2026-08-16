@@ -142,6 +142,13 @@ needs `s3:AbortMultipartUpload`. Because a process crash or forced termination
 cannot run application cleanup, production buckets should also use an
 `AbortIncompleteMultipartUpload` lifecycle rule as a backstop.
 
+Each executed move is also a catalog-backed state machine. An explicit
+idempotency key can safely be replayed across worker delivery attempts. The
+destination is transferred and verified before the catalog placement changes;
+source cleanup happens only after that atomic catalog commit. SQLite catalogs
+persist phase history, terminal reasons, ownership, and expiring leases so an
+incomplete move can be claimed and resumed after a worker failure.
+
 MinIO integration tests are opt-in. With a separately managed test instance
 running, set its API endpoint and disposable credentials, then run the marked
 test module:
@@ -257,7 +264,9 @@ python -m cognistore.cli --drivers drivers.yaml \
 Submit scans and policy passes with the commands above. Their output contains a
 stable job ID and correlation ID. A job may be delivered more than once, so
 handlers must use the job ID as an idempotency key; publish deduplication does
-not make consumer effects exactly once.
+not make consumer effects exactly once. Policy moves derive per-object keys
+from that stable job ID and recover incomplete phases before evaluating the
+next placement pass.
 
 Worker liveness is served at `http://127.0.0.1:8081/healthz`, and readiness
 (including a live JetStream stream/consumer probe) at `/readyz`. See

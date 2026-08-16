@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Literal
 
@@ -30,11 +32,13 @@ class PolicyRunner:
         mover: Mover,
         policy: Policy,
         allowed_tiers: Iterable[str] | None = None,
+        idempotency_namespace: str | None = None,
     ) -> None:
         self.catalog = catalog
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
+        self.idempotency_namespace = idempotency_namespace
         self.allowed_tiers = frozenset(
             drivers if allowed_tiers is None else allowed_tiers
         )
@@ -82,5 +86,21 @@ class PolicyRunner:
                     result.to_tier,
                     result.bucket,
                     result.key,
+                    idempotency_key=self._move_idempotency_key(result),
                 )
         return results
+
+    def _move_idempotency_key(self, result: ActionResult) -> str | None:
+        if self.idempotency_namespace is None:
+            return None
+        identity = json.dumps(
+            [
+                result.from_tier,
+                result.to_tier,
+                result.bucket,
+                result.key,
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return f"{self.idempotency_namespace}:{hashlib.sha256(identity).hexdigest()}"

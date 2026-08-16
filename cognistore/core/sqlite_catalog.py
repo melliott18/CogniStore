@@ -4,9 +4,35 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Mapping, Optional
 
 from .catalog import Catalog, ObjectRecord
+from .move_jobs import (
+    MoveJob,
+    MoveJobLeaseError,
+    MoveJobState,
+    MoveJobTransition,
+    validate_move_job_transition,
+)
+
+_GET_MOVE_JOB_SQL = """
+    SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
+           expected_size, source_metadata, state, owner_id, lease_expires_at,
+           transferred_size, source_size, source_checksum, destination_size,
+           destination_checksum, verification_details, terminal_reason,
+           created_at, updated_at
+    FROM move_jobs
+    WHERE idempotency_key=?
+"""
+_LIST_MOVE_JOBS_SQL = """
+    SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
+           expected_size, source_metadata, state, owner_id, lease_expires_at,
+           transferred_size, source_size, source_checksum, destination_size,
+           destination_checksum, verification_details, terminal_reason,
+           created_at, updated_at
+    FROM move_jobs
+    ORDER BY created_at, idempotency_key
+"""
 
 
 class SQLiteCatalog(Catalog):
@@ -44,6 +70,43 @@ class SQLiteCatalog(Catalog):
                 metadata TEXT,
                 PRIMARY KEY(bucket, key)
             )
+            """
+        )
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS move_jobs (
+                idempotency_key TEXT PRIMARY KEY,
+                src_tier TEXT NOT NULL,
+                dst_tier TEXT NOT NULL,
+                bucket TEXT NOT NULL,
+                object_key TEXT NOT NULL,
+                expected_size INTEGER NOT NULL,
+                source_metadata TEXT NOT NULL,
+                state TEXT NOT NULL,
+                owner_id TEXT,
+                lease_expires_at TEXT,
+                transferred_size INTEGER,
+                source_size INTEGER,
+                source_checksum TEXT,
+                destination_size INTEGER,
+                destination_checksum TEXT,
+                verification_details TEXT NOT NULL DEFAULT '[]',
+                terminal_reason TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS move_jobs_state_idx
+                ON move_jobs(state, updated_at);
+            CREATE TABLE IF NOT EXISTS move_job_transitions (
+                idempotency_key TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                from_state TEXT,
+                to_state TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(idempotency_key, sequence),
+                FOREIGN KEY(idempotency_key) REFERENCES move_jobs(idempotency_key)
+            );
             """
         )
         self._conn.commit()
@@ -147,3 +210,389 @@ class SQLiteCatalog(Catalog):
             md = json.loads(row[4]) if row[4] else {}
             out.append(ObjectRecord(bucket=row[0], key=row[1], size=row[2], tier=row[3], metadata=md))
         return out
+
+    def claim_move_job(
+        self,
+        idempotency_key: str,
+        *,
+        src_tier: str,
+        dst_tier: str,
+        bucket: str,
+        key: str,
+        expected_size: int,
+        source_metadata: Mapping[str, Any],
+        owner_id: str,
+        now: str,
+        lease_expires_at: str,
+    ) -> MoveJob:
+        """Create or atomically claim a durable move job."""
+
+        if not idempotency_key.strip():
+            raise ValueError("idempotency_key must be a non-empty string")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                if row is None:
+                    self._conn.execute(
+                        """
+                        INSERT INTO move_jobs(
+                            idempotency_key, src_tier, dst_tier, bucket,
+                            object_key, expected_size, source_metadata, state,
+                            owner_id, lease_expires_at, created_at, updated_at
+                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (
+                            idempotency_key,
+                            src_tier,
+                            dst_tier,
+                            bucket,
+                            key,
+                            expected_size,
+                            json.dumps(dict(source_metadata)),
+                            MoveJobState.PREPARED.value,
+                            owner_id,
+                            lease_expires_at,
+                            now,
+                            now,
+                        ),
+                    )
+                    self._conn.execute(
+                        """
+                        INSERT INTO move_job_transitions(
+                            idempotency_key, sequence, from_state, to_state,
+                            reason, created_at
+                        ) VALUES(?,1,NULL,?,?,?)
+                        """,
+                        (
+                            idempotency_key,
+                            MoveJobState.PREPARED.value,
+                            "move prepared",
+                            now,
+                        ),
+                    )
+                else:
+                    existing = self._move_job_from_row(row)
+                    Catalog._assert_same_move(
+                        existing,
+                        src_tier=src_tier,
+                        dst_tier=dst_tier,
+                        bucket=bucket,
+                        key=key,
+                    )
+                    if existing.state.terminal:
+                        self._conn.commit()
+                        return existing
+                    if (
+                        existing.owner_id not in (None, owner_id)
+                        and existing.lease_expires_at is not None
+                        and existing.lease_expires_at > now
+                    ):
+                        raise MoveJobLeaseError(
+                            f"Move job {idempotency_key!r} is leased by "
+                            f"{existing.owner_id!r} until "
+                            f"{existing.lease_expires_at}"
+                        )
+                    self._conn.execute(
+                        """
+                        UPDATE move_jobs
+                        SET owner_id=?, lease_expires_at=?, updated_at=?
+                        WHERE idempotency_key=?
+                        """,
+                        (owner_id, lease_expires_at, now, idempotency_key),
+                    )
+                claimed_row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                assert claimed_row is not None
+                self._conn.commit()
+                return self._move_job_from_row(claimed_row)
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def get_move_job(self, idempotency_key: str) -> MoveJob | None:
+        with self._lock:
+            row = self._conn.execute(
+                _GET_MOVE_JOB_SQL,
+                (idempotency_key,),
+            ).fetchone()
+        return None if row is None else self._move_job_from_row(row)
+
+    def list_move_jobs(
+        self,
+        *,
+        states: set[MoveJobState] | None = None,
+        idempotency_prefix: str | None = None,
+    ) -> List[MoveJob]:
+        with self._lock:
+            rows = self._conn.execute(_LIST_MOVE_JOBS_SQL).fetchall()
+        jobs = [self._move_job_from_row(row) for row in rows]
+        return [
+            job
+            for job in jobs
+            if (states is None or job.state in states)
+            and (
+                idempotency_prefix is None
+                or job.idempotency_key.startswith(idempotency_prefix)
+            )
+        ]
+
+    def list_move_job_transitions(
+        self, idempotency_key: str
+    ) -> List[MoveJobTransition]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT sequence, idempotency_key, from_state, to_state,
+                       reason, created_at
+                FROM move_job_transitions
+                WHERE idempotency_key=?
+                ORDER BY sequence
+                """,
+                (idempotency_key,),
+            ).fetchall()
+        return [
+            MoveJobTransition(
+                sequence=row[0],
+                idempotency_key=row[1],
+                from_state=None if row[2] is None else MoveJobState(row[2]),
+                to_state=MoveJobState(row[3]),
+                reason=row[4],
+                created_at=row[5],
+            )
+            for row in rows
+        ]
+
+    def transition_move_job(
+        self,
+        idempotency_key: str,
+        *,
+        owner_id: str,
+        expected_state: MoveJobState,
+        to_state: MoveJobState,
+        reason: str,
+        now: str,
+        lease_expires_at: str,
+        updates: Mapping[str, Any] | None = None,
+    ) -> MoveJob:
+        validate_move_job_transition(expected_state, to_state)
+        allowed_updates = {
+            "transferred_size", "source_size", "source_checksum",
+            "destination_size", "destination_checksum",
+            "verification_details", "terminal_reason",
+        }
+        changes = dict(updates or {})
+        unknown = changes.keys() - allowed_updates
+        if unknown:
+            raise ValueError(f"Unsupported move-job updates: {', '.join(sorted(unknown))}")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                job = self._select_owned_move_job(
+                    idempotency_key, owner_id, expected_state
+                )
+                self._conn.execute(
+                    """
+                    UPDATE move_jobs
+                    SET state=?, owner_id=?, lease_expires_at=?, updated_at=?,
+                        transferred_size=?, source_size=?, source_checksum=?,
+                        destination_size=?, destination_checksum=?,
+                        verification_details=?, terminal_reason=?
+                    WHERE idempotency_key=?
+                    """,
+                    (
+                        to_state.value,
+                        None if to_state.terminal else owner_id,
+                        None if to_state.terminal else lease_expires_at,
+                        now,
+                        changes.get("transferred_size", job.transferred_size),
+                        changes.get("source_size", job.source_size),
+                        changes.get("source_checksum", job.source_checksum),
+                        changes.get("destination_size", job.destination_size),
+                        changes.get(
+                            "destination_checksum", job.destination_checksum
+                        ),
+                        json.dumps(
+                            list(
+                                changes.get(
+                                    "verification_details",
+                                    job.verification_details,
+                                )
+                            )
+                        ),
+                        changes.get("terminal_reason", job.terminal_reason),
+                        idempotency_key,
+                    ),
+                )
+                self._insert_move_transition(
+                    idempotency_key,
+                    expected_state,
+                    to_state,
+                    reason,
+                    now,
+                )
+                row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                assert row is not None
+                self._conn.commit()
+                return self._move_job_from_row(row)
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def commit_move_job_placement(
+        self,
+        idempotency_key: str,
+        *,
+        owner_id: str,
+        size: int,
+        tier: str,
+        checksum: str,
+        now: str,
+        lease_expires_at: str,
+    ) -> MoveJob:
+        """Commit placement and the verified checkpoint in one transaction."""
+
+        validate_move_job_transition(
+            MoveJobState.VERIFIED, MoveJobState.COMMITTED
+        )
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                job = self._select_owned_move_job(
+                    idempotency_key, owner_id, MoveJobState.VERIFIED
+                )
+                row = self._conn.execute(
+                    "SELECT metadata FROM objects WHERE bucket=? AND key=?",
+                    (job.bucket, job.key),
+                ).fetchone()
+                metadata = json.loads(row[0]) if row and row[0] else {}
+                metadata["sha256"] = checksum
+                self._conn.execute(
+                    """
+                    INSERT INTO objects(bucket, key, size, tier, metadata)
+                    VALUES(?,?,?,?,?)
+                    ON CONFLICT(bucket, key) DO UPDATE SET
+                        size=excluded.size,
+                        tier=excluded.tier,
+                        metadata=excluded.metadata
+                    """,
+                    (job.bucket, job.key, size, tier, json.dumps(metadata)),
+                )
+                self._conn.execute(
+                    """
+                    UPDATE move_jobs
+                    SET state=?, lease_expires_at=?, updated_at=?
+                    WHERE idempotency_key=?
+                    """,
+                    (
+                        MoveJobState.COMMITTED.value,
+                        lease_expires_at,
+                        now,
+                        idempotency_key,
+                    ),
+                )
+                self._insert_move_transition(
+                    idempotency_key,
+                    MoveJobState.VERIFIED,
+                    MoveJobState.COMMITTED,
+                    "catalog placement committed",
+                    now,
+                )
+                updated_row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                assert updated_row is not None
+                self._conn.commit()
+                return self._move_job_from_row(updated_row)
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def _select_owned_move_job(
+        self,
+        idempotency_key: str,
+        owner_id: str,
+        expected_state: MoveJobState,
+    ) -> MoveJob:
+        row = self._conn.execute(
+            _GET_MOVE_JOB_SQL,
+            (idempotency_key,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"Move job not found: {idempotency_key}")
+        job = self._move_job_from_row(row)
+        if job.owner_id != owner_id:
+            raise MoveJobLeaseError(
+                f"Move job {idempotency_key!r} is not owned by {owner_id!r}"
+            )
+        if job.state != expected_state:
+            raise RuntimeError(
+                f"Move job {idempotency_key!r} is {job.state.value}, "
+                f"expected {expected_state.value}"
+            )
+        return job
+
+    def _insert_move_transition(
+        self,
+        idempotency_key: str,
+        from_state: MoveJobState,
+        to_state: MoveJobState,
+        reason: str,
+        now: str,
+    ) -> None:
+        next_sequence = self._conn.execute(
+            """
+            SELECT COALESCE(MAX(sequence), 0) + 1
+            FROM move_job_transitions
+            WHERE idempotency_key=?
+            """,
+            (idempotency_key,),
+        ).fetchone()[0]
+        self._conn.execute(
+            """
+            INSERT INTO move_job_transitions(
+                idempotency_key, sequence, from_state, to_state, reason, created_at
+            ) VALUES(?,?,?,?,?,?)
+            """,
+            (
+                idempotency_key,
+                next_sequence,
+                from_state.value,
+                to_state.value,
+                reason,
+                now,
+            ),
+        )
+
+    @staticmethod
+    def _move_job_from_row(row: tuple[Any, ...]) -> MoveJob:
+        return MoveJob(
+            idempotency_key=row[0],
+            src_tier=row[1],
+            dst_tier=row[2],
+            bucket=row[3],
+            key=row[4],
+            expected_size=row[5],
+            source_metadata=json.loads(row[6]),
+            state=MoveJobState(row[7]),
+            owner_id=row[8],
+            lease_expires_at=row[9],
+            transferred_size=row[10],
+            source_size=row[11],
+            source_checksum=row[12],
+            destination_size=row[13],
+            destination_checksum=row[14],
+            verification_details=tuple(json.loads(row[15])),
+            terminal_reason=row[16],
+            created_at=row[17],
+            updated_at=row[18],
+        )
