@@ -42,7 +42,13 @@ def test_upsert_placement_preserves_metadata_and_creates_missing_record(
     cat = SQLiteCatalog(tmp_path / "catalog.db")
     cat.upsert("bucket", "existing", size=1, tier="hot", metadata={"version": 2})
 
-    cat.upsert_placement("bucket", "existing", size=42, tier="warm")
+    cat.upsert_placement(
+        "bucket",
+        "existing",
+        size=42,
+        tier="warm",
+        checksum="verified-digest",
+    )
     cat.upsert_placement("bucket", "missing", size=7, tier="cold")
 
     existing = cat.get("bucket", "existing")
@@ -50,7 +56,7 @@ def test_upsert_placement_preserves_metadata_and_creates_missing_record(
     assert (existing.size, existing.tier, existing.metadata) == (
         42,
         "warm",
-        {"version": 2},
+        {"version": 2, "sha256": "verified-digest"},
     )
     missing = cat.get("bucket", "missing")
     assert missing is not None

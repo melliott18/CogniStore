@@ -187,6 +187,14 @@ collision explicitly before retrying a move. POSIX bucket and key paths must
 be relative, unambiguous paths beneath the tier root; parent traversal and
 symbolic-link components are rejected.
 
+After a destination write commits, the mover independently streams the stored
+object to verify its byte count and SHA-256 against the source bytes observed
+during transfer. The source and catalog remain unchanged when verification is
+incomplete or fails. Successful moves persist the verified size and SHA-256 in
+the catalog; programmatic callers receive a `MoveVerificationResult`, while
+failures raise `MoveVerificationError` with both observed digests and detailed
+size/read failures when available.
+
 ### Catalog and policy runner via CLI
 
 You can build a catalog from an existing tier and then run a simple policy pass to move objects automatically.

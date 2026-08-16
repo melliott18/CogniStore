@@ -6,6 +6,7 @@ present.  They never fall back to the ambient AWS credential chain.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from collections.abc import Iterator
@@ -18,7 +19,7 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from cognistore.core.catalog import Catalog
-from cognistore.core.mover import Mover
+from cognistore.core.mover import Mover, MoveVerificationError
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.s3_driver import S3Driver
 from tests.conformance.storage_driver import StorageDriverConformance
@@ -177,7 +178,64 @@ def test_mover_streams_posix_to_s3_and_back(
     assert (record.tier, record.size, record.metadata) == (
         "warm",
         len(payload),
-        {"mime": "test/data"},
+        {"mime": "test/data", "sha256": hashlib.sha256(payload).hexdigest()},
+    )
+
+
+@pytest.mark.parametrize("damage", ["truncate", "corrupt"])
+def test_mover_rejects_damaged_s3_destination_and_preserves_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    minio_client,
+    move_bucket: str,
+    damage: str,
+) -> None:
+    bucket = move_bucket
+    key = f"damaged/{damage}.bin"
+    payload = b"verify the committed S3 bytes before deleting POSIX source"
+    source = PosixDriver(str(tmp_path / f"{damage}-source"))
+    destination = _multipart_driver(minio_client)
+    catalog = Catalog()
+    source.put_object(bucket, key, payload)
+    catalog.upsert(
+        bucket,
+        key,
+        len(payload),
+        "source",
+        metadata={"sha256": "unverified-scan-value"},
+    )
+    original_put_stream = destination.put_object_stream
+
+    def damage_committed_destination(*args: Any, **kwargs: Any) -> int:
+        written = original_put_stream(*args, **kwargs)
+        damaged = payload[:-1] if damage == "truncate" else b"X" + payload[1:]
+        minio_client.put_object(Bucket=bucket, Key=key, Body=damaged)
+        return written
+
+    monkeypatch.setattr(
+        destination,
+        "put_object_stream",
+        damage_committed_destination,
+    )
+
+    with pytest.raises(MoveVerificationError) as captured:
+        Mover({"source": source, "destination": destination}, catalog).move(
+            "source", "destination", bucket, key
+        )
+
+    result = captured.value.result
+    assert result.source_checksum == hashlib.sha256(payload).hexdigest()
+    assert result.destination_checksum is not None
+    assert result.destination_checksum != result.source_checksum
+    assert result.source_checksum in str(captured.value)
+    assert result.destination_checksum in str(captured.value)
+    assert source.get_object(bucket, key) == payload
+    record = catalog.get(bucket, key)
+    assert record is not None
+    assert (record.tier, record.size, record.metadata) == (
+        "source",
+        len(payload),
+        {"sha256": "unverified-scan-value"},
     )
 
 

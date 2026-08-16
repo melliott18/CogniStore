@@ -60,12 +60,15 @@ class Catalog:
 		*,
 		size: int,
 		tier: str,
+		checksum: Optional[str] = None,
 	) -> None:
-		"""Commit size and placement without replacing current metadata."""
+		"""Commit verified placement data without replacing other metadata."""
 
 		with self._lock:
 			rec = self._objects.get((bucket, key))
 			metadata = dict(rec.metadata) if rec is not None else {}
+			if checksum is not None:
+				metadata["sha256"] = checksum
 			self._objects[(bucket, key)] = ObjectRecord(
 				bucket=bucket,
 				key=key,
