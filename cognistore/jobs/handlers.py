@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
+from uuid import uuid4
 
 from cognistore.core.mover import Mover
 from cognistore.core.policy_factory import build_policy
@@ -80,6 +81,8 @@ def build_handlers(
 ) -> dict[str, JobHandler]:
     """Build handlers whose dependencies are configured by the worker process."""
 
+    move_owner_id = str(uuid4())
+
     async def catalog_scan(job: JobEnvelope, context: JobContext) -> None:
         tier = _string(job.payload, "tier")
         bucket = _string(job.payload, "bucket")
@@ -131,13 +134,18 @@ def build_handlers(
             warm_mime_prefixes=_strings(job.payload, "warm_mime_prefixes"),
             cold_mime_prefixes=_strings(job.payload, "cold_mime_prefixes"),
         )
-        mover = Mover(dict(drivers), catalog)
+        mover = Mover(dict(drivers), catalog, owner_id=move_owner_id)
+        await _run_blocking_safely(
+            mover.recover_incomplete,
+            idempotency_prefix=f"{job.job_id}:",
+        )
         runner = PolicyRunner(
             catalog,
             dict(drivers),
             mover,
             policy,
             allowed_tiers=allowed_tiers,
+            idempotency_namespace=job.job_id,
         )
         actions = await _run_blocking_safely(
             runner.run_once, bucket, prefix=prefix, dry_run=False

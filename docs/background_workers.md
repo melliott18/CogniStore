@@ -75,8 +75,25 @@ Publish deduplication does not prevent delivery duplicates.
 Handlers must use the stable `job_id` as an idempotency key, propagate the
 `correlation_id`, and tolerate `JobContext.attempt > 1`. The runtime does not
 silently suppress duplicates. Job-specific retry, dead-letter, and redrive
-policy is deferred to ticket #24; transactional movement idempotency is ticket
-#23.
+policy is deferred to ticket #24.
+
+Policy handlers derive a distinct move idempotency key for each object from the
+stable policy-job ID. Each move persists these checkpoints in the worker's
+SQLite catalog:
+
+`prepared -> transferred -> verified -> committed -> cleanup -> completed`
+
+`failed` is terminal and records the verification reason. Catalog placement is
+committed atomically with the `verified -> committed` transition; cleanup then
+rechecks the destination and performs the driver's idempotent source delete.
+Move rows carry an owner and expiring lease. The same owner may immediately
+resume its work, while another worker must wait for lease expiry after a
+process failure.
+
+Operators and diagnostics can query `SQLiteCatalog.get_move_job()`,
+`list_move_jobs()`, and `list_move_job_transitions()`. `Mover.recover_incomplete()`
+claims available non-terminal jobs, and policy handlers invoke it for the
+current delivery before making new placement decisions.
 
 ## Health and readiness
 
