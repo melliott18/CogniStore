@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 import nats
 from nats.errors import NoRespondersError
@@ -13,6 +16,7 @@ from nats.js.api import (
     AckPolicy,
     ConsumerConfig,
     DeliverPolicy,
+    DiscardPolicy,
     Header,
     ReplayPolicy,
     RetentionPolicy,
@@ -21,12 +25,53 @@ from nats.js.api import (
 )
 from nats.js.errors import APIError, NotFoundError, ServiceUnavailableError
 
-from .models import BusState, EnqueueReceipt, JobEnvelope, QueueHealth
+from .models import (
+    ATTEMPT_OFFSET_METADATA,
+    DEAD_LETTER_CHAIN_METADATA,
+    REDRIVE_COUNT_METADATA,
+    REDRIVE_SCHEMA_VERSION,
+    REDRIVEN_FROM_METADATA,
+    BusState,
+    DeadLetterDisposition,
+    DeadLetterNotFoundError,
+    DeadLetterReceipt,
+    DeadLetterRecord,
+    DeadLetterRecordError,
+    DeadLetterRedriveError,
+    EnqueueReceipt,
+    JobEnvelope,
+    JobEnvelopeError,
+    QueueHealth,
+    RedriveAuditRecord,
+    RedriveReceipt,
+)
 
 CORRELATION_HEADER = "CogniStore-Correlation-Id"
 JOB_TYPE_HEADER = "CogniStore-Job-Type"
+DEAD_LETTER_ID_HEADER = "CogniStore-Dead-Letter-Id"
+DEAD_LETTER_DISPOSITION_HEADER = "CogniStore-Dead-Letter-Disposition"
+DEAD_LETTER_CATEGORY_HEADER = "CogniStore-Dead-Letter-Category"
+REDRIVE_PARENT_HEADER = "CogniStore-Redrive-Parent"
+REDRIVE_COUNT_HEADER = "CogniStore-Redrive-Count"
 CONSUMER_ALREADY_EXISTS = 10148
 MINIMUM_NATS_SERVER = (2, 10)
+DEFAULT_DEAD_LETTER_MAX_AGE = 30 * 24 * 60 * 60
+DEAD_LETTER_STORAGE_SCHEMA_VERSION = 1
+DEAD_LETTER_CHUNK_TARGET = 256 * 1024
+MAX_PROJECTED_SEQUENCE = 2**64 - 1
+MAX_PROJECTED_TIMESTAMP = "9999-12-31T23:59:59.999999Z"
+
+
+def _is_utf8_encodable(value: str) -> bool:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+async def _ignore_connection_error(_error: Exception) -> None:
+    """Suppress nats-py's traceback callback for bounded one-shot commands."""
 
 
 @dataclass(frozen=True)
@@ -39,9 +84,16 @@ class NatsJetStreamConfig:
     max_ack_pending: int = 1
     duplicate_window: float = 120.0
     connect_timeout: float = 2.0
+    reconnect_time_wait: float = 2.0
+    max_reconnect_attempts: int = 60
+    allow_reconnect: bool = True
+    report_connection_errors: bool = True
     request_timeout: float = 5.0
     drain_timeout: float = 30.0
     client_name: str = "cognistore"
+    dead_letter_stream: str | None = None
+    dead_letter_subject: str | None = None
+    dead_letter_max_age: float = DEFAULT_DEAD_LETTER_MAX_AGE
 
     def __post_init__(self) -> None:
         if not self.servers or any(not value.strip() for value in self.servers):
@@ -49,32 +101,96 @@ class NatsJetStreamConfig:
         for field_name in ("stream", "subject", "consumer", "client_name"):
             if not getattr(self, field_name).strip():
                 raise ValueError(f"{field_name} must be non-empty")
+        for field_name in ("dead_letter_stream", "dead_letter_subject"):
+            value = getattr(self, field_name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{field_name} must be non-empty when provided")
         for field_name in (
             "ack_wait",
             "duplicate_window",
             "connect_timeout",
+            "reconnect_time_wait",
             "request_timeout",
             "drain_timeout",
+            "dead_letter_max_age",
         ):
             if getattr(self, field_name) <= 0:
                 raise ValueError(f"{field_name} must be greater than zero")
         if self.max_ack_pending < 1:
             raise ValueError("max_ack_pending must be at least one")
+        if (
+            not isinstance(self.max_reconnect_attempts, int)
+            or isinstance(self.max_reconnect_attempts, bool)
+            or self.max_reconnect_attempts < -1
+        ):
+            raise ValueError("max_reconnect_attempts must be -1 or a non-negative integer")
+        if not isinstance(self.allow_reconnect, bool):
+            raise ValueError("allow_reconnect must be a boolean")
+        if not isinstance(self.report_connection_errors, bool):
+            raise ValueError("report_connection_errors must be a boolean")
+        if self.dead_letter_max_age < self.duplicate_window:
+            raise ValueError(
+                "dead_letter_max_age must be at least duplicate_window"
+            )
+
+    @property
+    def resolved_dead_letter_stream(self) -> str:
+        return self.dead_letter_stream or f"{self.stream}_DLQ"
+
+    @property
+    def resolved_dead_letter_subject(self) -> str:
+        return self.dead_letter_subject or f"{self.subject}.dead"
 
 
 class NatsJobDelivery:
     """A single JetStream delivery with serialized terminal settlement."""
 
-    def __init__(self, message: Any, job: JobEnvelope, ack_timeout: float) -> None:
+    def __init__(
+        self,
+        message: Any,
+        ack_timeout: float,
+        *,
+        source_stream: str,
+        source_consumer: str,
+    ) -> None:
         metadata = message.metadata
         self._message = message
         self._ack_timeout = ack_timeout
         self._lock = asyncio.Lock()
         self._settled = False
-        self.job = job
+        self._job: JobEnvelope | None = None
+        self._job_error: JobEnvelopeError | None = None
+        self._parsed = False
+        self.raw_data = bytes(message.data)
+        raw_headers = message.headers or {}
+        self.headers = {str(key): str(value) for key, value in raw_headers.items()}
         self.attempt = metadata.num_delivered
+        self.source_stream = getattr(metadata, "stream", None) or source_stream
+        self.source_consumer = getattr(metadata, "consumer", None) or source_consumer
+        self.source_published_at = metadata.timestamp
         self.stream_sequence = metadata.sequence.stream
         self.consumer_sequence = metadata.sequence.consumer
+
+    @property
+    def job(self) -> JobEnvelope:
+        if not self._parsed:
+            self._parsed = True
+            try:
+                self._job = JobEnvelope.from_bytes(self.raw_data)
+            except JobEnvelopeError as exc:
+                self._job_error = exc
+        if self._job_error is not None:
+            raise self._job_error
+        assert self._job is not None
+        return self._job
+
+    @property
+    def envelope_error(self) -> JobEnvelopeError | None:
+        try:
+            self.job
+        except JobEnvelopeError:
+            pass
+        return self._job_error
 
     @property
     def settled(self) -> bool:
@@ -89,11 +205,14 @@ class NatsJobDelivery:
             await self._message.ack_sync(timeout=self._ack_timeout)
             self._settled = True
 
-    async def nack(self) -> None:
+    async def nack(self, delay: float | None = None) -> None:
         async with self._lock:
             if self._settled:
                 return
-            await self._message.nak()
+            if delay is None:
+                await self._message.nak()
+            else:
+                await self._message.nak(delay=delay)
             self._settled = True
 
     async def in_progress(self) -> None:
@@ -111,21 +230,31 @@ class NatsJetStreamQueue:
         self._connection: Any | None = None
         self._jetstream: Any | None = None
         self._subscription: Any | None = None
+        self._dead_letter_ready = False
+        self._stream_max_msg_sizes: dict[str, int] = {}
 
     async def connect(self) -> None:
         if self._connection is not None and not self._connection.is_closed:
             return
+        connection_options: dict[str, Any] = {}
+        if not self.config.report_connection_errors:
+            connection_options["error_cb"] = _ignore_connection_error
         connection = await nats.connect(
             servers=list(self.config.servers),
             name=self.config.client_name,
             connect_timeout=self.config.connect_timeout,
+            reconnect_time_wait=self.config.reconnect_time_wait,
+            max_reconnect_attempts=self.config.max_reconnect_attempts,
+            allow_reconnect=self.config.allow_reconnect,
             drain_timeout=self.config.drain_timeout,
+            **connection_options,
         )
         self._connection = connection
         self._jetstream = connection.jetstream(timeout=self.config.request_timeout)
         try:
             await self._ensure_stream()
             if self._consume:
+                await self._ensure_dead_letter_stream()
                 await self._ensure_consumer()
                 self._subscription = await self._jetstream.pull_subscribe_bind(
                     consumer=self.config.consumer,
@@ -136,6 +265,8 @@ class NatsJetStreamQueue:
             self._connection = None
             self._jetstream = None
             self._subscription = None
+            self._dead_letter_ready = False
+            self._stream_max_msg_sizes.clear()
             raise
 
     async def _ensure_stream(self) -> None:
@@ -143,16 +274,24 @@ class NatsJetStreamQueue:
         try:
             stream_info = await self._jetstream.stream_info(self.config.stream)
         except NotFoundError:
-            stream_info = await self._jetstream.add_stream(
-                config=StreamConfig(
-                    name=self.config.stream,
-                    description="Durable CogniStore background jobs",
-                    subjects=[self.config.subject],
-                    retention=RetentionPolicy.WORK_QUEUE,
-                    storage=StorageType.FILE,
-                    duplicate_window=self.config.duplicate_window,
+            try:
+                stream_info = await self._jetstream.add_stream(
+                    config=StreamConfig(
+                        name=self.config.stream,
+                        description="Durable CogniStore background jobs",
+                        subjects=[self.config.subject],
+                        retention=RetentionPolicy.WORK_QUEUE,
+                        storage=StorageType.FILE,
+                        duplicate_window=self.config.duplicate_window,
+                    )
                 )
-            )
+            except APIError as create_error:
+                # Multiple first workers may observe the missing stream at the
+                # same time. Validate the winner's configuration below.
+                try:
+                    stream_info = await self._jetstream.stream_info(self.config.stream)
+                except NotFoundError:
+                    raise create_error
         stream_config = stream_info.config
         if (
             stream_config.name != self.config.stream
@@ -168,6 +307,62 @@ class NatsJetStreamQueue:
             raise RuntimeError(
                 f"NATS stream {self.config.stream!r} has incompatible configuration"
             )
+        self._stream_max_msg_sizes[self.config.stream] = int(
+            stream_config.max_msg_size or -1
+        )
+
+    async def _ensure_dead_letter_stream(self) -> None:
+        if self._dead_letter_ready:
+            return
+        assert self._jetstream is not None
+        stream = self.config.resolved_dead_letter_stream
+        subject = f"{self.config.resolved_dead_letter_subject}.>"
+        try:
+            stream_info = await self._jetstream.stream_info(stream)
+        except NotFoundError:
+            try:
+                stream_info = await self._jetstream.add_stream(
+                    config=StreamConfig(
+                        name=stream,
+                        description=(
+                            "Immutable CogniStore failed-job diagnostics and redrive audit"
+                        ),
+                        subjects=[subject],
+                        retention=RetentionPolicy.LIMITS,
+                        storage=StorageType.FILE,
+                        duplicate_window=self.config.duplicate_window,
+                        max_age=self.config.dead_letter_max_age,
+                        max_msgs=-1,
+                        max_bytes=-1,
+                        max_msgs_per_subject=-1,
+                        max_msg_size=-1,
+                        discard=DiscardPolicy.OLD,
+                    )
+                )
+            except APIError as create_error:
+                try:
+                    stream_info = await self._jetstream.stream_info(stream)
+                except NotFoundError:
+                    raise create_error
+        stream_config = stream_info.config
+        if (
+            stream_config.name != stream
+            or stream_config.retention != RetentionPolicy.LIMITS
+            or stream_config.storage != StorageType.FILE
+            or set(stream_config.subjects or ()) != {subject}
+            or stream_config.max_msgs != -1
+            or stream_config.max_bytes != -1
+            or stream_config.max_msgs_per_subject != -1
+            or stream_config.max_msg_size != -1
+            or stream_config.discard != DiscardPolicy.OLD
+            or stream_config.duplicate_window is None
+            or abs(stream_config.duplicate_window - self.config.duplicate_window) > 0.001
+            or stream_config.max_age is None
+            or abs(stream_config.max_age - self.config.dead_letter_max_age) > 0.001
+        ):
+            raise RuntimeError(f"NATS stream {stream!r} has incompatible configuration")
+        self._stream_max_msg_sizes[stream] = int(stream_config.max_msg_size or -1)
+        self._dead_letter_ready = True
 
     async def _ensure_consumer(self) -> None:
         assert self._jetstream is not None
@@ -257,17 +452,239 @@ class NatsJetStreamQueue:
             raise RuntimeError("NATS queue is not configured for claims")
         return connection, jetstream, self._subscription
 
-    async def enqueue(self, job: JobEnvelope) -> EnqueueReceipt:
+    @staticmethod
+    def _job_headers(job: JobEnvelope, transport_id: str) -> dict[Any, str]:
+        return {
+            Header.MSG_ID: transport_id,
+            CORRELATION_HEADER: job.correlation_id,
+            JOB_TYPE_HEADER: job.job_type,
+        }
+
+    @staticmethod
+    def _redrive_intent_headers(
+        dead_letter_id: str, redrive_count: int, job: JobEnvelope
+    ) -> dict[Any, str]:
+        return {
+            Header.MSG_ID: f"redrive-intent:{dead_letter_id}",
+            Header.EXPECTED_LAST_SUBJECT_SEQUENCE: "0",
+            DEAD_LETTER_ID_HEADER: dead_letter_id,
+            REDRIVE_PARENT_HEADER: dead_letter_id,
+            REDRIVE_COUNT_HEADER: str(redrive_count),
+            CORRELATION_HEADER: job.correlation_id,
+            JOB_TYPE_HEADER: job.job_type,
+        }
+
+    @staticmethod
+    def _dead_letter_chunk_headers(
+        dead_letter_id: str, record_digest: str, index: int
+    ) -> dict[Any, str]:
+        return {
+            Header.MSG_ID: f"dead-letter-chunk:{dead_letter_id}:{record_digest}:{index}",
+            Header.EXPECTED_LAST_SUBJECT_SEQUENCE: "0",
+            DEAD_LETTER_ID_HEADER: dead_letter_id,
+        }
+
+    @staticmethod
+    def _redrive_audit_headers(
+        dead_letter_id: str,
+        redrive_count: int,
+        correlation_id: str,
+        job_type: str,
+    ) -> dict[Any, str]:
+        return {
+            Header.MSG_ID: f"redrive-audit:{dead_letter_id}",
+            Header.EXPECTED_LAST_SUBJECT_SEQUENCE: "0",
+            DEAD_LETTER_ID_HEADER: dead_letter_id,
+            REDRIVE_PARENT_HEADER: dead_letter_id,
+            REDRIVE_COUNT_HEADER: str(redrive_count),
+            CORRELATION_HEADER: correlation_id,
+            JOB_TYPE_HEADER: job_type,
+        }
+
+    @staticmethod
+    def _nats_wire_size(
+        payload: bytes, headers: dict[Any, str], *, stream: str
+    ) -> int:
+        # nats-py checks only len(payload), while the server applies max_payload
+        # to HPUB's header block plus body. Mirror nats-py's exact encoding and
+        # the Nats-Expected-Stream header added by JetStreamContext.publish.
+        encoded_headers = dict(headers)
+        encoded_headers[Header.EXPECTED_STREAM] = stream
+        header_size = len(b"NATS/1.0\r\n\r\n")
+        for key, value in encoded_headers.items():
+            normalized_key = key.strip()
+            normalized_value = value.strip()
+            if any(character in normalized_key for character in "\r\n") or any(
+                character in normalized_value for character in "\r\n"
+            ):
+                raise ValueError("NATS header keys and values must not contain CR or LF")
+            try:
+                encoded_key = normalized_key.encode("utf-8")
+                encoded_value = normalized_value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ValueError("NATS header keys and values must be valid UTF-8") from exc
+            header_size += len(encoded_key)
+            header_size += len(b": ")
+            header_size += len(encoded_value)
+            header_size += len(b"\r\n")
+        return header_size + len(payload)
+
+    def _wire_limit(self, stream: str) -> int:
+        connection, _ = self._require_connected()
+        limit = int(getattr(connection, "max_payload", 1024 * 1024))
+        stream_limit = self._stream_max_msg_sizes.get(stream, -1)
+        if stream_limit > 0:
+            limit = min(limit, stream_limit)
+        return limit
+
+    def _project_first_redrive(self, job: JobEnvelope) -> tuple[DeadLetterRecord, JobEnvelope]:
+        prior_attempts = job.metadata.get(ATTEMPT_OFFSET_METADATA, "0")
+        try:
+            attempt_offset = max(0, int(prior_attempts))
+        except ValueError:
+            attempt_offset = 0
+        projected_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        record = DeadLetterRecord.create(
+            failed_at=projected_at,
+            disposition=DeadLetterDisposition.EXHAUSTED,
+            retryable=True,
+            category="unknown",
+            classification_reason="payload-size projection",
+            attempt=1,
+            max_attempts=1,
+            cumulative_attempt=attempt_offset + MAX_PROJECTED_SEQUENCE,
+            source_stream=self.config.stream,
+            source_published_at=projected_at,
+            source_consumer=self.config.consumer,
+            stream_sequence=1,
+            consumer_sequence=1,
+            exception_type="builtins.RuntimeError",
+            exception_message="payload-size projection",
+            traceback="payload-size projection",
+            raw_data=job.to_bytes(),
+            headers={},
+            job=job,
+        )
+        return record, record.job_for_redrive()
+
+    def _validate_redrive_transaction_size(
+        self,
+        dead_letter_id: str,
+        job: JobEnvelope,
+        *,
+        redrive_count: int,
+        audit_chain: tuple[str, ...],
+        initial_submission: bool,
+        include_intent: bool,
+    ) -> None:
+        payload = job.to_bytes()
+        projected_audit = RedriveAuditRecord(
+            schema_version=REDRIVE_SCHEMA_VERSION,
+            dead_letter_id=dead_letter_id,
+            redriven_at=MAX_PROJECTED_TIMESTAMP,
+            job_id=job.job_id,
+            correlation_id=job.correlation_id,
+            stream=self.config.stream,
+            sequence=MAX_PROJECTED_SEQUENCE,
+            redrive_count=redrive_count,
+            audit_chain=audit_chain,
+        )
+        publications: list[tuple[str, bytes, str, dict[Any, str]]] = []
+        if include_intent:
+            publications.append(
+                (
+                    "intent",
+                    payload,
+                    self.config.resolved_dead_letter_stream,
+                    self._redrive_intent_headers(
+                        dead_letter_id, redrive_count, job
+                    ),
+                )
+            )
+        publications.extend(
+            (
+                (
+                    "main-stream job",
+                    payload,
+                    self.config.stream,
+                    self._job_headers(job, f"redrive:{dead_letter_id}"),
+                ),
+                (
+                    "completion audit",
+                    projected_audit.to_bytes(),
+                    self.config.resolved_dead_letter_stream,
+                    self._redrive_audit_headers(
+                        dead_letter_id,
+                        projected_audit.redrive_count,
+                        projected_audit.correlation_id,
+                        job.job_type,
+                    ),
+                ),
+            )
+        )
+        for label, publication_payload, stream, headers in publications:
+            limit = self._wire_limit(stream)
+            wire_size = self._nats_wire_size(
+                publication_payload, headers, stream=stream
+            )
+            if wire_size > limit:
+                message = (
+                    f"projected redrive {label} is {wire_size} bytes on the wire; "
+                    f"NATS message limit is {limit}"
+                )
+                if initial_submission:
+                    raise JobEnvelopeError(
+                        f"job envelope cannot reserve a first redrive: {message}"
+                    )
+                raise DeadLetterRedriveError(message)
+
+    def _validate_first_redrive_size(self, job: JobEnvelope) -> None:
+        record, redriven_job = self._project_first_redrive(job)
+        self._validate_redrive_transaction_size(
+            record.dead_letter_id,
+            redriven_job,
+            redrive_count=record.redrive_count + 1,
+            audit_chain=record.audit_chain,
+            initial_submission=True,
+            include_intent=True,
+        )
+
+    async def enqueue(
+        self, job: JobEnvelope, *, message_id: str | None = None
+    ) -> EnqueueReceipt:
+        transport_id = job.job_id if message_id is None else message_id
+        if not isinstance(transport_id, str) or not transport_id.strip():
+            raise ValueError("message_id must be a non-empty string")
+        return await self._publish_job(
+            job,
+            transport_id=transport_id,
+            reserve_redrive_headroom=True,
+        )
+
+    async def _publish_job(
+        self,
+        job: JobEnvelope,
+        *,
+        transport_id: str,
+        reserve_redrive_headroom: bool,
+    ) -> EnqueueReceipt:
         _, jetstream = self._require_connected()
+        payload = job.to_bytes()
+        headers = self._job_headers(job, transport_id)
+        wire_size = self._nats_wire_size(payload, headers, stream=self.config.stream)
+        wire_limit = self._wire_limit(self.config.stream)
+        if wire_size > wire_limit:
+            raise JobEnvelopeError(
+                f"job envelope is {wire_size} bytes on the wire; NATS max_payload "
+                f"is {wire_limit}"
+            )
+        if reserve_redrive_headroom:
+            self._validate_first_redrive_size(job)
         acknowledgement = await jetstream.publish(
             self.config.subject,
-            job.to_bytes(),
+            payload,
             stream=self.config.stream,
-            headers={
-                Header.MSG_ID: job.job_id,
-                CORRELATION_HEADER: job.correlation_id,
-                JOB_TYPE_HEADER: job.job_type,
-            },
+            headers=headers,
         )
         return EnqueueReceipt(
             job_id=job.job_id,
@@ -284,8 +701,593 @@ class NatsJetStreamQueue:
         except NatsTimeoutError:
             return None
         message = messages[0]
-        job = JobEnvelope.from_bytes(message.data)
-        return NatsJobDelivery(message, job, self.config.request_timeout)
+        return NatsJobDelivery(
+            message,
+            self.config.request_timeout,
+            source_stream=self.config.stream,
+            source_consumer=self.config.consumer,
+        )
+
+    @staticmethod
+    def _canonical_dead_letter_id(dead_letter_id: str) -> str:
+        if not isinstance(dead_letter_id, str) or not dead_letter_id.strip():
+            raise DeadLetterRecordError("dead_letter_id must be a non-empty UUID")
+        try:
+            parsed = UUID(dead_letter_id)
+        except ValueError as exc:
+            raise DeadLetterRecordError("dead_letter_id must be a UUID") from exc
+        if str(parsed) != dead_letter_id.lower():
+            raise DeadLetterRecordError(
+                "dead_letter_id must use canonical UUID format"
+            )
+        return str(parsed)
+
+    def _dead_letter_entry_subject(self, dead_letter_id: str) -> str:
+        return f"{self.config.resolved_dead_letter_subject}.entry.{dead_letter_id}"
+
+    def _dead_letter_chunk_subject(
+        self, dead_letter_id: str, record_digest: str, index: int
+    ) -> str:
+        return (
+            f"{self.config.resolved_dead_letter_subject}.chunk."
+            f"{dead_letter_id}.{record_digest}.{index:08d}"
+        )
+
+    def _redrive_audit_subject(self, dead_letter_id: str) -> str:
+        return f"{self.config.resolved_dead_letter_subject}.redrive.{dead_letter_id}"
+
+    def _redrive_intent_subject(self, dead_letter_id: str) -> str:
+        return (
+            f"{self.config.resolved_dead_letter_subject}.redrive-intent."
+            f"{dead_letter_id}"
+        )
+
+    @staticmethod
+    def _dead_letter_manifest(
+        record: DeadLetterRecord, *, record_size: int, record_digest: str, chunks: int
+    ) -> bytes:
+        return json.dumps(
+            {
+                "storage_schema_version": DEAD_LETTER_STORAGE_SCHEMA_VERSION,
+                "dead_letter_id": record.dead_letter_id,
+                "record_size": record_size,
+                "record_sha256": record_digest,
+                "chunks": chunks,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+    @staticmethod
+    def _parse_dead_letter_manifest(
+        data: bytes, *, expected_id: str
+    ) -> tuple[int, int, str]:
+        try:
+            value = json.loads(data.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+            raise DeadLetterRecordError(
+                "dead-letter storage manifest must be UTF-8 JSON"
+            ) from exc
+        if not isinstance(value, dict):
+            raise DeadLetterRecordError("dead-letter storage manifest must be an object")
+        expected = {
+            "storage_schema_version",
+            "dead_letter_id",
+            "record_size",
+            "record_sha256",
+            "chunks",
+        }
+        if set(value) != expected:
+            raise DeadLetterRecordError("dead-letter storage manifest fields are invalid")
+        version = value["storage_schema_version"]
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != DEAD_LETTER_STORAGE_SCHEMA_VERSION
+        ):
+            raise DeadLetterRecordError(
+                f"unsupported dead-letter storage schema_version {version}"
+            )
+        if value["dead_letter_id"] != expected_id:
+            raise DeadLetterRecordError(
+                "dead-letter storage manifest contains a different record ID"
+            )
+        record_size = value["record_size"]
+        chunks = value["chunks"]
+        for field_name, field_value in (("record_size", record_size), ("chunks", chunks)):
+            if (
+                not isinstance(field_value, int)
+                or isinstance(field_value, bool)
+                or field_value < 1
+            ):
+                raise DeadLetterRecordError(
+                    f"dead-letter storage {field_name} must be a positive integer"
+                )
+        if chunks > record_size:
+            raise DeadLetterRecordError("dead-letter storage chunk count is invalid")
+        digest = value["record_sha256"]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise DeadLetterRecordError(
+                "dead-letter storage record_sha256 must be lowercase SHA-256"
+            )
+        return record_size, chunks, digest
+
+    async def _publish_dead_letter_chunk(
+        self,
+        *,
+        dead_letter_id: str,
+        record_digest: str,
+        index: int,
+        payload: bytes,
+    ) -> None:
+        _, jetstream = self._require_connected()
+        subject = self._dead_letter_chunk_subject(
+            dead_letter_id, record_digest, index
+        )
+        headers = self._dead_letter_chunk_headers(
+            dead_letter_id, record_digest, index
+        )
+        wire_size = self._nats_wire_size(
+            payload, headers, stream=self.config.resolved_dead_letter_stream
+        )
+        wire_limit = self._wire_limit(self.config.resolved_dead_letter_stream)
+        if wire_size > wire_limit:
+            raise DeadLetterRecordError(
+                f"dead-letter chunk is {wire_size} bytes on the wire; NATS "
+                f"max_payload is {wire_limit}"
+            )
+        try:
+            await jetstream.publish(
+                subject,
+                payload,
+                stream=self.config.resolved_dead_letter_stream,
+                headers=headers,
+            )
+        except APIError as publish_error:
+            try:
+                existing = await jetstream.get_last_msg(
+                    self.config.resolved_dead_letter_stream, subject
+                )
+            except Exception:
+                raise publish_error
+            if bytes(existing.data) != payload:
+                raise RuntimeError(
+                    f"dead-letter chunk collision for {dead_letter_id}"
+                ) from publish_error
+
+    async def publish_dead_letter(
+        self, record: DeadLetterRecord
+    ) -> DeadLetterReceipt:
+        _, jetstream = self._require_connected()
+        await self._ensure_dead_letter_stream()
+        subject = self._dead_letter_entry_subject(record.dead_letter_id)
+        try:
+            existing_entry = await jetstream.get_last_msg(
+                self.config.resolved_dead_letter_stream, subject
+            )
+        except NotFoundError:
+            pass
+        else:
+            existing_record = await self.get_dead_letter(record.dead_letter_id)
+            if (
+                existing_record.source_stream != record.source_stream
+                or existing_record.source_published_at != record.source_published_at
+                or existing_record.stream_sequence != record.stream_sequence
+                or existing_record.raw_data != record.raw_data
+            ):
+                raise RuntimeError(
+                    f"dead-letter subject collision for {record.dead_letter_id}"
+                )
+            return DeadLetterReceipt(
+                dead_letter_id=record.dead_letter_id,
+                stream=self.config.resolved_dead_letter_stream,
+                sequence=existing_entry.seq,
+                duplicate=True,
+            )
+
+        record_payload = record.to_bytes()
+        record_digest = hashlib.sha256(record_payload).hexdigest()
+        max_payload = self._wire_limit(self.config.resolved_dead_letter_stream)
+        projected_chunk_headers = self._dead_letter_chunk_headers(
+            record.dead_letter_id, record_digest, MAX_PROJECTED_SEQUENCE
+        )
+        chunk_header_size = self._nats_wire_size(
+            b"",
+            projected_chunk_headers,
+            stream=self.config.resolved_dead_letter_stream,
+        )
+        available_chunk_payload = max_payload - chunk_header_size
+        if available_chunk_payload < 1:
+            raise DeadLetterRecordError(
+                "NATS max_payload is too small for dead-letter chunk headers"
+            )
+        chunk_size = min(DEAD_LETTER_CHUNK_TARGET, available_chunk_payload)
+        chunks = [
+            record_payload[offset : offset + chunk_size]
+            for offset in range(0, len(record_payload), chunk_size)
+        ]
+        manifest = self._dead_letter_manifest(
+            record,
+            record_size=len(record_payload),
+            record_digest=record_digest,
+            chunks=len(chunks),
+        )
+        headers: dict[Any, str] = {
+            Header.MSG_ID: f"dead-letter:{record.dead_letter_id}",
+            Header.EXPECTED_LAST_SUBJECT_SEQUENCE: "0",
+            DEAD_LETTER_ID_HEADER: record.dead_letter_id,
+            DEAD_LETTER_DISPOSITION_HEADER: record.disposition.value,
+            DEAD_LETTER_CATEGORY_HEADER: record.category,
+        }
+        optional_header_values = (
+            (record.job.correlation_id, record.job.job_type)
+            if record.job is not None
+            else ()
+        )
+        if record.job is not None and all(
+            "\r" not in value
+            and "\n" not in value
+            and _is_utf8_encodable(value)
+            for value in optional_header_values
+        ):
+            headers[CORRELATION_HEADER] = record.job.correlation_id
+            headers[JOB_TYPE_HEADER] = record.job.job_type
+        manifest_wire_size = self._nats_wire_size(
+            manifest, headers, stream=self.config.resolved_dead_letter_stream
+        )
+        if manifest_wire_size > max_payload and record.job is not None:
+            # Full correlation data remains in the checksummed record. Avoid
+            # letting unbounded envelope strings make the compact manifest a
+            # poison message of its own.
+            headers.pop(CORRELATION_HEADER, None)
+            headers.pop(JOB_TYPE_HEADER, None)
+            manifest_wire_size = self._nats_wire_size(
+                manifest, headers, stream=self.config.resolved_dead_letter_stream
+            )
+        if manifest_wire_size > max_payload:
+            raise DeadLetterRecordError(
+                "NATS max_payload is too small for a dead-letter storage manifest"
+            )
+        for index, chunk in enumerate(chunks):
+            await self._publish_dead_letter_chunk(
+                dead_letter_id=record.dead_letter_id,
+                record_digest=record_digest,
+                index=index,
+                payload=chunk,
+            )
+        try:
+            acknowledgement = await jetstream.publish(
+                subject,
+                manifest,
+                stream=self.config.resolved_dead_letter_stream,
+                headers=headers,
+            )
+        except APIError as publish_error:
+            # The immutable per-delivery subject makes DLQ transfer idempotent
+            # even after JetStream's finite message-deduplication window.
+            try:
+                existing_entry = await jetstream.get_last_msg(
+                    self.config.resolved_dead_letter_stream, subject
+                )
+                existing_record = await self.get_dead_letter(record.dead_letter_id)
+            except Exception:
+                raise publish_error
+            if (
+                existing_record.dead_letter_id != record.dead_letter_id
+                or existing_record.source_stream != record.source_stream
+                or existing_record.source_published_at != record.source_published_at
+                or existing_record.stream_sequence != record.stream_sequence
+                or existing_record.raw_data != record.raw_data
+            ):
+                raise RuntimeError(
+                    f"dead-letter subject collision for {record.dead_letter_id}"
+                ) from publish_error
+            return DeadLetterReceipt(
+                dead_letter_id=record.dead_letter_id,
+                stream=self.config.resolved_dead_letter_stream,
+                sequence=existing_entry.seq,
+                duplicate=True,
+            )
+        if acknowledgement.duplicate:
+            # A dedupe PubAck can outlive a retained message under unsafe server
+            # policy. Verify the immutable record before allowing source ACK.
+            existing_record = await self.get_dead_letter(record.dead_letter_id)
+            if (
+                existing_record.source_stream != record.source_stream
+                or existing_record.source_published_at != record.source_published_at
+                or existing_record.stream_sequence != record.stream_sequence
+                or existing_record.raw_data != record.raw_data
+            ):
+                raise RuntimeError(
+                    f"dead-letter subject collision for {record.dead_letter_id}"
+                )
+        else:
+            persisted_record = await self.get_dead_letter(record.dead_letter_id)
+            if persisted_record.to_bytes() != record.to_bytes():
+                raise RuntimeError(
+                    f"dead-letter persistence verification failed for {record.dead_letter_id}"
+                )
+        return DeadLetterReceipt(
+            dead_letter_id=record.dead_letter_id,
+            stream=acknowledgement.stream,
+            sequence=acknowledgement.seq,
+            duplicate=bool(acknowledgement.duplicate),
+        )
+
+    async def get_dead_letter(self, dead_letter_id: str) -> DeadLetterRecord:
+        identifier = self._canonical_dead_letter_id(dead_letter_id)
+        _, jetstream = self._require_connected()
+        await self._ensure_dead_letter_stream()
+        try:
+            message = await jetstream.get_last_msg(
+                self.config.resolved_dead_letter_stream,
+                self._dead_letter_entry_subject(identifier),
+            )
+        except NotFoundError as exc:
+            raise DeadLetterNotFoundError(
+                f"dead-letter {identifier} was not found"
+            ) from exc
+        record_size, chunk_count, record_digest = self._parse_dead_letter_manifest(
+            message.data, expected_id=identifier
+        )
+        parts: list[bytes] = []
+        for index in range(chunk_count):
+            try:
+                chunk = await jetstream.get_last_msg(
+                    self.config.resolved_dead_letter_stream,
+                    self._dead_letter_chunk_subject(identifier, record_digest, index),
+                )
+            except NotFoundError as exc:
+                raise DeadLetterRecordError(
+                    f"dead-letter {identifier} is missing diagnostic chunk {index}"
+                ) from exc
+            parts.append(bytes(chunk.data))
+        record_payload = b"".join(parts)
+        if len(record_payload) != record_size:
+            raise DeadLetterRecordError(
+                f"dead-letter {identifier} diagnostic size does not match its manifest"
+            )
+        if hashlib.sha256(record_payload).hexdigest() != record_digest:
+            raise DeadLetterRecordError(
+                f"dead-letter {identifier} diagnostic checksum does not match its manifest"
+            )
+        record = DeadLetterRecord.from_bytes(record_payload)
+        if record.dead_letter_id != identifier:
+            raise DeadLetterRecordError(
+                f"dead-letter subject contains record {record.dead_letter_id}"
+            )
+        return record
+
+    async def _get_redrive_audit(
+        self, dead_letter_id: str
+    ) -> RedriveAuditRecord | None:
+        _, jetstream = self._require_connected()
+        try:
+            message = await jetstream.get_last_msg(
+                self.config.resolved_dead_letter_stream,
+                self._redrive_audit_subject(dead_letter_id),
+            )
+        except NotFoundError:
+            return None
+        audit = RedriveAuditRecord.from_bytes(message.data)
+        if audit.dead_letter_id != dead_letter_id:
+            raise DeadLetterRecordError(
+                f"redrive subject contains audit for {audit.dead_letter_id}"
+            )
+        return audit
+
+    async def _get_redrive_intent(
+        self, dead_letter_id: str
+    ) -> JobEnvelope | None:
+        _, jetstream = self._require_connected()
+        try:
+            message = await jetstream.get_last_msg(
+                self.config.resolved_dead_letter_stream,
+                self._redrive_intent_subject(dead_letter_id),
+            )
+        except NotFoundError:
+            return None
+        try:
+            return JobEnvelope.from_bytes(message.data)
+        except JobEnvelopeError as exc:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} is malformed"
+            ) from exc
+
+    @staticmethod
+    def _redrive_intent_context(
+        dead_letter_id: str, job: JobEnvelope
+    ) -> tuple[int, tuple[str, ...]]:
+        if job.metadata.get(REDRIVEN_FROM_METADATA) != dead_letter_id:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has the wrong parent"
+            )
+        encoded_chain = job.metadata.get(DEAD_LETTER_CHAIN_METADATA)
+        try:
+            chain_value = json.loads(encoded_chain) if encoded_chain is not None else None
+        except (ValueError, RecursionError) as exc:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has a malformed audit chain"
+            ) from exc
+        if not isinstance(chain_value, list) or not chain_value:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has a malformed audit chain"
+            )
+        audit_chain: list[str] = []
+        for value in chain_value:
+            if not isinstance(value, str):
+                raise DeadLetterRecordError(
+                    f"redrive intent for {dead_letter_id} has a malformed audit chain"
+                )
+            try:
+                parsed = UUID(value)
+            except ValueError as exc:
+                raise DeadLetterRecordError(
+                    f"redrive intent for {dead_letter_id} has a malformed audit chain"
+                ) from exc
+            if str(parsed) != value.lower():
+                raise DeadLetterRecordError(
+                    f"redrive intent for {dead_letter_id} has a malformed audit chain"
+                )
+            audit_chain.append(str(parsed))
+        if audit_chain[-1] != dead_letter_id:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has the wrong audit chain"
+            )
+
+        encoded_count = job.metadata.get(REDRIVE_COUNT_METADATA)
+        try:
+            redrive_count = int(encoded_count) if encoded_count is not None else 0
+        except ValueError as exc:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has a malformed redrive count"
+            ) from exc
+        if redrive_count < 1 or str(redrive_count) != encoded_count:
+            raise DeadLetterRecordError(
+                f"redrive intent for {dead_letter_id} has a malformed redrive count"
+            )
+        return redrive_count, tuple(audit_chain)
+
+    async def _persist_redrive_intent(
+        self, record: DeadLetterRecord, job: JobEnvelope
+    ) -> JobEnvelope:
+        existing = await self._get_redrive_intent(record.dead_letter_id)
+        if existing is not None:
+            if existing.to_bytes() != job.to_bytes():
+                raise RuntimeError(
+                    f"redrive intent collision for {record.dead_letter_id}"
+                )
+            return existing
+
+        _, jetstream = self._require_connected()
+        subject = self._redrive_intent_subject(record.dead_letter_id)
+        payload = job.to_bytes()
+        headers = self._redrive_intent_headers(
+            record.dead_letter_id, record.redrive_count + 1, job
+        )
+        wire_size = self._nats_wire_size(
+            payload, headers, stream=self.config.resolved_dead_letter_stream
+        )
+        wire_limit = self._wire_limit(self.config.resolved_dead_letter_stream)
+        if wire_size > wire_limit:
+            raise DeadLetterRecordError(
+                f"redrive intent is {wire_size} bytes on the wire; NATS max_payload "
+                f"is {wire_limit}"
+            )
+        try:
+            acknowledgement = await jetstream.publish(
+                subject,
+                payload,
+                stream=self.config.resolved_dead_letter_stream,
+                headers=headers,
+            )
+        except APIError as publish_error:
+            try:
+                existing = await self._get_redrive_intent(record.dead_letter_id)
+            except Exception:
+                raise publish_error
+            if existing is None or existing.to_bytes() != job.to_bytes():
+                raise RuntimeError(
+                    f"redrive intent collision for {record.dead_letter_id}"
+                ) from publish_error
+            return existing
+        if acknowledgement.duplicate:
+            existing = await self._get_redrive_intent(record.dead_letter_id)
+            if existing is None or existing.to_bytes() != job.to_bytes():
+                raise RuntimeError(
+                    f"redrive intent was not persisted for {record.dead_letter_id}"
+                )
+            return existing
+        persisted = await self._get_redrive_intent(record.dead_letter_id)
+        if persisted is None or persisted.to_bytes() != job.to_bytes():
+            raise RuntimeError(
+                f"redrive intent was not persisted for {record.dead_letter_id}"
+            )
+        return persisted
+
+    async def redrive_dead_letter(self, dead_letter_id: str) -> RedriveReceipt:
+        identifier = self._canonical_dead_letter_id(dead_letter_id)
+        self._require_connected()
+        await self._ensure_dead_letter_stream()
+        existing_audit = await self._get_redrive_audit(identifier)
+        if existing_audit is not None:
+            return existing_audit.to_receipt(duplicate=True)
+
+        job = await self._get_redrive_intent(identifier)
+        pending_record: DeadLetterRecord | None = None
+        if job is None:
+            record = await self.get_dead_letter(identifier)
+            job = record.job_for_redrive()
+            pending_record = record
+        redrive_count, audit_chain = self._redrive_intent_context(identifier, job)
+        self._validate_redrive_transaction_size(
+            identifier,
+            job,
+            redrive_count=redrive_count,
+            audit_chain=audit_chain,
+            initial_submission=False,
+            include_intent=pending_record is not None,
+        )
+        if pending_record is not None:
+            job = await self._persist_redrive_intent(pending_record, job)
+        enqueue_receipt = await self._publish_job(
+            job,
+            transport_id=f"redrive:{identifier}",
+            reserve_redrive_headroom=False,
+        )
+        audit = RedriveAuditRecord(
+            schema_version=REDRIVE_SCHEMA_VERSION,
+            dead_letter_id=identifier,
+            redriven_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            job_id=job.job_id,
+            correlation_id=job.correlation_id,
+            stream=enqueue_receipt.stream,
+            sequence=enqueue_receipt.sequence,
+            redrive_count=redrive_count,
+            audit_chain=audit_chain,
+        )
+        _, jetstream = self._require_connected()
+        subject = self._redrive_audit_subject(identifier)
+        payload = audit.to_bytes()
+        headers = self._redrive_audit_headers(
+            identifier, audit.redrive_count, audit.correlation_id, job.job_type
+        )
+        wire_size = self._nats_wire_size(
+            payload, headers, stream=self.config.resolved_dead_letter_stream
+        )
+        wire_limit = self._wire_limit(self.config.resolved_dead_letter_stream)
+        if wire_size > wire_limit:
+            raise DeadLetterRecordError(
+                f"redrive completion audit is {wire_size} bytes on the wire; NATS "
+                f"max_payload is {wire_limit}"
+            )
+        try:
+            await jetstream.publish(
+                subject,
+                payload,
+                stream=self.config.resolved_dead_letter_stream,
+                headers=headers,
+            )
+        except APIError as publish_error:
+            try:
+                existing_audit = await self._get_redrive_audit(identifier)
+            except Exception:
+                raise publish_error
+            if existing_audit is None:
+                raise publish_error
+            if (
+                existing_audit.job_id != audit.job_id
+                or existing_audit.audit_chain != audit.audit_chain
+            ):
+                raise RuntimeError(
+                    f"redrive audit subject collision for {identifier}"
+                ) from publish_error
+            return existing_audit.to_receipt(duplicate=True)
+        return audit.to_receipt(duplicate=enqueue_receipt.duplicate)
 
     def _bus_state(self) -> BusState:
         connection = self._connection
@@ -348,6 +1350,8 @@ class NatsJetStreamQueue:
         self._subscription = None
         self._jetstream = None
         self._connection = None
+        self._dead_letter_ready = False
+        self._stream_max_msg_sizes.clear()
         if connection is None or connection.is_closed:
             return
         if graceful:

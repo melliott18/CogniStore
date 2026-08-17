@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from cognistore.core.catalog import Catalog
+from cognistore.core.move_jobs import MoveJobState
 from cognistore.core.mover import Mover, MoveVerificationError
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.drivers.posix_driver import PosixDriver
@@ -396,7 +397,7 @@ def test_destination_verification_failure_preserves_posix_source_and_catalog(
 	)
 
 
-def test_incomplete_destination_verification_preserves_source_and_catalog(
+def test_transient_destination_verification_is_resumable_without_retransfer(
 	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
 	hot = PosixDriver(str(tmp_path / "hot"))
@@ -408,22 +409,51 @@ def test_incomplete_destination_verification_preserves_source_and_catalog(
 	catalog = Catalog()
 	catalog.upsert(bucket, key, len(data), "hot", metadata={"revision": 3})
 
-	def fail_verification_read(*_args, **_kwargs):
-		raise OSError("injected destination read failure")
+	original_reader = warm.open_object_reader
+	original_put = warm.put_object_stream
+	verification_reads = 0
+	transfers = 0
 
-	monkeypatch.setattr(warm, "open_object_reader", fail_verification_read)
+	def fail_first_verification_read(*args, **kwargs):
+		nonlocal verification_reads
+		verification_reads += 1
+		if verification_reads == 1:
+			raise TimeoutError("injected destination read timeout")
+		return original_reader(*args, **kwargs)
 
-	with pytest.raises(MoveVerificationError) as captured:
-		Mover({"hot": hot, "warm": warm}, catalog).move(
-			"hot", "warm", bucket, key
+	def count_transfer(*args, **kwargs):
+		nonlocal transfers
+		transfers += 1
+		return original_put(*args, **kwargs)
+
+	monkeypatch.setattr(warm, "open_object_reader", fail_first_verification_read)
+	monkeypatch.setattr(warm, "put_object_stream", count_transfer)
+	mover = Mover({"hot": hot, "warm": warm}, catalog)
+	move_id = "test-job"
+
+	with pytest.raises(TimeoutError, match="injected destination read timeout"):
+		mover.move(
+			"hot", "warm", bucket, key, idempotency_key=move_id  # gitleaks:allow
 		)
 
-	assert captured.value.result.destination_checksum is None
-	assert "injected destination read failure" in str(captured.value)
+	interrupted = mover.get_job(move_id)
+	assert interrupted is not None
+	assert interrupted.state == MoveJobState.TRANSFERRED
 	assert hot.get_object(bucket, key) == data
 	record = catalog.get(bucket, key)
 	assert record is not None
 	assert (record.tier, record.metadata) == ("hot", {"revision": 3})
+
+	result = mover.move(
+		"hot", "warm", bucket, key, idempotency_key=move_id  # gitleaks:allow
+	)
+	assert result.verified is True
+	assert transfers == 1
+	assert verification_reads >= 2
+	assert warm.get_object(bucket, key) == data
+	with pytest.raises(FileNotFoundError):
+		hot.stat_object(bucket, key)
+	assert catalog.get(bucket, key).tier == "warm"  # type: ignore[union-attr]
 
 
 def test_same_tier_move_is_rejected_without_deleting_source(tmp_path: Path):

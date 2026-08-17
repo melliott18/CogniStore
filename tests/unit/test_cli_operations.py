@@ -5,12 +5,13 @@ import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
 from cognistore.cli import cognistore_cli
 from cognistore.drivers.posix_driver import PosixDriver
-from cognistore.jobs.models import EnqueueReceipt, JobEnvelope
+from cognistore.jobs.models import EnqueueReceipt, JobEnvelope, RedriveReceipt
 from cognistore.jobs.runtime import WorkerState
 from cognistore.utils.device_info import DeviceInfo
 from cognistore.utils.tier_profiler import TierMetrics
@@ -342,6 +343,144 @@ def test_queue_configuration_and_plain_enqueue_output(
     )
     cognistore_cli._render_enqueue(job, receipt, json_output=False)
     assert capsys.readouterr().out.startswith("queued test.job job_id=")
+
+
+def test_dead_letter_redrive_does_not_require_storage_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    dead_letter_id = str(uuid4())
+    job_id = str(uuid4())
+    seen = {}
+
+    async def redrive(config, requested_id):
+        seen["config"] = config
+        seen["dead_letter_id"] = requested_id
+        return RedriveReceipt(
+            dead_letter_id=dead_letter_id,
+            job_id=job_id,
+            correlation_id="request-24",
+            stream="JOBS",
+            sequence=42,
+            redrive_count=2,
+            audit_chain=(dead_letter_id,),
+        )
+
+    monkeypatch.setattr(cognistore_cli, "_redrive_dead_letter", redrive)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--nats-url",
+                "nats://test:4222",
+                "--job-stream",
+                "JOBS",
+                "--dead-letter-stream",
+                "JOBS_FAILED",
+                "dead-letter-redrive",
+                dead_letter_id,
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["job_id"] == job_id
+    assert payload["dead_letter_id"] == dead_letter_id
+    assert payload["redrive_count"] == 2
+    assert seen["dead_letter_id"] == dead_letter_id
+    assert seen["config"].resolved_dead_letter_stream == "JOBS_FAILED"
+    assert seen["config"].max_reconnect_attempts == 1
+    assert seen["config"].allow_reconnect is False
+
+
+def test_dead_letter_redrive_reports_operational_failure_as_json(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def redrive(config, requested_id):
+        raise ConnectionError("NATS is unavailable")
+
+    monkeypatch.setattr(cognistore_cli, "_redrive_dead_letter", redrive)
+
+    assert (
+        cognistore_cli.main(
+            ["dead-letter-redrive", str(uuid4()), "--json"]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload == {
+        "error": "NATS is unavailable",
+        "error_type": "ConnectionError",
+        "operation": "dead-letter-redrive",
+        "status": "error",
+    }
+    assert captured.err == ""
+
+
+def test_dead_letter_redrive_suppresses_nats_traceback_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def unavailable_connect(**options):
+        assert options["allow_reconnect"] is False
+        await options["error_cb"](ConnectionRefusedError("connection refused"))
+        raise ConnectionError("NATS is unavailable")
+
+    monkeypatch.setattr(
+        "cognistore.jobs.nats_queue.nats.connect", unavailable_connect
+    )
+
+    assert (
+        cognistore_cli.main(
+            ["dead-letter-redrive", str(uuid4()), "--json"]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["status"] == "error"
+    assert payload["error"] == "NATS is unavailable"
+    assert captured.err == ""
+
+
+def test_dead_letter_redrive_rejects_bad_id_before_connecting(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def unexpected_connect(**options):  # pragma: no cover - safety assertion
+        raise AssertionError("invalid ID must not connect")
+
+    monkeypatch.setattr(
+        "cognistore.jobs.nats_queue.nats.connect", unexpected_connect
+    )
+
+    assert cognistore_cli.main(["dead-letter-redrive", "not-a-uuid", "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "DeadLetterRecordError"
+
+
+def test_plain_redrive_output_distinguishes_existing_completion(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    dead_letter_id = str(uuid4())
+    receipt = RedriveReceipt(
+        dead_letter_id=dead_letter_id,
+        job_id=str(uuid4()),
+        correlation_id="request-24",
+        stream="JOBS",
+        sequence=42,
+        redrive_count=1,
+        audit_chain=(dead_letter_id,),
+        duplicate=True,
+    )
+
+    cognistore_cli._render_redrive(receipt, json_output=False)
+
+    assert capsys.readouterr().out.startswith("already redriven ")
 
 
 def test_serve_worker_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
