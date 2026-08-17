@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-13
 - Ticket: [#18](https://github.com/melliott18/CogniStore/issues/18)
+- Amended: 2026-08-17 by [#24](https://github.com/melliott18/CogniStore/issues/24)
 
 ## Context
 
@@ -13,8 +14,10 @@ enqueue, claim, positive acknowledgement, negative acknowledgement,
 redelivery, correlation metadata, and graceful worker shutdown.
 
 The roadmap named NATS or Kafka for messaging and Celery, Dramatiq, or RQ for
-workers. The first milestone needs one coherent foundation, not periodic
-scheduling, job-specific retry/backoff, or a dead-letter/redrive system.
+workers. Ticket #18 established one coherent foundation and deliberately
+deferred periodic scheduling, job-specific retry/backoff, and dead-letter
+redrive. This #24 amendment adds the latter two on that same delivery identity
+and worker runtime.
 
 ## Decision
 
@@ -30,7 +33,8 @@ The queue topology is:
 - explicit per-message acknowledgements;
 - `max_ack_pending=1` for the initial single-in-flight runtime;
 - an acknowledgement deadline extended with `in_progress` heartbeats;
-- unlimited broker redelivery attempts, with no backoff or DLQ policy yet.
+- unlimited broker redelivery as a safety net, with application-owned bounded
+  delayed retries and a separate immutable dead-letter stream.
 
 Worker startup uses atomic create-only semantics, then reads and validates the
 effective durable-consumer configuration. It never updates an existing
@@ -40,8 +44,10 @@ without shortening another worker's live lease.
 
 Publishers wait for JetStream's publish acknowledgement. Successful handlers
 use `ack_sync`, so completion is reported only after the server confirms the
-ACK. Failed handlers NAK the delivery for immediate generic redelivery. A
-worker process that disappears before settlement leaves the delivery pending;
+ACK. Retryable handler failures use delayed NAK with bounded exponential
+backoff and jitter. Terminal or exhausted deliveries are published to the
+file-backed limits-retention DLQ before the source is acknowledged. A worker
+process that disappears before settlement leaves the delivery pending;
 JetStream offers it again after `ack_wait`.
 
 Job envelopes are versioned JSON and carry a stable UUID `job_id`, a
@@ -50,10 +56,20 @@ and correlation value are also NATS headers. `Nats-Msg-Id` reduces duplicate
 publishes inside JetStream's finite deduplication window, but does not change
 the consumer delivery guarantee.
 
-Malformed envelopes and unregistered job types fail the worker closed and stay
-unacknowledged in JetStream. This preserves the only durable copy for operator
-diagnosis. Quarantine, classification, retry limits, DLQ transfer, and redrive
-remain deferred to ticket #24.
+Malformed envelopes and unregistered job types are terminal and move to the
+DLQ with their exact raw bytes, headers, parse/validation traceback, source
+publication identity, and sequence. Logical records use content-addressed,
+payload-bounded chunks and a compact per-source manifest, so diagnostics larger
+than the server's single-message limit remain publishable. Confirmed
+publish-before-ACK order makes quarantine recoverable across an unknown
+source-ACK outcome. Operators can redrive valid envelopes with the original
+logical job ID; a distinct NATS transport message ID bypasses main-stream
+publish deduplication. An immutable intent precedes that publish and a
+completion record follows its PubAck, preserving the audit chain across the
+redrive crash window. Queue submissions reserve a small amount of the server's
+payload limit for that audit metadata using exact header-plus-body preflight,
+and a self-contained pending intent can finish even after its older diagnostic
+entry expires. Later redrives are admitted dynamically as their chain grows.
 
 ## Delivery contract
 
@@ -66,12 +82,13 @@ Every consumer must therefore:
 1. use `job_id` as the logical operation/idempotency key;
 2. preserve `correlation_id` in logs and downstream work;
 3. tolerate `context.attempt > 1` and `context.redelivered == True`;
+   use `context.cumulative_attempt` when attempts across redrives matter;
 4. perform side effects before returning, because return triggers ACK;
 5. propagate failures so the runtime can NAK rather than silently lose work.
 
-The current scan upserts are naturally repeatable. Fully idempotent movement
-transactions are tracked separately by ticket #23; duplicate delivery remains
-visible rather than being hidden by this runtime.
+The current scan upserts are naturally repeatable. Policy movement uses the
+stable job ID as the namespace for catalog-backed two-phase move idempotency;
+duplicate delivery remains visible rather than being hidden by this runtime.
 
 ## Shutdown and health
 
@@ -103,6 +120,9 @@ Running the system requires a JetStream-enabled NATS server and persistent
 server storage. This ticket does not add repository-managed containers; that is
 ticket #28. Operations are at least once, so job implementations must be made
 idempotent rather than relying on the broker to provide exactly-once effects.
+An interruption during a multi-message diagnostic write can leave unreferenced
+content-addressed chunks until DLQ retention expires, but no source delivery is
+ACKed without a complete, reassembled, checksum-verified manifest.
 
 ## Alternatives considered
 

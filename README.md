@@ -197,10 +197,11 @@ symbolic-link components are rejected.
 After a destination write commits, the mover independently streams the stored
 object to verify its byte count and SHA-256 against the source bytes observed
 during transfer. The source and catalog remain unchanged when verification is
-incomplete or fails. Successful moves persist the verified size and SHA-256 in
-the catalog; programmatic callers receive a `MoveVerificationResult`, while
-failures raise `MoveVerificationError` with both observed digests and detailed
-size/read failures when available.
+incomplete or fails. A definite missing object, size mismatch, or checksum
+mismatch raises `MoveVerificationError`; transient destination observation
+errors propagate so the durable move remains `transferred` and can resume
+verification without retransferring the object. Successful moves persist the
+verified size and SHA-256 in the catalog and return a `MoveVerificationResult`.
 
 ### Catalog and policy runner via CLI
 
@@ -267,6 +268,17 @@ handlers must use the job ID as an idempotency key; publish deduplication does
 not make consumer effects exactly once. Policy moves derive per-object keys
 from that stable job ID and recover incomplete phases before evaluating the
 next placement pass.
+
+Transient timeouts, throttling, and unavailable backends receive bounded
+exponential-backoff retries. Terminal or exhausted deliveries are durably
+written to a separate immutable dead-letter stream before the source is ACKed;
+large diagnostics are split into checksummed, payload-bounded chunks. Operators
+can republish a valid entry without changing its logical job ID or audit chain:
+
+```bash
+python -m cognistore.cli --nats-url nats://127.0.0.1:4222 \
+  dead-letter-redrive DEAD_LETTER_ID --json
+```
 
 Worker liveness is served at `http://127.0.0.1:8081/healthz`, and readiness
 (including a live JetStream stream/consumer probe) at `/readyz`. See

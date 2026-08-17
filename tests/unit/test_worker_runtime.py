@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Callable, Mapping
 
 from cognistore.jobs.handlers import _run_blocking_safely
-from cognistore.jobs.models import BusState, JobEnvelope, JobEnvelopeError, QueueHealth
+from cognistore.jobs.models import (
+    DEAD_LETTER_CHAIN_METADATA,
+    BusState,
+    DeadLetterReceipt,
+    DeadLetterRecord,
+    JobEnvelope,
+    JobEnvelopeError,
+    QueueHealth,
+)
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 
 
@@ -29,19 +39,63 @@ class FakeDelivery:
     ack_count: int = 0
     nack_count: int = 0
     heartbeat_count: int = 0
+    source_stream: str = "TEST_JOBS"
+    source_published_at: datetime = field(
+        default_factory=lambda: datetime(2026, 8, 17, tzinfo=timezone.utc)
+    )
+    source_consumer: str = "test-workers"
+    raw_data: bytes | None = None
+    headers: Mapping[str, str] = field(default_factory=dict)
+    nack_delays: list[float | None] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.raw_data is None:
+            self.raw_data = self.job.to_bytes()
 
     async def ack(self) -> None:
         self.ack_count += 1
         if self.ack_error:
             raise self.ack_error
 
-    async def nack(self) -> None:
+    async def nack(self, delay: float | None = None) -> None:
         self.nack_count += 1
+        self.nack_delays.append(delay)
         if self.nack_error:
             raise self.nack_error
 
     async def in_progress(self) -> None:
         self.heartbeat_count += 1
+
+
+@dataclass
+class FakeMalformedDelivery:
+    raw_data: bytes
+    headers: Mapping[str, str] = field(default_factory=dict)
+    attempt: int = 1
+    source_stream: str = "TEST_JOBS"
+    source_published_at: datetime = field(
+        default_factory=lambda: datetime(2026, 8, 17, tzinfo=timezone.utc)
+    )
+    source_consumer: str = "test-workers"
+    stream_sequence: int = 9
+    consumer_sequence: int = 9
+    ack_count: int = 0
+    nack_count: int = 0
+    heartbeat_count: int = 0
+
+    @property
+    def job(self) -> JobEnvelope:
+        return JobEnvelope.from_bytes(self.raw_data)
+
+    async def ack(self) -> None:
+        self.ack_count += 1
+
+    async def nack(self, delay: float | None = None) -> None:
+        self.nack_count += 1
+
+    async def in_progress(self) -> None:
+        self.heartbeat_count += 1
+
 
 class FakeQueue:
     def __init__(self) -> None:
@@ -50,11 +104,13 @@ class FakeQueue:
         self.ready = True
         self.closed = 0
         self.close_before_settlement = False
+        self.dead_letters: list[DeadLetterRecord] = []
+        self.dead_letter_error: Exception | None = None
 
     async def connect(self) -> None:
         self.connected = True
 
-    async def enqueue(self, job):  # pragma: no cover - worker-only fake
+    async def enqueue(self, job, *, message_id=None):  # pragma: no cover - worker-only fake
         raise NotImplementedError
 
     async def claim(self, timeout: float):
@@ -72,6 +128,22 @@ class FakeQueue:
             consumer="test-workers",
         )
 
+    async def publish_dead_letter(self, record: DeadLetterRecord) -> DeadLetterReceipt:
+        if self.dead_letter_error is not None:
+            raise self.dead_letter_error
+        self.dead_letters.append(record)
+        return DeadLetterReceipt(
+            dead_letter_id=record.dead_letter_id,
+            stream="TEST_JOBS_DLQ",
+            sequence=len(self.dead_letters),
+        )
+
+    async def get_dead_letter(self, dead_letter_id):  # pragma: no cover - not used
+        raise NotImplementedError
+
+    async def redrive_dead_letter(self, dead_letter_id):  # pragma: no cover - not used
+        raise NotImplementedError
+
     async def close(self, *, graceful: bool = True) -> None:
         self.closed += 1
         self.connected = False
@@ -83,6 +155,7 @@ def _worker_config(**overrides) -> WorkerConfig:
         "heartbeat_interval": 0,
         "shutdown_grace": 0.2,
         "settlement_timeout": 0.2,
+        "retry_jitter": 0,
     }
     values.update(overrides)
     return WorkerConfig(**values)
@@ -145,8 +218,59 @@ def test_handler_failure_nacks_for_redelivery_with_same_job_context() -> None:
 
         assert seen == [(job.job_id, "correlation-from-request", 2, True)]
         assert delivery.nack_count == 1
+        assert delivery.nack_delays == [2.0]
         assert delivery.ack_count == 0
         assert report.nacked == 1
+        assert report.retried == 1
+
+    asyncio.run(scenario())
+
+
+def test_transient_retry_keeps_job_identity_and_cumulative_attempt() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        seen = []
+        job = JobEnvelope.create(
+            "test.retry",
+            {"move": "hot-to-warm"},
+            correlation_id="request-retry",
+        )
+
+        async def handler(delivered_job, context) -> None:
+            seen.append(
+                (
+                    delivered_job.job_id,
+                    delivered_job.correlation_id,
+                    context.attempt,
+                    context.cumulative_attempt,
+                )
+            )
+            if context.attempt == 1:
+                raise TimeoutError("one-shot backend timeout")
+
+        first = FakeDelivery(job, attempt=1, consumer_sequence=1)
+        second = FakeDelivery(job, attempt=2, consumer_sequence=2)
+        await queue.deliveries.put(first)
+        await queue.deliveries.put(second)
+        worker = AsyncWorker(
+            queue,
+            {"test.retry": handler},
+            config=_worker_config(stop_after_jobs=2),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert seen == [
+            (job.job_id, "request-retry", 1, 1),
+            (job.job_id, "request-retry", 2, 2),
+        ]
+        assert first.nack_delays == [1.0]
+        assert first.ack_count == 0
+        assert second.ack_count == 1
+        assert report.retried == 1
+        assert report.completed == 1
+        assert queue.dead_letters == []
 
     asyncio.run(scenario())
 
@@ -318,20 +442,234 @@ def test_unknown_ack_outcome_is_not_followed_by_nack() -> None:
     asyncio.run(scenario())
 
 
-def test_unknown_job_type_fails_closed_without_settling_delivery() -> None:
+def test_unknown_job_type_is_dead_lettered_and_worker_keeps_running() -> None:
     async def scenario() -> None:
         queue = FakeQueue()
         delivery = FakeDelivery(JobEnvelope.create("unknown.type", {}))
         await queue.deliveries.put(delivery)
-        worker = AsyncWorker(queue, {"known.type": lambda *_: None}, config=_worker_config())
+        async def handler(job, context) -> None:
+            return None
+
+        worker = AsyncWorker(
+            queue,
+            {"known.type": handler},
+            config=_worker_config(stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert worker.state == WorkerState.STOPPED
+        assert delivery.ack_count == 1
+        assert delivery.nack_count == 0
+        assert report.graceful is True
+        assert report.dead_lettered == 1
+        assert queue.dead_letters[0].job == delivery.job
+        assert queue.dead_letters[0].disposition.value == "terminal"
+
+    asyncio.run(scenario())
+
+
+def test_retry_exhaustion_dead_letters_complete_diagnostics_before_ack() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+
+        async def handler(job, context) -> None:
+            raise TimeoutError("backend timed out")
+
+        job = JobEnvelope.create(
+            "test.timeout",
+            {"bucket": "documents"},
+            correlation_id="request-24",
+        )
+        delivery = FakeDelivery(job, attempt=3, stream_sequence=24)
+
+        async def ack_after_publish() -> None:
+            assert len(queue.dead_letters) == 1
+            delivery.ack_count += 1
+
+        delivery.ack = ack_after_publish  # type: ignore[method-assign]
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {"test.timeout": handler},
+            config=_worker_config(max_attempts=3, stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.dead_lettered == 1
+        assert delivery.ack_count == 1
+        assert delivery.nack_count == 0
+        record = queue.dead_letters[0]
+        assert record.disposition.value == "exhausted"
+        assert record.retryable is True
+        assert record.category == "timeout"
+        assert record.attempt == 3
+        assert record.cumulative_attempt == 3
+        assert record.job == job
+        assert record.raw_data == job.to_bytes()
+        assert record.exception_type == "builtins.TimeoutError"
+        assert record.exception_message == "backend timed out"
+        assert "raise TimeoutError" in record.traceback
+        assert record.source_stream == "TEST_JOBS"
+        assert record.stream_sequence == 24
+
+    asyncio.run(scenario())
+
+
+def test_malformed_raw_delivery_is_quarantined_and_next_job_runs() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        malformed = FakeMalformedDelivery(
+            b"\xffnot-json\x00",
+            headers={"CogniStore-Correlation-Id": "request-malformed"},
+        )
+        valid = FakeDelivery(JobEnvelope.create("known.type", {}), stream_sequence=10)
+        await queue.deliveries.put(malformed)  # type: ignore[arg-type]
+        await queue.deliveries.put(valid)
+        handled = 0
+
+        async def handler(job, context) -> None:
+            nonlocal handled
+            handled += 1
+
+        worker = AsyncWorker(
+            queue,
+            {"known.type": handler},
+            config=_worker_config(stop_after_jobs=2),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.dead_lettered == 1
+        assert report.completed == 1
+        assert malformed.ack_count == 1
+        assert malformed.nack_count == 0
+        assert valid.ack_count == 1
+        assert handled == 1
+        record = queue.dead_letters[0]
+        assert record.job is None
+        assert record.raw_data == b"\xffnot-json\x00"
+        assert record.headers["CogniStore-Correlation-Id"] == "request-malformed"
+        assert record.disposition.value == "terminal"
+        assert record.category == "invalid"
+
+    asyncio.run(scenario())
+
+
+def test_unencodable_header_field_is_quarantined_losslessly() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        value = json.loads(JobEnvelope.create("known.type", {}).to_bytes())
+        value["job_type"] = "\ud800"
+        raw_data = json.dumps(value).encode("utf-8")
+        delivery = FakeMalformedDelivery(raw_data)
+        await queue.deliveries.put(delivery)  # type: ignore[arg-type]
+
+        async def handler(job, context) -> None:
+            raise AssertionError("malformed envelope must not reach a handler")
+
+        worker = AsyncWorker(
+            queue,
+            {"known.type": handler},
+            config=_worker_config(stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.dead_lettered == 1
+        assert delivery.ack_count == 1
+        record = queue.dead_letters[0]
+        assert record.job is None
+        assert record.raw_data == raw_data
+
+    asyncio.run(scenario())
+
+
+def test_dead_letter_publish_failure_leaves_source_unsettled_and_fails_closed() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        queue.dead_letter_error = ConnectionError("DLQ unavailable")
+        delivery = FakeDelivery(JobEnvelope.create("unknown.type", {}))
+        await queue.deliveries.put(delivery)
+
+        async def handler(job, context) -> None:
+            return None
+
+        worker = AsyncWorker(queue, {"known.type": handler}, config=_worker_config())
         await worker.start()
         await worker.wait_for_shutdown_request()
         report = await worker.shutdown()
 
         assert worker.state == WorkerState.FAILED
+        assert report.graceful is False
         assert delivery.ack_count == 0
         assert delivery.nack_count == 0
-        assert report.graceful is False
+
+    asyncio.run(scenario())
+
+
+def test_handler_mutation_cannot_change_the_recorded_original_envelope() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        job = JobEnvelope.create("test.mutate", {"value": "original"})
+        delivery = FakeDelivery(job)
+        original = bytes(delivery.raw_data or b"")
+        await queue.deliveries.put(delivery)
+
+        async def handler(received, context) -> None:
+            received.payload["value"] = object()  # type: ignore[index,assignment]
+            raise ValueError("mutated invalid request")
+
+        worker = AsyncWorker(
+            queue,
+            {"test.mutate": handler},
+            config=_worker_config(stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        await worker.shutdown()
+
+        record = queue.dead_letters[0]
+        assert record.raw_data == original
+        assert record.job == JobEnvelope.from_bytes(original)
+        assert record.job.payload == {"value": "original"}
+
+    asyncio.run(scenario())
+
+
+def test_malformed_reserved_audit_metadata_cannot_block_quarantine() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        job = JobEnvelope.create(
+            "unknown.type",
+            {},
+            metadata={
+                DEAD_LETTER_CHAIN_METADATA: ("[" * 1_100) + ("]" * 1_100)
+            },
+        )
+        delivery = FakeDelivery(job)
+        await queue.deliveries.put(delivery)
+
+        async def handler(received, context) -> None:
+            return None
+
+        worker = AsyncWorker(
+            queue,
+            {"known.type": handler},
+            config=_worker_config(stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        await worker.shutdown()
+
+        record = queue.dead_letters[0]
+        assert record.audit_chain == (record.dead_letter_id,)
+        assert delivery.ack_count == 1
 
     asyncio.run(scenario())
 

@@ -216,7 +216,7 @@ class Mover:
                         f"destination stat observed {destination_stat_size} bytes; "
                         f"expected {plan.size}"
                     )
-        except Exception as error:
+        except FileNotFoundError as error:
             failures.append(
                 f"destination stat failed with {type(error).__name__}: {error}"
             )
@@ -246,7 +246,7 @@ class Mover:
                     destination_hasher.update(chunk)
                     destination_size += len(chunk)
             destination_checksum = destination_hasher.hexdigest()
-        except Exception as error:
+        except (FileNotFoundError, TypeError, ValueError) as error:
             failures.append(
                 "destination checksum read failed after "
                 f"{destination_size} bytes with {type(error).__name__}: {error}"

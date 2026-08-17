@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from dataclasses import replace
 from uuid import uuid4
 
 import pytest
+from nats.js.errors import NotFoundError
 
-from cognistore.jobs.models import JobEnvelope
+from cognistore.jobs.models import (
+    ATTEMPT_OFFSET_METADATA,
+    DEAD_LETTER_CHAIN_METADATA,
+    REDRIVE_COUNT_METADATA,
+    JobEnvelope,
+)
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
-from cognistore.jobs.runtime import AsyncWorker, WorkerConfig
+from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 
 NATS_URL = os.environ.get("COGNISTORE_NATS_URL")
 pytestmark = [
@@ -218,6 +225,115 @@ def test_concurrent_first_workers_cannot_race_consumer_configuration() -> None:
         finally:
             await long_lease.close(graceful=False)
             await short_lease.close(graceful=False)
+            await publisher.close()
+
+    asyncio.run(scenario())
+
+
+def test_delayed_retry_exhaustion_dead_letter_and_idempotent_redrive() -> None:
+    async def scenario() -> None:
+        config = _config(ack_wait=0.5)
+        publisher = NatsJetStreamQueue(config, consume=False)
+        attempts: list[tuple[float, int, int, str, str]] = []
+
+        async def unavailable(job, context) -> None:
+            attempts.append(
+                (
+                    asyncio.get_running_loop().time(),
+                    context.attempt,
+                    context.cumulative_attempt,
+                    job.job_id,
+                    job.correlation_id,
+                )
+            )
+            raise TimeoutError("integration backend timeout")
+
+        worker = AsyncWorker(
+            NatsJetStreamQueue(config),
+            {"test.retry": unavailable},
+            config=WorkerConfig(
+                fetch_timeout=0.02,
+                heartbeat_interval=0.1,
+                shutdown_grace=1.0,
+                settlement_timeout=0.5,
+                max_attempts=3,
+                retry_base_delay=0.05,
+                retry_max_delay=0.05,
+                retry_jitter=0,
+            ),
+        )
+        verifier: NatsJetStreamQueue | None = None
+        try:
+            await publisher.connect()
+            await worker.start()
+            job = JobEnvelope.create(
+                "test.retry", {}, correlation_id="integration-retry-correlation"
+            )
+            await publisher.enqueue(job)
+
+            async def wait_for_dead_letter() -> None:
+                while worker.health_snapshot().dead_lettered < 1:
+                    await asyncio.sleep(0.01)
+
+            await asyncio.wait_for(wait_for_dead_letter(), timeout=3.0)
+            report = await worker.shutdown()
+            assert report.retried == 2
+            assert report.dead_lettered == 1
+            assert [item[1] for item in attempts] == [1, 2, 3]
+            assert [item[2] for item in attempts] == [1, 2, 3]
+            assert {item[3] for item in attempts} == {job.job_id}
+            assert {item[4] for item in attempts} == {job.correlation_id}
+            assert attempts[-1][0] - attempts[0][0] >= 0.07
+
+            assert publisher._jetstream is not None
+            info = await publisher._jetstream.stream_info(
+                config.resolved_dead_letter_stream
+            )
+            dead_letter_id = None
+            for sequence in range(info.state.first_seq, info.state.last_seq + 1):
+                try:
+                    raw = await publisher._jetstream.get_msg(
+                        config.resolved_dead_letter_stream, seq=sequence
+                    )
+                except NotFoundError:
+                    continue
+                marker = f"{config.resolved_dead_letter_subject}.entry."
+                if raw.subject.startswith(marker):
+                    dead_letter_id = raw.subject.removeprefix(marker)
+                    break
+            assert dead_letter_id is not None
+
+            record = await publisher.get_dead_letter(dead_letter_id)
+            assert record.disposition.value == "exhausted"
+            assert record.attempt == 3
+            assert record.max_attempts == 3
+            assert record.job == job
+
+            first_redrive = await publisher.redrive_dead_letter(dead_letter_id)
+            repeated_redrive = await publisher.redrive_dead_letter(dead_letter_id)
+            assert first_redrive.job_id == job.job_id
+            assert first_redrive.duplicate is False
+            assert repeated_redrive.duplicate is True
+            assert repeated_redrive.sequence == first_redrive.sequence
+
+            verifier = NatsJetStreamQueue(config)
+            await verifier.connect()
+            delivery = await verifier.claim(timeout=1.0)
+            assert delivery is not None
+            assert delivery.job.job_id == job.job_id
+            assert delivery.job.correlation_id == job.correlation_id
+            assert delivery.job.metadata[ATTEMPT_OFFSET_METADATA] == "3"
+            assert delivery.job.metadata[REDRIVE_COUNT_METADATA] == "1"
+            assert json.loads(
+                delivery.job.metadata[DEAD_LETTER_CHAIN_METADATA]
+            ) == [dead_letter_id]
+            await delivery.ack()
+            assert await verifier.claim(timeout=0.15) is None
+        finally:
+            if worker.state not in {WorkerState.STOPPED, WorkerState.FAILED}:
+                await worker.shutdown()
+            if verifier is not None:
+                await verifier.close()
             await publisher.close()
 
     asyncio.run(scenario())

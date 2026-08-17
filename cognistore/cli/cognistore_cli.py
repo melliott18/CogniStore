@@ -28,7 +28,11 @@ from cognistore.jobs.handlers import (
 )
 from cognistore.jobs.health import HealthServer
 from cognistore.jobs.models import JobEnvelope
-from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
+from cognistore.jobs.nats_queue import (
+	DEFAULT_DEAD_LETTER_MAX_AGE,
+	NatsJetStreamConfig,
+	NatsJetStreamQueue,
+)
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 from cognistore.utils.device_info import (
 	discover_device_for_tier,
@@ -41,7 +45,9 @@ from cognistore.utils.tier_profiler import load_metrics_json, profile_path, save
 LOGGER = logging.getLogger(__name__)
 
 
-def _queue_config(args: argparse.Namespace, *, client_name: str) -> NatsJetStreamConfig:
+def _queue_config(
+	args: argparse.Namespace, *, client_name: str, one_shot: bool = False
+) -> NatsJetStreamConfig:
 	servers = tuple(args.nats_url or [os.environ.get("COGNISTORE_NATS_URL", "nats://127.0.0.1:4222")])
 	return NatsJetStreamConfig(
 		servers=servers,
@@ -50,6 +56,15 @@ def _queue_config(args: argparse.Namespace, *, client_name: str) -> NatsJetStrea
 		consumer=args.job_consumer,
 		ack_wait=args.ack_wait,
 		client_name=client_name,
+		max_reconnect_attempts=1 if one_shot else 60,
+		allow_reconnect=not one_shot,
+		reconnect_time_wait=0.1 if one_shot else 2.0,
+		report_connection_errors=not one_shot,
+		dead_letter_stream=getattr(args, "dead_letter_stream", None),
+		dead_letter_subject=getattr(args, "dead_letter_subject", None),
+		dead_letter_max_age=getattr(
+			args, "dead_letter_max_age", DEFAULT_DEAD_LETTER_MAX_AGE
+		),
 	)
 
 
@@ -68,6 +83,19 @@ async def _enqueue_job(
 			await queue.close(graceful=False)
 		except Exception:
 			LOGGER.warning("failed to close NATS publisher", exc_info=True)
+
+
+async def _redrive_dead_letter(config: NatsJetStreamConfig, dead_letter_id: str):
+	dead_letter_id = NatsJetStreamQueue._canonical_dead_letter_id(dead_letter_id)
+	queue = NatsJetStreamQueue(config, consume=False)
+	try:
+		await queue.connect()
+		return await queue.redrive_dead_letter(dead_letter_id)
+	finally:
+		try:
+			await queue.close(graceful=False)
+		except Exception:
+			LOGGER.warning("failed to close NATS redrive connection", exc_info=True)
 
 
 def _render_enqueue(job: JobEnvelope, receipt, *, json_output: bool) -> None:
@@ -89,6 +117,42 @@ def _render_enqueue(job: JobEnvelope, receipt, *, json_output: bool) -> None:
 		)
 
 
+def _render_redrive(receipt, *, json_output: bool) -> None:
+	payload = {
+		"status": "redriven",
+		"dead_letter_id": receipt.dead_letter_id,
+		"job_id": receipt.job_id,
+		"correlation_id": receipt.correlation_id,
+		"stream": receipt.stream,
+		"sequence": receipt.sequence,
+		"redrive_count": receipt.redrive_count,
+		"audit_chain": list(receipt.audit_chain),
+		"duplicate": receipt.duplicate,
+	}
+	if json_output:
+		print(json.dumps(payload, sort_keys=True))
+	else:
+		verb = "already redriven" if receipt.duplicate else "redriven"
+		print(
+			f"{verb} job_id={receipt.job_id} "
+			f"dead_letter_id={receipt.dead_letter_id} "
+			f"redrive_count={receipt.redrive_count}"
+		)
+
+
+def _render_redrive_error(exc: Exception, *, json_output: bool) -> None:
+	payload = {
+		"status": "error",
+		"operation": "dead-letter-redrive",
+		"error_type": type(exc).__name__,
+		"error": str(exc),
+	}
+	if json_output:
+		print(json.dumps(payload, sort_keys=True))
+	else:
+		print(f"redrive failed: {exc}", file=sys.stderr)
+
+
 async def _serve_worker(
 	args: argparse.Namespace, drivers, catalog: SQLiteCatalog
 ) -> int:
@@ -102,6 +166,10 @@ async def _serve_worker(
 			shutdown_grace=args.shutdown_grace,
 			settlement_timeout=args.settlement_timeout,
 			stop_after_jobs=1 if args.once else None,
+			max_attempts=getattr(args, "max_attempts", 7),
+			retry_base_delay=getattr(args, "retry_base_delay", 1.0),
+			retry_max_delay=getattr(args, "retry_max_delay", 30.0),
+			retry_jitter=getattr(args, "retry_jitter", 0.2),
 		),
 	)
 	health = HealthServer(worker, host=args.health_host, port=args.health_port)
@@ -180,6 +248,20 @@ def main(argv=None):
 	parser.add_argument("--job-subject", default="cognistore.jobs")
 	parser.add_argument("--job-consumer", default="cognistore-workers")
 	parser.add_argument("--ack-wait", type=float, default=30.0, help="Seconds before an unacknowledged job is redelivered")
+	parser.add_argument(
+		"--dead-letter-stream",
+		help="Dead-letter stream (defaults to <job-stream>_DLQ)",
+	)
+	parser.add_argument(
+		"--dead-letter-subject",
+		help="Dead-letter subject prefix (defaults to <job-subject>.dead)",
+	)
+	parser.add_argument(
+		"--dead-letter-max-age",
+		type=float,
+		default=DEFAULT_DEAD_LETTER_MAX_AGE,
+		help="Seconds to retain immutable dead-letter diagnostics",
+	)
 	sub = parser.add_subparsers(dest="cmd", required=True)
 
 	p_put = sub.add_parser("put")
@@ -264,9 +346,36 @@ def main(argv=None):
 	p_worker.add_argument("--heartbeat-interval", type=float, default=10.0)
 	p_worker.add_argument("--shutdown-grace", type=float, default=30.0)
 	p_worker.add_argument("--settlement-timeout", type=float, default=5.0)
+	p_worker.add_argument("--max-attempts", type=int, default=7)
+	p_worker.add_argument("--retry-base-delay", type=float, default=1.0)
+	p_worker.add_argument("--retry-max-delay", type=float, default=30.0)
+	p_worker.add_argument("--retry-jitter", type=float, default=0.2)
 	p_worker.add_argument("--once", action="store_true", help="Stop after settling one delivery (primarily for tests)")
 
+	p_redrive = sub.add_parser(
+		"dead-letter-redrive",
+		aliases=["job-redrive", "dlq-redrive"],
+		help="Republish one immutable dead-letter entry",
+	)
+	p_redrive.add_argument("dead_letter_id")
+	p_redrive.add_argument("--json", action="store_true", help="Emit machine-readable output")
+
 	args = parser.parse_args(argv)
+	if args.cmd in {"dead-letter-redrive", "job-redrive", "dlq-redrive"}:
+		try:
+			receipt = asyncio.run(
+				_redrive_dead_letter(
+					_queue_config(
+						args, client_name="cognistore-redrive", one_shot=True
+					),
+					args.dead_letter_id,
+				)
+			)
+		except Exception as exc:
+			_render_redrive_error(exc, json_output=args.json)
+			return 1
+		_render_redrive(receipt, json_output=args.json)
+		return 0
 	dry_run = bool(getattr(args, "dry_run", False))
 	background_submission = (
 		args.cmd in {"catalog-scan", "policy-run"}
@@ -288,6 +397,20 @@ def main(argv=None):
 		parser.error("--catalog-db is required for worker")
 	if args.cmd == "worker" and args.heartbeat_interval >= args.ack_wait:
 		parser.error("--heartbeat-interval must be less than --ack-wait")
+	if args.cmd == "worker":
+		try:
+			WorkerConfig(
+				fetch_timeout=args.fetch_timeout,
+				heartbeat_interval=args.heartbeat_interval,
+				shutdown_grace=args.shutdown_grace,
+				settlement_timeout=args.settlement_timeout,
+				max_attempts=args.max_attempts,
+				retry_base_delay=args.retry_base_delay,
+				retry_max_delay=args.retry_max_delay,
+				retry_jitter=args.retry_jitter,
+			)
+		except ValueError as exc:
+			parser.error(str(exc))
 	if background_submission and args.catalog_db:
 		parser.error(
 			"--catalog-db configures inline work only; background jobs use the "
@@ -403,7 +526,10 @@ def main(argv=None):
 			)
 			receipt = asyncio.run(
 				_enqueue_job(
-					_queue_config(args, client_name="cognistore-cli"), job
+					_queue_config(
+						args, client_name="cognistore-cli", one_shot=True
+					),
+					job,
 				)
 			)
 			_render_enqueue(job, receipt, json_output=args.json)
@@ -656,7 +782,10 @@ def main(argv=None):
 			)
 			receipt = asyncio.run(
 				_enqueue_job(
-					_queue_config(args, client_name="cognistore-cli"), job
+					_queue_config(
+						args, client_name="cognistore-cli", one_shot=True
+					),
+					job,
 				)
 			)
 			_render_enqueue(job, receipt, json_output=args.json)
