@@ -3,9 +3,14 @@ from __future__ import annotations
 import asyncio
 import json
 
+from cognistore.core.throughput import (
+    ThroughputConfig,
+    ThroughputController,
+    TierLimits,
+)
 from cognistore.jobs.health import HealthServer
 from cognistore.jobs.models import BusState, QueueHealth
-from cognistore.jobs.runtime import AsyncWorker, WorkerConfig
+from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerSnapshot, WorkerState
 
 
 class IdleQueue:
@@ -50,6 +55,40 @@ async def _get(port: int, path: str) -> tuple[int, dict]:
     return status, json.loads(encoded)
 
 
+def test_health_snapshots_preserve_legacy_positional_constructors() -> None:
+    bus = QueueHealth(
+        BusState.DISCONNECTED,
+        False,
+        False,
+        "JOBS",
+        "workers",
+        1,
+        2,
+        3,
+        "legacy error",
+    )
+    snapshot = WorkerSnapshot(
+        WorkerState.STOPPED,
+        False,
+        False,
+        False,
+        0,
+        (),
+        1,
+        2,
+        3,
+        4,
+        None,
+        None,
+        bus,
+    )
+
+    assert bus.error == "legacy error"
+    assert bus.stored_messages is None
+    assert snapshot.max_in_flight == 1
+    assert snapshot.throughput is None
+
+
 def test_health_and_readiness_expose_worker_and_bus_status() -> None:
     async def scenario() -> None:
         queue = IdleQueue()
@@ -66,6 +105,12 @@ def test_health_and_readiness_expose_worker_and_bus_status() -> None:
                 shutdown_grace=0.1,
                 settlement_timeout=0.1,
             ),
+            throughput=ThroughputController(
+                ThroughputConfig(
+                    max_queue_depth=4,
+                    tiers={"hot": TierLimits(), "warm": TierLimits()},
+                )
+            ),
         )
         await worker.start()
         server = HealthServer(worker, port=0)
@@ -80,6 +125,10 @@ def test_health_and_readiness_expose_worker_and_bus_status() -> None:
             assert ready["worker"]["ready"] is True
             assert ready["bus"]["state"] == "connected"
             assert ready["bus"]["jetstream"] is True
+            assert ready["throughput"]["active_jobs"] == 0
+            assert ready["throughput"]["queue_depth"] == 0
+            assert ready["throughput"]["queue_capacity"] == 4
+            assert ready["throughput"]["tiers"]["hot"]["source"]["capacity"] == 1
 
             queue.ready = False
             ready_status, ready = await _get(server.bound_port, "/readyz")

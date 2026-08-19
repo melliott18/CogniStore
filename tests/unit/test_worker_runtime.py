@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Mapping
 
+from cognistore.core.throughput import ThroughputSaturatedError
 from cognistore.jobs.handlers import _run_blocking_safely
 from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
@@ -161,6 +162,212 @@ def _worker_config(**overrides) -> WorkerConfig:
     return WorkerConfig(**values)
 
 
+def test_worker_config_defaults_to_one_in_flight_and_rejects_invalid_capacity() -> None:
+    assert WorkerConfig().max_in_flight == 1
+
+    for invalid in (0, -1, 1.5, True):
+        try:
+            WorkerConfig(max_in_flight=invalid)  # type: ignore[arg-type]
+        except ValueError as exc:
+            assert str(exc) == "max_in_flight must be a positive integer"
+        else:  # pragma: no cover - defensive assertion
+            raise AssertionError(f"accepted invalid max_in_flight={invalid!r}")
+
+
+def test_worker_runs_up_to_capacity_and_replenishes_after_completion() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        releases = [asyncio.Event() for _ in range(4)]
+        started: list[int] = []
+
+        async def handler(job, context) -> None:
+            index = job.payload["index"]
+            assert isinstance(index, int)
+            started.append(index)
+            await releases[index].wait()
+
+        deliveries = [
+            FakeDelivery(
+                JobEnvelope.create("test.concurrent", {"index": index}),
+                stream_sequence=index + 1,
+                consumer_sequence=index + 1,
+            )
+            for index in range(4)
+        ]
+        for delivery in deliveries:
+            await queue.deliveries.put(delivery)
+
+        worker = AsyncWorker(
+            queue,
+            {"test.concurrent": handler},
+            config=_worker_config(max_in_flight=2, stop_after_jobs=4),
+        )
+        await worker.start()
+        await _eventually(lambda: len(started) == 2)
+
+        snapshot = worker.health_snapshot()
+        assert started == [0, 1]
+        assert queue.deliveries.qsize() == 2
+        assert snapshot.in_flight == 2
+        assert snapshot.max_in_flight == 2
+        assert snapshot.available_capacity == 0
+        assert snapshot.saturated is True
+        assert snapshot.saturation_events == 1
+
+        releases[0].set()
+        await _eventually(lambda: len(started) == 3)
+        assert started == [0, 1, 2]
+        assert worker.health_snapshot().in_flight == 2
+        assert worker.health_snapshot().saturation_events == 2
+
+        for release in releases:
+            release.set()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.completed == 4
+        assert all(delivery.ack_count == 1 for delivery in deliveries)
+        assert queue.deliveries.empty()
+
+    asyncio.run(scenario())
+
+
+def test_stop_after_jobs_reserves_capacity_without_overclaiming() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        release = asyncio.Event()
+        started: list[str] = []
+
+        async def handler(job, context) -> None:
+            started.append(job.job_id)
+            await release.wait()
+
+        deliveries = [
+            FakeDelivery(
+                JobEnvelope.create("test.bounded-stop", {}),
+                stream_sequence=index + 1,
+                consumer_sequence=index + 1,
+            )
+            for index in range(4)
+        ]
+        for delivery in deliveries:
+            await queue.deliveries.put(delivery)
+
+        worker = AsyncWorker(
+            queue,
+            {"test.bounded-stop": handler},
+            config=_worker_config(max_in_flight=4, stop_after_jobs=2),
+        )
+        await worker.start()
+        await _eventually(lambda: len(started) == 2)
+        await asyncio.sleep(0)
+
+        assert queue.deliveries.qsize() == 2
+        assert worker.health_snapshot().in_flight == 2
+        assert worker.health_snapshot().saturated is False
+
+        release.set()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.completed == 2
+        assert [delivery.ack_count for delivery in deliveries] == [1, 1, 0, 0]
+        assert queue.deliveries.qsize() == 2
+
+    asyncio.run(scenario())
+
+
+def test_snapshot_accumulates_time_spent_at_capacity() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        started = asyncio.Event()
+        release = asyncio.Event()
+        now = [10.0]
+
+        async def handler(job, context) -> None:
+            started.set()
+            await release.wait()
+
+        delivery = FakeDelivery(JobEnvelope.create("test.saturation", {}))
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {"test.saturation": handler},
+            config=_worker_config(max_in_flight=1),
+            monotonic=lambda: now[0],
+        )
+        await worker.start()
+        await started.wait()
+
+        now[0] = 12.5
+        saturated = worker.health_snapshot()
+        assert saturated.saturated is True
+        assert saturated.saturation_seconds == 2.5
+        assert saturated.to_dict()["worker"]["saturation_seconds"] == 2.5
+
+        release.set()
+        await _eventually(lambda: worker.health_snapshot().in_flight == 0)
+        snapshot = worker.health_snapshot()
+        assert snapshot.saturated is False
+        assert snapshot.available_capacity == 1
+        assert snapshot.saturation_events == 1
+        assert snapshot.saturation_seconds == 2.5
+        await worker.shutdown()
+
+    asyncio.run(scenario())
+
+
+def test_large_backlog_is_never_prefetched_beyond_worker_capacity() -> None:
+    class LazyBacklogQueue(FakeQueue):
+        def __init__(self, backlog: int) -> None:
+            super().__init__()
+            self.remaining = backlog
+            self.claims = 0
+
+        async def claim(self, timeout: float):
+            if self.remaining <= 0:
+                await asyncio.sleep(timeout)
+                return None
+            self.remaining -= 1
+            self.claims += 1
+            return FakeDelivery(
+                JobEnvelope.create("test.block", {"index": self.claims}),
+                stream_sequence=self.claims,
+                consumer_sequence=self.claims,
+            )
+
+    async def scenario() -> None:
+        queue = LazyBacklogQueue(10_000)
+        started = 0
+        never_release = asyncio.Event()
+
+        async def handler(job, context) -> None:
+            nonlocal started
+            started += 1
+            await never_release.wait()
+
+        worker = AsyncWorker(
+            queue,
+            {"test.block": handler},
+            config=_worker_config(max_in_flight=8),
+        )
+        await worker.start()
+        await _eventually(lambda: started == 8)
+        await asyncio.sleep(0)
+
+        snapshot = worker.health_snapshot()
+        assert queue.claims == 8
+        assert queue.remaining == 9_992
+        assert snapshot.in_flight == 8
+        assert snapshot.available_capacity == 0
+        assert snapshot.saturated is True
+
+        report = await worker.shutdown(grace=0)
+        assert report.nacked == 8
+
+    asyncio.run(scenario())
+
+
 def test_success_is_acked_only_after_handler_returns() -> None:
     async def scenario() -> None:
         queue = FakeQueue()
@@ -222,6 +429,37 @@ def test_handler_failure_nacks_for_redelivery_with_same_job_context() -> None:
         assert delivery.ack_count == 0
         assert report.nacked == 1
         assert report.retried == 1
+
+    asyncio.run(scenario())
+
+
+def test_local_saturation_never_exhausts_a_healthy_delivery() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+
+        async def handler(job, context) -> None:
+            raise ThroughputSaturatedError("local admission queue is full")
+
+        delivery = FakeDelivery(
+            JobEnvelope.create("test.saturated", {}),
+            attempt=20,
+        )
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {"test.saturated": handler},
+            config=_worker_config(max_attempts=1, stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert delivery.nack_count == 1
+        assert delivery.ack_count == 0
+        assert delivery.nack_delays == [30.0]
+        assert report.retried == 1
+        assert report.dead_lettered == 0
+        assert queue.dead_letters == []
 
     asyncio.run(scenario())
 

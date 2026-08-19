@@ -26,6 +26,17 @@ class JobEnvelopeError(ValueError):
     """Raised when a queued job does not satisfy the wire contract."""
 
 
+class QueueSaturatedError(RuntimeError):
+    """Raised when a bounded work queue rejects new durable work."""
+
+    retryable = True
+
+    def __init__(self, stream: str, reason: str) -> None:
+        self.stream = stream
+        self.reason = reason
+        super().__init__(f"NATS stream {stream!r} is saturated: {reason}")
+
+
 class InvalidJobError(ValueError):
     """Raised when a valid envelope has an unsupported job contract."""
 
@@ -824,6 +835,13 @@ class QueueHealth:
     ack_pending: int | None = None
     redelivered: int | None = None
     error: str | None = None
+    # Appended after the original fields to preserve positional construction.
+    stored_messages: int | None = None
+    stored_bytes: int | None = None
+    max_messages: int | None = None
+    max_bytes: int | None = None
+    utilization: float | None = None
+    saturated: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -835,5 +853,11 @@ class QueueHealth:
             "pending": self.pending,
             "ack_pending": self.ack_pending,
             "redelivered": self.redelivered,
+            "stored_messages": self.stored_messages,
+            "stored_bytes": self.stored_bytes,
+            "max_messages": self.max_messages,
+            "max_bytes": self.max_bytes,
+            "utilization": self.utilization,
+            "saturated": self.saturated,
             "error": self.error,
         }

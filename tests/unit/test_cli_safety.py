@@ -8,7 +8,7 @@ import pytest
 from cognistore.cli import cognistore_cli
 from cognistore.core.catalog import Catalog
 from cognistore.drivers.posix_driver import PosixDriver
-from cognistore.jobs.models import EnqueueReceipt
+from cognistore.jobs.models import EnqueueReceipt, QueueSaturatedError
 
 BUCKET = "bk"
 KEY = "small.txt"
@@ -436,3 +436,58 @@ def test_catalog_scan_enqueues_job_and_correlation_metadata(
         "bucket": BUCKET,
         "prefix": "reports/",
     }
+
+
+def test_catalog_scan_reports_queue_saturation_as_retryable_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": hot})
+
+    async def saturated(config, _job):
+        raise QueueSaturatedError(config.stream, "maximum messages exceeded")
+
+    monkeypatch.setattr(cognistore_cli, "_enqueue_job", saturated)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "ignored.yaml",
+                "catalog-scan",
+                "hot",
+                BUCKET,
+                "--json",
+            ]
+        )
+        == 1
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "error"
+    assert output["operation"] == "enqueue"
+    assert output["error_type"] == "QueueSaturatedError"
+    assert output["retryable"] is True
+
+
+@pytest.mark.parametrize("option", ["--stream-max-messages", "--stream-max-bytes"])
+def test_queue_capacity_flags_must_be_positive(
+    option: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            [
+                option,
+                "0",
+                "--drivers",
+                "unused.yaml",
+                "catalog-scan",
+                "hot",
+                BUCKET,
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "must be a positive integer" in capsys.readouterr().err

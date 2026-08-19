@@ -8,6 +8,8 @@ import os
 import signal
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +19,13 @@ from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.core.throughput import (
+	DEFAULT_MAX_QUEUE_DEPTH,
+	ThroughputConfig,
+	ThroughputController,
+	TierLimits,
+	load_throughput_config,
+)
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.storage_driver import StorageDriver
@@ -30,6 +39,8 @@ from cognistore.jobs.health import HealthServer
 from cognistore.jobs.models import JobEnvelope
 from cognistore.jobs.nats_queue import (
 	DEFAULT_DEAD_LETTER_MAX_AGE,
+	DEFAULT_STREAM_MAX_BYTES,
+	DEFAULT_STREAM_MAX_MESSAGES,
 	NatsJetStreamConfig,
 	NatsJetStreamQueue,
 )
@@ -55,6 +66,13 @@ def _queue_config(
 		subject=args.job_subject,
 		consumer=args.job_consumer,
 		ack_wait=args.ack_wait,
+		max_ack_pending=getattr(args, "max_ack_pending", 1),
+		stream_max_messages=getattr(
+			args, "stream_max_messages", DEFAULT_STREAM_MAX_MESSAGES
+		),
+		stream_max_bytes=getattr(
+			args, "stream_max_bytes", DEFAULT_STREAM_MAX_BYTES
+		),
 		client_name=client_name,
 		max_reconnect_attempts=1 if one_shot else 60,
 		allow_reconnect=not one_shot,
@@ -65,6 +83,18 @@ def _queue_config(
 		dead_letter_max_age=getattr(
 			args, "dead_letter_max_age", DEFAULT_DEAD_LETTER_MAX_AGE
 		),
+	)
+
+
+def _throughput_config(
+	args: argparse.Namespace, drivers: dict[str, StorageDriver]
+) -> ThroughputConfig:
+	config_path = getattr(args, "tier_limits", None)
+	if config_path:
+		return load_throughput_config(config_path, known_tiers=drivers)
+	return ThroughputConfig(
+		max_queue_depth=DEFAULT_MAX_QUEUE_DEPTH,
+		tiers={tier: TierLimits() for tier in drivers},
 	)
 
 
@@ -117,6 +147,40 @@ def _render_enqueue(job: JobEnvelope, receipt, *, json_output: bool) -> None:
 		)
 
 
+def _render_enqueue_error(
+	job: JobEnvelope, exc: Exception, *, json_output: bool
+) -> None:
+	payload = {
+		"status": "error",
+		"operation": "enqueue",
+		"job_id": job.job_id,
+		"correlation_id": job.correlation_id,
+		"job_type": job.job_type,
+		"error_type": type(exc).__name__,
+		"error": str(exc),
+		"retryable": bool(getattr(exc, "retryable", False)),
+	}
+	if json_output:
+		print(json.dumps(payload, sort_keys=True))
+	else:
+		print(f"enqueue failed: {exc}", file=sys.stderr)
+
+
+def _submit_job(args: argparse.Namespace, job: JobEnvelope) -> int:
+	try:
+		receipt = asyncio.run(
+			_enqueue_job(
+				_queue_config(args, client_name="cognistore-cli", one_shot=True),
+				job,
+			)
+		)
+	except Exception as exc:
+		_render_enqueue_error(job, exc, json_output=args.json)
+		return 1
+	_render_enqueue(job, receipt, json_output=args.json)
+	return 0
+
+
 def _render_redrive(receipt, *, json_output: bool) -> None:
 	payload = {
 		"status": "redriven",
@@ -156,10 +220,18 @@ def _render_redrive_error(exc: Exception, *, json_output: bool) -> None:
 async def _serve_worker(
 	args: argparse.Namespace, drivers, catalog: SQLiteCatalog
 ) -> int:
+	throughput = (
+		ThroughputController(
+			getattr(args, "_throughput_config", None)
+			or _throughput_config(args, drivers)
+		)
+		if drivers
+		else None
+	)
 	queue = NatsJetStreamQueue(_queue_config(args, client_name="cognistore-worker"))
 	worker = AsyncWorker(
 		queue,
-		build_handlers(drivers, catalog),
+		build_handlers(drivers, catalog, throughput=throughput),
 		config=WorkerConfig(
 			fetch_timeout=args.fetch_timeout,
 			heartbeat_interval=args.heartbeat_interval,
@@ -170,11 +242,60 @@ async def _serve_worker(
 			retry_base_delay=getattr(args, "retry_base_delay", 1.0),
 			retry_max_delay=getattr(args, "retry_max_delay", 30.0),
 			retry_jitter=getattr(args, "retry_jitter", 0.2),
+			max_in_flight=getattr(args, "max_in_flight", 1),
 		),
+		throughput=throughput,
 	)
 	health = HealthServer(worker, host=args.health_host, port=args.health_port)
 	loop = asyncio.get_running_loop()
+	reload_executor = (
+		ThreadPoolExecutor(max_workers=1, thread_name_prefix="cognistore-limit-reload")
+		if throughput is not None and getattr(args, "tier_limits", None)
+		else None
+	)
 	installed_signals: list[signal.Signals] = []
+	reload_task: asyncio.Task[None] | None = None
+	reload_generation = 0
+	reload_processed = 0
+
+	async def reload_limits() -> None:
+		nonlocal reload_processed
+		assert throughput is not None
+		assert reload_executor is not None
+		while reload_processed < reload_generation:
+			target_generation = reload_generation
+			try:
+				# Limit reloads must not queue behind move operations in asyncio's
+				# default executor: raising a low byte rate is itself a recovery
+				# mechanism for a saturated worker.
+				config = await loop.run_in_executor(
+					reload_executor,
+					partial(
+						load_throughput_config,
+						args.tier_limits,
+						known_tiers=drivers,
+					),
+				)
+				await throughput.reconfigure(config)
+			except Exception:
+				LOGGER.exception(
+					"tier-limit reload failed; retaining the previous configuration"
+				)
+			else:
+				LOGGER.info(
+					"reloaded tier throughput limits from %s", args.tier_limits
+				)
+			finally:
+				reload_processed = target_generation
+
+	def request_limit_reload() -> None:
+		nonlocal reload_generation, reload_task
+		reload_generation += 1
+		if reload_task is None or reload_task.done():
+			reload_task = asyncio.create_task(
+				reload_limits(), name="cognistore-tier-limit-reload"
+			)
+
 	try:
 		await worker.start()
 		await health.start()
@@ -183,6 +304,12 @@ async def _serve_worker(
 				loop.add_signal_handler(signum, worker.request_shutdown)
 				installed_signals.append(signum)
 			except (NotImplementedError, RuntimeError):
+				pass
+		if throughput is not None and getattr(args, "tier_limits", None):
+			try:
+				loop.add_signal_handler(signal.SIGHUP, request_limit_reload)
+				installed_signals.append(signal.SIGHUP)
+			except (AttributeError, NotImplementedError, RuntimeError):
 				pass
 		print(
 			f"worker ready health=http://{args.health_host}:{health.bound_port} "
@@ -195,6 +322,10 @@ async def _serve_worker(
 	finally:
 		for signum in installed_signals:
 			loop.remove_signal_handler(signum)
+		if reload_task is not None:
+			await asyncio.gather(reload_task, return_exceptions=True)
+		if reload_executor is not None:
+			reload_executor.shutdown(wait=True, cancel_futures=True)
 		if worker.state not in (WorkerState.STOPPED, WorkerState.FAILED):
 			await worker.shutdown()
 		await health.close()
@@ -248,6 +379,18 @@ def main(argv=None):
 	parser.add_argument("--job-subject", default="cognistore.jobs")
 	parser.add_argument("--job-consumer", default="cognistore-workers")
 	parser.add_argument("--ack-wait", type=float, default=30.0, help="Seconds before an unacknowledged job is redelivered")
+	parser.add_argument(
+		"--stream-max-messages",
+		type=int,
+		default=DEFAULT_STREAM_MAX_MESSAGES,
+		help="Maximum durable jobs retained by the work stream",
+	)
+	parser.add_argument(
+		"--stream-max-bytes",
+		type=int,
+		default=DEFAULT_STREAM_MAX_BYTES,
+		help="Maximum bytes retained by the work stream",
+	)
 	parser.add_argument(
 		"--dead-letter-stream",
 		help="Dead-letter stream (defaults to <job-stream>_DLQ)",
@@ -346,6 +489,22 @@ def main(argv=None):
 	p_worker.add_argument("--heartbeat-interval", type=float, default=10.0)
 	p_worker.add_argument("--shutdown-grace", type=float, default=30.0)
 	p_worker.add_argument("--settlement-timeout", type=float, default=5.0)
+	p_worker.add_argument(
+		"--max-in-flight",
+		type=int,
+		default=8,
+		help="Maximum deliveries concurrently owned by this worker process",
+	)
+	p_worker.add_argument(
+		"--max-ack-pending",
+		type=int,
+		default=64,
+		help="Shared durable-consumer acknowledgement capacity",
+	)
+	p_worker.add_argument(
+		"--tier-limits",
+		help="Per-tier throughput YAML; send SIGHUP to reload it safely",
+	)
 	p_worker.add_argument("--max-attempts", type=int, default=7)
 	p_worker.add_argument("--retry-base-delay", type=float, default=1.0)
 	p_worker.add_argument("--retry-max-delay", type=float, default=30.0)
@@ -361,6 +520,19 @@ def main(argv=None):
 	p_redrive.add_argument("--json", action="store_true", help="Emit machine-readable output")
 
 	args = parser.parse_args(argv)
+	queue_command = (
+		args.cmd in {"worker", "dead-letter-redrive", "job-redrive", "dlq-redrive"}
+		or (
+			args.cmd in {"catalog-scan", "policy-run"}
+			and not bool(getattr(args, "dry_run", False))
+			and not getattr(args, "sync", False)
+		)
+	)
+	if queue_command:
+		try:
+			_queue_config(args, client_name="cognistore-config-validation")
+		except ValueError as exc:
+			parser.error(str(exc))
 	if args.cmd in {"dead-letter-redrive", "job-redrive", "dlq-redrive"}:
 		try:
 			receipt = asyncio.run(
@@ -397,6 +569,8 @@ def main(argv=None):
 		parser.error("--catalog-db is required for worker")
 	if args.cmd == "worker" and args.heartbeat_interval >= args.ack_wait:
 		parser.error("--heartbeat-interval must be less than --ack-wait")
+	if args.cmd == "worker" and args.max_ack_pending < args.max_in_flight:
+		parser.error("--max-ack-pending must be at least --max-in-flight")
 	if args.cmd == "worker":
 		try:
 			WorkerConfig(
@@ -404,6 +578,7 @@ def main(argv=None):
 				heartbeat_interval=args.heartbeat_interval,
 				shutdown_grace=args.shutdown_grace,
 				settlement_timeout=args.settlement_timeout,
+				max_in_flight=args.max_in_flight,
 				max_attempts=args.max_attempts,
 				retry_base_delay=args.retry_base_delay,
 				retry_max_delay=args.retry_max_delay,
@@ -411,6 +586,11 @@ def main(argv=None):
 			)
 		except ValueError as exc:
 			parser.error(str(exc))
+		assert drivers is not None
+		try:
+			args._throughput_config = _throughput_config(args, drivers)
+		except (OSError, ValueError) as exc:
+			parser.error(f"invalid --tier-limits configuration: {exc}")
 	if background_submission and args.catalog_db:
 		parser.error(
 			"--catalog-db configures inline work only; background jobs use the "
@@ -524,16 +704,7 @@ def main(argv=None):
 				job_id=args.job_id,
 				correlation_id=args.correlation_id,
 			)
-			receipt = asyncio.run(
-				_enqueue_job(
-					_queue_config(
-						args, client_name="cognistore-cli", one_shot=True
-					),
-					job,
-				)
-			)
-			_render_enqueue(job, receipt, json_output=args.json)
-			return 0
+			return _submit_job(args, job)
 
 		assert catalog is not None
 		scan_results = scan_catalog(
@@ -780,16 +951,7 @@ def main(argv=None):
 				job_id=args.job_id,
 				correlation_id=args.correlation_id,
 			)
-			receipt = asyncio.run(
-				_enqueue_job(
-					_queue_config(
-						args, client_name="cognistore-cli", one_shot=True
-					),
-					job,
-				)
-			)
-			_render_enqueue(job, receipt, json_output=args.json)
-			return 0
+			return _submit_job(args, job)
 
 		policy = build_policy(
 			args.policy,

@@ -368,6 +368,63 @@ class SQLiteCatalog(Catalog):
             for row in rows
         ]
 
+    def renew_move_job_lease(
+        self,
+        idempotency_key: str,
+        *,
+        owner_id: str,
+        expected_state: MoveJobState | None,
+        now: str,
+        lease_expires_at: str,
+    ) -> MoveJob:
+        """Atomically extend an owned move lease without changing its phase."""
+
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(f"Move job not found: {idempotency_key}")
+                job = self._move_job_from_row(row)
+                if expected_state is None and job.state.terminal:
+                    self._conn.commit()
+                    return job
+                if job.owner_id != owner_id:
+                    raise MoveJobLeaseError(
+                        f"Move job {idempotency_key!r} is not owned by {owner_id!r}"
+                    )
+                if expected_state is not None and job.state != expected_state:
+                    raise RuntimeError(
+                        f"Move job {idempotency_key!r} is {job.state.value}, "
+                        f"expected {expected_state.value}"
+                    )
+                self._conn.execute(
+                    """
+                    UPDATE move_jobs
+                    SET lease_expires_at=?, updated_at=?
+                    WHERE idempotency_key=? AND owner_id=?
+                    """,
+                    (
+                        lease_expires_at,
+                        now,
+                        idempotency_key,
+                        owner_id,
+                    ),
+                )
+                renewed_row = self._conn.execute(
+                    _GET_MOVE_JOB_SQL,
+                    (idempotency_key,),
+                ).fetchone()
+                assert renewed_row is not None
+                self._conn.commit()
+                return self._move_job_from_row(renewed_row)
+            except BaseException:
+                self._conn.rollback()
+                raise
+
     def transition_move_job(
         self,
         idempotency_key: str,

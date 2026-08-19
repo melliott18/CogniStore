@@ -13,6 +13,7 @@ from .models import (
     JobEnvelope,
     JobEnvelopeError,
     QueueHealth,
+    QueueSaturatedError,
     RedriveReceipt,
 )
 from .nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
@@ -44,6 +45,7 @@ __all__ = [
     "NatsJetStreamConfig",
     "NatsJetStreamQueue",
     "QueueHealth",
+    "QueueSaturatedError",
     "RedriveReceipt",
     "RetryPolicy",
     "RetryableJobError",

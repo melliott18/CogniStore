@@ -14,6 +14,7 @@ from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
     REDRIVE_COUNT_METADATA,
     JobEnvelope,
+    QueueSaturatedError,
 )
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
@@ -76,6 +77,77 @@ def test_enqueue_ack_and_explicit_nack_redelivery() -> None:
             assert second.job.job_id == second_job.job_id
             await second.ack()
             assert await consumer.claim(timeout=0.1) is None
+        finally:
+            await consumer.close()
+            await publisher.close()
+
+    asyncio.run(scenario())
+
+
+def test_bounded_stream_rejects_without_evicting_and_recovers_after_ack() -> None:
+    async def scenario() -> None:
+        config = replace(_config(), stream_max_messages=1)
+        publisher = NatsJetStreamQueue(config, consume=False)
+        consumer = NatsJetStreamQueue(config)
+        await publisher.connect()
+        await consumer.connect()
+        try:
+            first_job = JobEnvelope.create("test.capacity", {"value": 1})
+            second_job = JobEnvelope.create("test.capacity", {"value": 2})
+            await publisher.enqueue(first_job)
+
+            health = await consumer.probe()
+            assert health.stored_messages == 1
+            assert health.max_messages == 1
+            assert health.saturated is True
+            with pytest.raises(QueueSaturatedError, match="maximum messages"):
+                await publisher.enqueue(second_job)
+
+            # DiscardNew must preserve the older durable job.
+            first = await consumer.claim(timeout=1.0)
+            assert first is not None
+            assert first.job.job_id == first_job.job_id
+            await first.ack()
+
+            async def wait_for_capacity() -> None:
+                while (await consumer.probe()).stored_messages != 0:
+                    await asyncio.sleep(0.01)
+
+            await asyncio.wait_for(wait_for_capacity(), timeout=1.0)
+            await publisher.enqueue(second_job)
+            second = await consumer.claim(timeout=1.0)
+            assert second is not None
+            assert second.job.job_id == second_job.job_id
+            await second.ack()
+        finally:
+            await consumer.close()
+            await publisher.close()
+
+    asyncio.run(scenario())
+
+
+def test_bounded_stream_rejects_a_publication_over_its_byte_capacity() -> None:
+    async def scenario() -> None:
+        config = replace(
+            _config(),
+            stream_max_messages=100,
+            stream_max_bytes=1024,
+        )
+        publisher = NatsJetStreamQueue(config, consume=False)
+        consumer = NatsJetStreamQueue(config)
+        await publisher.connect()
+        await consumer.connect()
+        try:
+            oversized = JobEnvelope.create(
+                "test.byte-capacity", {"value": "x" * 8192}
+            )
+            with pytest.raises(QueueSaturatedError, match="maximum bytes"):
+                await publisher.enqueue(oversized)
+
+            health = await consumer.probe()
+            assert health.ready is True
+            assert health.stored_messages == 0
+            assert health.max_bytes == 1024
         finally:
             await consumer.close()
             await publisher.close()

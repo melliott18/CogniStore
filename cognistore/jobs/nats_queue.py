@@ -42,6 +42,7 @@ from .models import (
     JobEnvelope,
     JobEnvelopeError,
     QueueHealth,
+    QueueSaturatedError,
     RedriveAuditRecord,
     RedriveReceipt,
 )
@@ -56,10 +57,16 @@ REDRIVE_COUNT_HEADER = "CogniStore-Redrive-Count"
 CONSUMER_ALREADY_EXISTS = 10148
 MINIMUM_NATS_SERVER = (2, 10)
 DEFAULT_DEAD_LETTER_MAX_AGE = 30 * 24 * 60 * 60
+DEFAULT_STREAM_MAX_MESSAGES = 10_000
+DEFAULT_STREAM_MAX_BYTES = 1024 * 1024 * 1024
 DEAD_LETTER_STORAGE_SCHEMA_VERSION = 1
 DEAD_LETTER_CHUNK_TARGET = 256 * 1024
 MAX_PROJECTED_SEQUENCE = 2**64 - 1
 MAX_PROJECTED_TIMESTAMP = "9999-12-31T23:59:59.999999Z"
+STREAM_STORE_FAILED = 10077
+QUEUE_SATURATION_REASONS = frozenset(
+    {"maximum messages exceeded", "maximum bytes exceeded"}
+)
 
 
 def _is_utf8_encodable(value: str) -> bool:
@@ -94,6 +101,9 @@ class NatsJetStreamConfig:
     dead_letter_stream: str | None = None
     dead_letter_subject: str | None = None
     dead_letter_max_age: float = DEFAULT_DEAD_LETTER_MAX_AGE
+    # Appended to preserve the positional constructor used by older callers.
+    stream_max_messages: int = DEFAULT_STREAM_MAX_MESSAGES
+    stream_max_bytes: int = DEFAULT_STREAM_MAX_BYTES
 
     def __post_init__(self) -> None:
         if not self.servers or any(not value.strip() for value in self.servers):
@@ -118,6 +128,10 @@ class NatsJetStreamConfig:
                 raise ValueError(f"{field_name} must be greater than zero")
         if self.max_ack_pending < 1:
             raise ValueError("max_ack_pending must be at least one")
+        for field_name in ("stream_max_messages", "stream_max_bytes"):
+            value = getattr(self, field_name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ValueError(f"{field_name} must be a positive integer")
         if (
             not isinstance(self.max_reconnect_attempts, int)
             or isinstance(self.max_reconnect_attempts, bool)
@@ -282,6 +296,11 @@ class NatsJetStreamQueue:
                         subjects=[self.config.subject],
                         retention=RetentionPolicy.WORK_QUEUE,
                         storage=StorageType.FILE,
+                        max_msgs=self.config.stream_max_messages,
+                        max_bytes=self.config.stream_max_bytes,
+                        max_age=0,
+                        max_msgs_per_subject=-1,
+                        discard=DiscardPolicy.NEW,
                         duplicate_window=self.config.duplicate_window,
                     )
                 )
@@ -293,22 +312,41 @@ class NatsJetStreamQueue:
                 except NotFoundError:
                     raise create_error
         stream_config = stream_info.config
-        if (
-            stream_config.name != self.config.stream
-            or stream_config.retention != RetentionPolicy.WORK_QUEUE
-            or stream_config.storage != StorageType.FILE
-            or set(stream_config.subjects or ()) != {self.config.subject}
-            or stream_config.duplicate_window is None
-            or abs(
-                stream_config.duplicate_window - self.config.duplicate_window
-            )
-            > 0.001
-        ):
+        if not self._main_stream_config_compatible(stream_config):
             raise RuntimeError(
                 f"NATS stream {self.config.stream!r} has incompatible configuration"
             )
         self._stream_max_msg_sizes[self.config.stream] = int(
             stream_config.max_msg_size or -1
+        )
+
+    def _main_stream_config_compatible(self, stream_config: StreamConfig) -> bool:
+        persist_mode = getattr(stream_config, "persist_mode", None)
+        persist_mode_value = getattr(persist_mode, "value", persist_mode)
+        return not (
+            stream_config.name != self.config.stream
+            or stream_config.retention != RetentionPolicy.WORK_QUEUE
+            or stream_config.storage != StorageType.FILE
+            or set(stream_config.subjects or ()) != {self.config.subject}
+            or stream_config.max_msgs != self.config.stream_max_messages
+            or stream_config.max_bytes != self.config.stream_max_bytes
+            or stream_config.max_age not in (None, 0)
+            or stream_config.max_msgs_per_subject != -1
+            or stream_config.discard != DiscardPolicy.NEW
+            or bool(getattr(stream_config, "discard_new_per_subject", False))
+            or bool(getattr(stream_config, "no_ack", False))
+            or bool(getattr(stream_config, "sealed", False))
+            or bool(getattr(stream_config, "allow_rollup_hdrs", False))
+            or bool(getattr(stream_config, "allow_msg_ttl", False))
+            or getattr(stream_config, "subject_transform", None) is not None
+            or getattr(stream_config, "mirror", None) is not None
+            or bool(getattr(stream_config, "sources", None))
+            or persist_mode_value not in (None, "default")
+            or stream_config.duplicate_window is None
+            or abs(
+                stream_config.duplicate_window - self.config.duplicate_window
+            )
+            > 0.001
         )
 
     async def _ensure_dead_letter_stream(self) -> None:
@@ -423,11 +461,18 @@ class NatsJetStreamQueue:
             self.config.stream, self.config.consumer
         )
         consumer_config = consumer_info.config
-        if (
+        if not self._consumer_config_compatible(consumer_config):
+            raise RuntimeError(
+                f"NATS consumer {self.config.consumer!r} has incompatible configuration"
+            )
+
+    def _consumer_config_compatible(self, consumer_config: ConsumerConfig) -> bool:
+        return not (
             consumer_config.deliver_policy != DeliverPolicy.ALL
             or consumer_config.ack_policy != AckPolicy.EXPLICIT
             or consumer_config.filter_subject != self.config.subject
             or consumer_config.deliver_subject is not None
+            or bool(getattr(consumer_config, "headers_only", False))
             or consumer_config.max_ack_pending != self.config.max_ack_pending
             or consumer_config.max_deliver != -1
             or bool(consumer_config.backoff)
@@ -436,10 +481,7 @@ class NatsJetStreamQueue:
             or consumer_config.name != self.config.consumer
             or consumer_config.ack_wait is None
             or abs(consumer_config.ack_wait - self.config.ack_wait) > 0.001
-        ):
-            raise RuntimeError(
-                f"NATS consumer {self.config.consumer!r} has incompatible configuration"
-            )
+        )
 
     def _require_connected(self) -> tuple[Any, Any]:
         if self._connection is None or self._jetstream is None:
@@ -680,12 +722,18 @@ class NatsJetStreamQueue:
             )
         if reserve_redrive_headroom:
             self._validate_first_redrive_size(job)
-        acknowledgement = await jetstream.publish(
-            self.config.subject,
-            payload,
-            stream=self.config.stream,
-            headers=headers,
-        )
+        try:
+            acknowledgement = await jetstream.publish(
+                self.config.subject,
+                payload,
+                stream=self.config.stream,
+                headers=headers,
+            )
+        except APIError as exc:
+            reason = (exc.description or "").strip().lower()
+            if exc.err_code == STREAM_STORE_FAILED and reason in QUEUE_SATURATION_REASONS:
+                raise QueueSaturatedError(self.config.stream, reason) from exc
+            raise
         return EnqueueReceipt(
             job_id=job.job_id,
             correlation_id=job.correlation_id,
@@ -1312,13 +1360,15 @@ class NatsJetStreamQueue:
                 jetstream=False,
                 stream=self.config.stream,
                 consumer=self.config.consumer,
+                max_messages=self.config.stream_max_messages,
+                max_bytes=self.config.stream_max_bytes,
                 error="NATS is not connected",
             )
         try:
             assert self._connection is not None
             await self._connection.flush(timeout=self.config.request_timeout)
             await self._jetstream.account_info()
-            await self._jetstream.stream_info(self.config.stream)
+            stream_info = await self._jetstream.stream_info(self.config.stream)
             consumer = None
             if self._consume:
                 consumer = await self._jetstream.consumer_info(
@@ -1331,17 +1381,61 @@ class NatsJetStreamQueue:
                 jetstream=False,
                 stream=self.config.stream,
                 consumer=self.config.consumer,
+                max_messages=self.config.stream_max_messages,
+                max_bytes=self.config.stream_max_bytes,
                 error=f"{type(exc).__name__}: {exc}",
             )
+        stream_config = stream_info.config
+        max_messages = getattr(stream_config, "max_msgs", None)
+        max_bytes = getattr(stream_config, "max_bytes", None)
+        if not isinstance(max_messages, int) or isinstance(max_messages, bool):
+            max_messages = None
+        if not isinstance(max_bytes, int) or isinstance(max_bytes, bool):
+            max_bytes = None
+
+        topology_error: str | None = None
+        if not self._main_stream_config_compatible(stream_config):
+            topology_error = (
+                f"NATS stream {self.config.stream!r} has incompatible configuration"
+            )
+        elif consumer is not None and not self._consumer_config_compatible(
+            consumer.config
+        ):
+            topology_error = (
+                f"NATS consumer {self.config.consumer!r} has incompatible configuration"
+            )
+
+        stored_messages = getattr(stream_info.state, "messages", None)
+        stored_bytes = getattr(stream_info.state, "bytes", None)
+        utilization: float | None = None
+        saturated: bool | None = None
+        ratios: list[float] = []
+        if isinstance(stored_messages, int) and not isinstance(stored_messages, bool):
+            if max_messages is not None and max_messages > 0:
+                ratios.append(stored_messages / max_messages)
+        if isinstance(stored_bytes, int) and not isinstance(stored_bytes, bool):
+            if max_bytes is not None and max_bytes > 0:
+                ratios.append(stored_bytes / max_bytes)
+        if ratios:
+            utilization = max(ratios)
+            saturated = utilization >= 1.0
+        bus_state = self._bus_state()
         return QueueHealth(
-            state=self._bus_state(),
-            ready=self._bus_state() == BusState.CONNECTED,
+            state=bus_state,
+            ready=bus_state == BusState.CONNECTED and topology_error is None,
             jetstream=True,
             stream=self.config.stream,
             consumer=self.config.consumer,
             pending=consumer.num_pending if consumer is not None else None,
             ack_pending=consumer.num_ack_pending if consumer is not None else None,
             redelivered=consumer.num_redelivered if consumer is not None else None,
+            stored_messages=stored_messages,
+            stored_bytes=stored_bytes,
+            max_messages=max_messages,
+            max_bytes=max_bytes,
+            utilization=utilization,
+            saturated=saturated,
+            error=topology_error,
         )
 
     async def close(self, *, graceful: bool = True) -> None:

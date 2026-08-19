@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import logging
 import random
+import time
 import traceback as traceback_module
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,6 +49,7 @@ class WorkerConfig:
     retry_base_delay: float = 1.0
     retry_max_delay: float = 30.0
     retry_jitter: float = 0.2
+    max_in_flight: int = 1
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -61,6 +63,12 @@ class WorkerConfig:
             raise ValueError("heartbeat_interval cannot be negative")
         if self.stop_after_jobs is not None and self.stop_after_jobs < 1:
             raise ValueError("stop_after_jobs must be at least one")
+        if (
+            isinstance(self.max_in_flight, bool)
+            or not isinstance(self.max_in_flight, int)
+            or self.max_in_flight < 1
+        ):
+            raise ValueError("max_in_flight must be a positive integer")
         RetryPolicy(
             max_attempts=self.max_attempts,
             base_delay=self.retry_base_delay,
@@ -93,15 +101,27 @@ class WorkerSnapshot:
     last_error: str | None
     last_bus_probe: str | None
     bus: QueueHealth
+    # Appended after the original fields to preserve positional construction.
+    max_in_flight: int = 1
+    available_capacity: int = 0
+    saturated: bool = False
+    saturation_events: int = 0
+    saturation_seconds: float = 0.0
+    throughput: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "worker": {
                 "state": self.state.value,
                 "live": self.live,
                 "ready": self.ready,
                 "accepting_claims": self.accepting_claims,
                 "in_flight": self.in_flight,
+                "max_in_flight": self.max_in_flight,
+                "available_capacity": self.available_capacity,
+                "saturated": self.saturated,
+                "saturation_events": self.saturation_events,
+                "saturation_seconds": self.saturation_seconds,
                 "active_job_ids": list(self.active_job_ids),
                 "completed": self.completed,
                 "nacked": self.nacked,
@@ -112,6 +132,9 @@ class WorkerSnapshot:
             },
             "bus": self.bus.to_dict(),
         }
+        if self.throughput is not None:
+            payload["throughput"] = dict(self.throughput)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -143,6 +166,8 @@ class AsyncWorker:
         config: WorkerConfig | None = None,
         random_source: RandomSource | None = None,
         clock: Callable[[], datetime] | None = None,
+        monotonic: Callable[[], float] | None = None,
+        throughput: Any | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("at least one job handler is required")
@@ -152,6 +177,8 @@ class AsyncWorker:
         self._retry_policy = self.config.retry_policy
         self._random_source = random_source or random.random
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._monotonic = monotonic or time.monotonic
+        self._throughput = throughput
         self.state = WorkerState.STOPPED
         self.accepting_claims = False
         self.last_error: str | None = None
@@ -168,9 +195,14 @@ class AsyncWorker:
         self._nacked = 0
         self._retried = 0
         self._dead_lettered = 0
+        self._saturation_events = 0
+        self._saturation_seconds = 0.0
+        self._saturation_started_at: float | None = None
         self._stop_requested = asyncio.Event()
         self._claim_idle = asyncio.Event()
         self._claim_idle.set()
+        self._capacity_changed = asyncio.Event()
+        self._capacity_changed.set()
         self._fetch_task: asyncio.Task[JobDelivery | None] | None = None
         self._supervisor: asyncio.Task[None] | None = None
         self._active: dict[asyncio.Task[None], JobDelivery] = {}
@@ -205,7 +237,9 @@ class AsyncWorker:
             return
         self.state = WorkerState.DRAINING
         self.accepting_claims = False
+        self._update_saturation_state()
         self._stop_requested.set()
+        self._capacity_changed.set()
         fetch_task = self._fetch_task
         if fetch_task is not None and not fetch_task.done():
             fetch_task.cancel()
@@ -216,6 +250,13 @@ class AsyncWorker:
     async def _supervise(self) -> None:
         try:
             while not self._stop_requested.is_set():
+                if self._stop_limit_reached():
+                    self.request_shutdown()
+                    break
+                if not self._can_claim():
+                    await self._wait_for_capacity_change()
+                    continue
+
                 delivery: JobDelivery | None = None
                 self._claim_idle.clear()
                 self._fetch_task = asyncio.create_task(
@@ -250,21 +291,8 @@ class AsyncWorker:
                     )
                     self._active[task] = delivery
                     task.add_done_callback(self._active_done)
+                    self._update_saturation_state()
                 self._claim_idle.set()
-
-                if delivery is not None:
-                    try:
-                        await asyncio.shield(task)
-                    except asyncio.CancelledError:
-                        if not self._stop_requested.is_set():
-                            raise
-
-                    settled_jobs = self._completed + self._nacked + self._dead_lettered
-                    if (
-                        self.config.stop_after_jobs is not None
-                        and settled_jobs >= self.config.stop_after_jobs
-                    ):
-                        self.request_shutdown()
         except asyncio.CancelledError:
             pass
         except BaseException as exc:
@@ -277,13 +305,66 @@ class AsyncWorker:
 
     def _active_done(self, task: asyncio.Task[None]) -> None:
         self._active.pop(task, None)
-        if task.cancelled():
-            return
-        try:
-            task.exception()
-        except (asyncio.CancelledError, Exception):
-            # Processing records settlement failures before returning/raising.
-            pass
+        self._update_saturation_state()
+        self._capacity_changed.set()
+        if not task.cancelled():
+            try:
+                task.exception()
+            except (asyncio.CancelledError, Exception):
+                # Processing records settlement failures before returning/raising.
+                pass
+        if self._stop_limit_reached() and not self._stop_requested.is_set():
+            self.request_shutdown()
+
+    def _settled_jobs(self) -> int:
+        return self._completed + self._nacked + self._dead_lettered
+
+    def _stop_limit_reached(self) -> bool:
+        return (
+            self.config.stop_after_jobs is not None
+            and self._settled_jobs() >= self.config.stop_after_jobs
+        )
+
+    def _can_claim(self) -> bool:
+        if len(self._active) >= self.config.max_in_flight:
+            return False
+        if self.config.stop_after_jobs is None:
+            return True
+        # Active deliveries reserve the remaining stop budget so concurrent
+        # claims can never overshoot the requested number of settlements.
+        return (
+            self._settled_jobs() + len(self._active)
+            < self.config.stop_after_jobs
+        )
+
+    async def _wait_for_capacity_change(self) -> None:
+        while not self._stop_requested.is_set() and not self._can_claim():
+            self._capacity_changed.clear()
+            if self._stop_requested.is_set() or self._can_claim():
+                return
+            await self._capacity_changed.wait()
+
+    def _currently_saturated(self) -> bool:
+        return (
+            self.accepting_claims
+            and len(self._active) >= self.config.max_in_flight
+        )
+
+    def _update_saturation_state(self) -> None:
+        saturated = self._currently_saturated()
+        if saturated and self._saturation_started_at is None:
+            self._saturation_started_at = self._monotonic()
+            self._saturation_events += 1
+        elif not saturated and self._saturation_started_at is not None:
+            elapsed = self._monotonic() - self._saturation_started_at
+            self._saturation_seconds += max(0.0, elapsed)
+            self._saturation_started_at = None
+
+    def _current_saturation_seconds(self) -> float:
+        total = self._saturation_seconds
+        if self._saturation_started_at is not None:
+            total += max(0.0, self._monotonic() - self._saturation_started_at)
+        return total
 
     async def _process(self, delivery: JobDelivery) -> None:
         job: JobEnvelope | None = None
@@ -367,6 +448,27 @@ class AsyncWorker:
             "attempt": delivery.attempt,
             "category": classification.category.value,
         }
+
+        if getattr(exc, "throughput_saturated", False):
+            # Local admission pressure means the job has not started. Defer it
+            # without ever converting healthy backlog into an exhausted/DLQ
+            # record merely because capacity remained busy for several pulls.
+            delay = self._retry_policy.delay_for(
+                delivery.attempt, random_value=self._random_source()
+            )
+            LOGGER.warning(
+                "local movement capacity is saturated; deferring delivery in "
+                "%.3f seconds",
+                delay,
+                extra={**log_context, "retry_delay": delay},
+            )
+            try:
+                await delivery.nack(delay=delay)
+                self._nacked += 1
+                self._retried += 1
+            except BaseException as settlement_error:
+                self._set_failure(settlement_error)
+            return
 
         if classification.retryable and delivery.attempt < self._retry_policy.max_attempts:
             delay = self._retry_policy.delay_for(
@@ -525,7 +627,9 @@ class AsyncWorker:
         self.last_error = f"{type(exc).__name__}: {exc}"
         self.state = WorkerState.FAILED
         self.accepting_claims = False
+        self._update_saturation_state()
         self._stop_requested.set()
+        self._capacity_changed.set()
         fetch_task = self._fetch_task
         if fetch_task is not None and not fetch_task.done():
             fetch_task.cancel()
@@ -555,12 +659,22 @@ class AsyncWorker:
                 active_ids.append(
                     f"malformed:{delivery.source_stream}:{delivery.stream_sequence}"
                 )
+        in_flight = len(self._active)
+        available_capacity = max(0, self.config.max_in_flight - in_flight)
+        throughput_snapshot: Mapping[str, Any] | None = None
+        if self._throughput is not None:
+            throughput_snapshot = self._throughput.snapshot().to_dict()
         return WorkerSnapshot(
             state=self.state,
             live=live,
             ready=ready,
             accepting_claims=self.accepting_claims,
-            in_flight=len(self._active),
+            in_flight=in_flight,
+            max_in_flight=self.config.max_in_flight,
+            available_capacity=available_capacity,
+            saturated=self._currently_saturated(),
+            saturation_events=self._saturation_events,
+            saturation_seconds=self._current_saturation_seconds(),
             active_job_ids=tuple(sorted(active_ids)),
             completed=self._completed,
             nacked=self._nacked,
@@ -569,6 +683,7 @@ class AsyncWorker:
             last_error=self.last_error,
             last_bus_probe=self._last_probe_at,
             bus=self._last_health,
+            throughput=throughput_snapshot,
         )
 
     async def check_readiness(self) -> WorkerSnapshot:

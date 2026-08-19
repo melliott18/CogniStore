@@ -4,6 +4,7 @@
 - Date: 2026-08-13
 - Ticket: [#18](https://github.com/melliott18/CogniStore/issues/18)
 - Amended: 2026-08-17 by [#24](https://github.com/melliott18/CogniStore/issues/24)
+- Amended: 2026-08-18 by [#25](https://github.com/melliott18/CogniStore/issues/25)
 
 ## Context
 
@@ -15,9 +16,10 @@ redelivery, correlation metadata, and graceful worker shutdown.
 
 The roadmap named NATS or Kafka for messaging and Celery, Dramatiq, or RQ for
 workers. Ticket #18 established one coherent foundation and deliberately
-deferred periodic scheduling, job-specific retry/backoff, and dead-letter
-redrive. This #24 amendment adds the latter two on that same delivery identity
-and worker runtime.
+deferred periodic scheduling, job-specific retry/backoff, dead-letter redrive,
+and capacity controls. The #24 amendment added retry and redrive on that same
+delivery identity. The #25 amendment adds bounded worker concurrency, queue
+capacity, and per-tier movement admission and rates.
 
 ## Decision
 
@@ -28,19 +30,35 @@ create-only action.
 
 The queue topology is:
 
-- a file-backed JetStream stream using `WorkQueuePolicy`;
+- a finite file-backed JetStream stream using `WorkQueuePolicy` and
+  `DiscardNew`, with no age or per-subject eviction limit;
 - one named, durable pull consumer shared by all worker instances;
 - explicit per-message acknowledgements;
-- `max_ack_pending=1` for the initial single-in-flight runtime;
+- a configurable shared `max_ack_pending` limit (worker CLI default 64), paired
+  with a smaller per-process in-flight limit (worker CLI default 8; the
+  programmatic compatibility defaults remain 1 and 1);
 - an acknowledgement deadline extended with `in_progress` heartbeats;
 - unlimited broker redelivery as a safety net, with application-owned bounded
   delayed retries and a separate immutable dead-letter stream.
+
+Each worker also owns a bounded, process-local movement controller. It acquires
+source and destination concurrency slots atomically, paces operation admission
+and streamed bytes per tier, and schedules runnable tier-pair lanes fairly
+within the claimed window. Policy batches are interleaved across tier pairs.
+The controller can atomically reload tier limits without revoking active work;
+tier membership and admission-queue capacity remain restart-time settings.
 
 Worker startup uses atomic create-only semantics, then reads and validates the
 effective durable-consumer configuration. It never updates an existing
 consumer. Concurrent first starts therefore select one configuration, and any
 worker with a conflicting acknowledgement deadline or topology fails readiness
 without shortening another worker's live lease.
+
+The same exact-validation rule applies to the work stream's capacity and
+non-eviction settings. Upgrades from the original unbounded `DiscardOld`
+stream are an explicit operator migration performed only after active
+deliveries drain; CogniStore never deletes, recreates, or silently mutates a
+stream containing queued work.
 
 Publishers wait for JetStream's publish acknowledgement. Successful handlers
 use `ack_sync`, so completion is reported only after the server confirms the
@@ -114,12 +132,19 @@ JetStream probe, or when the durable topology is unavailable.
 
 NATS JetStream supplies the required durability and acknowledgement primitives
 without a second task-framework abstraction. Pull consumers give CogniStore
-explicit flow control and a direct path to later worker scaling.
+explicit flow control. Finite stream capacity, bounded local ownership, and
+bounded movement admission keep broker and worker memory growth measurable
+under overload.
 
 Running the system requires a JetStream-enabled NATS server and persistent
 server storage. This ticket does not add repository-managed containers; that is
 ticket #28. Operations are at least once, so job implementations must be made
 idempotent rather than relying on the broker to provide exactly-once effects.
+Per-tier controls are process-local, so an operator running multiple worker
+processes must divide aggregate backend limits between them. A single FIFO
+subject can provide fairness only among work already claimed into a bounded
+local window; global tier-aware broker scheduling would require partitioned
+subjects or a distributed coordinator.
 An interruption during a multi-message diagnostic write can leave unreferenced
 content-addressed chunks until DLQ retention expires, but no source delivery is
 ACKed without a complete, reassembled, checksum-verified manifest.

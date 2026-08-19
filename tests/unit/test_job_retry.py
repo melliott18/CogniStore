@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from cognistore.jobs.models import InvalidJobError
+from cognistore.jobs.models import InvalidJobError, QueueSaturatedError
 from cognistore.jobs.retry import FailureCategory, RetryPolicy, classify_job_error
 
 
@@ -32,6 +32,10 @@ def _client_error(code: str, status: int) -> ClientError:
         ),
         (_client_error("SlowDown", 503), FailureCategory.THROTTLED),
         (_client_error("ServiceUnavailable", 503), FailureCategory.UNAVAILABLE),
+        (
+            QueueSaturatedError("COGNISTORE_JOBS", "maximum messages exceeded"),
+            FailureCategory.THROTTLED,
+        ),
         (
             _client_error("ConditionalRequestConflict", 409),
             FailureCategory.CONFLICT,

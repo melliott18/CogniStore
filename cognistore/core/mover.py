@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Literal, Mapping
+from typing import Any, Callable, Dict, Iterator, Literal, Mapping, Protocol
 from uuid import uuid4
 
 from cognistore.core.catalog import Catalog
@@ -66,11 +68,29 @@ class MoveVerificationError(RuntimeError):
         )
 
 
+class ByteThroughputController(Protocol):
+    """Thread-safe byte limiter used by streaming move code."""
+
+    def consume_bytes(
+        self,
+        tier: str,
+        amount: int,
+        *,
+        on_wait: Callable[[], None] | None = None,
+    ) -> None: ...
+
+
 class _HashingReader:
     """Record the digest and byte count consumed from a source stream."""
 
-    def __init__(self, source: ReadableStream) -> None:
+    def __init__(
+        self,
+        source: ReadableStream,
+        *,
+        on_bytes: Callable[[int], None] | None = None,
+    ) -> None:
         self._source = source
+        self._on_bytes = on_bytes
         self._hasher = hashlib.sha256()
         self.size = 0
 
@@ -78,6 +98,8 @@ class _HashingReader:
         data = self._source.read(size)
         if not isinstance(data, bytes):
             raise TypeError("Object stream read() must return bytes")
+        if data and self._on_bytes is not None:
+            self._on_bytes(len(data))
         self._hasher.update(data)
         self.size += len(data)
         return data
@@ -97,6 +119,7 @@ class Mover:
         lease_seconds: float = 30.0,
         clock: Callable[[], datetime] | None = None,
         transition_hook: Callable[[MoveJob], None] | None = None,
+        throughput: ByteThroughputController | None = None,
     ) -> None:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be greater than zero")
@@ -106,6 +129,7 @@ class Mover:
         self.lease_seconds = lease_seconds
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._transition_hook = transition_hook
+        self._throughput = throughput
 
     def _drivers_for_move(
         self, src_tier: str, dst_tier: str
@@ -164,13 +188,14 @@ class Mover:
             metadata=source_metadata,
         )
 
-    @staticmethod
     def _verification_result(
+        self,
         plan: MovePlan,
         dst: StorageDriver,
         source_size: int,
         source_checksum: str,
         transferred_size: Any,
+        job: MoveJob,
     ) -> MoveVerificationResult:
         failures: list[str] = []
         reported_size: int | None
@@ -243,6 +268,7 @@ class Mover:
                         raise TypeError("Object stream read() must return bytes")
                     if not chunk:
                         break
+                    self._consume_bytes(plan.dst_tier, len(chunk), job)
                     destination_hasher.update(chunk)
                     destination_size += len(chunk)
             destination_checksum = destination_hasher.hexdigest()
@@ -330,7 +356,8 @@ class Mover:
             return self._verification_from_job(job)
         if job.state == MoveJobState.FAILED:
             raise MoveJobFailedError(job)
-        return self._resume(job)
+        with self._lease_heartbeat(job.idempotency_key):
+            return self._resume(job)
 
     def recover_incomplete(
         self, *, idempotency_prefix: str | None = None
@@ -389,13 +416,22 @@ class Mover:
 
                 if destination_exists:
                     source_size, source_checksum = self._hash_object(
-                        src, job.bucket, job.key
+                        src,
+                        job.bucket,
+                        job.key,
+                        tier=job.src_tier,
+                        job=job,
                     )
                     transferred_size = job.expected_size
                     reason = "existing destination recovered after transfer"
                 else:
                     with src.open_object_reader(job.bucket, job.key) as source_stream:
-                        source = _HashingReader(source_stream)
+                        source = _HashingReader(
+                            source_stream,
+                            on_bytes=lambda amount: self._consume_transfer_bytes(
+                                job, amount
+                            ),
+                        )
                         transferred_size = dst.put_object_stream(
                             job.bucket,
                             job.key,
@@ -421,7 +457,11 @@ class Mover:
             elif job.state == MoveJobState.TRANSFERRED:
                 if job.source_checksum is None or job.source_size is None:
                     source_size, source_checksum = self._hash_object(
-                        src, job.bucket, job.key
+                        src,
+                        job.bucket,
+                        job.key,
+                        tier=job.src_tier,
+                        job=job,
                     )
                 else:
                     source_size = job.source_size
@@ -432,6 +472,7 @@ class Mover:
                     source_size,
                     source_checksum,
                     job.transferred_size,
+                    job,
                 )
                 updates = {
                     "destination_size": verification.destination_size,
@@ -532,9 +573,14 @@ class Mover:
     def _timestamp(value: datetime) -> str:
         return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
-    @staticmethod
     def _hash_object(
-        driver: StorageDriver, bucket: str, key: str
+        self,
+        driver: StorageDriver,
+        bucket: str,
+        key: str,
+        *,
+        tier: str,
+        job: MoveJob,
     ) -> tuple[int, str]:
         chunk_size = getattr(driver, "chunk_size", DEFAULT_STREAM_CHUNK_SIZE)
         if (
@@ -552,6 +598,7 @@ class Mover:
                     raise TypeError("Object stream read() must return bytes")
                 if not chunk:
                     break
+                self._consume_bytes(tier, len(chunk), job)
                 size += len(chunk)
                 digest.update(chunk)
         return size, digest.hexdigest()
@@ -560,7 +607,11 @@ class Mover:
         self, plan: MovePlan, dst: StorageDriver, job: MoveJob
     ) -> None:
         destination_size, destination_checksum = self._hash_object(
-            dst, job.bucket, job.key
+            dst,
+            job.bucket,
+            job.key,
+            tier=job.dst_tier,
+            job=job,
         )
         if (
             destination_size != job.destination_size
@@ -581,6 +632,70 @@ class Mover:
                 ),
             )
             raise MoveVerificationError(plan, result)
+
+    def _consume_transfer_bytes(self, job: MoveJob, amount: int) -> None:
+        self._consume_bytes(job.src_tier, amount, job)
+        self._consume_bytes(job.dst_tier, amount, job)
+
+    def _consume_bytes(self, tier: str, amount: int, job: MoveJob) -> None:
+        if self._throughput is None or amount <= 0:
+            return
+        self._throughput.consume_bytes(
+            tier,
+            amount,
+            on_wait=lambda: self._renew_move_lease(job),
+        )
+
+    def _renew_move_lease(self, job: MoveJob) -> None:
+        now, lease_expires_at = self._lease_window()
+        self.catalog.renew_move_job_lease(
+            job.idempotency_key,
+            owner_id=self.owner_id,
+            expected_state=job.state,
+            now=now,
+            lease_expires_at=lease_expires_at,
+        )
+
+    @contextmanager
+    def _lease_heartbeat(self, idempotency_key: str) -> Iterator[None]:
+        """Keep ownership live across long, indivisible backend operations."""
+
+        stop = threading.Event()
+        failures: list[BaseException] = []
+        interval = min(10.0, self.lease_seconds / 3.0)
+
+        def heartbeat() -> None:
+            while not stop.wait(interval):
+                try:
+                    now, lease_expires_at = self._lease_window()
+                    renewed = self.catalog.renew_move_job_lease(
+                        idempotency_key,
+                        owner_id=self.owner_id,
+                        expected_state=None,
+                        now=now,
+                        lease_expires_at=lease_expires_at,
+                    )
+                    if renewed.state.terminal:
+                        return
+                except BaseException as exc:
+                    failures.append(exc)
+                    return
+
+        thread = threading.Thread(
+            target=heartbeat,
+            name="cognistore-move-lease-heartbeat",
+            daemon=True,
+        )
+        thread.start()
+        body_succeeded = False
+        try:
+            yield
+            body_succeeded = True
+        finally:
+            stop.set()
+            thread.join()
+            if body_succeeded and failures:
+                raise failures[0]
 
     @staticmethod
     def _verification_from_job(job: MoveJob) -> MoveVerificationResult:
