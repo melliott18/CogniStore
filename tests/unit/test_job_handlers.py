@@ -169,8 +169,7 @@ def test_policy_handler_exposes_unrelated_lanes_from_one_batch(
 ) -> None:
     async def scenario() -> None:
         drivers = {
-            tier: PosixDriver(str(tmp_path / tier))
-            for tier in ("hot", "warm", "cold", "archive")
+            tier: PosixDriver(str(tmp_path / tier)) for tier in ("hot", "warm", "cold", "archive")
         }
         catalog = Catalog()
         hot_started = threading.Event()
@@ -261,9 +260,7 @@ def test_concurrent_duplicate_policy_deliveries_use_distinct_move_owners(
             return original_put(*args, **kwargs)
 
         monkeypatch.setattr(hot, "put_object_stream", blocking_put)
-        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[
-            POLICY_RUN_JOB
-        ]
+        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
         job = JobEnvelope.create(
             POLICY_RUN_JOB,
             policy_job_payload(
@@ -313,20 +310,14 @@ def test_duplicate_with_published_destination_retries_live_move_lease(
         release_transition = threading.Event()
         original_transition = Mover._transition
 
-        def block_first_transfer_transition(
-            mover, move, to_state, reason, *, updates=None
-        ):
+        def block_first_transfer_transition(mover, move, to_state, reason, *, updates=None):
             if move.state == MoveJobState.PREPARED:
                 transition_started.set()
                 assert release_transition.wait(timeout=2)
-            return original_transition(
-                mover, move, to_state, reason, updates=updates
-            )
+            return original_transition(mover, move, to_state, reason, updates=updates)
 
         monkeypatch.setattr(Mover, "_transition", block_first_transfer_transition)
-        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[
-            POLICY_RUN_JOB
-        ]
+        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
         job = JobEnvelope.create(
             POLICY_RUN_JOB,
             policy_job_payload(
@@ -346,7 +337,7 @@ def test_duplicate_with_published_destination_retries_live_move_lease(
         )
 
         first = asyncio.create_task(handler(job, _context()))
-        await asyncio.wait_for(_wait_for_thread_event(transition_started), timeout=1)
+        assert await asyncio.to_thread(transition_started.wait, 5)
         assert hot.get_object("bucket", "one.txt") == data
 
         second = asyncio.create_task(handler(job, _context()))
