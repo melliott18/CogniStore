@@ -52,6 +52,87 @@ Application retries are configured with `--max-attempts` (default 7),
 `--retry-jitter` (0.2, or 20%). The default retry window is long enough for a
 job delivered to another worker to outlive the default 30-second move lease.
 
+## Bounded concurrency, rates, and backpressure
+
+Each worker owns at most `--max-in-flight` deliveries (default 8). The shared
+durable consumer permits `--max-ack-pending` unsettled deliveries across all
+workers (default 64), and that shared value must be at least the local worker
+limit. Configure the same consumer value on every process.
+
+The main work stream is finite and rejects new publications instead of evicting
+older work. Its defaults are 10,000 stored messages and 1 GiB; set
+`--stream-max-messages` and `--stream-max-bytes` before the subcommand on every
+producer and worker that uses the stream. When a publication would exceed
+either limit, submission raises a retryable queue-saturation error.
+Acknowledging work frees capacity.
+
+Per-tier controls use a separate YAML document:
+
+```yaml
+max_queue_depth: 32
+defaults:
+  source_concurrency: 2
+  destination_concurrency: 2
+  bytes_per_second: null
+  operations_per_second: null
+tiers:
+  hot:
+    source_concurrency: 4
+    destination_concurrency: 2
+    bytes_per_second: 268435456
+    operations_per_second: 200
+  warm:
+    source_concurrency: 2
+    destination_concurrency: 2
+    bytes_per_second: 67108864
+    operations_per_second: 50
+```
+
+Start the worker with `worker --tier-limits limits.yaml`. `null` byte or
+operation rates mean unlimited. An operation token is charged to both the
+source and destination tier when an object move is admitted. Source reads and
+destination writes consume their tier's byte budget; destination verification
+reads consume the destination budget again. Source and destination slots are
+independent, and a move acquires both roles atomically. Policy batches are
+interleaved by tier pair, and the bounded scheduler preserves FIFO order within
+a pair while skipping a blocked pair when an unrelated pair can run.
+
+After replacing the file with a fully validated configuration, send the worker
+`SIGHUP`. Reload is atomic: active moves keep their permits, lower concurrency
+limits delay only new admissions until existing work drains, and future stream
+chunks use the new rates. An invalid reload leaves the last valid limits in
+place. Tier limits may change live, but the tier names and `max_queue_depth`
+are process-lifetime settings and require a worker restart. Storage driver
+instances and credentials are never reloaded. If another `SIGHUP` arrives
+during a reload, the worker performs another reload afterward so the newest
+file version is not missed.
+
+These pools are process-local. Running multiple worker processes multiplies
+their possible backend load, so deployments must divide desired aggregate
+limits between workers. Fairness applies to the bounded local admission window;
+the single durable NATS subject remains FIFO for work that has not yet been
+claimed.
+
+### Upgrading an existing JetStream deployment
+
+Ticket #25 intentionally tightens the durable topology. A stream created by an
+older CogniStore release was unbounded and used `DiscardOld`, and its consumer
+defaulted to one outstanding acknowledgement. New processes reject that
+topology instead of silently changing a live queue or evicting retained jobs.
+
+Before upgrading production, stop producers and workers, wait for the durable
+consumer's acknowledgement-pending count to reach zero, and take a JetStream
+snapshot or backup. Use your NATS administration tooling to edit the existing
+stream in place: retain its work-queue policy, file storage, and subject; set
+finite message and byte limits; select `DiscardNew`; disable `MaxAge`; and leave
+the per-subject message limit unlimited. Choose initial finite limits at or
+above the stream's current stored message and byte counts. Then update the
+existing durable consumer's `MaxAckPending` to the value passed as
+`--max-ack-pending` (64 by default). Editing in place preserves queued work; do
+not delete or recreate a stream that still contains jobs. Restart every
+producer and worker with the same stream limits and verify `/readyz` before
+resuming submissions.
+
 ## Submit work
 
 ```bash
@@ -162,8 +243,10 @@ process failure.
 
 Operators and diagnostics can query `SQLiteCatalog.get_move_job()`,
 `list_move_jobs()`, and `list_move_job_transitions()`. `Mover.recover_incomplete()`
-claims available non-terminal jobs, and policy handlers invoke it for the
-current delivery before making new placement decisions.
+claims available non-terminal jobs for synchronous callers. Policy handlers
+perform the equivalent recovery through the tier admission controller before
+making new placement decisions; a move with another live owner defers the
+whole delivery instead of planning around an in-progress destination.
 
 ## Health and readiness
 
@@ -174,11 +257,19 @@ curl --fail http://127.0.0.1:8081/healthz
 curl --fail http://127.0.0.1:8081/readyz
 ```
 
-`/healthz` reports whether the worker supervisor is live. `/readyz` performs a
-fresh connection, account, stream, and consumer probe and returns 503 unless
-the worker is accepting claims. Both JSON responses include worker state,
-active job IDs, completion counts, bus state, pending jobs, outstanding ACKs,
-redeliveries, retry/dead-letter counts, and the last error.
+`/healthz` reports whether the worker supervisor is live and returns the most
+recent cached bus snapshot. `/readyz` performs a fresh connection, account,
+stream, and consumer probe and returns 503 unless the worker is accepting
+claims. Both JSON responses include worker state, active job IDs, local
+capacity and saturation, completion counts, bus state, pending jobs,
+outstanding ACKs, stored message/byte utilization, redeliveries,
+retry/dead-letter counts, and the last error. A publication can still be
+rejected below 100% byte utilization when the next message is larger than the
+remaining space; callers should count the retryable queue-saturation error as
+the authoritative rejection signal. When tier limits are active, the worker
+payload also includes per-tier source/destination active and waiting counts,
+admission queue depth, byte/operation totals, current throttling, and cumulative
+throttle/saturation counters.
 
 ## Integration tests
 
@@ -191,10 +282,12 @@ python -m pytest -q -m integration tests/integration/test_nats_worker.py
 
 They cover publish/claim/ACK, explicit and delayed NAK redelivery,
 connection-loss restart redelivery with the same job and correlation IDs,
-graceful in-flight shutdown, DLQ/redrive behavior, and sequential/concurrent
-rejection of conflicting consumer lease settings. Unit coverage includes
-timeouts, throttling, unavailable backends, malformed requests, and retry
-exhaustion.
+graceful in-flight shutdown, message and byte capacity without eviction,
+DLQ/redrive behavior, and sequential/concurrent rejection of conflicting
+consumer lease settings. Unit and conformance coverage additionally exercises
+bounded concurrent claiming, per-tier source/destination fairness, byte and
+operation pacing, atomic live reload, cancellation cleanup, and a 10,000-attempt
+`tracemalloc` saturation stress case.
 
 If a process dies between individual diagnostic chunk PubAcks and the manifest
 PubAck, unreferenced content-addressed chunks can remain in the DLQ until

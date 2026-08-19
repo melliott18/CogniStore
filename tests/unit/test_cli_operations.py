@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import signal
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -483,25 +485,63 @@ def test_plain_redrive_output_distinguishes_existing_completion(
     assert capsys.readouterr().out.startswith("already redriven ")
 
 
-def test_serve_worker_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_serve_worker_lifecycle_and_live_limit_reload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     events: list[str] = []
+    callbacks = {}
+    limits_path = tmp_path / "limits.yaml"
+    limits_path.write_text("tiers:\n  hot:\n    source_concurrency: 1\n")
+    reload_started = threading.Event()
+    release_reload = threading.Event()
+    reload_calls = 0
+    real_load = cognistore_cli.load_throughput_config
+
+    def delayed_load(*args, **kwargs):
+        nonlocal reload_calls
+        config = real_load(*args, **kwargs)
+        reload_calls += 1
+        if reload_calls == 1:
+            reload_started.set()
+            assert release_reload.wait(timeout=2)
+        return config
 
     class FakeLoop:
         def add_signal_handler(self, signum, callback) -> None:
             events.append(f"add:{signum.name}")
+            callbacks[signum] = callback
 
         def remove_signal_handler(self, signum) -> None:
             events.append(f"remove:{signum.name}")
 
+        def run_in_executor(self, executor, function):
+            assert executor is not None
+            return asyncio.wrap_future(executor.submit(function))
+
     class FakeWorker:
-        def __init__(self, queue, handlers, *, config) -> None:
+        def __init__(self, queue, handlers, *, config, throughput=None) -> None:
             self.state = WorkerState.STARTING
+            self.throughput = throughput
 
         async def start(self) -> None:
             self.state = WorkerState.RUNNING
 
         async def wait_for_shutdown_request(self) -> None:
-            return None
+            limits_path.write_text(
+                "tiers:\n  hot:\n    source_concurrency: 2\n"
+            )
+            callbacks[signal.SIGHUP]()
+            while not reload_started.is_set():
+                await asyncio.sleep(0)
+            limits_path.write_text(
+                "tiers:\n  hot:\n    source_concurrency: 3\n"
+            )
+            callbacks[signal.SIGHUP]()
+            release_reload.set()
+            while (
+                self.throughput.config.tiers["hot"].source_concurrency != 3
+            ):
+                await asyncio.sleep(0)
 
         async def shutdown(self):
             self.state = WorkerState.STOPPED
@@ -525,7 +565,12 @@ def test_serve_worker_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", lambda config: object())
     monkeypatch.setattr(cognistore_cli, "AsyncWorker", FakeWorker)
     monkeypatch.setattr(cognistore_cli, "HealthServer", FakeHealth)
-    monkeypatch.setattr(cognistore_cli, "build_handlers", lambda drivers, catalog: {})
+    monkeypatch.setattr(cognistore_cli, "load_throughput_config", delayed_load)
+    monkeypatch.setattr(
+        cognistore_cli,
+        "build_handlers",
+        lambda drivers, catalog, *, throughput=None: {},
+    )
     monkeypatch.setattr(cognistore_cli.asyncio, "get_running_loop", lambda: FakeLoop())
     args = argparse.Namespace(
         nats_url=["nats://test:4222"],
@@ -540,14 +585,26 @@ def test_serve_worker_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
         once=True,
         health_host="127.0.0.1",
         health_port=0,
+        tier_limits=str(limits_path),
+        _throughput_config=cognistore_cli.ThroughputConfig(
+            tiers={"hot": cognistore_cli.TierLimits()}
+        ),
     )
 
-    assert asyncio.run(cognistore_cli._serve_worker(args, {}, object())) == 0
+    assert (
+        asyncio.run(
+            cognistore_cli._serve_worker(args, {"hot": object()}, object())
+        )
+        == 0
+    )
     assert events == [
         "health:start",
         "add:SIGINT",
         "add:SIGTERM",
+        "add:SIGHUP",
         "remove:SIGINT",
         "remove:SIGTERM",
+        "remove:SIGHUP",
         "health:close",
     ]
+    assert reload_calls == 2

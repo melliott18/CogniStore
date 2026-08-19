@@ -48,6 +48,17 @@ class PolicyRunner:
             raise ValueError(f"Unknown allowed tier(s): {names}")
 
     def run_once(self, bucket: str, prefix: str = "", dry_run: bool = False) -> List[ActionResult]:
+        results = self.plan_once(bucket, prefix=prefix, dry_run=dry_run)
+        if not dry_run:
+            for result in results:
+                self.execute(result)
+        return results
+
+    def plan_once(
+        self, bucket: str, prefix: str = "", dry_run: bool = False
+    ) -> List[ActionResult]:
+        """Validate a complete policy batch without applying its moves."""
+
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
         for rec in records:
@@ -79,16 +90,18 @@ class PolicyRunner:
                 )
             )
 
-        if not dry_run:
-            for result in results:
-                self.mover.move(
-                    result.from_tier,
-                    result.to_tier,
-                    result.bucket,
-                    result.key,
-                    idempotency_key=self._move_idempotency_key(result),
-                )
         return results
+
+    def execute(self, result: ActionResult) -> None:
+        """Execute one previously validated action."""
+
+        self.mover.move(
+            result.from_tier,
+            result.to_tier,
+            result.bucket,
+            result.key,
+            idempotency_key=self._move_idempotency_key(result),
+        )
 
     def _move_idempotency_key(self, result: ActionResult) -> str | None:
         if self.idempotency_namespace is None:

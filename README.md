@@ -283,8 +283,9 @@ python -m cognistore.cli --nats-url nats://127.0.0.1:4222 \
 Worker liveness is served at `http://127.0.0.1:8081/healthz`, and readiness
 (including a live JetStream stream/consumer probe) at `/readyz`. See
 [`docs/background_workers.md`](docs/background_workers.md) for setup,
-configuration, shutdown semantics, the complete consumer contract, and
-integration-test instructions. The stack choice is recorded in
+configuration, bounded per-tier concurrency/rate controls, live `SIGHUP`
+reloads, backpressure metrics, shutdown semantics, the complete consumer
+contract, and integration-test instructions. The stack choice is recorded in
 [`ADR 0001`](docs/adr/0001-nats-jetstream-workers.md).
 
 Example content-aware pass (ensure you ran `catalog-scan` first so MIME metadata exists):

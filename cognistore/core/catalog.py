@@ -197,6 +197,41 @@ class Catalog:
 		with self._lock:
 			return list(self._move_transitions.get(idempotency_key, ()))
 
+	def renew_move_job_lease(
+		self,
+		idempotency_key: str,
+		*,
+		owner_id: str,
+		expected_state: MoveJobState | None,
+		now: str,
+		lease_expires_at: str,
+	) -> MoveJob:
+		"""Extend an owned move lease without creating a state transition."""
+
+		with self._lock:
+			if expected_state is None:
+				job = self._move_jobs.get(idempotency_key)
+				if job is None:
+					raise KeyError(f"Move job not found: {idempotency_key}")
+				# A background heartbeat may race the final transition. Terminal
+				# jobs no longer have a lease, so treating that race as a no-op is
+				# safe and prevents a completed move from reporting a false failure.
+				if job.state.terminal:
+					return job
+				if job.owner_id != owner_id:
+					raise MoveJobLeaseError(
+						f"Move job {idempotency_key!r} is not owned by {owner_id!r}"
+					)
+			else:
+				job = self._owned_move_job(idempotency_key, owner_id, expected_state)
+			updated = self._replace_move_job(
+				job,
+				lease_expires_at=lease_expires_at,
+				updated_at=now,
+			)
+			self._move_jobs[idempotency_key] = updated
+			return updated
+
 	def transition_move_job(
 		self,
 		idempotency_key: str,

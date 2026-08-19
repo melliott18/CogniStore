@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from nats.js.api import (
     ConsumerConfig,
+    DiscardPolicy,
     Header,
     RetentionPolicy,
     StorageType,
@@ -23,6 +24,7 @@ from cognistore.jobs.models import (
     DeadLetterRedriveError,
     JobEnvelope,
     JobEnvelopeError,
+    QueueSaturatedError,
 )
 from cognistore.jobs.nats_queue import (
     CORRELATION_HEADER,
@@ -76,8 +78,10 @@ class FakeJetStream:
     def __init__(self, subscription: FakeSubscription) -> None:
         self.subscription = subscription
         self.stream_configs = {}
+        self.stream_states = {}
         self.consumer_config = None
         self.published = []
+        self.publish_error: APIError | None = None
         self.max_payload: int | None = None
         self.stream_adds = 0
         self.consumer_creates = 0
@@ -85,7 +89,9 @@ class FakeJetStream:
     async def add_stream(self, config):
         self.stream_adds += 1
         self.stream_configs[config.name] = config
-        return SimpleNamespace(config=config)
+        state = SimpleNamespace(messages=0, bytes=0)
+        self.stream_states[config.name] = state
+        return SimpleNamespace(config=config, state=state)
 
     async def create_consumer_response(self, subject, request, timeout):
         payload = json.loads(request)
@@ -108,6 +114,8 @@ class FakeJetStream:
         return self.subscription
 
     async def publish(self, subject, payload, stream, headers):
+        if self.publish_error is not None:
+            raise self.publish_error
         if self.max_payload is not None:
             encoded_headers = dict(headers)
             encoded_headers[Header.EXPECTED_STREAM] = stream
@@ -119,6 +127,11 @@ class FakeJetStream:
                 wire_size += len(b"\r\n")
             assert wire_size <= self.max_payload
         self.published.append((subject, payload, stream, headers))
+        state = self.stream_states.setdefault(
+            stream, SimpleNamespace(messages=0, bytes=0)
+        )
+        state.messages += 1
+        state.bytes += len(payload)
         return SimpleNamespace(stream=stream, seq=11, duplicate=False)
 
     async def account_info(self):
@@ -127,7 +140,10 @@ class FakeJetStream:
     async def stream_info(self, stream):
         if stream not in self.stream_configs:
             raise NotFoundError()
-        return SimpleNamespace(config=self.stream_configs[stream])
+        state = self.stream_states.setdefault(
+            stream, SimpleNamespace(messages=0, bytes=0)
+        )
+        return SimpleNamespace(config=self.stream_configs[stream], state=state)
 
     async def get_last_msg(self, stream, subject):
         for index, published in reversed(list(enumerate(self.published, start=1))):
@@ -229,9 +245,26 @@ def test_publisher_connects_without_creating_worker_consumer(
 
         assert receipt.job_id == job.job_id
         assert queue.config.stream in jetstream.stream_configs
+        stream_config = jetstream.stream_configs[queue.config.stream]
+        assert stream_config.max_msgs == queue.config.stream_max_messages
+        assert stream_config.max_bytes == queue.config.stream_max_bytes
+        assert stream_config.discard == DiscardPolicy.NEW
         assert jetstream.consumer_config is None
         assert health.ready is True
         assert health.pending is None
+        assert health.stored_messages == 1
+        assert health.stored_bytes == len(job.to_bytes())
+        assert health.max_messages == queue.config.stream_max_messages
+        assert health.max_bytes == queue.config.stream_max_bytes
+        assert health.utilization is not None
+        assert health.saturated is False
+
+        state = jetstream.stream_states[queue.config.stream]
+        state.messages = queue.config.stream_max_messages
+        saturated_health = await queue.probe()
+        assert saturated_health.utilization == pytest.approx(1.0)
+        assert saturated_health.saturated is True
+        assert saturated_health.to_dict()["saturated"] is True
         with pytest.raises(RuntimeError, match="not configured for claims"):
             await queue.claim(timeout=0.1)
 
@@ -539,6 +572,9 @@ def test_main_stream_max_message_size_limits_redrive_projection(
             subjects=[queue.config.subject],
             retention=RetentionPolicy.WORK_QUEUE,
             storage=StorageType.FILE,
+            max_msgs=queue.config.stream_max_messages,
+            max_bytes=queue.config.stream_max_bytes,
+            discard=DiscardPolicy.NEW,
             duplicate_window=queue.config.duplicate_window,
             max_msg_size=500,
         )
@@ -602,6 +638,206 @@ def test_large_dead_letter_is_chunked_below_server_payload_limit(
 def test_dead_letter_retention_cannot_be_shorter_than_deduplication() -> None:
     with pytest.raises(ValueError, match="at least duplicate_window"):
         NatsJetStreamConfig(duplicate_window=120, dead_letter_max_age=60)
+
+
+@pytest.mark.parametrize("field_name", ["stream_max_messages", "stream_max_bytes"])
+@pytest.mark.parametrize("value", [0, -1, True, 1.5])
+def test_main_stream_capacity_must_be_a_positive_integer(
+    field_name: str, value: object
+) -> None:
+    with pytest.raises(ValueError, match=f"{field_name} must be a positive integer"):
+        NatsJetStreamConfig(**{field_name: value})
+
+
+def test_new_stream_limits_preserve_legacy_positional_config_fields() -> None:
+    config = NatsJetStreamConfig(
+        ("nats://legacy:4222",),
+        "LEGACY",
+        "legacy.jobs",
+        "legacy-workers",
+        30.0,
+        2,
+        90.0,
+        3.0,
+        4.0,
+        5,
+        True,
+        True,
+        6.0,
+        7.0,
+        "legacy-client",
+        None,
+        None,
+        180.0,
+    )
+
+    assert config.duplicate_window == 90.0
+    assert config.client_name == "legacy-client"
+    assert config.dead_letter_max_age == 180.0
+    assert config.stream_max_messages == 10_000
+    assert config.stream_max_bytes == 1024 * 1024 * 1024
+
+
+def test_worker_rejects_incompatible_unbounded_main_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        queue, connection, jetstream, _ = _configured_queue(monkeypatch)
+        jetstream.stream_configs[queue.config.stream] = StreamConfig(
+            name=queue.config.stream,
+            subjects=[queue.config.subject],
+            retention=RetentionPolicy.WORK_QUEUE,
+            storage=StorageType.FILE,
+            max_msgs=-1,
+            max_bytes=-1,
+            discard=DiscardPolicy.OLD,
+            duplicate_window=queue.config.duplicate_window,
+        )
+
+        with pytest.raises(RuntimeError, match="incompatible configuration"):
+            await queue.connect()
+        assert connection.closes == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("max_age", 60.0),
+        ("max_msgs_per_subject", 10),
+        ("discard_new_per_subject", True),
+        ("no_ack", True),
+        ("sealed", True),
+        ("allow_rollup_hdrs", True),
+        ("allow_msg_ttl", True),
+        ("subject_transform", object()),
+        ("mirror", object()),
+        ("sources", [object()]),
+        ("persist_mode", "async"),
+    ],
+)
+def test_worker_rejects_hidden_unsafe_main_stream_settings(
+    monkeypatch: pytest.MonkeyPatch, field_name: str, value: object
+) -> None:
+    async def scenario() -> None:
+        queue, connection, jetstream, _ = _configured_queue(monkeypatch)
+        config = StreamConfig(
+            name=queue.config.stream,
+            subjects=[queue.config.subject],
+            retention=RetentionPolicy.WORK_QUEUE,
+            storage=StorageType.FILE,
+            max_msgs=queue.config.stream_max_messages,
+            max_bytes=queue.config.stream_max_bytes,
+            max_age=0,
+            max_msgs_per_subject=-1,
+            discard=DiscardPolicy.NEW,
+            duplicate_window=queue.config.duplicate_window,
+        )
+        setattr(config, field_name, value)
+        jetstream.stream_configs[queue.config.stream] = config
+
+        with pytest.raises(RuntimeError, match="incompatible configuration"):
+            await queue.connect()
+        assert connection.closes == 1
+
+    asyncio.run(scenario())
+
+
+def test_probe_reports_effective_capacity_and_rejects_live_topology_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch)
+        await queue.connect()
+        stream_config = jetstream.stream_configs[queue.config.stream]
+        stream_config.max_msgs = 17
+        stream_config.discard = DiscardPolicy.OLD
+
+        health = await queue.probe()
+
+        assert health.ready is False
+        assert health.jetstream is True
+        assert health.max_messages == 17
+        assert health.max_bytes == queue.config.stream_max_bytes
+        assert health.error is not None
+        assert "stream" in health.error
+        assert "incompatible configuration" in health.error
+        await queue.close()
+
+    asyncio.run(scenario())
+
+
+def test_probe_rejects_live_consumer_topology_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch)
+        await queue.connect()
+        jetstream.consumer_config.headers_only = True
+
+        health = await queue.probe()
+
+        assert health.ready is False
+        assert health.jetstream is True
+        assert health.error is not None
+        assert "consumer" in health.error
+        assert "incompatible configuration" in health.error
+        await queue.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "reason", ["maximum messages exceeded", "maximum bytes exceeded"]
+)
+def test_enqueue_propagates_bounded_stream_saturation(
+    monkeypatch: pytest.MonkeyPatch, reason: str
+) -> None:
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch, consume=False)
+        await queue.connect()
+        jetstream.publish_error = APIError(
+            code=503,
+            err_code=10077,
+            description=reason,
+        )
+
+        with pytest.raises(QueueSaturatedError, match=reason) as raised:
+            await queue.enqueue(JobEnvelope.create("test.saturated", {}))
+        assert raised.value.retryable is True
+        assert raised.value.stream == queue.config.stream
+        await queue.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("err_code", "reason"),
+    [
+        (10077, "storage is temporarily unavailable"),
+        (10999, "maximum messages exceeded"),
+    ],
+)
+def test_enqueue_does_not_overmatch_stream_store_failure(
+    monkeypatch: pytest.MonkeyPatch, err_code: int, reason: str
+) -> None:
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch, consume=False)
+        await queue.connect()
+        error = APIError(
+            code=503,
+            err_code=err_code,
+            description=reason,
+        )
+        jetstream.publish_error = error
+
+        with pytest.raises(APIError) as raised:
+            await queue.enqueue(JobEnvelope.create("test.store-error", {}))
+        assert raised.value is error
+        await queue.close()
+
+    asyncio.run(scenario())
 
 
 def test_worker_rejects_dead_letter_stream_that_can_evict_live_record_parts(
@@ -722,6 +958,23 @@ def test_existing_consumer_is_validated_without_being_updated(
 
         assert jetstream.consumer_creates == 1
         assert jetstream.consumer_config.ack_wait == queue.config.ack_wait
+
+    asyncio.run(scenario())
+
+
+def test_existing_headers_only_consumer_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        first, _, jetstream, _ = _configured_queue(monkeypatch)
+        await first.connect()
+        jetstream.consumer_config.headers_only = True
+
+        second = NatsJetStreamQueue(first.config)
+        with pytest.raises(RuntimeError, match="incompatible configuration"):
+            await second.connect()
+
+        assert jetstream.consumer_creates == 1
 
     asyncio.run(scenario())
 

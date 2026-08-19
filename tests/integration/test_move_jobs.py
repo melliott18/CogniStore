@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -12,6 +14,11 @@ from cognistore.core.move_jobs import (
 )
 from cognistore.core.mover import Mover, MoveVerificationError
 from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.core.throughput import (
+    ThroughputConfig,
+    ThroughputController,
+    TierLimits,
+)
 from cognistore.drivers.posix_driver import PosixDriver
 
 
@@ -28,6 +35,18 @@ class MutableClock:
 
     def advance(self, seconds: float) -> None:
         self.now += timedelta(seconds=seconds)
+
+
+class RecordingThroughput:
+    def __init__(self) -> None:
+        self.charges: list[tuple[str, int]] = []
+        self.lease_renewals = 0
+
+    def consume_bytes(self, tier: str, amount: int, *, on_wait=None) -> None:
+        self.charges.append((tier, amount))
+        if on_wait is not None:
+            on_wait()
+            self.lease_renewals += 1
 
 
 @pytest.mark.parametrize(
@@ -186,6 +205,132 @@ def test_move_job_lease_and_idempotency_key_ownership(tmp_path: Path) -> None:
     # Replaying the completed key is a pure read of its verified result.
     second.move("hot", "warm", "bucket", "one", idempotency_key="same-key")
     assert warm.get_object("bucket", "one") == b"data"
+    assert list(hot.list_objects("bucket")) == []
+    catalog_b.close()
+    catalog_a.close()
+
+
+def test_stream_throttling_charges_each_tier_and_renews_live_lease(
+    tmp_path: Path,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"), chunk_size=2)
+    warm = PosixDriver(str(tmp_path / "warm"), chunk_size=2)
+    data = b"abcdef"
+    hot.put_object("bucket", "object", data)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    catalog.upsert("bucket", "object", len(data), "hot")
+    throughput = RecordingThroughput()
+    mover = Mover(
+        {"hot": hot, "warm": warm},
+        catalog,
+        owner_id="rate-limited-worker",
+        lease_seconds=1,
+        throughput=throughput,
+    )
+
+    result = mover.move(
+        "hot",
+        "warm",
+        "bucket",
+        "object",
+        idempotency_key="rate-limited-move",
+    )
+
+    assert result.verified is True
+    assert sum(amount for tier, amount in throughput.charges if tier == "hot") == len(data)
+    # Destination capacity is charged for the write, integrity verification,
+    # and the final pre-cleanup verification read.
+    assert sum(amount for tier, amount in throughput.charges if tier == "warm") == 3 * len(data)
+    assert throughput.lease_renewals == len(throughput.charges)
+    assert [
+        transition.to_state
+        for transition in mover.get_job_transitions("rate-limited-move")
+    ] == [
+        MoveJobState.PREPARED,
+        MoveJobState.TRANSFERRED,
+        MoveJobState.VERIFIED,
+        MoveJobState.COMMITTED,
+        MoveJobState.CLEANUP,
+        MoveJobState.COMPLETED,
+    ]
+    catalog.close()
+
+
+def test_move_heartbeat_keeps_lease_during_slow_unthrottled_backend_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"), chunk_size=2)
+    warm = PosixDriver(str(tmp_path / "warm"), chunk_size=2)
+    data = b"slow backend call"
+    hot.put_object("bucket", "object", data)
+    database = tmp_path / "catalog.db"
+    catalog_a = SQLiteCatalog(database)
+    catalog_a.upsert("bucket", "object", len(data), "hot")
+    catalog_b = SQLiteCatalog(database)
+    destination_published = threading.Event()
+    release_backend = threading.Event()
+    original_put = warm.put_object_stream
+
+    def slow_put(*args, **kwargs):
+        written = original_put(*args, **kwargs)
+        destination_published.set()
+        assert release_backend.wait(timeout=2)
+        return written
+
+    monkeypatch.setattr(warm, "put_object_stream", slow_put)
+    throughput = ThroughputController(
+        ThroughputConfig(
+            tiers={"hot": TierLimits(), "warm": TierLimits()},
+        )
+    )
+    first = Mover(
+        {"hot": hot, "warm": warm},
+        catalog_a,
+        owner_id="owner-a",
+        lease_seconds=0.09,
+        throughput=throughput,
+    )
+    first_errors: list[BaseException] = []
+
+    def run_first() -> None:
+        try:
+            first.move(
+                "hot",
+                "warm",
+                "bucket",
+                "object",
+                idempotency_key="slow-unthrottled",
+            )
+        except BaseException as exc:
+            first_errors.append(exc)
+
+    thread = threading.Thread(target=run_first)
+    thread.start()
+    assert destination_published.wait(timeout=1)
+    # Wait beyond the original lease. Unlimited byte rates never invoke the
+    # throttle callback, so only the independent phase heartbeat protects it.
+    time.sleep(0.15)
+
+    second = Mover(
+        {"hot": hot, "warm": warm},
+        catalog_b,
+        owner_id="owner-b",
+        lease_seconds=0.09,
+    )
+    with pytest.raises(MoveJobLeaseError, match="owner-a"):
+        second.move(
+            "hot",
+            "warm",
+            "bucket",
+            "object",
+            idempotency_key="slow-unthrottled",
+        )
+
+    release_backend.set()
+    thread.join(timeout=2)
+    assert thread.is_alive() is False
+    assert first_errors == []
+    assert warm.get_object("bucket", "object") == data
     assert list(hot.list_objects("bucket")) == []
     catalog_b.close()
     catalog_a.close()

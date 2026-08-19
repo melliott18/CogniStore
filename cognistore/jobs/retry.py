@@ -29,7 +29,7 @@ from cognistore.core.move_jobs import (
 )
 from cognistore.core.mover import MoveVerificationError
 
-from .models import InvalidJobError, JobEnvelopeError
+from .models import InvalidJobError, JobEnvelopeError, QueueSaturatedError
 
 
 class RetryableJobError(RuntimeError):
@@ -232,6 +232,14 @@ def _status_from_exception(error: BaseException) -> int | None:
 
 
 def _classification_for_one(error: BaseException) -> ErrorClassification | None:
+    if isinstance(error, QueueSaturatedError) or getattr(
+        error, "throughput_saturated", False
+    ):
+        return ErrorClassification(
+            True,
+            FailureCategory.THROTTLED,
+            "bounded queue is saturated",
+        )
     if isinstance(error, RetryableJobError):
         return ErrorClassification(True, FailureCategory.UNKNOWN, "explicit retryable error")
     if isinstance(error, TerminalJobError):
