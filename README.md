@@ -203,6 +203,14 @@ errors propagate so the durable move remains `transferred` and can resume
 verification without retransferring the object. Successful moves persist the
 verified size and SHA-256 in the catalog and return a `MoveVerificationResult`.
 
+Move cleanup is generation-fenced. Durable jobs record the source and verified
+destination generations; cleanup deletes only the exact source generation that
+was transferred and rechecks the destination generation immediately before the
+conditional delete. If either key changes, the source is retained, the catalog
+is reconciled to it, and the job fails with `MoveGenerationMismatchError`.
+POSIX driver mutations coordinate through per-object locks, while S3 deletion
+uses version IDs and an atomic ETag precondition.
+
 ### Catalog and policy runner via CLI
 
 You can build a catalog from an existing tier and then run a simple policy pass to move objects automatically.

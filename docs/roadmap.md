@@ -8,7 +8,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] Migrate catalog to Postgres + pgvector; add migrations and a small DAL
   - [ ] Event/audit tables for moves, policy decisions, failures, retries
 - [ ] Queue + scheduler
-  - [ ] Message bus (NATS/Kafka) and background workers (Celery/Dramatiq/RQ)
+  - [x] Message bus (NATS JetStream) and background workers
   - [ ] Periodic scheduler for scans, policy passes, and repair jobs
 
 ## Indexing and knowledge layer
@@ -34,17 +34,22 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Scale-out orchestration
 
-- [ ] Streaming, chunked moves
-  - [ ] Zero-copy/streaming where possible; multipart uploads (S3); integrity checks (hash before/after)
-- [ ] Idempotency + transactions
-  - [ ] Idempotent move jobs; two-phase catalog updates; retries with backoff; DLQs
-- [ ] Throughput controls
-  - [ ] Concurrency pools per tier, rate limiting, backpressure
+- [x] Streaming, chunked moves
+  - [x] Bounded streaming; multipart uploads (S3); integrity checks (hash before/after)
+- [x] Idempotency + transactions
+  - [x] Idempotent move jobs; two-phase catalog updates; retries with backoff; DLQs
+- [x] Throughput controls
+  - [x] Concurrency pools per tier, rate limiting, backpressure
+
+> Review note (2026-08-20): these components meet their written delivery
+> criteria. The cleanup races recorded as BUG-2026-001 and BUG-2026-002 were
+> resolved with generation-fenced cleanup; the remaining M1 delivery work is
+> tracked in `docs/m1_review_2026-08-20.md`.
 
 ## Multi-backend storage
 
 - [ ] New drivers
-  - [ ] S3 (MinIO/AWS) with multipart support
+  - [x] S3 (MinIO/AWS) with multipart support
   - [ ] Azure Blob
   - [ ] GCS
 - [ ] Tier/pool abstractions
@@ -90,8 +95,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 - [ ] Packaging and deployments
   - [ ] Docker images, Helm charts, Terraform samples; production configs
-- [ ] CI/CD
-  - [ ] Ruff/mypy, test matrix, coverage gates, security scans
+- [x] CI/CD
+  - [x] Ruff/mypy, test matrix, coverage gates, security scans
 - [ ] Docs
   - [ ] Operator runbooks, migration guides, reference architectures, sample datasets
 

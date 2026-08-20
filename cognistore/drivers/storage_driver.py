@@ -28,6 +28,11 @@ class DriverCapabilities:
 	range_reads: bool = False
 	range_writes: bool = False
 	atomic_no_overwrite: bool = False
+	conditional_delete: bool = False
+
+
+class ObjectGenerationMismatchError(RuntimeError):
+	"""Raised when a conditional operation observes another object generation."""
 
 
 class StorageDriver(ABC):
@@ -101,6 +106,17 @@ class StorageDriver(ABC):
 		"""Delete an object if it exists; should be idempotent."""
 
 	@abstractmethod
+	def delete_object_if_generation(
+		self, bucket: str, key: str, generation: str
+	) -> bool:
+		"""Delete exactly ``generation`` and return whether it still existed.
+
+		The comparison and deletion must be atomic with respect to mutations made
+		through the backend.  A different live generation must raise
+		:class:`ObjectGenerationMismatchError` and remain untouched.
+		"""
+
+	@abstractmethod
 	def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
 		"""Yield keys under a bucket, optionally filtered by prefix."""
 
@@ -111,8 +127,19 @@ class StorageDriver(ABC):
 		Required keys:
 		  - size: int
 		  - mtime: float (POSIX timestamp)
+		  - generation: opaque, stable string identifying the observed object
 		Implementations may add more keys.
 		"""
+
+	def object_generation(self, bucket: str, key: str) -> str:
+		"""Return the opaque generation token from object metadata."""
+
+		generation = self.stat_object(bucket, key).get("generation")
+		if not isinstance(generation, str) or not generation:
+			raise RuntimeError(
+				f"Storage driver returned no generation for {bucket}/{key}"
+			)
+		return generation
 
 	def same_backend(self, other: "StorageDriver") -> bool:
 		"""Return whether two drivers address the same physical backend.

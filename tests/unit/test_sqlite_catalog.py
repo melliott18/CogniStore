@@ -83,3 +83,45 @@ def test_read_only_catalog_sees_committed_wal_records_and_rejects_writes(
 
     reader.close()
     writer.close()
+
+
+def test_existing_move_job_schema_is_migrated_for_destination_generations(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "catalog.db"
+    connection = sqlite3.connect(database)
+    connection.execute(
+        """
+        CREATE TABLE move_jobs (
+            idempotency_key TEXT PRIMARY KEY,
+            src_tier TEXT NOT NULL,
+            dst_tier TEXT NOT NULL,
+            bucket TEXT NOT NULL,
+            object_key TEXT NOT NULL,
+            expected_size INTEGER NOT NULL,
+            source_metadata TEXT NOT NULL,
+            state TEXT NOT NULL,
+            owner_id TEXT,
+            lease_expires_at TEXT,
+            transferred_size INTEGER,
+            source_size INTEGER,
+            source_checksum TEXT,
+            destination_size INTEGER,
+            destination_checksum TEXT,
+            verification_details TEXT NOT NULL DEFAULT '[]',
+            terminal_reason TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    catalog = SQLiteCatalog(database)
+
+    columns = {
+        row[1] for row in catalog._conn.execute("PRAGMA table_info(move_jobs)")
+    }
+    assert "destination_generation" in columns
+    catalog.close()

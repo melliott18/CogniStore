@@ -34,6 +34,10 @@ python -m twine check dist/*
 git switch -c feature/<topic>
 ```
 
+Use a change-type prefix (`feature/`, `fix/`, `hotfix/`, `docs/`, or
+`chore/`) with a lowercase, hyphen-separated topic. Do not use tool- or
+author-specific prefixes such as `codex/`.
+
 4) Make changes + tests, then open a PR to `dev`.
 
 ## Workflows and guidelines

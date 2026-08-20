@@ -19,7 +19,11 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from cognistore.core.catalog import Catalog
-from cognistore.core.mover import Mover, MoveVerificationError
+from cognistore.core.mover import (
+    MoveGenerationMismatchError,
+    Mover,
+    MoveVerificationError,
+)
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.s3_driver import S3Driver
 from tests.conformance.storage_driver import StorageDriverConformance
@@ -237,6 +241,75 @@ def test_mover_rejects_damaged_s3_destination_and_preserves_source(
         len(payload),
         {"sha256": "unverified-scan-value"},
     )
+
+
+def test_s3_source_replacement_is_not_deleted_during_cleanup(
+    tmp_path: Path,
+    minio_client,
+    move_bucket: str,
+) -> None:
+    bucket = move_bucket
+    key = "races/source-replacement.bin"
+    original = b"old-version"
+    replacement = b"new-version"
+    source = _multipart_driver(minio_client)
+    destination = PosixDriver(str(tmp_path / "destination"))
+    catalog = Catalog()
+    source.put_object(bucket, key, original)
+    catalog.upsert(bucket, key, len(original), "source")
+
+    def replace_source_at_cleanup(job) -> None:
+        if job.state.value == "cleanup":
+            minio_client.put_object(Bucket=bucket, Key=key, Body=replacement)
+
+    mover = Mover(
+        {"source": source, "destination": destination},
+        catalog,
+        transition_hook=replace_source_at_cleanup,
+    )
+
+    with pytest.raises(MoveGenerationMismatchError, match="source generation"):
+        mover.move("source", "destination", bucket, key)
+
+    assert source.get_object(bucket, key) == replacement
+    assert destination.get_object(bucket, key) == original
+    record = catalog.get(bucket, key)
+    assert record is not None
+    assert (record.tier, record.size) == ("source", len(replacement))
+
+
+def test_s3_destination_replacement_after_final_verification_retains_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    minio_client,
+    move_bucket: str,
+) -> None:
+    bucket = move_bucket
+    key = "races/destination-replacement.bin"
+    original = b"good-version"
+    replacement = b"evil-version"
+    source = PosixDriver(str(tmp_path / "source"))
+    destination = _multipart_driver(minio_client)
+    catalog = Catalog()
+    source.put_object(bucket, key, original)
+    catalog.upsert(bucket, key, len(original), "source")
+    mover = Mover({"source": source, "destination": destination}, catalog)
+    original_verify = mover._verify_committed_destination
+
+    def replace_after_verification(*args: Any, **kwargs: Any) -> None:
+        original_verify(*args, **kwargs)
+        minio_client.put_object(Bucket=bucket, Key=key, Body=replacement)
+
+    monkeypatch.setattr(mover, "_verify_committed_destination", replace_after_verification)
+
+    with pytest.raises(MoveGenerationMismatchError, match="destination generation"):
+        mover.move("source", "destination", bucket, key)
+
+    assert source.get_object(bucket, key) == original
+    assert destination.get_object(bucket, key) == replacement
+    record = catalog.get(bucket, key)
+    assert record is not None
+    assert (record.tier, record.size) == ("source", len(original))
 
 
 def test_interrupted_minio_multipart_is_aborted(

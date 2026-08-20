@@ -12,7 +12,11 @@ from cognistore.core.move_jobs import (
     MoveJobLeaseError,
     MoveJobState,
 )
-from cognistore.core.mover import Mover, MoveVerificationError
+from cognistore.core.mover import (
+    MoveGenerationMismatchError,
+    Mover,
+    MoveVerificationError,
+)
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.core.throughput import (
     ThroughputConfig,
@@ -372,4 +376,87 @@ def test_verification_failure_and_terminal_reason_are_queryable(
     assert mover.get_job_transitions("failed-key")[-1].reason == failed.terminal_reason
     assert hot.get_object("bucket", "object") == data
     assert catalog.get("bucket", "object").tier == "hot"  # type: ignore[union-attr]
+    catalog.close()
+
+
+def test_cleanup_never_deletes_a_replaced_source_generation(tmp_path: Path) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    original = b"old-version"
+    replacement = b"new-version"
+    hot.put_object("bucket", "object", original)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    catalog.upsert("bucket", "object", len(original), "hot")
+
+    def replace_source_at_cleanup(job) -> None:
+        if job.state == MoveJobState.CLEANUP:
+            hot.put_object("bucket", "object", replacement)
+
+    mover = Mover(
+        {"hot": hot, "warm": warm},
+        catalog,
+        transition_hook=replace_source_at_cleanup,
+    )
+
+    with pytest.raises(MoveGenerationMismatchError, match="source generation"):
+        mover.move(
+            "hot",
+            "warm",
+            "bucket",
+            "object",
+            idempotency_key="source-replacement",
+        )
+
+    assert hot.get_object("bucket", "object") == replacement
+    assert warm.get_object("bucket", "object") == original
+    placement = catalog.get("bucket", "object")
+    assert placement is not None
+    assert (placement.tier, placement.size) == ("hot", len(replacement))
+    job = mover.get_job("source-replacement")
+    assert job is not None
+    assert job.state == MoveJobState.FAILED
+    assert job.terminal_reason == "source generation changed; source cleanup aborted"
+    catalog.close()
+
+
+def test_cleanup_retains_source_if_destination_changes_after_final_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    original = b"good-version"
+    replacement = b"evil-version"
+    hot.put_object("bucket", "object", original)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    catalog.upsert("bucket", "object", len(original), "hot")
+    mover = Mover({"hot": hot, "warm": warm}, catalog)
+    original_verify = mover._verify_committed_destination
+
+    def replace_after_verification(*args, **kwargs) -> None:
+        original_verify(*args, **kwargs)
+        warm.put_object("bucket", "object", replacement)
+
+    monkeypatch.setattr(mover, "_verify_committed_destination", replace_after_verification)
+
+    with pytest.raises(MoveGenerationMismatchError, match="destination generation"):
+        mover.move(
+            "hot",
+            "warm",
+            "bucket",
+            "object",
+            idempotency_key="destination-replacement",
+        )
+
+    assert hot.get_object("bucket", "object") == original
+    assert warm.get_object("bucket", "object") == replacement
+    placement = catalog.get("bucket", "object")
+    assert placement is not None
+    assert (placement.tier, placement.size) == ("hot", len(original))
+    job = mover.get_job("destination-replacement")
+    assert job is not None
+    assert job.state == MoveJobState.FAILED
+    assert (
+        job.terminal_reason
+        == "destination generation changed; source cleanup aborted"
+    )
     catalog.close()

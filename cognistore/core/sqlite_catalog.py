@@ -19,7 +19,7 @@ _GET_MOVE_JOB_SQL = """
     SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
            expected_size, source_metadata, state, owner_id, lease_expires_at,
            transferred_size, source_size, source_checksum, destination_size,
-           destination_checksum, verification_details, terminal_reason,
+           destination_checksum, destination_generation, verification_details, terminal_reason,
            created_at, updated_at
     FROM move_jobs
     WHERE idempotency_key=?
@@ -28,7 +28,7 @@ _LIST_MOVE_JOBS_SQL = """
     SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
            expected_size, source_metadata, state, owner_id, lease_expires_at,
            transferred_size, source_size, source_checksum, destination_size,
-           destination_checksum, verification_details, terminal_reason,
+           destination_checksum, destination_generation, verification_details, terminal_reason,
            created_at, updated_at
     FROM move_jobs
     ORDER BY created_at, idempotency_key
@@ -90,6 +90,7 @@ class SQLiteCatalog(Catalog):
                 source_checksum TEXT,
                 destination_size INTEGER,
                 destination_checksum TEXT,
+                destination_generation TEXT,
                 verification_details TEXT NOT NULL DEFAULT '[]',
                 terminal_reason TEXT,
                 created_at TEXT NOT NULL,
@@ -109,7 +110,20 @@ class SQLiteCatalog(Catalog):
             );
             """
         )
-        self._conn.commit()
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            columns = {
+                row[1]
+                for row in self._conn.execute("PRAGMA table_info(move_jobs)")
+            }
+            if "destination_generation" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE move_jobs ADD COLUMN destination_generation TEXT"
+                )
+            self._conn.commit()
+        except BaseException:
+            self._conn.rollback()
+            raise
 
     def close(self) -> None:
         with self._lock:
@@ -440,7 +454,7 @@ class SQLiteCatalog(Catalog):
         validate_move_job_transition(expected_state, to_state)
         allowed_updates = {
             "transferred_size", "source_size", "source_checksum",
-            "destination_size", "destination_checksum",
+            "destination_size", "destination_checksum", "destination_generation",
             "verification_details", "terminal_reason",
         }
         changes = dict(updates or {})
@@ -458,7 +472,7 @@ class SQLiteCatalog(Catalog):
                     UPDATE move_jobs
                     SET state=?, owner_id=?, lease_expires_at=?, updated_at=?,
                         transferred_size=?, source_size=?, source_checksum=?,
-                        destination_size=?, destination_checksum=?,
+                        destination_size=?, destination_checksum=?, destination_generation=?,
                         verification_details=?, terminal_reason=?
                     WHERE idempotency_key=?
                     """,
@@ -473,6 +487,9 @@ class SQLiteCatalog(Catalog):
                         changes.get("destination_size", job.destination_size),
                         changes.get(
                             "destination_checksum", job.destination_checksum
+                        ),
+                        changes.get(
+                            "destination_generation", job.destination_generation
                         ),
                         json.dumps(
                             list(
@@ -648,8 +665,9 @@ class SQLiteCatalog(Catalog):
             source_checksum=row[12],
             destination_size=row[13],
             destination_checksum=row[14],
-            verification_details=tuple(json.loads(row[15])),
-            terminal_reason=row[16],
-            created_at=row[17],
-            updated_at=row[18],
+            destination_generation=row[15],
+            verification_details=tuple(json.loads(row[16])),
+            terminal_reason=row[17],
+            created_at=row[18],
+            updated_at=row[19],
         )

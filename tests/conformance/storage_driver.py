@@ -12,7 +12,7 @@ from io import BytesIO
 
 import pytest
 
-from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.drivers.storage_driver import ObjectGenerationMismatchError, StorageDriver
 
 
 class StorageDriverConformance:
@@ -39,6 +39,7 @@ class StorageDriverConformance:
         assert isinstance(capabilities.range_reads, bool)
         assert isinstance(capabilities.range_writes, bool)
         assert isinstance(capabilities.atomic_no_overwrite, bool)
+        assert capabilities.conditional_delete is True
 
     def test_put_get_and_stat_roundtrip(
         self, driver: StorageDriver, bucket: str
@@ -53,6 +54,8 @@ class StorageDriverConformance:
         assert metadata["size"] == len(payload)
         assert isinstance(metadata["mtime"], float)
         assert metadata["mtime"] >= 0
+        assert isinstance(metadata["generation"], str)
+        assert metadata["generation"]
 
     def test_streaming_put_and_reader_roundtrip(
         self, driver: StorageDriver, bucket: str
@@ -155,6 +158,22 @@ class StorageDriverConformance:
 
         with pytest.raises(FileNotFoundError):
             driver.get_object(bucket, key)
+
+    def test_conditional_delete_never_removes_a_new_generation(
+        self, driver: StorageDriver, bucket: str
+    ) -> None:
+        key = "generation-fenced-delete.txt"
+        driver.put_object(bucket, key, b"first")
+        first_generation = driver.object_generation(bucket, key)
+        driver.put_object(bucket, key, b"second")
+
+        with pytest.raises(ObjectGenerationMismatchError):
+            driver.delete_object_if_generation(bucket, key, first_generation)
+
+        assert driver.get_object(bucket, key) == b"second"
+        second_generation = driver.object_generation(bucket, key)
+        assert driver.delete_object_if_generation(bucket, key, second_generation)
+        assert not driver.delete_object_if_generation(bucket, key, second_generation)
 
     def test_put_without_overwrite_preserves_existing_object(
         self, driver: StorageDriver, bucket: str

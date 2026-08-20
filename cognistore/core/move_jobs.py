@@ -30,7 +30,9 @@ MOVE_JOB_TRANSITIONS = {
     ),
     MoveJobState.VERIFIED: frozenset({MoveJobState.COMMITTED}),
     MoveJobState.COMMITTED: frozenset({MoveJobState.CLEANUP}),
-    MoveJobState.CLEANUP: frozenset({MoveJobState.COMPLETED}),
+    MoveJobState.CLEANUP: frozenset(
+        {MoveJobState.COMPLETED, MoveJobState.FAILED}
+    ),
     MoveJobState.COMPLETED: frozenset(),
     MoveJobState.FAILED: frozenset(),
 }
@@ -62,6 +64,7 @@ class MoveJob:
     source_checksum: str | None = None
     destination_size: int | None = None
     destination_checksum: str | None = None
+    destination_generation: str | None = None
     verification_details: tuple[str, ...] = ()
     terminal_reason: str | None = None
     created_at: str = ""

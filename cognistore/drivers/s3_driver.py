@@ -14,6 +14,7 @@ from botocore.session import Session as BotocoreSession
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
+    ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
 )
@@ -98,6 +99,7 @@ class S3Driver(StorageDriver):
         range_reads=True,
         range_writes=False,
         atomic_no_overwrite=True,
+        conditional_delete=True,
     )
 
     def __init__(
@@ -358,6 +360,40 @@ class S3Driver(StorageDriver):
             if not _is_not_found(error):
                 raise
 
+    def delete_object_if_generation(
+        self, bucket: str, key: str, generation: str
+    ) -> bool:
+        """Delete the current version only when its S3 identity still matches."""
+
+        try:
+            current = self.stat_object(bucket, key)
+        except FileNotFoundError:
+            return False
+        if current["generation"] != generation:
+            raise ObjectGenerationMismatchError(
+                f"Object generation changed: {bucket}/{key}"
+            )
+
+        request: Dict[str, Any] = {
+            "Bucket": bucket,
+            "Key": key,
+            "IfMatch": current["etag"],
+        }
+        version_id = current.get("version_id")
+        if isinstance(version_id, str) and version_id and version_id != "null":
+            request["VersionId"] = version_id
+        try:
+            self._client.delete_object(**request)
+        except ClientError as error:
+            if _is_precondition_failed(error):
+                raise ObjectGenerationMismatchError(
+                    f"Object generation changed: {bucket}/{key}"
+                ) from error
+            if _is_not_found(error):
+                return False
+            raise
+        return True
+
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         paginator = self._client.get_paginator("list_objects_v2")
         request: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
@@ -386,6 +422,15 @@ class S3Driver(StorageDriver):
         }
         if "ETag" in response:
             metadata["etag"] = response["ETag"]
+        etag = response.get("ETag")
+        if not isinstance(etag, str) or not etag:
+            raise RuntimeError(f"S3 returned no ETag for {bucket}/{key}")
+        version_id = response.get("VersionId")
+        generation = etag
+        if isinstance(version_id, str) and version_id and version_id != "null":
+            metadata["version_id"] = version_id
+            generation = f"{version_id}:{etag}"
+        metadata["generation"] = generation
         if "ContentType" in response:
             metadata["content_type"] = response["ContentType"]
         if "Metadata" in response:

@@ -18,6 +18,7 @@ from cognistore.core.move_jobs import (
 )
 from cognistore.drivers.storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
+    ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
 )
@@ -48,6 +49,8 @@ class MoveVerificationResult:
     destination_size: int
     source_checksum: str
     destination_checksum: str | None
+    source_generation: str
+    destination_generation: str | None
     failure_details: tuple[str, ...] = ()
 
     @property
@@ -65,6 +68,18 @@ class MoveVerificationError(RuntimeError):
         super().__init__(
             f"Move verification failed for {plan.src_tier}:{plan.bucket}/{plan.key} "
             f"-> {plan.dst_tier}:{plan.bucket}/{plan.key}: {details}"
+        )
+
+
+class MoveGenerationMismatchError(RuntimeError):
+    """Raised when cleanup encounters a source or destination replacement."""
+
+    def __init__(self, plan: MovePlan, role: str) -> None:
+        self.plan = plan
+        self.role = role
+        super().__init__(
+            f"Move aborted because the {role} generation changed for "
+            f"{plan.bucket}/{plan.key}"
         )
 
 
@@ -170,6 +185,11 @@ class Mover:
             raise ValueError(
                 f"Source object has invalid size metadata: {src_tier}:{bucket}/{key}"
             )
+        source_generation = source_metadata.get("generation")
+        if not isinstance(source_generation, str) or not source_generation:
+            raise ValueError(
+                f"Source object has no generation metadata: {src_tier}:{bucket}/{key}"
+            )
         try:
             dst.stat_object(bucket, key)
         except FileNotFoundError:
@@ -222,6 +242,7 @@ class Mover:
             )
 
         destination_stat_size: int | None = None
+        destination_generation: str | None = None
         try:
             destination_metadata = dst.stat_object(plan.bucket, plan.key)
             observed_stat_size = destination_metadata.get("size")
@@ -241,6 +262,11 @@ class Mover:
                         f"destination stat observed {destination_stat_size} bytes; "
                         f"expected {plan.size}"
                     )
+            observed_generation = destination_metadata.get("generation")
+            if not isinstance(observed_generation, str) or not observed_generation:
+                failures.append("destination stat returned no generation token")
+            else:
+                destination_generation = observed_generation
         except FileNotFoundError as error:
             failures.append(
                 f"destination stat failed with {type(error).__name__}: {error}"
@@ -278,6 +304,17 @@ class Mover:
                 f"{destination_size} bytes with {type(error).__name__}: {error}"
             )
 
+        if destination_generation is not None:
+            try:
+                final_generation = dst.object_generation(plan.bucket, plan.key)
+            except FileNotFoundError as error:
+                failures.append(
+                    f"destination generation check failed with {type(error).__name__}: {error}"
+                )
+            else:
+                if final_generation != destination_generation:
+                    failures.append("destination generation changed during verification")
+
         if destination_checksum is not None:
             if destination_size != plan.size:
                 failures.append(
@@ -303,6 +340,8 @@ class Mover:
             destination_size=destination_size,
             source_checksum=source_checksum,
             destination_checksum=destination_checksum,
+            source_generation=str(plan.metadata["generation"]),
+            destination_generation=destination_generation,
             failure_details=tuple(failures),
         )
 
@@ -443,6 +482,17 @@ class Mover:
                     source_size = source.size
                     source_checksum = source.checksum
                     reason = "destination transfer completed"
+                if src.object_generation(job.bucket, job.key) != job.source_metadata.get(
+                    "generation"
+                ):
+                    reason = "source generation changed during transfer"
+                    job = self._transition(
+                        job,
+                        MoveJobState.FAILED,
+                        reason,
+                        updates={"terminal_reason": reason},
+                    )
+                    raise MoveGenerationMismatchError(plan, "source")
                 job = self._transition(
                     job,
                     MoveJobState.TRANSFERRED,
@@ -477,6 +527,7 @@ class Mover:
                 updates = {
                     "destination_size": verification.destination_size,
                     "destination_checksum": verification.destination_checksum,
+                    "destination_generation": verification.destination_generation,
                     "verification_details": verification.failure_details,
                 }
                 if not verification.verified:
@@ -498,6 +549,7 @@ class Mover:
             elif job.state == MoveJobState.VERIFIED:
                 assert job.destination_checksum is not None
                 assert job.destination_size is not None
+                assert job.destination_generation is not None
                 now, lease_expires_at = self._lease_window()
                 job = self.catalog.commit_move_job_placement(
                     job.idempotency_key,
@@ -521,8 +573,42 @@ class Mover:
                 # A recovered cleanup rechecks the committed destination before
                 # repeating the only destructive effect. Source deletion is
                 # itself required to be idempotent by the driver contract.
-                self._verify_committed_destination(plan, dst, job)
-                src.delete_object(job.bucket, job.key)
+                try:
+                    self._verify_committed_destination(plan, dst, job)
+                    if (
+                        dst.object_generation(job.bucket, job.key)
+                        != job.destination_generation
+                    ):
+                        raise ObjectGenerationMismatchError(
+                            "destination generation changed after final verification"
+                        )
+                    source_generation = job.source_metadata.get("generation")
+                    if not isinstance(source_generation, str) or not source_generation:
+                        raise RuntimeError(
+                            "move job lacks the source generation required for cleanup"
+                        )
+                    src.delete_object_if_generation(
+                        job.bucket, job.key, source_generation
+                    )
+                except (MoveVerificationError, ObjectGenerationMismatchError) as error:
+                    role = (
+                        "destination"
+                        if isinstance(error, MoveVerificationError)
+                        or "destination" in str(error)
+                        else "source"
+                    )
+                    self._restore_source_placement(job, src)
+                    reason = f"{role} generation changed; source cleanup aborted"
+                    job = self._transition(
+                        job,
+                        MoveJobState.FAILED,
+                        reason,
+                        updates={
+                            "verification_details": (reason,),
+                            "terminal_reason": reason,
+                        },
+                    )
+                    raise MoveGenerationMismatchError(plan, role) from error
                 job = self._transition(
                     job,
                     MoveJobState.COMPLETED,
@@ -616,6 +702,8 @@ class Mover:
         if (
             destination_size != job.destination_size
             or destination_checksum != job.destination_checksum
+            or dst.object_generation(job.bucket, job.key)
+            != job.destination_generation
         ):
             result = MoveVerificationResult(
                 status="failed",
@@ -627,11 +715,36 @@ class Mover:
                 destination_size=destination_size,
                 source_checksum=job.source_checksum or "",
                 destination_checksum=destination_checksum,
+                source_generation=str(job.source_metadata.get("generation", "")),
+                destination_generation=job.destination_generation,
                 failure_details=(
                     "committed destination changed before source cleanup",
                 ),
             )
             raise MoveVerificationError(plan, result)
+
+    def _restore_source_placement(
+        self, job: MoveJob, src: StorageDriver
+    ) -> None:
+        """Point the catalog at a retained source after cleanup is fenced off."""
+
+        try:
+            source_size, source_checksum = self._hash_object(
+                src,
+                job.bucket,
+                job.key,
+                tier=job.src_tier,
+                job=job,
+            )
+        except FileNotFoundError:
+            return
+        self.catalog.upsert_placement(
+            job.bucket,
+            job.key,
+            size=source_size,
+            tier=job.src_tier,
+            checksum=source_checksum,
+        )
 
     def _consume_transfer_bytes(self, job: MoveJob, amount: int) -> None:
         self._consume_bytes(job.src_tier, amount, job)
@@ -717,5 +830,7 @@ class Mover:
             destination_size=job.destination_size,
             source_checksum=job.source_checksum,
             destination_checksum=job.destination_checksum,
+            source_generation=str(job.source_metadata.get("generation", "")),
+            destination_generation=job.destination_generation,
             failure_details=(),
         )

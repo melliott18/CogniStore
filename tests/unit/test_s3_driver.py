@@ -12,6 +12,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from cognistore.drivers.s3_driver import MultipartUploadCleanupError, S3Driver
+from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 
 _MIB = 1024 * 1024
 
@@ -319,6 +320,30 @@ def test_delete_treats_missing_bucket_as_idempotent() -> None:
     driver = S3Driver(client=client)
 
     driver.delete_object("missing-bucket", "missing-key")
+
+
+def test_conditional_delete_uses_atomic_etag_precondition() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+
+    assert driver.delete_object_if_generation("bucket", "key", generation)
+
+    assert client.delete_calls == [
+        {"Bucket": "bucket", "Key": "key", "IfMatch": '"etag"'}
+    ]
+
+
+def test_conditional_delete_maps_precondition_failure_to_generation_mismatch() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+    client.delete_error = _client_error(
+        "PreconditionFailed", 412, "DeleteObject"
+    )
+
+    with pytest.raises(ObjectGenerationMismatchError):
+        driver.delete_object_if_generation("bucket", "key", generation)
 
 
 def test_auto_create_bucket_recovers_a_missing_bucket_for_put() -> None:

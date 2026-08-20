@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import secrets
 import stat
+import threading
 from contextlib import AbstractContextManager, contextmanager
 from io import BytesIO
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any, BinaryIO, Dict, Generator, Mapping, Optional
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
+    ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
 )
@@ -48,7 +50,11 @@ class PosixDriver(StorageDriver):
         range_reads=True,
         range_writes=True,
         atomic_no_overwrite=True,
+        conditional_delete=True,
     )
+
+    _lock_registry_guard = threading.Lock()
+    _lock_registry: dict[tuple[str, str, str], threading.RLock] = {}
 
     def __init__(
         self,
@@ -67,6 +73,29 @@ class PosixDriver(StorageDriver):
         # constructing a driver must remain read-only for dry-run workflows.
         self.base = Path(base_path).expanduser().resolve()
         self.chunk_size = chunk_size
+
+    @contextmanager
+    def _object_lock(self, bucket: str, key: str) -> Generator[None, None, None]:
+        """Serialize mutations for one object across local driver instances."""
+
+        identity = (str(self.base), bucket, key)
+        with self._lock_registry_guard:
+            lock = self._lock_registry.setdefault(identity, threading.RLock())
+        with lock:
+            yield
+
+    @staticmethod
+    def _generation(st: os.stat_result) -> str:
+        return ":".join(
+            str(value)
+            for value in (
+                st.st_dev,
+                st.st_ino,
+                st.st_size,
+                st.st_mtime_ns,
+                st.st_ctime_ns,
+            )
+        )
 
     @staticmethod
     def _relative_path(value: str, label: str, *, allow_empty: bool = False) -> Path:
@@ -179,22 +208,23 @@ class PosixDriver(StorageDriver):
             )
             return
 
-        path = self._path(bucket, key)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        with self._object_lock(bucket, key):
+            path = self._path(bucket, key)
+            path.parent.mkdir(parents=True, exist_ok=True)
 
-        start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
-        if not overwrite:
-            # Exclusive creation makes collision rejection atomic with the
-            # write, rather than relying only on a racy preflight stat.
-            with open(path, "xb") as f:
-                f.truncate(end + 1)
-        elif not path.exists():
-            # Pre-size the file to end+1 bytes
-            with open(path, "wb") as f:
-                f.truncate(end + 1)
-        with open(path, "r+b") as f:
-            f.seek(start)
-            f.write(data[: end - start + 1])
+            start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
+            if not overwrite:
+                # Exclusive creation makes collision rejection atomic with the
+                # write, rather than relying only on a racy preflight stat.
+                with open(path, "xb") as f:
+                    f.truncate(end + 1)
+            elif not path.exists():
+                # Pre-size the file to end+1 bytes
+                with open(path, "wb") as f:
+                    f.truncate(end + 1)
+            with open(path, "r+b") as f:
+                f.seek(start)
+                f.write(data[: end - start + 1])
 
     def get_object(
         self, bucket: str, key: str, range: Optional[str] = None
@@ -276,18 +306,19 @@ class PosixDriver(StorageDriver):
                         f"Object stream contains more than declared size of {size} bytes"
                     )
 
-            if overwrite:
-                try:
-                    existing_mode = stat.S_IMODE(
-                        path.stat(follow_symlinks=False).st_mode
-                    )
-                except FileNotFoundError:
-                    pass
+            with self._object_lock(bucket, key):
+                if overwrite:
+                    try:
+                        existing_mode = stat.S_IMODE(
+                            path.stat(follow_symlinks=False).st_mode
+                        )
+                    except FileNotFoundError:
+                        pass
+                    else:
+                        temporary_path.chmod(existing_mode, follow_symlinks=False)
+                    os.replace(temporary_path, path)
                 else:
-                    temporary_path.chmod(existing_mode, follow_symlinks=False)
-                os.replace(temporary_path, path)
-            else:
-                os.link(temporary_path, path)
+                    os.link(temporary_path, path)
             return written
         finally:
             try:
@@ -296,11 +327,28 @@ class PosixDriver(StorageDriver):
                 pass
 
     def delete_object(self, bucket: str, key: str) -> None:
-        path = self._path(bucket, key)
-        try:
+        with self._object_lock(bucket, key):
+            path = self._path(bucket, key)
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def delete_object_if_generation(
+        self, bucket: str, key: str, generation: str
+    ) -> bool:
+        with self._object_lock(bucket, key):
+            path = self._path(bucket, key)
+            try:
+                current = self._generation(path.stat(follow_symlinks=False))
+            except FileNotFoundError:
+                return False
+            if current != generation:
+                raise ObjectGenerationMismatchError(
+                    f"Object generation changed: {bucket}/{key}"
+                )
             path.unlink()
-        except FileNotFoundError:
-            pass
+            return True
 
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         base = self._path(bucket, "", allow_bucket_root=True)
@@ -320,7 +368,12 @@ class PosixDriver(StorageDriver):
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         path = self._path(bucket, key)
         st = path.stat()
-        return {"size": st.st_size, "mtime": st.st_mtime, "path": str(path)}
+        return {
+            "size": st.st_size,
+            "mtime": st.st_mtime,
+            "path": str(path),
+            "generation": self._generation(st),
+        }
 
     def same_backend(self, other: StorageDriver) -> bool:
         return isinstance(other, PosixDriver) and self.base == other.base
