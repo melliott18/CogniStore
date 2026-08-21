@@ -406,6 +406,7 @@ class Mover:
         terminal = {MoveJobState.COMPLETED, MoveJobState.FAILED}
         jobs = self.catalog.list_move_jobs(idempotency_prefix=idempotency_prefix)
         recovered: list[MoveVerificationResult] = []
+        first_terminal_failure: Exception | None = None
         for job in jobs:
             if job.state in terminal:
                 continue
@@ -421,6 +422,18 @@ class Mover:
                 )
             except MoveJobLeaseError:
                 continue
+            except Exception as error:
+                # A move can fail terminally while the rest of this recovery
+                # batch remains safe to run. Preserve transient failures by
+                # propagating them immediately; only isolate errors whose
+                # durable job record proves that recovery terminalized them.
+                failed_job = self.catalog.get_move_job(job.idempotency_key)
+                if failed_job is None or failed_job.state != MoveJobState.FAILED:
+                    raise
+                if first_terminal_failure is None:
+                    first_terminal_failure = error
+        if first_terminal_failure is not None:
+            raise first_terminal_failure
         return recovered
 
     def get_job(self, idempotency_key: str) -> MoveJob | None:
@@ -453,38 +466,68 @@ class Mover:
                 except FileNotFoundError:
                     destination_exists = False
 
-                if destination_exists:
-                    source_size, source_checksum = self._hash_object(
-                        src,
-                        job.bucket,
-                        job.key,
-                        tier=job.src_tier,
-                        job=job,
-                    )
-                    transferred_size = job.expected_size
-                    reason = "existing destination recovered after transfer"
-                else:
-                    with src.open_object_reader(job.bucket, job.key) as source_stream:
-                        source = _HashingReader(
-                            source_stream,
-                            on_bytes=lambda amount: self._consume_transfer_bytes(
-                                job, amount
-                            ),
-                        )
-                        transferred_size = dst.put_object_stream(
+                try:
+                    if destination_exists:
+                        # A prior publication can be visible even when its
+                        # final durability barrier raised. Confirm it again
+                        # before recovery advances toward source cleanup.
+                        dst.ensure_object_durable(job.bucket, job.key)
+                        source_size, source_checksum = self._hash_object(
+                            src,
                             job.bucket,
                             job.key,
-                            source,
-                            size=job.expected_size,
-                            overwrite=False,
-                            metadata=job.source_metadata,
+                            tier=job.src_tier,
+                            job=job,
                         )
-                    source_size = source.size
-                    source_checksum = source.checksum
-                    reason = "destination transfer completed"
-                if src.object_generation(job.bucket, job.key) != job.source_metadata.get(
-                    "generation"
-                ):
+                        transferred_size = job.expected_size
+                        reason = "existing destination recovered after transfer"
+                    else:
+                        with src.open_object_reader(
+                            job.bucket, job.key
+                        ) as source_stream:
+                            source = _HashingReader(
+                                source_stream,
+                                on_bytes=lambda amount: self._consume_transfer_bytes(
+                                    job, amount
+                                ),
+                            )
+                            transferred_size = dst.put_object_stream(
+                                job.bucket,
+                                job.key,
+                                source,
+                                size=job.expected_size,
+                                overwrite=False,
+                                metadata=job.source_metadata,
+                            )
+                        source_size = source.size
+                        source_checksum = source.checksum
+                        reason = "destination transfer completed"
+                    observed_source_generation = src.object_generation(
+                        job.bucket, job.key
+                    )
+                except FileNotFoundError as error:
+                    # FileNotFoundError can also originate from a destination
+                    # backend. Only terminalize the job after proving that its
+                    # recorded source is actually absent.
+                    try:
+                        src.stat_object(job.bucket, job.key)
+                    except FileNotFoundError:
+                        failure_reason = (
+                            "source object is missing before transfer completed: "
+                            f"{type(error).__name__}: {error}"
+                        )
+                        job = self._transition(
+                            job,
+                            MoveJobState.FAILED,
+                            failure_reason,
+                            updates={
+                                "verification_details": (failure_reason,),
+                                "terminal_reason": failure_reason,
+                            },
+                        )
+                        raise MoveJobFailedError(job) from error
+                    raise
+                if observed_source_generation != job.source_metadata.get("generation"):
                     reason = "source generation changed during transfer"
                     job = self._transition(
                         job,

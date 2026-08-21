@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Any, List, Mapping, Optional
 
-from .catalog import Catalog, ObjectRecord
+from .catalog import Catalog, ObjectRecord, ScanFence
 from .move_jobs import (
     MoveJob,
     MoveJobLeaseError,
@@ -32,6 +32,16 @@ _LIST_MOVE_JOBS_SQL = """
            created_at, updated_at
     FROM move_jobs
     ORDER BY created_at, idempotency_key
+"""
+_SCAN_MOVE_JOBS_SQL = """
+    SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
+           expected_size, source_metadata, state, owner_id, lease_expires_at,
+           transferred_size, source_size, source_checksum, destination_size,
+           destination_checksum, destination_generation, verification_details, terminal_reason,
+           created_at, updated_at
+    FROM move_jobs
+    WHERE bucket=? AND object_key=?
+    ORDER BY created_at, updated_at, idempotency_key
 """
 
 
@@ -98,6 +108,8 @@ class SQLiteCatalog(Catalog):
             );
             CREATE INDEX IF NOT EXISTS move_jobs_state_idx
                 ON move_jobs(state, updated_at);
+            CREATE INDEX IF NOT EXISTS move_jobs_object_idx
+                ON move_jobs(bucket, object_key);
             CREATE TABLE IF NOT EXISTS move_job_transitions (
                 idempotency_key TEXT NOT NULL,
                 sequence INTEGER NOT NULL,
@@ -151,6 +163,64 @@ class SQLiteCatalog(Catalog):
                 (bucket, key, size, tier, md),
             )
             self._conn.commit()
+
+    def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
+        """Capture the durable move state that precedes a storage read."""
+
+        with self._lock:
+            jobs = self._select_scan_move_jobs(bucket, key)
+        return ScanFence(
+            bucket=bucket,
+            key=key,
+            move_jobs=self._scan_move_job_fingerprints(jobs),
+        )
+
+    def upsert_scan_observation(
+        self,
+        bucket: str,
+        key: str,
+        *,
+        size: int,
+        tier: str,
+        generation: str,
+        metadata: Optional[dict],
+        fence: ScanFence,
+    ) -> bool:
+        """Atomically fence a scan write against durable move transitions."""
+
+        if (fence.bucket, fence.key) != (bucket, key):
+            raise ValueError("scan fence does not identify the observed object")
+        if not isinstance(generation, str) or not generation:
+            raise ValueError("scan observation requires a non-empty generation")
+
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                jobs = self._select_scan_move_jobs(bucket, key)
+                if (
+                    self._scan_move_job_fingerprints(jobs) != fence.move_jobs
+                    or not self._scan_observation_is_authoritative(
+                        jobs, tier=tier, generation=generation
+                    )
+                ):
+                    self._conn.commit()
+                    return False
+                self._conn.execute(
+                    """
+                    INSERT INTO objects(bucket, key, size, tier, metadata)
+                    VALUES(?,?,?,?,?)
+                    ON CONFLICT(bucket, key) DO UPDATE SET
+                        size=excluded.size,
+                        tier=excluded.tier,
+                        metadata=excluded.metadata
+                    """,
+                    (bucket, key, size, tier, json.dumps(metadata or {})),
+                )
+                self._conn.commit()
+                return True
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
         with self._lock:
@@ -212,11 +282,15 @@ class SQLiteCatalog(Catalog):
             self._conn.commit()
 
     def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]:
-        like = f"{prefix}%"
         with self._lock:
             cur = self._conn.execute(
-                "SELECT bucket, key, size, tier, metadata FROM objects WHERE bucket=? AND key LIKE ?",
-                (bucket, like),
+                """
+                SELECT bucket, key, size, tier, metadata
+                FROM objects
+                WHERE bucket=?
+                  AND substr(key, 1, length(?)) = ? COLLATE BINARY
+                """,
+                (bucket, prefix, prefix),
             )
             rows = cur.fetchall()
         out: List[ObjectRecord] = []
@@ -614,6 +688,10 @@ class SQLiteCatalog(Catalog):
                 f"expected {expected_state.value}"
             )
         return job
+
+    def _select_scan_move_jobs(self, bucket: str, key: str) -> List[MoveJob]:
+        rows = self._conn.execute(_SCAN_MOVE_JOBS_SQL, (bucket, key)).fetchall()
+        return [self._move_job_from_row(row) for row in rows]
 
     def _insert_move_transition(
         self,

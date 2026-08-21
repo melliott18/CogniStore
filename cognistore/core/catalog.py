@@ -23,6 +23,27 @@ class ObjectRecord:
 	metadata: Dict[str, object] = field(default_factory=dict)
 
 
+MoveJobScanFingerprint = tuple[
+	str,
+	str,
+	str,
+	str,
+	str | None,
+	str | None,
+	str,
+	str,
+]
+
+
+@dataclass(frozen=True)
+class ScanFence:
+	"""Move state observed before a scanner reads one physical object."""
+
+	bucket: str
+	key: str
+	move_jobs: tuple[MoveJobScanFingerprint, ...]
+
+
 class Catalog:
 	"""A tiny in-memory catalog for objects and their current tier/metadata.
 
@@ -52,6 +73,57 @@ class Catalog:
 				metadata=metadata or {},
 			)
 			self._objects[(bucket, key)] = rec
+
+	def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
+		"""Capture the move generations that can affect one scan observation."""
+
+		with self._lock:
+			jobs = self._scan_move_jobs(bucket, key)
+			return ScanFence(
+				bucket=bucket,
+				key=key,
+				move_jobs=self._scan_move_job_fingerprints(jobs),
+			)
+
+	def upsert_scan_observation(
+		self,
+		bucket: str,
+		key: str,
+		*,
+		size: int,
+		tier: str,
+		generation: str,
+		metadata: Optional[Dict[str, object]],
+		fence: ScanFence,
+	) -> bool:
+		"""Publish a stable scan observation unless a move makes it stale.
+
+		The fence comparison and object write share the catalog lock. A move that
+		starts or changes state after the scan begins therefore either precedes
+		this write (and rejects it) or follows it (and later reasserts placement).
+		"""
+
+		if (fence.bucket, fence.key) != (bucket, key):
+			raise ValueError("scan fence does not identify the observed object")
+		if not isinstance(generation, str) or not generation:
+			raise ValueError("scan observation requires a non-empty generation")
+
+		with self._lock:
+			jobs = self._scan_move_jobs(bucket, key)
+			if self._scan_move_job_fingerprints(jobs) != fence.move_jobs:
+				return False
+			if not self._scan_observation_is_authoritative(
+				jobs, tier=tier, generation=generation
+			):
+				return False
+			self._objects[(bucket, key)] = ObjectRecord(
+				bucket=bucket,
+				key=key,
+				size=size,
+				tier=tier,
+				metadata=metadata or {},
+			)
+			return True
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
 		with self._lock:
@@ -297,6 +369,72 @@ class Catalog:
 				now,
 			)
 			return updated
+
+	def _scan_move_jobs(self, bucket: str, key: str) -> List[MoveJob]:
+		return sorted(
+			(
+				job
+				for job in self._move_jobs.values()
+				if job.bucket == bucket and job.key == key
+			),
+			key=self._scan_move_job_order,
+		)
+
+	@staticmethod
+	def _scan_move_job_order(job: MoveJob) -> tuple[str, str, str]:
+		return (job.created_at, job.updated_at, job.idempotency_key)
+
+	@classmethod
+	def _scan_move_job_fingerprints(
+		cls, jobs: List[MoveJob]
+	) -> tuple[MoveJobScanFingerprint, ...]:
+		return tuple(cls._scan_move_job_fingerprint(job) for job in jobs)
+
+	@staticmethod
+	def _scan_move_job_fingerprint(job: MoveJob) -> MoveJobScanFingerprint:
+		source_generation = job.source_metadata.get("generation")
+		return (
+			job.idempotency_key,
+			job.state.value,
+			job.src_tier,
+			job.dst_tier,
+			source_generation if isinstance(source_generation, str) else None,
+			job.destination_generation,
+			job.created_at,
+			job.updated_at,
+		)
+
+	@staticmethod
+	def _scan_observation_is_authoritative(
+		jobs: List[MoveJob], *, tier: str, generation: str
+	) -> bool:
+		for job in jobs:
+			# While a move is live, either physical copy may be transient and the
+			# move's atomic commit/recovery path owns catalog placement.
+			if not job.state.terminal:
+				return False
+
+		if not jobs:
+			return True
+
+		# Older terminal jobs are historical evidence. The newest terminal move
+		# is authoritative for placement and supersedes an earlier failure for
+		# the same key.
+		latest = jobs[-1]
+		source_generation = latest.source_metadata.get("generation")
+		if (
+			latest.state == MoveJobState.COMPLETED
+			and tier == latest.src_tier
+			and generation == source_generation
+		):
+			# A scan may have read the source before cleanup and reached the
+			# catalog only after the source generation was retired.
+			return False
+		if latest.state == MoveJobState.FAILED and tier == latest.dst_tier:
+			# A failed destination is evidence, not authoritative placement. This
+			# also covers failures before a destination generation was recorded.
+			return False
+		return True
 
 	@staticmethod
 	def _replace_move_job(job: MoveJob, **changes: Any) -> MoveJob:

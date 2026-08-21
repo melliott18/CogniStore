@@ -54,29 +54,6 @@ Copy/paste and fill for each new bug:
 
 <!-- Validated bugs pending assignment or ready to pick up. -->
 
-- [ ] BUG-2026-003: POSIX publication and deletion lack durability barriers
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `993fbb8`; components: POSIX driver, mover cleanup
-  - Environment: confirmed by code audit; power-loss qualification pending
-  - Reporter: M1 implementation audit
-  - Owner: unassigned
-  - Created: 2026-08-20
-  - Updated: 2026-08-20
-  - Repro steps:
-    1. Publish a staged destination through `os.replace` or `os.link`.
-    2. Observe that neither the file nor destination parent is synced.
-    3. Delete the source without syncing its parent.
-  - Expected: a move is reported complete only after the destination and
-    namespace changes are durably ordered before source removal.
-  - Actual: verification can read page-cache data that is not durable across a
-    sudden power loss, after which the source has already been removed.
-  - Minimal test case: add a fault-injected durability contract and record a
-    filesystem/power-loss qualification under ticket #29.
-  - Notes/Workaround: no general application-level workaround; use a tested
-    durable filesystem profile and do not claim power-loss safety yet.
-  - Links: `cognistore/drivers/posix_driver.py`; related tickets #22 and #29
-
 - [ ] BUG-2026-004: Catalog scan stores a sample digest as full SHA-256 and replaces metadata
   - Status: open
   - Severity: S1 (High)
@@ -120,72 +97,6 @@ Copy/paste and fill for each new bug:
     idempotency key; the CLI currently has no supported recovery command.
   - Links: `cognistore/cli/cognistore_cli.py`; fold into ticket #26
 
-- [ ] BUG-2026-006: One failed recovery job prevents later jobs from resuming
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `993fbb8`; components: mover recovery, worker handlers
-  - Environment: reproduced with two PREPARED POSIX move jobs
-  - Reporter: M1 implementation audit
-  - Owner: unassigned
-  - Created: 2026-08-20
-  - Updated: 2026-08-20
-  - Repro steps:
-    1. Create an earlier PREPARED job whose source is missing.
-    2. Create a later healthy PREPARED job.
-    3. Run incomplete-job recovery.
-  - Expected: the first failure is recorded and recovery continues independently.
-  - Actual: `FileNotFoundError` aborts the recovery batch and the healthy job
-    remains unmoved on every retry.
-  - Minimal test case: cover mixed failing/healthy recovery batches in mover
-    and worker handler tests.
-  - Notes/Workaround: repair or terminalize the first blocking job manually.
-  - Links: `cognistore/core/mover.py`, `cognistore/jobs/handlers.py`
-
-- [ ] BUG-2026-007: Catalog scans can corrupt placement while moves are active
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `993fbb8`; components: scanner, catalog, move state machine
-  - Environment: reproduced with SQLite and POSIX hot/warm tiers
-  - Reporter: M1 implementation audit
-  - Owner: unassigned
-  - Created: 2026-08-20
-  - Updated: 2026-08-20
-  - Repro steps:
-    1. Pause a move in CLEANUP, scan the source tier, then resume; or pause it
-       in TRANSFERRED, corrupt and scan the destination, then resume.
-    2. Inspect job state, physical objects, and catalog placement.
-  - Expected: scans reconcile with active move generations and cannot publish
-    unverified or stale placement.
-  - Actual: a source scan can leave the catalog on a deleted source after a
-    completed move; a destination scan can leave it on corrupt destination
-    bytes after the move fails and retains the valid source.
-  - Minimal test case: add concurrent scan/move tests at every state transition.
-  - Notes/Workaround: do not scan source or destination scopes while moves for
-    those objects are active.
-  - Links: `cognistore/core/scanner.py`, `cognistore/core/mover.py`
-
-- [ ] BUG-2026-008: SQLite prefix matching expands wildcards and ignores ASCII case
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `993fbb8`; components: SQLite catalog, scoped policy runs
-  - Environment: reproduced with SQLite on macOS/Python 3.12
-  - Reporter: M1 implementation audit
-  - Owner: unassigned
-  - Created: 2026-08-20
-  - Updated: 2026-08-20
-  - Repro steps:
-    1. Add keys `a_one`, `abone`, `a%literal`, and `axliteral`.
-    2. List with literal prefix `a_` or `a%`.
-    3. Compare with in-memory `Catalog.list` and test `Foo` versus `foo`.
-  - Expected: prefix semantics are literal, case-sensitive `str.startswith`.
-  - Actual: both wildcard prefixes return all four keys and ASCII case is
-    insensitive, so policy scope can include unintended objects.
-  - Minimal test case: add catalog parity tests for `%`, `_`, escape characters,
-    and case.
-  - Notes/Workaround: avoid wildcard characters and case-distinct prefixes;
-    this does not fully restore cross-catalog parity.
-  - Links: `cognistore/core/sqlite_catalog.py`
-
 ## In Progress
 
 <!-- Assigned and actively being worked. Include branch/PR links. -->
@@ -204,6 +115,51 @@ Copy/paste and fill for each new bug:
 ## Fixed (Changelog)
 
 <!-- When closing a bug, move the checklist item here and add the commit/PR. -->
+
+- [x] BUG-2026-003: POSIX publication and deletion lack durability barriers
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-21
+  - Resolution: POSIX writes now sync file contents before publication and sync
+    destination/staging namespaces afterward. Directory creation, range writes,
+    deletion, missing-delete retries, and visible-destination recovery all fail
+    closed around their required barriers. Darwin uses `F_FULLFSYNC`.
+  - Verified by: `tests/unit/test_posix_driver.py` and
+    `tests/integration/test_move_jobs.py::test_recovery_reconfirms_visible_destination_durability_before_source_cleanup`.
+  - Follow-up: filesystem and sudden-power-loss qualification remains under
+    ticket #29.
+
+- [x] BUG-2026-006: One failed recovery job prevents later jobs from resuming
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-21
+  - Resolution: a definitively missing PREPARED source is recorded as a terminal
+    failed move. Synchronous and worker recovery continue through later jobs
+    before reporting the first terminal failure.
+  - Verified by:
+    `tests/integration/test_move_jobs.py::test_recovery_terminalizes_missing_source_and_continues_with_later_job`
+    and
+    `tests/unit/test_job_handlers.py::test_policy_handler_isolates_failed_recovery_from_later_healthy_job`.
+
+- [x] BUG-2026-007: Catalog scans can corrupt placement while moves are active
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-21
+  - Resolution: generation-stable scan observations use object-specific move
+    fences, atomically rechecked with catalog publication. Active moves and
+    authoritative terminal outcomes reject stale or unverified placements.
+  - Verified by: `tests/integration/test_scanner_move_coordination.py` for both
+    in-memory and SQLite catalogs.
+
+- [x] BUG-2026-008: SQLite prefix matching expands wildcards and ignores ASCII case
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-21
+  - Resolution: SQLite prefix filtering now uses a binary, literal substring
+    comparison matching the in-memory catalog's case-sensitive `str.startswith`
+    semantics.
+  - Verified by:
+    `tests/unit/test_sqlite_catalog.py::test_list_prefix_matches_in_memory_literal_case_sensitive_semantics`.
 
 - [x] BUG-2026-001: Concurrent source replacement can be deleted by move cleanup
   - Status: fixed

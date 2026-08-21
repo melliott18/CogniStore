@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from cognistore.core.catalog import Catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 
 
@@ -34,6 +35,33 @@ def test_sqlite_catalog_crud(tmp_path: Path):
     assert cat.get(bucket, key) is None
 
     cat.close()
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected"),
+    [
+        ("", ["Foo", "a%literal", "a\\literal", "a_one", "abone", "foo"]),
+        ("a_", ["a_one"]),
+        ("a%", ["a%literal"]),
+        ("a\\", ["a\\literal"]),
+        ("Foo", ["Foo"]),
+        ("foo", ["foo"]),
+    ],
+)
+def test_list_prefix_matches_in_memory_literal_case_sensitive_semantics(
+    tmp_path: Path, prefix: str, expected: list[str]
+) -> None:
+    catalogs = [Catalog(), SQLiteCatalog(tmp_path / "catalog.db")]
+    keys = ["a_one", "abone", "a%literal", "a\\literal", "Foo", "foo"]
+    for catalog in catalogs:
+        for key in keys:
+            catalog.upsert("bucket", key, size=1, tier="hot")
+        catalog.upsert("other", "a_one", size=1, tier="hot")
+
+    for catalog in catalogs:
+        assert sorted(record.key for record in catalog.list("bucket", prefix)) == expected
+
+    catalogs[1].close()
 
 
 def test_upsert_placement_preserves_metadata_and_creates_missing_record(

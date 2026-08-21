@@ -3,11 +3,17 @@ from __future__ import annotations
 import os
 import secrets
 import stat
+import sys
 import threading
 from contextlib import AbstractContextManager, contextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Generator, Mapping, Optional
+
+try:
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - unavailable on non-POSIX platforms
+    _fcntl = None  # type: ignore[assignment]
 
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
@@ -21,6 +27,24 @@ _STAGING_DIRECTORY = ".cognistore-staging"
 _STAGING_FILE_PREFIX = "upload-"
 _STAGING_FILE_SUFFIX = ".tmp"
 _MAX_STAGING_NAME_ATTEMPTS = 100
+_DARWIN_FULL_SYNC = (
+    getattr(_fcntl, "F_FULLFSYNC", None)
+    if sys.platform == "darwin" and _fcntl is not None
+    else None
+)
+
+
+def _sync_descriptor(descriptor: int) -> None:
+    """Block until a file descriptor's state reaches durable storage."""
+
+    if _DARWIN_FULL_SYNC is not None:
+        # Darwin's fsync(2) only flushes through the host. F_FULLFSYNC also
+        # requests that the drive flush its volatile write cache, which is the
+        # barrier required before a move may discard its source.
+        assert _fcntl is not None
+        _fcntl.fcntl(descriptor, _DARWIN_FULL_SYNC)
+        return
+    os.fsync(descriptor)
 
 
 class _RangedReader:
@@ -73,6 +97,7 @@ class PosixDriver(StorageDriver):
         # constructing a driver must remain read-only for dry-run workflows.
         self.base = Path(base_path).expanduser().resolve()
         self.chunk_size = chunk_size
+        self._durable_directory_entries: set[Path] = set()
 
     @contextmanager
     def _object_lock(self, bucket: str, key: str) -> Generator[None, None, None]:
@@ -83,6 +108,86 @@ class PosixDriver(StorageDriver):
             lock = self._lock_registry.setdefault(identity, threading.RLock())
         with lock:
             yield
+
+    @staticmethod
+    def _sync_directory(path: Path) -> None:
+        """Persist namespace changes made in ``path``.
+
+        Directory descriptors and ``O_DIRECTORY`` are POSIX facilities. Any
+        failure is deliberately propagated: callers must not report a durable
+        publication or deletion when the filesystem cannot provide the
+        required namespace barrier.
+        """
+
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_DIRECTORY", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        try:
+            _sync_descriptor(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def _ensure_directory(self, path: Path, *, mode: int = 0o777) -> None:
+        """Create ``path`` and durably publish every newly created component."""
+
+        path.mkdir(mode=mode, parents=True, exist_ok=True)
+        try:
+            relative = path.relative_to(self.base)
+        except ValueError:
+            raise ValueError(
+                "POSIX object directories must remain below the configured tier root"
+            ) from None
+
+        # Work from the tier root down. Each parent barrier makes its child name
+        # durable before that child is used to publish the next component. A
+        # successful barrier is cached for this driver instance; failures are
+        # not, so a retry cannot mistake a merely visible mkdir for a durable
+        # one. A new driver also reconfirms every configured-root edge once.
+        directory = self.base
+        entries = [directory]
+        for part in relative.parts:
+            directory /= part
+            entries.append(directory)
+        for entry in entries:
+            if entry in self._durable_directory_entries:
+                continue
+            self._sync_directory(entry.parent)
+            self._durable_directory_entries.add(entry)
+
+    def _publish_staged_file(
+        self,
+        temporary_path: Path,
+        path: Path,
+        *,
+        overwrite: bool,
+    ) -> None:
+        """Publish a synced staging inode and persist both namespace changes."""
+
+        staging = temporary_path.parent
+        if overwrite:
+            os.replace(temporary_path, path)
+        else:
+            os.link(temporary_path, path)
+
+        # Persist the destination name before removing/persisting the staging
+        # name. A crash between these barriers can leave an extra private link,
+        # but cannot lose the acknowledged destination.
+        self._sync_directory(path.parent)
+        if not overwrite:
+            temporary_path.unlink()
+        self._sync_directory(staging)
+
+    def _sync_existing_parent(self, path: Path) -> None:
+        """Barrier a prior unlink when an idempotent retry sees no object."""
+
+        # A never-created bucket remains an idempotent, read-only delete. Once
+        # the parent is observed, however, every barrier failure must propagate;
+        # do not confuse an fsync error with an absent namespace.
+        if not path.parent.exists():
+            return
+        self._sync_directory(path.parent)
 
     @staticmethod
     def _generation(st: os.stat_result) -> str:
@@ -154,7 +259,7 @@ class PosixDriver(StorageDriver):
         if staging.is_symlink():
             raise ValueError("POSIX staging directory must not be a symbolic link")
         try:
-            staging.mkdir(mode=0o700, parents=True, exist_ok=True)
+            self._ensure_directory(staging, mode=0o700)
         except FileExistsError:
             raise ValueError("POSIX staging path must be a directory") from None
         if (
@@ -210,21 +315,47 @@ class PosixDriver(StorageDriver):
 
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
-            path.parent.mkdir(parents=True, exist_ok=True)
+            self._ensure_directory(path.parent)
 
             start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
-            if not overwrite:
-                # Exclusive creation makes collision rejection atomic with the
-                # write, rather than relying only on a racy preflight stat.
-                with open(path, "xb") as f:
-                    f.truncate(end + 1)
-            elif not path.exists():
-                # Pre-size the file to end+1 bytes
-                with open(path, "wb") as f:
-                    f.truncate(end + 1)
-            with open(path, "r+b") as f:
-                f.seek(start)
-                f.write(data[: end - start + 1])
+            if path.exists():
+                if not overwrite:
+                    raise FileExistsError(path)
+                with open(path, "r+b") as existing_destination:
+                    existing_destination.seek(start)
+                    existing_destination.write(data[: end - start + 1])
+                    existing_destination.flush()
+                    _sync_descriptor(existing_destination.fileno())
+                return
+
+            descriptor, temporary_path = self._create_staging_file(
+                self._staging_directory()
+            )
+            try:
+                try:
+                    destination = os.fdopen(descriptor, "wb")
+                except BaseException:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                    raise
+                with destination:
+                    destination.truncate(end + 1)
+                    destination.seek(start)
+                    destination.write(data[: end - start + 1])
+                    destination.flush()
+                    _sync_descriptor(destination.fileno())
+                    self._publish_staged_file(
+                        temporary_path,
+                        path,
+                        overwrite=overwrite,
+                    )
+            finally:
+                try:
+                    temporary_path.unlink()
+                except FileNotFoundError:
+                    pass
 
     def get_object(
         self, bucket: str, key: str, range: Optional[str] = None
@@ -266,7 +397,7 @@ class PosixDriver(StorageDriver):
             raise ValueError("Object size must be a non-negative integer")
 
         path = self._path(bucket, key)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_directory(path.parent)
         descriptor, temporary_path = self._create_staging_file(
             self._staging_directory()
         )
@@ -306,19 +437,26 @@ class PosixDriver(StorageDriver):
                         f"Object stream contains more than declared size of {size} bytes"
                     )
 
-            with self._object_lock(bucket, key):
-                if overwrite:
-                    try:
-                        existing_mode = stat.S_IMODE(
-                            path.stat(follow_symlinks=False).st_mode
-                        )
-                    except FileNotFoundError:
-                        pass
-                    else:
-                        temporary_path.chmod(existing_mode, follow_symlinks=False)
-                    os.replace(temporary_path, path)
-                else:
-                    os.link(temporary_path, path)
+                with self._object_lock(bucket, key):
+                    if overwrite:
+                        try:
+                            existing_mode = stat.S_IMODE(
+                                path.stat(follow_symlinks=False).st_mode
+                            )
+                        except FileNotFoundError:
+                            pass
+                        else:
+                            temporary_path.chmod(
+                                existing_mode,
+                                follow_symlinks=False,
+                            )
+                    destination.flush()
+                    _sync_descriptor(destination.fileno())
+                    self._publish_staged_file(
+                        temporary_path,
+                        path,
+                        overwrite=overwrite,
+                    )
             return written
         finally:
             try:
@@ -332,7 +470,9 @@ class PosixDriver(StorageDriver):
             try:
                 path.unlink()
             except FileNotFoundError:
-                pass
+                self._sync_existing_parent(path)
+                return
+            self._sync_directory(path.parent)
 
     def delete_object_if_generation(
         self, bucket: str, key: str, generation: str
@@ -342,13 +482,31 @@ class PosixDriver(StorageDriver):
             try:
                 current = self._generation(path.stat(follow_symlinks=False))
             except FileNotFoundError:
+                self._sync_existing_parent(path)
                 return False
             if current != generation:
                 raise ObjectGenerationMismatchError(
                     f"Object generation changed: {bucket}/{key}"
                 )
             path.unlink()
+            self._sync_directory(path.parent)
             return True
+
+    def ensure_object_durable(self, bucket: str, key: str) -> None:
+        with self._object_lock(bucket, key):
+            path = self._path(bucket, key)
+            flags = os.O_RDONLY
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(path, flags)
+            try:
+                _sync_descriptor(descriptor)
+            finally:
+                os.close(descriptor)
+            self._sync_directory(path.parent)
+            staging = self.base / _STAGING_DIRECTORY
+            if staging.exists():
+                self._sync_directory(staging)
 
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         base = self._path(bucket, "", allow_bucket_root=True)
