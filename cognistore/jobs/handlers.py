@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, AsyncContextManager, Callable, Protocol
 from uuid import uuid4
 
+from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
 from cognistore.core.mover import Mover
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
@@ -158,6 +159,7 @@ def build_handlers(
 
     async def recover_moves(mover: Mover, idempotency_prefix: str) -> None:
         jobs = await asyncio.to_thread(mover.list_jobs)
+        first_terminal_failure: Exception | None = None
         for move in jobs:
             if move.state.terminal or not move.idempotency_key.startswith(
                 idempotency_prefix
@@ -168,16 +170,29 @@ def build_handlers(
             # the owner may already have published the destination while the
             # durable move record is still PREPARED, which would otherwise be
             # mistaken for a terminal destination collision.
-            await execute_move(
-                move.src_tier,
-                move.dst_tier,
-                mover.move,
-                move.src_tier,
-                move.dst_tier,
-                move.bucket,
-                move.key,
-                idempotency_key=move.idempotency_key,
-            )
+            try:
+                await execute_move(
+                    move.src_tier,
+                    move.dst_tier,
+                    mover.move,
+                    move.src_tier,
+                    move.dst_tier,
+                    move.bucket,
+                    move.key,
+                    idempotency_key=move.idempotency_key,
+                )
+            except MoveJobLeaseError:
+                raise
+            except Exception as error:
+                failed_move = await asyncio.to_thread(
+                    mover.get_job, move.idempotency_key
+                )
+                if failed_move is None or failed_move.state != MoveJobState.FAILED:
+                    raise
+                if first_terminal_failure is None:
+                    first_terminal_failure = error
+        if first_terminal_failure is not None:
+            raise first_terminal_failure
 
     async def execute_actions(
         runner: PolicyRunner, actions: Sequence[ActionResult]

@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from cognistore.core.catalog import Catalog
-from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
+from cognistore.core.move_jobs import (
+    MoveJobFailedError,
+    MoveJobLeaseError,
+    MoveJobState,
+)
 from cognistore.core.mover import Mover
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.sqlite_catalog import SQLiteCatalog
@@ -160,6 +164,79 @@ def test_policy_handler_moves_and_tolerates_duplicate_delivery(tmp_path: Path) -
         record = catalog.get("bucket", "one.txt")
         assert record is not None
         assert record.tier == "hot"
+    finally:
+        catalog.close()
+
+
+def test_policy_handler_isolates_failed_recovery_from_later_healthy_job(
+    tmp_path: Path,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    bucket = "bucket"
+    bad_key = "missing.bin"
+    healthy_key = "healthy.bin"
+    healthy_data = b"healthy recovery"
+    warm.put_object(bucket, bad_key, b"disappearing source")
+    warm.put_object(bucket, healthy_key, healthy_data)
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        policy_job_payload(
+            bucket=bucket,
+            prefix="",
+            policy="simple",
+            threshold=len(healthy_data),
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+        ),
+        job_id="00000000-0000-4000-8000-000000000006",
+    )
+
+    prepared_at = "2000-01-01T00:00:00.000000Z"
+    expired_at = "2000-01-01T00:00:01.000000Z"
+    for suffix, key in (("01-missing", bad_key), ("02-healthy", healthy_key)):
+        source_metadata = warm.stat_object(bucket, key)
+        catalog.upsert(bucket, key, source_metadata["size"], "warm")
+        catalog.claim_move_job(
+            f"{job.job_id}:{suffix}",
+            src_tier="warm",
+            dst_tier="hot",
+            bucket=bucket,
+            key=key,
+            expected_size=source_metadata["size"],
+            source_metadata=source_metadata,
+            owner_id="crashed-worker",
+            now=prepared_at,
+            lease_expires_at=expired_at,
+        )
+    warm.delete_object(bucket, bad_key)
+
+    try:
+        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
+        with pytest.raises(
+            MoveJobFailedError, match="01-missing"
+        ) as recovery_failure:
+            asyncio.run(handler(job, _context()))
+        assert isinstance(recovery_failure.value.__cause__, FileNotFoundError)
+
+        failed = catalog.get_move_job(f"{job.job_id}:01-missing")
+        assert failed is not None
+        assert failed.state == MoveJobState.FAILED
+        assert failed.terminal_reason is not None
+        assert "source object is missing" in failed.terminal_reason
+        recovered = catalog.get_move_job(f"{job.job_id}:02-healthy")
+        assert recovered is not None
+        assert recovered.state == MoveJobState.COMPLETED
+        assert hot.get_object(bucket, healthy_key) == healthy_data
+        with pytest.raises(FileNotFoundError):
+            warm.stat_object(bucket, healthy_key)
     finally:
         catalog.close()
 

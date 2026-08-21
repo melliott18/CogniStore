@@ -141,6 +141,18 @@ class StorageDriver(ABC):
 			)
 		return generation
 
+	def ensure_object_durable(self, bucket: str, key: str) -> None:
+		"""Confirm that an acknowledged object is durable before cleanup.
+
+		Remote object stores may rely on the successful publication response and
+		therefore need no additional operation. Filesystem drivers should override
+		this hook to barrier both file contents and the containing namespace. The
+		mover calls it when recovering a destination whose original publication
+		may have been interrupted before its final durability barrier.
+		"""
+
+		return None
+
 	def same_backend(self, other: "StorageDriver") -> bool:
 		"""Return whether two drivers address the same physical backend.
 

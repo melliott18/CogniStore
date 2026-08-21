@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from cognistore.drivers import posix_driver
 from cognistore.drivers.posix_driver import PosixDriver
 
 
@@ -48,6 +49,41 @@ class _BlockingAfterPayloadStream:
 		return b""
 
 
+def test_descriptor_barrier_uses_fsync_when_full_sync_is_unavailable(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	calls: list[int] = []
+	monkeypatch.setattr(posix_driver, "_DARWIN_FULL_SYNC", None)
+	monkeypatch.setattr(posix_driver.os, "fsync", calls.append)
+
+	posix_driver._sync_descriptor(17)
+
+	assert calls == [17]
+
+
+def test_descriptor_barrier_uses_darwin_full_sync_when_available(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	calls: list[tuple[int, int]] = []
+
+	class FakeFcntl:
+		@staticmethod
+		def fcntl(descriptor: int, operation: int) -> None:
+			calls.append((descriptor, operation))
+
+	monkeypatch.setattr(posix_driver, "_fcntl", FakeFcntl)
+	monkeypatch.setattr(posix_driver, "_DARWIN_FULL_SYNC", 51)
+	monkeypatch.setattr(
+		posix_driver.os,
+		"fsync",
+		lambda _descriptor: pytest.fail("fsync used instead of F_FULLFSYNC"),
+	)
+
+	posix_driver._sync_descriptor(23)
+
+	assert calls == [(23, 51)]
+
+
 def test_put_get_delete_roundtrip(tmp_path: Path):
 	d = PosixDriver(base_path=str(tmp_path))
 	bucket = "test"
@@ -64,6 +100,70 @@ def test_put_get_delete_roundtrip(tmp_path: Path):
 	d.delete_object(bucket, key)
 	with pytest.raises(FileNotFoundError):
 		d.get_object(bucket, key)
+
+
+@pytest.mark.parametrize("conditional", [False, True])
+def test_delete_barrier_failure_propagates_and_missing_retry_rebarriers_parent(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+	conditional: bool,
+) -> None:
+	d = PosixDriver(str(tmp_path / "tier"))
+	bucket = "bucket"
+	key = "delete-me"
+	d.put_object(bucket, key, b"payload")
+	generation = d.object_generation(bucket, key)
+	parent = d.base / bucket
+	barriers: list[Path] = []
+
+	def flaky_barrier(path: Path) -> None:
+		barriers.append(path)
+		if len(barriers) == 1:
+			raise OSError("delete namespace barrier failed")
+
+	monkeypatch.setattr(d, "_sync_directory", flaky_barrier)
+
+	with pytest.raises(OSError, match="delete namespace barrier failed"):
+		if conditional:
+			d.delete_object_if_generation(bucket, key, generation)
+		else:
+			d.delete_object(bucket, key)
+
+	assert not (parent / key).exists()
+	if conditional:
+		assert not d.delete_object_if_generation(bucket, key, generation)
+	else:
+		d.delete_object(bucket, key)
+	assert barriers == [parent, parent]
+
+
+def test_durability_confirmation_syncs_existing_file_before_parent(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	d = PosixDriver(str(tmp_path / "tier"))
+	d.put_object("bucket", "key", b"payload")
+	parent = d.base / "bucket"
+	staging = d.base / ".cognistore-staging"
+	events: list[tuple[str, Path | None]] = []
+	monkeypatch.setattr(
+		posix_driver,
+		"_sync_descriptor",
+		lambda _descriptor: events.append(("file", None)),
+	)
+	monkeypatch.setattr(
+		d,
+		"_sync_directory",
+		lambda path: events.append(("directory", path)),
+	)
+
+	d.ensure_object_durable("bucket", "key")
+
+	assert events == [
+		("file", None),
+		("directory", parent),
+		("directory", staging),
+	]
 
 
 def test_range_reads_and_writes(tmp_path: Path):
@@ -146,6 +246,250 @@ def test_streaming_put_never_requests_more_than_configured_chunk_size(
 	assert written == len(payload)
 	assert d.get_object("bucket", "key") == payload
 	assert source.request_sizes == [3, 3, 3, 1, 1]
+
+
+@pytest.mark.parametrize(
+	("overwrite", "publication_operation"),
+	[(True, "replace"), (False, "link")],
+)
+def test_stream_publication_orders_file_and_namespace_durability_barriers(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+	overwrite: bool,
+	publication_operation: str,
+) -> None:
+	tier = tmp_path / "tier"
+	destination_parent = tier / "bucket"
+	staging = tier / ".cognistore-staging"
+	destination_parent.mkdir(parents=True)
+	staging.mkdir()
+	target = destination_parent / "key"
+	if overwrite:
+		target.write_bytes(b"original")
+	d = PosixDriver(str(tier))
+	d._ensure_directory(destination_parent)
+	d._ensure_directory(staging, mode=0o700)
+	events: list[tuple[str, Path | None]] = []
+	original_publish = getattr(posix_driver.os, publication_operation)
+
+	def publish(source: Path, destination: Path) -> None:
+		events.append(("publish", None))
+		original_publish(source, destination)
+
+	monkeypatch.setattr(
+		posix_driver,
+		"_sync_descriptor",
+		lambda _descriptor: events.append(("file", None)),
+	)
+	monkeypatch.setattr(
+		d,
+		"_sync_directory",
+		lambda path: events.append(("directory", path)),
+	)
+	monkeypatch.setattr(posix_driver.os, publication_operation, publish)
+
+	d.put_object_stream(
+		"bucket",
+		"key",
+		BytesIO(b"replacement"),
+		size=len(b"replacement"),
+		overwrite=overwrite,
+	)
+
+	assert target.read_bytes() == b"replacement"
+	assert events == [
+		("file", None),
+		("publish", None),
+		("directory", destination_parent),
+		("directory", staging),
+	]
+
+
+def test_file_barrier_failure_prevents_stream_publication(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	tier = tmp_path / "tier"
+	(tier / "bucket").mkdir(parents=True)
+	(tier / ".cognistore-staging").mkdir()
+	d = PosixDriver(str(tier))
+	monkeypatch.setattr(
+		posix_driver,
+		"_sync_descriptor",
+		lambda _descriptor: (_ for _ in ()).throw(OSError("file barrier failed")),
+	)
+
+	with pytest.raises(OSError, match="file barrier failed"):
+		d.put_object("bucket", "key", b"payload")
+
+	assert not (tier / "bucket" / "key").exists()
+	assert list((tier / ".cognistore-staging").iterdir()) == []
+
+
+def test_destination_namespace_barrier_failure_is_not_reported_as_success(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	tier = tmp_path / "tier"
+	destination_parent = tier / "bucket"
+	staging = tier / ".cognistore-staging"
+	destination_parent.mkdir(parents=True)
+	staging.mkdir()
+	d = PosixDriver(str(tier))
+	monkeypatch.setattr(posix_driver, "_sync_descriptor", lambda _descriptor: None)
+
+	def fail_destination_barrier(path: Path) -> None:
+		if path == destination_parent:
+			raise OSError("destination namespace barrier failed")
+
+	monkeypatch.setattr(d, "_sync_directory", fail_destination_barrier)
+
+	with pytest.raises(OSError, match="destination namespace barrier failed"):
+		d.put_object_stream(
+			"bucket",
+			"key",
+			BytesIO(b"payload"),
+			size=len(b"payload"),
+			overwrite=False,
+		)
+
+	# Publication occurred, but the raised barrier means the caller cannot
+	# advance a move toward source cleanup.
+	assert (destination_parent / "key").read_bytes() == b"payload"
+	assert list(staging.iterdir()) == []
+
+
+def test_new_destination_directories_are_durably_published_before_object(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	tier = tmp_path / "tier"
+	destination_parent = tier / "bucket" / "nested"
+	staging = tier / ".cognistore-staging"
+	d = PosixDriver(str(tier))
+	events: list[tuple[str, Path | None]] = []
+	original_replace = posix_driver.os.replace
+
+	def replace(source: Path, destination: Path) -> None:
+		events.append(("publish", None))
+		original_replace(source, destination)
+
+	monkeypatch.setattr(
+		posix_driver,
+		"_sync_descriptor",
+		lambda _descriptor: events.append(("file", None)),
+	)
+	monkeypatch.setattr(
+		d,
+		"_sync_directory",
+		lambda path: events.append(("directory", path)),
+	)
+	monkeypatch.setattr(posix_driver.os, "replace", replace)
+
+	d.put_object("bucket", "nested/key", b"payload")
+
+	assert events == [
+		("directory", tmp_path),
+		("directory", tier),
+		("directory", tier / "bucket"),
+		("directory", tier),
+		("file", None),
+		("publish", None),
+		("directory", destination_parent),
+		("directory", staging),
+	]
+
+
+def test_failed_directory_creation_barrier_is_retried_before_publication(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	tier = tmp_path / "tier"
+	destination_parent = tier / "bucket" / "nested"
+	d = PosixDriver(str(tier))
+	original_sync_directory = d._sync_directory
+	attempts = 0
+
+	def fail_once(path: Path) -> None:
+		nonlocal attempts
+		if path == tier / "bucket":
+			attempts += 1
+			if attempts == 1:
+				raise OSError("directory creation barrier failed")
+		original_sync_directory(path)
+
+	monkeypatch.setattr(d, "_sync_directory", fail_once)
+
+	with pytest.raises(OSError, match="directory creation barrier failed"):
+		d.put_object("bucket", "nested/key", b"payload")
+	assert not (destination_parent / "key").exists()
+
+	d.put_object("bucket", "nested/key", b"payload")
+
+	assert attempts == 2
+	assert (destination_parent / "key").read_bytes() == b"payload"
+
+
+def test_new_range_object_uses_durable_staged_publication(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	tier = tmp_path / "tier"
+	destination_parent = tier / "bucket"
+	staging = tier / ".cognistore-staging"
+	destination_parent.mkdir(parents=True)
+	staging.mkdir()
+	d = PosixDriver(str(tier))
+	d._ensure_directory(destination_parent)
+	d._ensure_directory(staging, mode=0o700)
+	events: list[tuple[str, Path | None]] = []
+	original_replace = posix_driver.os.replace
+
+	def replace(source: Path, destination: Path) -> None:
+		events.append(("publish", None))
+		original_replace(source, destination)
+
+	monkeypatch.setattr(
+		posix_driver,
+		"_sync_descriptor",
+		lambda _descriptor: events.append(("file", None)),
+	)
+	monkeypatch.setattr(
+		d,
+		"_sync_directory",
+		lambda path: events.append(("directory", path)),
+	)
+	monkeypatch.setattr(posix_driver.os, "replace", replace)
+
+	d.put_object("bucket", "range.bin", b"ABCD", range="bytes=3-6")
+
+	assert d.get_object("bucket", "range.bin") == b"\0\0\0ABCD"
+	assert events == [
+		("file", None),
+		("publish", None),
+		("directory", destination_parent),
+		("directory", staging),
+	]
+
+
+def test_existing_range_write_syncs_modified_file(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	d = PosixDriver(str(tmp_path / "tier"))
+	d.put_object("bucket", "range.bin", b"0123456789")
+	barriers: list[int] = []
+	monkeypatch.setattr(posix_driver, "_sync_descriptor", barriers.append)
+	monkeypatch.setattr(
+		d,
+		"_sync_directory",
+		lambda _path: pytest.fail("existing range write changed a namespace"),
+	)
+
+	d.put_object("bucket", "range.bin", b"ABCD", range="bytes=3-6")
+
+	assert d.get_object("bucket", "range.bin") == b"012ABCD789"
+	assert len(barriers) == 1
 
 
 @pytest.mark.parametrize(

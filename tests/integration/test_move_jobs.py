@@ -9,6 +9,7 @@ import pytest
 
 from cognistore.core.move_jobs import (
     MoveJobConflictError,
+    MoveJobFailedError,
     MoveJobLeaseError,
     MoveJobState,
 )
@@ -156,6 +157,131 @@ def test_move_recovers_after_crash_at_every_state_transition(
         MoveJobState.COMPLETED,
     ]
     recovered_catalog.close()
+
+
+def test_recovery_reconfirms_visible_destination_durability_before_source_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    bucket = "bucket"
+    key = "durability/object.bin"
+    data = b"retain source until the destination namespace is durable"
+    hot.put_object(bucket, key, data)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    catalog.upsert(bucket, key, len(data), "hot")
+    mover = Mover({"hot": hot, "warm": warm}, catalog)
+    destination_parent = warm.base / bucket / "durability"
+    original_sync_directory = warm._sync_directory
+
+    def fail_destination_barrier(path: Path) -> None:
+        if path == destination_parent:
+            raise OSError("injected destination namespace barrier failure")
+        original_sync_directory(path)
+
+    monkeypatch.setattr(warm, "_sync_directory", fail_destination_barrier)
+
+    for _ in range(2):
+        with pytest.raises(
+            OSError, match="injected destination namespace barrier failure"
+        ):
+            mover.move(
+                "hot",
+                "warm",
+                bucket,
+                key,
+                idempotency_key="destination-barrier-recovery",
+            )
+
+        assert hot.get_object(bucket, key) == data
+        interrupted = mover.get_job("destination-barrier-recovery")
+        assert interrupted is not None
+        assert interrupted.state == MoveJobState.PREPARED
+
+    # The first attempt published a visible link. The second attempt reached
+    # the recovery durability hook and failed closed at the same parent barrier.
+    assert warm.get_object(bucket, key) == data
+
+    monkeypatch.setattr(warm, "_sync_directory", original_sync_directory)
+    result = mover.move(
+        "hot",
+        "warm",
+        bucket,
+        key,
+        idempotency_key="destination-barrier-recovery",
+    )
+
+    assert result.verified
+    with pytest.raises(FileNotFoundError):
+        hot.stat_object(bucket, key)
+    completed = mover.get_job("destination-barrier-recovery")
+    assert completed is not None
+    assert completed.state == MoveJobState.COMPLETED
+    catalog.close()
+
+
+def test_recovery_terminalizes_missing_source_and_continues_with_later_job(
+    tmp_path: Path,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    bucket = "bucket"
+    bad_key = "missing.bin"
+    healthy_key = "healthy.bin"
+    healthy_data = b"recover this later job"
+    hot.put_object(bucket, bad_key, b"disappearing source")
+    hot.put_object(bucket, healthy_key, healthy_data)
+
+    prepared_at = "2000-01-01T00:00:00.000000Z"
+    expired_at = "2000-01-01T00:00:01.000000Z"
+    for idempotency_key, key in (
+        ("recovery:01-missing", bad_key),
+        ("recovery:02-healthy", healthy_key),
+    ):
+        source_metadata = hot.stat_object(bucket, key)
+        catalog.upsert(bucket, key, source_metadata["size"], "hot")
+        catalog.claim_move_job(
+            idempotency_key,
+            src_tier="hot",
+            dst_tier="warm",
+            bucket=bucket,
+            key=key,
+            expected_size=source_metadata["size"],
+            source_metadata=source_metadata,
+            owner_id="crashed-worker",
+            now=prepared_at,
+            lease_expires_at=expired_at,
+        )
+    hot.delete_object(bucket, bad_key)
+
+    mover = Mover({"hot": hot, "warm": warm}, catalog, owner_id="recovery-worker")
+    with pytest.raises(
+        MoveJobFailedError, match="recovery:01-missing"
+    ) as recovery_failure:
+        mover.recover_incomplete(idempotency_prefix="recovery:")
+    assert isinstance(recovery_failure.value.__cause__, FileNotFoundError)
+
+    failed = mover.get_job("recovery:01-missing")
+    assert failed is not None
+    assert failed.state == MoveJobState.FAILED
+    assert failed.owner_id is None
+    assert failed.lease_expires_at is None
+    assert failed.terminal_reason is not None
+    assert "source object is missing" in failed.terminal_reason
+    assert [
+        transition.to_state
+        for transition in mover.get_job_transitions("recovery:01-missing")
+    ] == [MoveJobState.PREPARED, MoveJobState.FAILED]
+
+    recovered = mover.get_job("recovery:02-healthy")
+    assert recovered is not None
+    assert recovered.state == MoveJobState.COMPLETED
+    assert warm.get_object(bucket, healthy_key) == healthy_data
+    with pytest.raises(FileNotFoundError):
+        hot.stat_object(bucket, healthy_key)
+    catalog.close()
 
 
 def test_move_job_lease_and_idempotency_key_ownership(tmp_path: Path) -> None:
