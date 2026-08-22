@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues on 2026-08-11. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
+> Snapshot synchronized from GitHub Issues on 2026-08-22. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 62 issues; 62 open, 0 closed
+- **Snapshot:** 62 issues; 53 open, 9 closed
 
 ## How to use this mirror
 
@@ -52,7 +52,7 @@
 - **Status:** Open
 - **Milestone:** None
 - **Labels:** `type:epic`, `roadmap`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-22
 
 #### Purpose
 
@@ -84,13 +84,13 @@ Each formal milestone has one epic. Delivery work lives in separately scoped chi
 
 #### Source of truth
 
-Backlog derived from `docs/roadmap.md` and reconciled with the prototype on `dev` at commit `8a44c81`.
+Backlog is maintained against the default `main` branch; GitHub Issues is the canonical tracker.
 
 ## M1 – Reliable multi-backend movement
 
 - **GitHub milestone:** [M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/milestone/4)
 - **Delivery tickets:** 13
-- **Open:** 14 including the epic
+- **Open:** 5 including the epic
 
 ### [#16 — [Epic] M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/issues/16)
 
@@ -98,7 +98,7 @@ Backlog derived from `docs/roadmap.md` and reconciled with the prototype on `dev
 - **Status:** Open
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:epic`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-22
 
 Parent roadmap: [#12](https://github.com/melliott18/CogniStore/issues/12)
 
@@ -115,17 +115,17 @@ CogniStore can move data between POSIX and S3-compatible tiers using a streaming
 
 #### Child issues
 
-- [ ] [#17](https://github.com/melliott18/CogniStore/issues/17) — Implement an S3-compatible storage driver and conformance suite
-- [ ] [#18](https://github.com/melliott18/CogniStore/issues/18) — Add a message bus and background worker runtime
+- [x] [#17](https://github.com/melliott18/CogniStore/issues/17) — Implement an S3-compatible storage driver and conformance suite
+- [x] [#18](https://github.com/melliott18/CogniStore/issues/18) — Add a message bus and background worker runtime
 - [ ] [#19](https://github.com/melliott18/CogniStore/issues/19) — Schedule catalog scans and policy passes
-- [ ] [#20](https://github.com/melliott18/CogniStore/issues/20) — Enforce movement and CLI safety guardrails
-- [ ] [#21](https://github.com/melliott18/CogniStore/issues/21) — Stream object moves with bounded memory and S3 multipart upload
-- [ ] [#22](https://github.com/melliott18/CogniStore/issues/22) — Verify object integrity before deleting the source
-- [ ] [#23](https://github.com/melliott18/CogniStore/issues/23) — Make move jobs idempotent with two-phase catalog updates
-- [ ] [#24](https://github.com/melliott18/CogniStore/issues/24) — Add retry, backoff, dead-letter, and redrive handling
-- [ ] [#25](https://github.com/melliott18/CogniStore/issues/25) — Add per-tier concurrency, rate limiting, and backpressure
+- [x] [#20](https://github.com/melliott18/CogniStore/issues/20) — Enforce movement and CLI safety guardrails
+- [x] [#21](https://github.com/melliott18/CogniStore/issues/21) — Stream object moves with bounded memory and S3 multipart upload
+- [x] [#22](https://github.com/melliott18/CogniStore/issues/22) — Verify object integrity before deleting the source
+- [x] [#23](https://github.com/melliott18/CogniStore/issues/23) — Make move jobs idempotent with two-phase catalog updates
+- [x] [#24](https://github.com/melliott18/CogniStore/issues/24) — Add retry, backoff, dead-letter, and redrive handling
+- [x] [#25](https://github.com/melliott18/CogniStore/issues/25) — Add per-tier concurrency, rate limiting, and backpressure
 - [ ] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
-- [ ] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
+- [x] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
 - [ ] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
 - [ ] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
 
@@ -140,10 +140,10 @@ Dependencies listed inside each child issue are authoritative; checklist order i
 ### [#17 — [M1] Implement an S3-compatible storage driver and conformance suite](https://github.com/melliott18/CogniStore/issues/17)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:storage`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-12
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -181,10 +181,10 @@ Multi-backend storage → S3 with multipart support (core driver portion).
 ### [#18 — [M1] Add a message bus and background worker runtime](https://github.com/melliott18/CogniStore/issues/18)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:control-plane`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-14
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -263,7 +263,7 @@ Platform foundation → periodic scheduler for scans, policy passes, and repair 
 ### [#20 — [M1] Enforce movement and CLI safety guardrails](https://github.com/melliott18/CogniStore/issues/20)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `bug`, `roadmap`, `type:chore`, `area:orchestration`
 - **Last updated:** 2026-08-11
@@ -304,10 +304,10 @@ M1 guardrails and CLI dry-run; CLI polish.
 ### [#21 — [M1] Stream object moves with bounded memory and S3 multipart upload](https://github.com/melliott18/CogniStore/issues/21)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-22
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -329,10 +329,10 @@ Replace whole-object buffering with a transport that scales to large objects and
 
 #### Acceptance criteria
 
-- [ ] Peak memory remains bounded for objects substantially larger than the configured chunk size.
-- [ ] POSIX↔POSIX and POSIX↔S3 transfers pass integration tests.
-- [ ] Interrupted multipart uploads are aborted or resumable without orphaning parts.
-- [ ] Chunk size and multipart thresholds are configurable.
+- [x] Peak memory remains bounded for objects substantially larger than the configured chunk size.
+- [x] POSIX↔POSIX and POSIX↔S3 transfers pass integration tests.
+- [x] Interrupted multipart uploads are aborted or resumable without orphaning parts.
+- [x] Chunk size and multipart thresholds are configurable.
 
 #### Dependencies
 
@@ -345,10 +345,10 @@ Scale-out orchestration → zero-copy/streaming where possible and S3 multipart 
 ### [#22 — [M1] Verify object integrity before deleting the source](https://github.com/melliott18/CogniStore/issues/22)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-16
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -386,10 +386,10 @@ Scale-out orchestration → integrity checks before/after movement.
 ### [#23 — [M1] Make move jobs idempotent with two-phase catalog updates](https://github.com/melliott18/CogniStore/issues/23)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-16
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -428,10 +428,10 @@ Scale-out orchestration → idempotent jobs and two-phase catalog updates.
 ### [#24 — [M1] Add retry, backoff, dead-letter, and redrive handling](https://github.com/melliott18/CogniStore/issues/24)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:control-plane`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-17
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -470,10 +470,10 @@ Scale-out orchestration → retries with backoff and DLQs.
 ### [#25 — [M1] Add per-tier concurrency, rate limiting, and backpressure](https://github.com/melliott18/CogniStore/issues/25)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-19
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -553,10 +553,10 @@ API, CLI, and UI → CLI polish.
 ### [#27 — [M1] Establish Python packaging and CI quality gates](https://github.com/melliott18/CogniStore/issues/27)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `roadmap`, `type:chore`, `area:delivery`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-22
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -578,10 +578,10 @@ Create a reproducible package and automated quality baseline for supported Pytho
 
 #### Acceptance criteria
 
-- [ ] A clean checkout can build and install the package.
-- [ ] Pull requests run lint, type, unit, and integration checks.
-- [ ] Coverage and security failures block CI with actionable output.
-- [ ] Supported Python versions and local commands are documented.
+- [x] A clean checkout can build and install the package.
+- [x] Pull requests run lint, type, unit, and integration checks.
+- [x] Coverage and security failures block CI with actionable output.
+- [x] Supported Python versions and local commands are documented.
 
 #### Dependencies
 

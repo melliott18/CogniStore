@@ -1,170 +1,154 @@
 # Git workflows for CogniStore
 
-This guide describes how we use Git to build, review, and ship CogniStore. It’s designed to be fast for a solo dev and scalable for future contributors.
+This guide describes how we build, review, and ship CogniStore. The repository
+uses a single integration branch so contributors cannot accidentally start from
+an older line of development.
 
 ## Goals
-- Keep `main` always releasable
-- Do day-to-day work on short-lived branches
-- Make PRs easy to review, test, and revert
-- Ensure tests/docs are updated before merge
+
+- Keep `main` tested and releasable.
+- Do all work on short-lived branches.
+- Make pull requests easy to review, test, and revert.
+- Keep tests and documentation synchronized with behavior.
 
 ## Branch model
 
-- `main` (default): stable, tagged releases. CI must be green.
-- `dev` (integration): active development; feature PRs target `dev` by default.
-- `feature/<short-topic>`: short-lived branches for a change (e.g., `feature/content-policy`, `feature/s3-driver`).
-- `fix/<short-bug-id>`: bugfix branches (e.g., `fix/BUG-2025-001-posix-path`).
-- `hotfix/<short>`: urgent fix branched from `main`, merged back to `main` then `dev`.
+- `main`: the default, integration, and release branch. All pull requests
+  target `main`, and CI must pass before merge.
+- `feature/<short-topic>`: new capabilities.
+- `fix/<short-bug-id>`: normal bug fixes. Include the bug or ticket identifier
+  when one exists.
+- `hotfix/<short-topic>`: urgent production fixes, still reviewed against
+  `main` with an expedited path.
+- `docs/<short-topic>` and `chore/<short-topic>`: documentation and maintenance
+  changes.
+
+The former `dev` integration branch is retired. Do not recreate it, base new
+work on it, or open pull requests against it.
 
 ## Daily workflow
 
-1) Create a feature branch from the latest `dev`:
+1. Update local `main` and create a short-lived branch:
+
 ```bash
-git checkout dev
+git switch main
+git fetch origin
 git pull --ff-only
 git switch -c feature/content-policy
 ```
-2) Commit small, focused changes with clear messages (see Commit style below).
-3) Keep up to date by rebasing on `dev`:
+
+2. Commit small, focused changes with clear messages.
+3. Keep the branch current by rebasing on `origin/main`:
+
 ```bash
 git fetch origin
-git rebase origin/dev
+git rebase origin/main
 ```
-4) Push and open a PR against `dev`.
 
-## Commit style (Conventional Commits)
+4. Push the branch and open a pull request with `main` as the base.
 
-Use Conventional Commits for clarity and automated changelogs:
+## Commit style
+
+Use Conventional Commits:
+
 - `feat:` new feature
 - `fix:` bug fix
 - `docs:` documentation
-- `refactor:` code change w/o behavior change
+- `refactor:` behavior-preserving code change
 - `test:` tests only
-- `chore:` build/tools/infra
+- `chore:` build, tooling, or infrastructure
 
 Examples:
+
+```text
+feat(policy): add content-aware placement rules
+fix(cli): require --base to disambiguate commands
 ```
-feat(policy): add content-aware policy with mime and glob rules
-fix(cli): require --base to disambiguate subcommands
-```
-Use `fixup!` commits during review and autosquash before merge:
+
+Use fixup commits during review and autosquash before merge when appropriate:
+
 ```bash
 git commit --fixup <SHA>
-git rebase -i --autosquash origin/dev
+git rebase -i --autosquash origin/main
 ```
 
 ## Pull requests
 
-- Target branch: `dev` (except hotfixes to `main`)
-- Keep PRs small and focused; include:
-  - Rationale and scope in the description
-  - Tests for new behavior and edge cases
-  - Docs updated (README or docs/*)
-- Make CI green:
-  - Run the local gates documented in `CONTRIBUTING.md` before pushing.
-  - At minimum, run `python -m ruff check .`, `python -m mypy cognistore`,
-    and `python -m pytest --cov=cognistore --cov-report=term-missing`.
-  - In VS Code, use the task “Run unit tests” (sets PYTHONPATH and verbosity)
-- Prefer rebase to keep history linear; avoid merge commits in feature branches
-- After approval, squash-merge or rebase-merge to keep history clean
+- Target `main` for every change, including hotfixes.
+- Keep the scope focused and explain the rationale and impact.
+- Add tests for new behavior and edge cases.
+- Update user-facing and operator documentation where relevant.
+- Run the local gates in `CONTRIBUTING.md` before pushing.
+- Prefer squash merge for a single logical change or rebase merge when the
+  individual commits are intentionally preserved.
+- Delete the short-lived branch after merge.
 
 ## Releases
 
-1) From `dev` → `main` via a release PR (or fast-forward if identical)
-2) Tag an annotated version (Semantic Versioning):
+Releases are cut from a tested commit on `main`; there is no `dev`-to-`main`
+promotion step.
+
+1. Land any version and release-note change through a pull request to `main`.
+2. Update local `main` and create an annotated Semantic Versioning tag:
+
 ```bash
-git checkout main
+git switch main
 git pull --ff-only
-# bump version in project metadata (pyproject.toml/setup files) if applicable
-git commit -m "chore(release): v0.2.0"
 git tag -a v0.2.0 -m "CogniStore v0.2.0"
-git push origin main --tags
+git push origin v0.2.0
 ```
-3) Create a GitHub Release with highlights (link to merged PRs)
+
+3. Create a GitHub Release with highlights and links to the included pull
+   requests.
 
 ## Hotfixes
 
-1) Branch from `main`:
+1. Branch from the latest `main`:
+
 ```bash
-git checkout main && git pull --ff-only
+git switch main
+git pull --ff-only
 git switch -c hotfix/posix-path
 ```
-2) Implement fix + tests, open PR to `main`
-3) After merge, back-merge to `dev`:
-```bash
-git checkout dev && git pull --ff-only
-git merge --ff-or-rebase origin/main
-```
 
-## Syncing forks / keeping branches updated
+2. Implement the smallest safe fix with regression coverage.
+3. Open an expedited pull request to `main` and merge only after the required
+   checks pass.
+4. Tag a patch release if the fix needs an immediate distribution.
 
-- Sync your feature branch regularly:
+## Keeping branches updated
+
+Rebase short-lived branches on `origin/main`:
+
 ```bash
 git fetch origin
-git rebase origin/dev
-```
-- Resolve conflicts locally and force-push the feature branch if needed:
-```bash
+git rebase origin/main
 git push --force-with-lease
 ```
-(Avoid force-pushing `dev` or `main`.)
+
+Use `--force-with-lease` only for your short-lived branch. Never force-push
+`main`.
 
 ## Testing and documentation
 
-- Tests: `python -m pytest` (configured in `pyproject.toml`)
-- VS Code task: “Run unit tests” runs pytest with verbosity and sets `PYTHONPATH`
-- Docs: update `README.md` and `docs/*` for user-facing changes
+- Run `python -m pytest` using the configuration in `pyproject.toml`.
+- Run Ruff, mypy, coverage, package, and security gates documented in
+  `CONTRIBUTING.md`.
+- Update `README.md` and `docs/*` for user-visible changes.
 
-## Code review checklist (for PR authors)
+## Pull-request checklist
 
-- [ ] PR targets correct branch (`dev` or `main` for hotfix)
-- [ ] Clear title and description (what/why)
-- [ ] Unit/integration tests updated and passing
-- [ ] Docs updated (usage, flags, examples)
-- [ ] Small, reviewable commits (squash fixups before merge)
+- [ ] Base branch is `main`.
+- [ ] Title and description explain what changed and why.
+- [ ] Unit and integration tests are updated and passing.
+- [ ] Documentation is updated where needed.
+- [ ] Commits are focused, with fixups squashed where appropriate.
 
-## Handling conflicts
+## Legacy `dev` transition
 
-- Prefer rebase over merge in feature branches:
-```bash
-git fetch origin
-git rebase origin/dev
-```
-- Use `--force-with-lease` when updating the remote feature branch
-- If conflict is large, consider splitting the PR into smaller chunks
+`main` became the sole integration target and the remote `dev` branch was
+retired on 2026-08-22. Existing clones should switch to `main`, update it, and
+remove their local `dev` branch after preserving any unpushed work.
 
-## Do’s and don’ts
-
-- Do: keep branches short-lived; rebase early and often
-- Do: write meaningful commit messages; update tests and docs
-- Don’t: commit virtualenvs, secrets, large binaries
-- Don’t: force-push protected branches (`main`, `dev`)
-
-## Quick reference
-
-```bash
-# Start a feature
-git switch -c feature/<topic>
-
-# Run tests
-python -m pytest --cov=cognistore --cov-report=term-missing
-
-# Rebase on latest dev
-git fetch origin
-git rebase origin/dev
-
-# Push and open PR
-git push -u origin feature/<topic>
-
-# After approval: squash-merge or rebase-merge to dev
-
-# Release to main
-# (bump version), tag, push tags
-```
-
----
-
-For more contributor guidance or repo conventions, see also:
-- `README.md` (usage and CLI examples)
-- `docs/bug_tracker.md` (bug tracker)
-- `docs/roadmap.md` (roadmap)
+For more contributor guidance, see `CONTRIBUTING.md`, `README.md`,
+`docs/bug_tracker.md`, and `docs/roadmap.md`.
