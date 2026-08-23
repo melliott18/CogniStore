@@ -446,7 +446,11 @@ def load_schedule_config(
     path = Path(config_path)
     try:
         with path.open("r", encoding="utf-8") as stream:
-            loaded = yaml.load(stream, Loader=_UniqueKeyLoader)
+            loader = _UniqueKeyLoader(stream)
+            try:
+                loaded = loader.get_single_data()
+            finally:
+                loader.dispose()
     except yaml.YAMLError as exc:
         raise ValueError(f"invalid scheduler YAML in {path}: {exc}") from exc
     if loaded is None:
