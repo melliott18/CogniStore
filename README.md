@@ -270,6 +270,47 @@ python -m cognistore.cli --drivers drivers.yaml \
   --nats-url nats://127.0.0.1:4222 worker
 ```
 
+Recurring scans and policy passes are declared in a YAML `jobs` mapping keyed
+by stable schedule IDs:
+
+```yaml
+jobs:
+  scan-reports:
+    type: catalog.scan
+    enabled: true
+    interval_seconds: 300
+    payload:
+      tier: hot
+      bucket: demo-bucket
+      prefix: reports/
+  place-reports:
+    type: policy.run
+    enabled: true
+    interval_seconds: 900
+    payload:
+      bucket: demo-bucket
+      prefix: reports/
+      policy: simple
+      threshold: 1048576
+      allowed_tiers: [hot, warm]
+```
+
+Run the scheduler as a separate process, using the same catalog database as
+every worker that consumes its jobs:
+
+```bash
+cognistore --drivers drivers.yaml --catalog-db catalog.db scheduler --schedule-config schedules.yaml
+```
+
+This must be a persistent SQLite file; worker and scheduler commands reject
+`:memory:` because their control-plane state must be shared across connections.
+
+New and re-enabled schedules run immediately. Later runs use a fixed interval
+from reservation time, and missed intervals coalesce while the exact target
+scope already has an active occurrence. Reservations and pending publications
+survive scheduler restarts. Every occurrence receives a new job ID; retries of
+that occurrence retain it.
+
 Submit scans and policy passes with the commands above. Their output contains a
 stable job ID and correlation ID. A job may be delivered more than once, so
 handlers must use the job ID as an idempotency key; publish deduplication does

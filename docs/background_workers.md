@@ -52,6 +52,122 @@ Application retries are configured with `--max-attempts` (default 7),
 `--retry-jitter` (0.2, or 20%). The default retry window is long enough for a
 job delivered to another worker to outlive the default 30-second move lease.
 
+## Schedule recurring work
+
+The scheduler is a separate publisher process. Its YAML file has one required
+`jobs` mapping, whose keys are stable schedule IDs:
+
+```yaml
+jobs:
+  scan-reports:
+    type: catalog.scan
+    enabled: true
+    interval_seconds: 300
+    payload:
+      tier: hot
+      bucket: demo-bucket
+      prefix: reports/
+  place-reports:
+    type: policy.run
+    enabled: true
+    interval_seconds: 900
+    payload:
+      bucket: demo-bucket
+      prefix: reports/
+      policy: simple
+      threshold: 1048576
+      allowed_tiers: [hot, warm]
+```
+
+Each entry requires `type`, boolean `enabled`, a positive
+`interval_seconds`, and a `payload` mapping. Intervals must be representable at
+microsecond precision and cannot exceed 100 years. A `catalog.scan` payload requires
+`tier` and `bucket`; `prefix` is optional and defaults to the empty prefix. A
+`policy.run` payload requires `bucket`, `policy` (`simple`, `llm`, or
+`content`), a non-negative `threshold`, and a non-empty list of unique
+`allowed_tiers`.
+It also accepts `prefix`, `llm_threshold`, and the content-policy lists
+`hot_name_patterns`, `warm_name_patterns`, `cold_name_patterns`,
+`hot_mime_prefixes`, `warm_mime_prefixes`, and `cold_mime_prefixes`.
+
+Start it with the same NATS topology, drivers, and catalog database used by its
+workers:
+
+```bash
+cognistore --drivers drivers.yaml --catalog-db catalog.db scheduler --schedule-config schedules.yaml
+```
+
+The shared persistent catalog database is mandatory: it holds schedule timing,
+the full pending job envelope, active-scope state, and worker execution leases.
+The SQLite `:memory:` database is rejected for schedulers and workers because
+separate connections and processes cannot share it. A new schedule is due
+immediately. Setting `enabled: false` prevents new
+reservations; after changing it back to `true` and restarting the scheduler,
+the schedule is immediately due again. Entries removed from the file are also
+disabled in durable state.
+
+Later due times use a fixed interval measured from reservation, not from job
+completion. Only one occurrence may be active for an exact scope. If downtime
+or a long-running occurrence spans several intervals, the scheduler reserves
+one overdue occurrence when the scope is available and calculates its next due
+time from that new reservation; it does not publish a catch-up burst. An
+interval change stays anchored to the last reservation, so the new duration
+takes effect when the scheduler reloads its configuration. Scope identity is
+exact rather than hierarchical:
+
+- `catalog.scan`: type, tier, bucket, and prefix
+- `policy.run`: type, bucket, and prefix
+
+Thus `reports/` and `reports/2026/` are distinct scopes. Policy tuning fields
+do not change scope identity, and two configured entries for the same scope
+are rejected. This single-flight lock applies to scheduler-created occurrences,
+identified by their durable schedule metadata. A manually submitted scan or
+policy job is an independent operator action and does not join that lock, so
+operators must not target the same scope manually while its schedule is active.
+
+Before publishing, the scheduler durably stores the complete envelope and a
+fresh UUID job ID. A crash or uncertain publish leaves a pending reservation;
+on restart, a scheduler reclaims it and publishes the same envelope with the
+same message and job ID. A different occurrence always gets a different job
+ID. Publication retries and worker delivery retries reuse an ID only for that
+one occurrence. A permanently invalid or oversized envelope is recorded as a
+terminal publication failure and releases its scope; a failed publication is
+isolated so the scheduler still attempts other due scopes in that cycle.
+
+Workers coordinate scheduled deliveries through a lease controlled by
+`worker --schedule-lock-ttl` (60 seconds by default). The worker renews that
+lease every one-third of the TTL. A second delivery cannot execute while the
+run has a durable owner: TTL expiry is a liveness signal, not proof that a
+thread-backed operation stopped, and never authorizes automatic takeover of a
+`running` occurrence. A hard worker crash after that transition may therefore
+require operator/database recovery in this version; automatic takeover is not
+available because the new process cannot prove that old side effects stopped.
+A retryable failure explicitly clears the delivery owner but keeps the logical
+scope active, so delayed NAK and redelivery cannot overlap a later occurrence.
+Success marks the occurrence complete and releases its scope before ACK; an
+ACK-uncertain duplicate observes that terminal state and skips the handler.
+Terminal or exhausted work releases the scope only after its dead-letter record
+is durably published, before the source message is ACKed.
+
+If delivery or lease renewal fails, the worker fails closed: it cancels the
+handler and leaves the source message unsettled. Thread-backed storage work is
+allowed to reach its safe side-effect boundary while its execution lease keeps
+renewing. Once that boundary is reached, the worker attempts an owner-fenced
+transition back to retryable state; if SQLite remains unavailable, the run
+stays quarantined as `running` instead of risking overlap. Missing or mismatched
+scheduler state likewise fails the worker closed instead of dead-lettering and
+permanently wedging the real scope. A dead-letter redrive reuses the occurrence
+ID and advances a durable redrive generation; the same generation cannot
+execute twice, and an old occurrence cannot be redriven after a newer
+occurrence for that scope has been created.
+
+Additional scheduled job families, such as future repair operations, can be
+added without branching in the scheduler: define a `ScheduledJobDefinition`
+with payload normalization and scope construction, register it with
+`ScheduleRegistry.register()`, and pass that registry to
+`load_schedule_config()`. The corresponding worker handler remains a separate
+required integration.
+
 ## Bounded concurrency, rates, and backpressure
 
 Each worker owns at most `--max-in-flight` deliveries (default 8). The shared

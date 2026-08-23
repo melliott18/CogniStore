@@ -4,11 +4,13 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import os
 import signal
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from functools import partial
 from pathlib import Path
 from typing import Literal
@@ -45,6 +47,12 @@ from cognistore.jobs.nats_queue import (
 	NatsJetStreamQueue,
 )
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
+from cognistore.jobs.scheduler import (
+	PeriodicScheduler,
+	ScheduledRunCoordinator,
+	SQLiteScheduleStore,
+	load_schedule_config,
+)
 from cognistore.utils.device_info import (
 	discover_device_for_tier,
 	load_hardware_json,
@@ -229,6 +237,12 @@ async def _serve_worker(
 		else None
 	)
 	queue = NatsJetStreamQueue(_queue_config(args, client_name="cognistore-worker"))
+	schedule_db = getattr(args, "catalog_db", None) or getattr(
+		catalog, "db_path", ":memory:"
+	)
+	if not isinstance(schedule_db, (str, Path)):
+		schedule_db = ":memory:"
+	schedule_store = SQLiteScheduleStore(schedule_db)
 	worker = AsyncWorker(
 		queue,
 		build_handlers(drivers, catalog, throughput=throughput),
@@ -245,6 +259,9 @@ async def _serve_worker(
 			max_in_flight=getattr(args, "max_in_flight", 1),
 		),
 		throughput=throughput,
+		coordinator=ScheduledRunCoordinator(
+			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
+		),
 	)
 	health = HealthServer(worker, host=args.health_host, port=args.health_port)
 	loop = asyncio.get_running_loop()
@@ -329,6 +346,54 @@ async def _serve_worker(
 		if worker.state not in (WorkerState.STOPPED, WorkerState.FAILED):
 			await worker.shutdown()
 		await health.close()
+		schedule_store.close()
+
+
+async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
+	store = SQLiteScheduleStore(args.catalog_db)
+	queue = NatsJetStreamQueue(
+		_queue_config(args, client_name="cognistore-scheduler"), consume=False
+	)
+	scheduler = PeriodicScheduler(queue, store, schedules)
+	stop_requested = asyncio.Event()
+	loop = asyncio.get_running_loop()
+	installed_signals: list[signal.Signals] = []
+
+	try:
+		await scheduler.start()
+		for signum in (signal.SIGINT, signal.SIGTERM):
+			try:
+				loop.add_signal_handler(signum, stop_requested.set)
+				installed_signals.append(signum)
+			except (NotImplementedError, RuntimeError):
+				pass
+		print(
+			f"scheduler ready schedules={len(schedules)} stream={args.job_stream}",
+			flush=True,
+		)
+		if args.once:
+			await scheduler.run_due()
+			return 0
+
+		while not stop_requested.is_set():
+			try:
+				await scheduler.run_due()
+			except Exception:
+				LOGGER.exception(
+					"scheduler publication cycle completed with one or more errors"
+				)
+			try:
+				await asyncio.wait_for(
+					stop_requested.wait(), timeout=args.poll_interval
+				)
+			except asyncio.TimeoutError:
+				pass
+		return 0
+	finally:
+		for signum in installed_signals:
+			loop.remove_signal_handler(signum)
+		await scheduler.close()
+		store.close()
 
 
 def _render_actions(actions: list[ActionResult], *, dry_run: bool, json_output: bool) -> None:
@@ -509,7 +574,29 @@ def main(argv=None):
 	p_worker.add_argument("--retry-base-delay", type=float, default=1.0)
 	p_worker.add_argument("--retry-max-delay", type=float, default=30.0)
 	p_worker.add_argument("--retry-jitter", type=float, default=0.2)
+	p_worker.add_argument(
+		"--schedule-lock-ttl",
+		type=float,
+		default=60.0,
+		help="Scheduled execution lease renewal and failure-detection window in seconds",
+	)
 	p_worker.add_argument("--once", action="store_true", help="Stop after settling one delivery (primarily for tests)")
+
+	p_scheduler = sub.add_parser(
+		"scheduler", help="Enqueue configured periodic control-plane jobs"
+	)
+	p_scheduler.add_argument(
+		"--schedule-config", required=True, help="Path to periodic jobs YAML"
+	)
+	p_scheduler.add_argument(
+		"--poll-interval",
+		type=float,
+		default=1.0,
+		help="Seconds between durable due-job checks",
+	)
+	p_scheduler.add_argument(
+		"--once", action="store_true", help="Publish one due cycle and exit"
+	)
 
 	p_redrive = sub.add_parser(
 		"dead-letter-redrive",
@@ -521,7 +608,14 @@ def main(argv=None):
 
 	args = parser.parse_args(argv)
 	queue_command = (
-		args.cmd in {"worker", "dead-letter-redrive", "job-redrive", "dlq-redrive"}
+		args.cmd
+		in {
+			"worker",
+			"scheduler",
+			"dead-letter-redrive",
+			"job-redrive",
+			"dlq-redrive",
+		}
 		or (
 			args.cmd in {"catalog-scan", "policy-run"}
 			and not bool(getattr(args, "dry_run", False))
@@ -567,11 +661,31 @@ def main(argv=None):
 		parser.error("--drivers is required for tier operations")
 	if args.cmd == "worker" and not args.catalog_db:
 		parser.error("--catalog-db is required for worker")
+	if args.cmd == "scheduler" and not args.catalog_db:
+		parser.error("--catalog-db is required for scheduler state")
+	if args.cmd in {"worker", "scheduler"} and args.catalog_db == ":memory:":
+		parser.error(
+			"--catalog-db must be a persistent SQLite file for worker and scheduler"
+		)
 	if args.cmd == "worker" and args.heartbeat_interval >= args.ack_wait:
 		parser.error("--heartbeat-interval must be less than --ack-wait")
 	if args.cmd == "worker" and args.max_ack_pending < args.max_in_flight:
 		parser.error("--max-ack-pending must be at least --max-in-flight")
 	if args.cmd == "worker":
+		if not math.isfinite(args.schedule_lock_ttl) or args.schedule_lock_ttl <= 0:
+			parser.error("--schedule-lock-ttl must be positive and finite")
+		try:
+			schedule_lock_duration = timedelta(seconds=args.schedule_lock_ttl)
+		except OverflowError:
+			parser.error("--schedule-lock-ttl must not exceed 100 years")
+		if schedule_lock_duration <= timedelta(0):
+			parser.error("--schedule-lock-ttl must be at least one microsecond")
+		if args.schedule_lock_ttl < 0.000001:
+			parser.error("--schedule-lock-ttl must be at least one microsecond")
+		if schedule_lock_duration.total_seconds() != args.schedule_lock_ttl:
+			parser.error("--schedule-lock-ttl must use whole-microsecond precision")
+		if schedule_lock_duration > timedelta(days=36_525):
+			parser.error("--schedule-lock-ttl must not exceed 100 years")
 		try:
 			WorkerConfig(
 				fetch_timeout=args.fetch_timeout,
@@ -591,6 +705,16 @@ def main(argv=None):
 			args._throughput_config = _throughput_config(args, drivers)
 		except (OSError, ValueError) as exc:
 			parser.error(f"invalid --tier-limits configuration: {exc}")
+	if args.cmd == "scheduler":
+		if not math.isfinite(args.poll_interval) or args.poll_interval <= 0:
+			parser.error("--poll-interval must be positive and finite")
+		assert drivers is not None
+		try:
+			args._schedules = load_schedule_config(
+				args.schedule_config, known_tiers=drivers
+			)
+		except (OSError, ValueError) as exc:
+			parser.error(f"invalid --schedule-config: {exc}")
 	if background_submission and args.catalog_db:
 		parser.error(
 			"--catalog-db configures inline work only; background jobs use the "
@@ -617,7 +741,7 @@ def main(argv=None):
 			parser.error(str(exc))
 
 	catalog: Catalog | None
-	if background_submission:
+	if background_submission or args.cmd == "scheduler":
 		catalog = None
 	elif args.catalog_db and args.cmd == "policy-run" and dry_run:
 		if not Path(args.catalog_db).expanduser().exists():
@@ -627,6 +751,9 @@ def main(argv=None):
 		catalog = SQLiteCatalog(args.catalog_db)
 	else:
 		catalog = Catalog()
+
+	if args.cmd == "scheduler":
+		return asyncio.run(_serve_scheduler(args, args._schedules))
 
 	if args.cmd == "worker":
 		assert drivers is not None

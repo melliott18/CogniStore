@@ -347,6 +347,138 @@ def test_queue_configuration_and_plain_enqueue_output(
     assert capsys.readouterr().out.startswith("queued test.job job_id=")
 
 
+def test_scheduler_once_loads_validated_schedule_without_connecting_to_nats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schedule_path = tmp_path / "schedules.yaml"
+    schedule_path.write_text(
+        """
+jobs:
+  scan-reports:
+    type: catalog.scan
+    enabled: true
+    interval_seconds: 60
+    payload:
+      tier: hot
+      bucket: reports
+      prefix: incoming/
+""".lstrip()
+    )
+    seen: dict[str, object] = {}
+
+    def load_drivers(path: str):
+        seen["drivers_path"] = path
+        return {"hot": object()}
+
+    async def serve_scheduler(args, schedules):
+        seen["args"] = args
+        seen["schedules"] = schedules
+        return 0
+
+    def unexpected_queue(*_args, **_kwargs):  # pragma: no cover - safety assertion
+        raise AssertionError("CLI validation must not connect to NATS")
+
+    monkeypatch.setattr(cognistore_cli, "load_drivers", load_drivers)
+    monkeypatch.setattr(cognistore_cli, "_serve_scheduler", serve_scheduler)
+    monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", unexpected_queue)
+
+    catalog_path = tmp_path / "catalog.db"
+    assert (
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "drivers.yaml",
+                "--catalog-db",
+                str(catalog_path),
+                "scheduler",
+                "--schedule-config",
+                str(schedule_path),
+                "--once",
+            ]
+        )
+        == 0
+    )
+
+    assert seen["drivers_path"] == "drivers.yaml"
+    args = seen["args"]
+    assert isinstance(args, argparse.Namespace)
+    assert args.once is True
+    assert args.schedule_config == str(schedule_path)
+    assert args.catalog_db == str(catalog_path)
+    schedules = seen["schedules"]
+    assert isinstance(schedules, tuple)
+    assert len(schedules) == 1
+    schedule = schedules[0]
+    assert schedule.schedule_id == "scan-reports"
+    assert schedule.job_type == "catalog.scan"
+    assert schedule.interval_seconds == 60.0
+    assert schedule.enabled is True
+    assert dict(schedule.payload) == {
+        "tier": "hot",
+        "bucket": "reports",
+        "prefix": "incoming/",
+    }
+    assert len(schedule.scope) == 64
+    assert not catalog_path.exists()
+
+
+@pytest.mark.parametrize(
+    "command",
+    (
+        ["worker"],
+        ["scheduler", "--schedule-config", "unused-schedules.yaml"],
+    ),
+)
+def test_worker_and_scheduler_reject_in_memory_catalog_state(
+    command: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": object()})
+
+    with pytest.raises(SystemExit) as raised:
+        cognistore_cli.main(
+            ["--drivers", "drivers.yaml", "--catalog-db", ":memory:", *command]
+        )
+
+    assert raised.value.code == 2
+    assert (
+        "--catalog-db must be a persistent SQLite file for worker and scheduler"
+        in capsys.readouterr().err
+    )
+
+
+@pytest.mark.parametrize(
+    ("ttl", "message"),
+    (("0.0000006", "at least one microsecond"), ("0.0000011", "whole-microsecond")),
+)
+def test_worker_rejects_unrepresentable_schedule_lock_ttl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    ttl: str,
+    message: str,
+) -> None:
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": object()})
+
+    with pytest.raises(SystemExit) as raised:
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "drivers.yaml",
+                "--catalog-db",
+                str(tmp_path / "catalog.db"),
+                "worker",
+                "--schedule-lock-ttl",
+                ttl,
+            ]
+        )
+
+    assert raised.value.code == 2
+    assert message in capsys.readouterr().err
+
+
 def test_dead_letter_redrive_does_not_require_storage_configuration(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -519,9 +651,12 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             return asyncio.wrap_future(executor.submit(function))
 
     class FakeWorker:
-        def __init__(self, queue, handlers, *, config, throughput=None) -> None:
+        def __init__(
+            self, queue, handlers, *, config, throughput=None, coordinator=None
+        ) -> None:
             self.state = WorkerState.STARTING
             self.throughput = throughput
+            assert coordinator is not None
 
         async def start(self) -> None:
             self.state = WorkerState.RUNNING

@@ -9,7 +9,7 @@ import traceback as traceback_module
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Awaitable, Callable, Mapping
+from typing import Any, Awaitable, Callable, Mapping, Protocol
 
 from .models import (
     ATTEMPT_OFFSET_METADATA,
@@ -28,6 +28,33 @@ from .retry import RandomSource, RetryPolicy, classify_job_error
 
 LOGGER = logging.getLogger(__name__)
 JobHandler = Callable[[JobEnvelope, JobContext], Awaitable[None]]
+
+
+class JobExecution(Protocol):
+    """Optional lifecycle owned by one worker attempt."""
+
+    execute: bool
+    heartbeat_interval: float
+
+    async def renew(self) -> None: ...
+
+    async def retry(self) -> None: ...
+
+    async def succeed(self) -> None: ...
+
+    async def dead_letter(self, disposition: DeadLetterDisposition) -> None: ...
+
+
+class JobCoordinator(Protocol):
+    """Extension point for durable per-job execution coordination."""
+
+    async def begin(self, job: JobEnvelope, context: JobContext) -> JobExecution | None: ...
+
+
+class JobHeartbeatError(RuntimeError):
+    """Fail a worker closed when delivery or execution lease renewal fails."""
+
+    fail_worker = True
 
 
 class WorkerState(str, Enum):
@@ -168,6 +195,7 @@ class AsyncWorker:
         clock: Callable[[], datetime] | None = None,
         monotonic: Callable[[], float] | None = None,
         throughput: Any | None = None,
+        coordinator: JobCoordinator | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("at least one job handler is required")
@@ -179,6 +207,7 @@ class AsyncWorker:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._monotonic = monotonic or time.monotonic
         self._throughput = throughput
+        self._coordinator = coordinator
         self.state = WorkerState.STOPPED
         self.accepting_claims = False
         self.last_error: str | None = None
@@ -368,13 +397,9 @@ class AsyncWorker:
 
     async def _process(self, delivery: JobDelivery) -> None:
         job: JobEnvelope | None = None
+        execution: JobExecution | None = None
         heartbeat_stop = asyncio.Event()
         heartbeat_task: asyncio.Task[None] | None = None
-        if self.config.heartbeat_interval > 0:
-            heartbeat_task = asyncio.create_task(
-                self._heartbeat(delivery, heartbeat_stop),
-                name=f"cognistore-heartbeat-{delivery.stream_sequence}",
-            )
 
         try:
             job = delivery.job
@@ -389,26 +414,57 @@ class AsyncWorker:
                 cumulative_attempt=attempt_offset + delivery.attempt,
                 redrive_count=redrive_count,
             )
-            handler = self.handlers.get(job.job_type)
-            if handler is None:
-                raise InvalidJobError(
-                    f"no handler is registered for job type {job.job_type!r}"
+            if self._coordinator is not None:
+                execution = await self._coordinator.begin(job, context)
+            if execution is None or execution.execute:
+                heartbeat_interval = self._execution_heartbeat_interval(execution)
+                if heartbeat_interval is not None:
+                    heartbeat_task = asyncio.create_task(
+                        self._heartbeat(
+                            delivery,
+                            heartbeat_stop,
+                            execution,
+                            heartbeat_interval,
+                        ),
+                        name=f"cognistore-heartbeat-{delivery.stream_sequence}",
+                    )
+                handler = self.handlers.get(job.job_type)
+                if handler is None:
+                    raise InvalidJobError(
+                        f"no handler is registered for job type {job.job_type!r}"
+                    )
+                result = handler(job, context)
+                if not inspect.isawaitable(result):
+                    raise TypeError(f"handler for {job.job_type!r} must be asynchronous")
+                await self._await_handler(result, heartbeat_task, execution)
+                await self._stop_heartbeat(
+                    heartbeat_stop, heartbeat_task, propagate=True
                 )
-            result = handler(job, context)
-            if not inspect.isawaitable(result):
-                raise TypeError(f"handler for {job.job_type!r} must be asynchronous")
-            await result
+                heartbeat_task = None
+                if execution is not None:
+                    # Persist logical completion before the source ACK. If the ACK
+                    # outcome is unknown, a redelivery observes the terminal run and
+                    # skips already-completed side effects.
+                    await execution.succeed()
         except asyncio.CancelledError:
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
             try:
+                if execution is not None and execution.execute:
+                    await asyncio.shield(execution.retry())
                 await asyncio.shield(delivery.nack())
                 self._nacked += 1
             except BaseException as exc:
                 self._set_failure(exc)
             raise
         except Exception as exc:
-            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
-            await self._handle_job_failure(delivery, job, exc)
+            await self._handle_job_failure(
+                delivery,
+                job,
+                exc,
+                execution,
+                heartbeat_stop,
+                heartbeat_task,
+            )
             return
 
         await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
@@ -434,6 +490,9 @@ class AsyncWorker:
         delivery: JobDelivery,
         job: JobEnvelope | None,
         exc: Exception,
+        execution: JobExecution | None,
+        heartbeat_stop: asyncio.Event,
+        heartbeat_task: asyncio.Task[None] | None,
     ) -> None:
         classification = classify_job_error(exc)
         job_label = (
@@ -449,6 +508,56 @@ class AsyncWorker:
             "category": classification.category.value,
         }
 
+        if getattr(exc, "fail_worker", False):
+            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+            if execution is not None and execution.execute:
+                try:
+                    # _await_handler does not surface a heartbeat failure until
+                    # cancellation has drained the handler to its safe side-effect
+                    # boundary. Clear the durable owner now so fail-closed running
+                    # state does not quarantine an occurrence that is safe to retry.
+                    await execution.retry()
+                except BaseException as release_error:
+                    LOGGER.critical(
+                        "job coordination failed and its durable owner could not be "
+                        "released; leaving delivery unsettled",
+                        extra=log_context,
+                        exc_info=(
+                            type(release_error),
+                            release_error,
+                            release_error.__traceback__,
+                        ),
+                    )
+                    self._set_failure(release_error)
+                    return
+            LOGGER.critical(
+                "job coordination state is unavailable; leaving delivery unsettled",
+                extra=log_context,
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+            self._set_failure(exc)
+            return
+
+        if getattr(exc, "defer_without_exhaustion", False):
+            delay = self._retry_policy.delay_for(
+                delivery.attempt, random_value=self._random_source()
+            )
+            LOGGER.warning(
+                "job coordination is busy; deferring delivery in %.3f seconds",
+                delay,
+                extra={**log_context, "retry_delay": delay},
+            )
+            try:
+                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+                if execution is not None and execution.execute:
+                    await execution.retry()
+                await delivery.nack(delay=delay)
+                self._nacked += 1
+                self._retried += 1
+            except BaseException as settlement_error:
+                self._set_failure(settlement_error)
+            return
+
         if getattr(exc, "throughput_saturated", False):
             # Local admission pressure means the job has not started. Defer it
             # without ever converting healthy backlog into an exhausted/DLQ
@@ -463,6 +572,9 @@ class AsyncWorker:
                 extra={**log_context, "retry_delay": delay},
             )
             try:
+                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+                if execution is not None and execution.execute:
+                    await execution.retry()
                 await delivery.nack(delay=delay)
                 self._nacked += 1
                 self._retried += 1
@@ -483,6 +595,9 @@ class AsyncWorker:
                 exc_info=(type(exc), exc, exc.__traceback__),
             )
             try:
+                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+                if execution is not None and execution.execute:
+                    await execution.retry()
                 await delivery.nack(delay=delay)
                 self._nacked += 1
                 self._retried += 1
@@ -511,9 +626,32 @@ class AsyncWorker:
                 classification_reason=classification.reason,
             )
             receipt = await self.queue.publish_dead_letter(record)
+            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+            if execution is not None and execution.execute:
+                await execution.dead_letter(disposition)
         except BaseException as dead_letter_error:
+            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
             # The original remains unsettled unless durable DLQ publication was
-            # confirmed. Another worker can therefore retry the transfer.
+            # confirmed. The handler is already at a safe side-effect boundary,
+            # so release its attempt owner before another delivery retries the
+            # transfer. If the fenced transition is unavailable, retain the
+            # running quarantine rather than allowing an overlapping takeover.
+            if execution is not None and execution.execute:
+                try:
+                    await execution.retry()
+                except BaseException as release_error:
+                    LOGGER.critical(
+                        "dead-letter handling failed and its durable owner could "
+                        "not be released; leaving delivery unsettled",
+                        extra=log_context,
+                        exc_info=(
+                            type(release_error),
+                            release_error,
+                            release_error.__traceback__,
+                        ),
+                    )
+                    self._set_failure(release_error)
+                    return
             self._set_failure(dead_letter_error)
             return
 
@@ -599,29 +737,139 @@ class AsyncWorker:
             job=diagnostic_job,
         )
 
+    def _execution_heartbeat_interval(
+        self, execution: JobExecution | None
+    ) -> float | None:
+        intervals: list[float] = []
+        if self.config.heartbeat_interval > 0:
+            intervals.append(self.config.heartbeat_interval)
+        if (
+            execution is not None
+            and execution.execute
+            and execution.heartbeat_interval > 0
+        ):
+            intervals.append(execution.heartbeat_interval)
+        return min(intervals) if intervals else None
+
+    @staticmethod
+    async def _await_handler(
+        awaitable: Awaitable[None],
+        heartbeat_task: asyncio.Task[None] | None,
+        execution: JobExecution | None,
+    ) -> None:
+        if heartbeat_task is None:
+            await awaitable
+            return
+
+        handler_task = asyncio.ensure_future(awaitable)
+        try:
+            done, _ = await asyncio.wait(
+                {handler_task, heartbeat_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if heartbeat_task in done:
+                if heartbeat_task.cancelled():
+                    heartbeat_error: BaseException = asyncio.CancelledError()
+                else:
+                    heartbeat_error = heartbeat_task.exception() or RuntimeError(
+                        "job heartbeat stopped before the handler completed"
+                    )
+                if not handler_task.done():
+                    handler_task.cancel()
+                    await AsyncWorker._drain_cancelled_handler(
+                        handler_task, execution
+                    )
+                raise heartbeat_error
+            await handler_task
+        except BaseException:
+            if not handler_task.done():
+                handler_task.cancel()
+                # Renew the execution lease directly throughout the safe drain.
+                # The combined delivery heartbeat may fail after this branch is
+                # entered, so observing its state only once would be unsafe.
+                await AsyncWorker._drain_cancelled_handler(
+                    handler_task, execution
+                )
+            raise
+
+    @staticmethod
+    async def _drain_cancelled_handler(
+        handler_task: asyncio.Future[None], execution: JobExecution | None
+    ) -> None:
+        # Give ordinary async handlers one cycle to observe cancellation. A
+        # thread-backed handler deliberately suppresses cancellation until its
+        # side effects reach a safe boundary, so keep renewing its scheduled
+        # execution lease during that drain.
+        try:
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            pass
+        while not handler_task.done():
+            if execution is not None and execution.execute:
+                try:
+                    await execution.renew()
+                except BaseException:
+                    LOGGER.exception(
+                        "scheduled execution lease renewal failed while draining handler"
+                    )
+                interval = max(0.001, execution.heartbeat_interval)
+            else:
+                interval = 0.1
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(handler_task), timeout=interval
+                )
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                # Shutdown may cancel the owning _process task again while a
+                # thread-backed handler is draining. Do not let that second
+                # cancellation stop lease renewal before the safe boundary.
+                if handler_task.done():
+                    break
+                continue
+            except BaseException:
+                break
+        await asyncio.gather(handler_task, return_exceptions=True)
+
     async def _heartbeat(
-        self, delivery: JobDelivery, stop_event: asyncio.Event
+        self,
+        delivery: JobDelivery,
+        stop_event: asyncio.Event,
+        execution: JobExecution | None,
+        interval: float,
     ) -> None:
         while not stop_event.is_set():
             try:
-                await asyncio.wait_for(
-                    stop_event.wait(), timeout=self.config.heartbeat_interval
-                )
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
             except asyncio.TimeoutError:
                 try:
-                    await delivery.in_progress()
+                    if self.config.heartbeat_interval > 0:
+                        await delivery.in_progress()
+                    if execution is not None and execution.execute:
+                        await execution.renew()
+                except asyncio.CancelledError:
+                    raise
                 except BaseException as exc:
-                    self._set_failure(exc)
-                    return
+                    heartbeat_error = JobHeartbeatError(
+                        f"job heartbeat failed: {type(exc).__name__}: {exc}"
+                    )
+                    self._set_failure(heartbeat_error)
+                    raise heartbeat_error from exc
 
     @staticmethod
     async def _stop_heartbeat(
-        stop_event: asyncio.Event, task: asyncio.Task[None] | None
+        stop_event: asyncio.Event,
+        task: asyncio.Task[None] | None,
+        *,
+        propagate: bool = False,
     ) -> None:
         if task is None:
             return
         stop_event.set()
-        await asyncio.gather(task, return_exceptions=True)
+        results = await asyncio.gather(task, return_exceptions=True)
+        if propagate and results and isinstance(results[0], BaseException):
+            raise results[0]
 
     def _set_failure(self, exc: BaseException) -> None:
         self.last_error = f"{type(exc).__name__}: {exc}"
