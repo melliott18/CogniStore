@@ -25,7 +25,24 @@ from .retry import (
     TerminalJobError,
     classify_job_error,
 )
-from .runtime import AsyncWorker, WorkerConfig, WorkerSnapshot, WorkerState
+from .runtime import (
+    AsyncWorker,
+    JobCoordinator,
+    JobExecution,
+    WorkerConfig,
+    WorkerSnapshot,
+    WorkerState,
+)
+from .scheduler import (
+    PeriodicScheduler,
+    ScheduledJob,
+    ScheduledJobDefinition,
+    ScheduledRunCoordinator,
+    ScheduleRegistry,
+    SQLiteScheduleStore,
+    default_schedule_registry,
+    load_schedule_config,
+)
 
 __all__ = [
     "AsyncWorker",
@@ -39,19 +56,29 @@ __all__ = [
     "ErrorClassification",
     "FailureCategory",
     "JobContext",
+    "JobCoordinator",
     "JobEnvelope",
     "JobEnvelopeError",
+    "JobExecution",
     "InvalidJobError",
     "NatsJetStreamConfig",
     "NatsJetStreamQueue",
     "QueueHealth",
     "QueueSaturatedError",
     "RedriveReceipt",
+    "PeriodicScheduler",
     "RetryPolicy",
     "RetryableJobError",
+    "ScheduledJob",
+    "ScheduledJobDefinition",
+    "ScheduledRunCoordinator",
+    "ScheduleRegistry",
+    "SQLiteScheduleStore",
     "TerminalJobError",
     "WorkerConfig",
     "WorkerSnapshot",
     "WorkerState",
     "classify_job_error",
+    "default_schedule_registry",
+    "load_schedule_config",
 ]

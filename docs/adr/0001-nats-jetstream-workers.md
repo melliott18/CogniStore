@@ -5,6 +5,7 @@
 - Ticket: [#18](https://github.com/melliott18/CogniStore/issues/18)
 - Amended: 2026-08-17 by [#24](https://github.com/melliott18/CogniStore/issues/24)
 - Amended: 2026-08-18 by [#25](https://github.com/melliott18/CogniStore/issues/25)
+- Amended: 2026-08-23 by [#19](https://github.com/melliott18/CogniStore/issues/19)
 
 ## Context
 
@@ -73,6 +74,21 @@ Job envelopes are versioned JSON and carry a stable UUID `job_id`, a
 and correlation value are also NATS headers. `Nats-Msg-Id` reduces duplicate
 publishes inside JetStream's finite deduplication window, but does not change
 the consumer delivery guarantee.
+
+Periodic scans and policy passes are produced by a separate scheduler process.
+The scheduler and workers share SQLite control-plane state in the worker's
+catalog database. A due occurrence is transactionally reserved with its exact
+envelope before publication; an uncertain publication is retried with the same
+occurrence UUID, while every later occurrence receives a new UUID. Durable
+scope state coalesces missed intervals and prevents a later occurrence from
+starting while an earlier one is queued or retrying. Worker attempts acquire an
+owner-fenced scope lease and renew its liveness timestamp while handling the
+delivery. Expiry alone never transfers a durable `running` owner, because it
+cannot prove that thread-backed side effects stopped; retry, success, or
+confirmed dead-letter publication performs the explicit owner-fenced state
+transition. The scheduler registry owns payload validation and scope derivation
+so later repair job types can extend scheduling without changing its timing
+engine.
 
 Malformed envelopes and unregistered job types are terminal and move to the
 DLQ with their exact raw bytes, headers, parse/validation traceback, source

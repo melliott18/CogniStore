@@ -5,6 +5,7 @@ import json
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Mapping
 
 from cognistore.core.throughput import ThroughputSaturatedError
@@ -12,13 +13,28 @@ from cognistore.jobs.handlers import _run_blocking_safely
 from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
     BusState,
+    DeadLetterDisposition,
     DeadLetterReceipt,
     DeadLetterRecord,
+    JobContext,
     JobEnvelope,
     JobEnvelopeError,
     QueueHealth,
 )
-from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
+from cognistore.jobs.runtime import (
+    AsyncWorker,
+    ShutdownReport,
+    WorkerConfig,
+    WorkerState,
+)
+from cognistore.jobs.scheduler import (
+    SCHEDULE_ID_METADATA,
+    SCHEDULE_SCOPE_METADATA,
+    SCHEDULED_FOR_METADATA,
+    ScheduledRunCoordinator,
+    ScheduledRunLockedError,
+    SQLiteScheduleStore,
+)
 
 
 async def _eventually(predicate: Callable[[], bool], timeout: float = 1.0) -> None:
@@ -48,17 +64,22 @@ class FakeDelivery:
     raw_data: bytes | None = None
     headers: Mapping[str, str] = field(default_factory=dict)
     nack_delays: list[float | None] = field(default_factory=list)
+    events: list[str] | None = None
 
     def __post_init__(self) -> None:
         if self.raw_data is None:
             self.raw_data = self.job.to_bytes()
 
     async def ack(self) -> None:
+        if self.events is not None:
+            self.events.append("ack")
         self.ack_count += 1
         if self.ack_error:
             raise self.ack_error
 
     async def nack(self, delay: float | None = None) -> None:
+        if self.events is not None:
+            self.events.append(f"nack:{delay}")
         self.nack_count += 1
         self.nack_delays.append(delay)
         if self.nack_error:
@@ -99,8 +120,9 @@ class FakeMalformedDelivery:
 
 
 class FakeQueue:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.deliveries: asyncio.Queue[FakeDelivery] = asyncio.Queue()
+        self.events = events
         self.connected = False
         self.ready = True
         self.closed = 0
@@ -132,6 +154,8 @@ class FakeQueue:
     async def publish_dead_letter(self, record: DeadLetterRecord) -> DeadLetterReceipt:
         if self.dead_letter_error is not None:
             raise self.dead_letter_error
+        if self.events is not None:
+            self.events.append("publish_dead_letter")
         self.dead_letters.append(record)
         return DeadLetterReceipt(
             dead_letter_id=record.dead_letter_id,
@@ -148,6 +172,49 @@ class FakeQueue:
     async def close(self, *, graceful: bool = True) -> None:
         self.closed += 1
         self.connected = False
+
+
+class FakeExecution:
+    def __init__(
+        self,
+        events: list[str],
+        *,
+        execute: bool = True,
+        heartbeat_interval: float = 0.0,
+        renew_error: Exception | None = None,
+    ) -> None:
+        self.events = events
+        self.execute = execute
+        self.heartbeat_interval = heartbeat_interval
+        self.renew_error = renew_error
+
+    async def renew(self) -> None:
+        self.events.append("renew")
+        if self.renew_error is not None:
+            error = self.renew_error
+            self.renew_error = None
+            raise error
+
+    async def retry(self) -> None:
+        self.events.append("retry")
+
+    async def succeed(self) -> None:
+        self.events.append("succeed")
+
+    async def dead_letter(self, disposition: DeadLetterDisposition) -> None:
+        self.events.append(f"dead_letter:{disposition.value}")
+
+
+class FakeCoordinator:
+    def __init__(self, execution: FakeExecution, events: list[str]) -> None:
+        self.execution = execution
+        self.events = events
+        self.begin_calls: list[tuple[JobEnvelope, int]] = []
+
+    async def begin(self, job: JobEnvelope, context: JobContext) -> FakeExecution:
+        self.events.append("begin")
+        self.begin_calls.append((job, context.attempt))
+        return self.execution
 
 
 def _worker_config(**overrides) -> WorkerConfig:
@@ -400,6 +467,252 @@ def test_success_is_acked_only_after_handler_returns() -> None:
     asyncio.run(scenario())
 
 
+async def _run_coordinator_case(
+    *,
+    execute: bool = True,
+    error: Exception | None = None,
+    attempt: int = 1,
+) -> tuple[list[str], JobEnvelope, FakeDelivery, FakeCoordinator, ShutdownReport]:
+    events: list[str] = []
+    queue = FakeQueue(events)
+    job = JobEnvelope.create("test.coordinated", {})
+    delivery = FakeDelivery(job, attempt=attempt, events=events)
+    coordinator = FakeCoordinator(FakeExecution(events, execute=execute), events)
+
+    async def handler(delivered_job, context) -> None:
+        assert delivered_job == job
+        events.append("handler")
+        if not execute:
+            raise AssertionError("settled scheduled run must skip its handler")
+        if error is not None:
+            raise error
+
+    await queue.deliveries.put(delivery)
+    worker = AsyncWorker(
+        queue,
+        {job.job_type: handler},
+        config=_worker_config(stop_after_jobs=1),
+        coordinator=coordinator,
+    )
+    await worker.start()
+    await worker.wait_for_shutdown_request()
+    report = await worker.shutdown()
+    return events, job, delivery, coordinator, report
+
+
+def test_coordinator_succeeds_before_source_ack() -> None:
+    events, job, _, coordinator, report = asyncio.run(_run_coordinator_case())
+
+    assert coordinator.begin_calls == [(job, 1)]
+    assert events == ["begin", "handler", "succeed", "ack"]
+    assert report.completed == 1
+
+
+def test_coordinator_retries_before_delayed_nack() -> None:
+    events, _, delivery, _, report = asyncio.run(
+        _run_coordinator_case(error=RuntimeError("retry me"))
+    )
+
+    assert events == ["begin", "handler", "retry", "nack:1.0"]
+    assert delivery.nack_delays == [1.0]
+    assert report.retried == 1
+
+
+def test_coordinator_dead_letters_before_source_ack() -> None:
+    events, _, _, _, report = asyncio.run(
+        _run_coordinator_case(error=ValueError("terminal job"))
+    )
+
+    assert events == [
+        "begin",
+        "handler",
+        "publish_dead_letter",
+        "dead_letter:terminal",
+        "ack",
+    ]
+    assert report.dead_lettered == 1
+
+
+def test_coordinator_completed_redelivery_skips_handler_and_acks() -> None:
+    events, job, _, coordinator, report = asyncio.run(
+        _run_coordinator_case(execute=False, attempt=2)
+    )
+
+    assert coordinator.begin_calls == [(job, 2)]
+    assert events == ["begin", "ack"]
+    assert report.completed == 1
+
+
+def test_missing_scheduled_state_fails_closed_without_source_settlement(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        store = SQLiteScheduleStore(tmp_path / "wrong-scheduler.db")
+        handled = False
+        job = JobEnvelope.create(
+            "test.scheduled",
+            {},
+            metadata={
+                SCHEDULE_ID_METADATA: "missing-schedule",
+                SCHEDULE_SCOPE_METADATA: "missing-scope",
+                SCHEDULED_FOR_METADATA: "2026-08-23T12:00:00.000000Z",
+            },
+        )
+        delivery = FakeDelivery(job)
+
+        async def handler(delivered_job, context) -> None:
+            nonlocal handled
+            handled = True
+
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(stop_after_jobs=1),
+            coordinator=ScheduledRunCoordinator(store, lease_seconds=30),
+        )
+        try:
+            await worker.start()
+            await asyncio.wait_for(worker.wait_for_shutdown_request(), timeout=1)
+            report = await worker.shutdown(grace=0)
+        finally:
+            store.close()
+
+        assert worker.state == WorkerState.FAILED
+        assert handled is False
+        assert delivery.ack_count == 0
+        assert delivery.nack_count == 0
+        assert queue.dead_letters == []
+        assert report.completed == 0
+        assert report.nacked == 0
+        assert report.dead_lettered == 0
+
+    asyncio.run(scenario())
+
+
+def test_execution_renew_failure_cancels_handler_without_settling_source() -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        queue = FakeQueue(events)
+        job = JobEnvelope.create("test.coordinated", {})
+        delivery = FakeDelivery(job, events=events)
+        execution = FakeExecution(
+            events,
+            heartbeat_interval=0.01,
+            renew_error=RuntimeError("execution lease was lost"),
+        )
+        coordinator = FakeCoordinator(execution, events)
+        started = asyncio.Event()
+        cancelled = asyncio.Event()
+
+        async def handler(delivered_job, context) -> None:
+            events.append("handler")
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                events.append("handler_cancelled")
+                cancelled.set()
+                raise
+
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(),
+            coordinator=coordinator,
+        )
+        await worker.start()
+        await started.wait()
+        await asyncio.wait_for(worker.wait_for_shutdown_request(), timeout=1)
+        try:
+            await asyncio.wait_for(cancelled.wait(), timeout=0.5)
+            await _eventually(lambda: worker.health_snapshot().in_flight == 0)
+        finally:
+            report = await worker.shutdown(grace=0)
+
+        assert worker.state == WorkerState.FAILED
+        assert events == [
+            "begin",
+            "handler",
+            "renew",
+            "handler_cancelled",
+            "retry",
+        ]
+        assert delivery.ack_count == 0
+        assert delivery.nack_count == 0
+        assert queue.dead_letters == []
+        assert report.completed == 0
+        assert report.nacked == 0
+        assert report.dead_lettered == 0
+
+    asyncio.run(scenario())
+
+
+def test_blocking_handler_keeps_renewing_after_shutdown_cancels_its_drain() -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        queue = FakeQueue(events)
+        job = JobEnvelope.create("test.blocking-coordinated", {})
+        delivery = FakeDelivery(job, events=events)
+        execution = FakeExecution(
+            events,
+            heartbeat_interval=0.01,
+            renew_error=RuntimeError("injected heartbeat failure"),
+        )
+        coordinator = FakeCoordinator(execution, events)
+        blocking_started = threading.Event()
+        release_boundary = threading.Event()
+        boundary_reached = threading.Event()
+
+        def blocking_operation() -> None:
+            blocking_started.set()
+            assert release_boundary.wait(timeout=2)
+            boundary_reached.set()
+
+        async def handler(delivered_job, context) -> None:
+            events.append("handler")
+            await _run_blocking_safely(blocking_operation)
+
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(),
+            coordinator=coordinator,
+        )
+        await worker.start()
+        await _eventually(blocking_started.is_set)
+        await asyncio.wait_for(worker.wait_for_shutdown_request(), timeout=1)
+        await _eventually(lambda: events.count("renew") >= 2)
+
+        renewals_before_shutdown = events.count("renew")
+        shutdown = asyncio.create_task(worker.shutdown(grace=0))
+        try:
+            await asyncio.sleep(0.05)
+            assert shutdown.done() is False
+            assert boundary_reached.is_set() is False
+            assert events.count("renew") >= renewals_before_shutdown + 2
+            assert delivery.ack_count == 0
+            assert delivery.nack_count == 0
+            assert queue.dead_letters == []
+        finally:
+            release_boundary.set()
+
+        report = await asyncio.wait_for(shutdown, timeout=1)
+        assert boundary_reached.is_set() is True
+        assert worker.state == WorkerState.FAILED
+        assert delivery.ack_count == 0
+        assert delivery.nack_count == 0
+        assert queue.dead_letters == []
+        assert report.completed == 0
+        assert report.nacked == 0
+        assert report.dead_lettered == 0
+
+    asyncio.run(scenario())
+
+
 def test_handler_failure_nacks_for_redelivery_with_same_job_context() -> None:
     async def scenario() -> None:
         queue = FakeQueue()
@@ -460,6 +773,37 @@ def test_local_saturation_never_exhausts_a_healthy_delivery() -> None:
         assert report.retried == 1
         assert report.dead_lettered == 0
         assert queue.dead_letters == []
+
+    asyncio.run(scenario())
+
+
+def test_deferred_coordination_never_exhausts_a_delivery() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+
+        async def handler(job, context) -> None:
+            raise ScheduledRunLockedError("scheduled scope is still leased")
+
+        delivery = FakeDelivery(
+            JobEnvelope.create("test.deferred", {}),
+            attempt=20,
+        )
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {"test.deferred": handler},
+            config=_worker_config(max_attempts=1, stop_after_jobs=1),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert delivery.nack_count == 1
+        assert delivery.nack_delays == [30.0]
+        assert delivery.ack_count == 0
+        assert queue.dead_letters == []
+        assert report.retried == 1
+        assert report.dead_lettered == 0
 
     asyncio.run(scenario())
 
@@ -834,11 +1178,19 @@ def test_dead_letter_publish_failure_leaves_source_unsettled_and_fails_closed() 
         queue.dead_letter_error = ConnectionError("DLQ unavailable")
         delivery = FakeDelivery(JobEnvelope.create("unknown.type", {}))
         await queue.deliveries.put(delivery)
+        events: list[str] = []
+        execution = FakeExecution(events)
+        coordinator = FakeCoordinator(execution, events)
 
         async def handler(job, context) -> None:
             return None
 
-        worker = AsyncWorker(queue, {"known.type": handler}, config=_worker_config())
+        worker = AsyncWorker(
+            queue,
+            {"known.type": handler},
+            config=_worker_config(),
+            coordinator=coordinator,
+        )
         await worker.start()
         await worker.wait_for_shutdown_request()
         report = await worker.shutdown()
@@ -847,6 +1199,7 @@ def test_dead_letter_publish_failure_leaves_source_unsettled_and_fails_closed() 
         assert report.graceful is False
         assert delivery.ack_count == 0
         assert delivery.nack_count == 0
+        assert events == ["begin", "retry"]
 
     asyncio.run(scenario())
 
