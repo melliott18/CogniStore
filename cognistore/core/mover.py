@@ -166,6 +166,11 @@ class Mover:
             )
         return src, dst
 
+    def validate_driver_pair(self, src_tier: str, dst_tier: str) -> None:
+        """Validate a recorded tier pair without touching object or catalog state."""
+
+        self._drivers_for_move(src_tier, dst_tier)
+
     def plan(self, src_tier: str, dst_tier: str, bucket: str, key: str) -> MovePlan:
         """Validate a move using read-only operations and return its plan.
 

@@ -1,0 +1,320 @@
+# CogniStore CLI reference
+
+The installed `cognistore` command and `python -m cognistore.cli` are
+equivalent. The general form is:
+
+```text
+cognistore [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
+```
+
+Global options may appear before or after `COMMAND`; command-specific options
+belong after it. This permits both `cognistore --profile local ls ...` and
+`cognistore ls ... --profile local`.
+
+## Configuration and profiles
+
+### Precedence
+
+CogniStore resolves every configurable global value independently, from
+highest to lowest precedence:
+
+1. an explicit CLI option;
+2. its `COGNISTORE_*` environment variable;
+3. the selected named profile;
+4. the configuration file's `defaults` mapping;
+5. the CLI's built-in default.
+
+An explicit `--nats-url` replaces the complete configured URL list on its
+first occurrence; repeat it to provide a CLI-selected cluster. Boolean output
+settings can be explicitly disabled with `--no-json` or `--no-dry-run`, which
+is useful when a lower-precedence layer enables them.
+
+### Configuration file selection
+
+The CLI selects at most one YAML file, in this order:
+
+1. `--config PATH`;
+2. `COGNISTORE_CONFIG`;
+3. `$XDG_CONFIG_HOME/cognistore/config.yaml`, when `XDG_CONFIG_HOME` is set;
+4. `~/.config/cognistore/config.yaml`.
+
+A missing file selected by `--config` or `COGNISTORE_CONFIG` is an error. A
+missing implicit file in the XDG or home location is ignored. `--no-config`
+skips all file loading, including `COGNISTORE_CONFIG`; it cannot be combined
+with `--config` or `--profile`. Ordinary value variables such as
+`COGNISTORE_DRIVERS` still apply with `--no-config`.
+
+Home markers in a selected configuration path are expanded. Other relative
+paths in the YAML are passed through and therefore resolve from the process's
+current working directory, not from the YAML file's directory.
+
+### Profile selection
+
+After loading the file, the CLI selects a profile in this order:
+
+1. `--profile NAME`;
+2. `COGNISTORE_PROFILE`;
+3. the file's `default_profile`.
+
+Selecting a profile requires a loaded configuration file, and the name must
+exist in `profiles`. Profile names may contain letters, digits, dots,
+underscores, and hyphens, and must begin with a letter or digit. A selected
+profile overlays `defaults`; environment variables and CLI options can then
+overlay individual profile values.
+
+### YAML v1 example
+
+```yaml
+version: 1
+default_profile: local
+
+defaults:
+  job_stream: COGNISTORE_JOBS
+  job_subject: cognistore.jobs
+  job_consumer: cognistore-workers
+  ack_wait: 30
+  stream_max_messages: 10000
+  stream_max_bytes: 1073741824
+  dead_letter_max_age: 2592000
+  json: false
+  dry_run: false
+  verbose: false
+
+profiles:
+  local:
+    drivers: ./drivers.yaml
+    catalog_db: ./catalog.db
+    nats_url:
+      - nats://127.0.0.1:4222
+
+  production:
+    drivers: /etc/cognistore/drivers.yaml
+    catalog_db: /var/lib/cognistore/catalog.db
+    nats_url:
+      - nats://nats-a.internal:4222
+      - nats://nats-b.internal:4222
+    dead_letter_stream: COGNISTORE_JOBS_DLQ
+    dead_letter_subject: cognistore.jobs.dead
+```
+
+The v1 loader is strict: `version` must be the integer `1`; unknown or
+duplicate keys, unsafe YAML tags, invalid types, an undefined default profile,
+and malformed YAML are rejected. The only top-level keys are `version`,
+`default_profile`, `defaults`, and `profiles`.
+
+For example, with the file in the implicit location:
+
+```bash
+cognistore --profile local ls-tier hot demo-bucket --prefix reports/
+```
+
+## Global options and environment variables
+
+Configuration selectors are not profile values:
+
+| Option | Environment equivalent | Purpose |
+| --- | --- | --- |
+| `--config PATH` | `COGNISTORE_CONFIG` | Select the v1 YAML file. |
+| `--no-config` | none | Disable YAML file and profile loading. |
+| `--profile NAME` | `COGNISTORE_PROFILE` | Select a named profile. |
+
+The following settings are valid in `defaults` and every profile. Their CLI
+forms are global options:
+
+| YAML key | CLI option | Environment variable | Built-in |
+| --- | --- | --- | --- |
+| `base` | `--base PATH` | `COGNISTORE_BASE` | none |
+| `drivers` | `--drivers PATH` | `COGNISTORE_DRIVERS` | none |
+| `catalog_db` | `--catalog-db PATH` | `COGNISTORE_CATALOG_DB` | in-memory when the command permits it |
+| `nats_url` | `--nats-url URL` (repeatable) | `COGNISTORE_NATS_URL` (comma-separated) | `nats://127.0.0.1:4222` |
+| `job_stream` | `--job-stream NAME` | `COGNISTORE_JOB_STREAM` | `COGNISTORE_JOBS` |
+| `job_subject` | `--job-subject SUBJECT` | `COGNISTORE_JOB_SUBJECT` | `cognistore.jobs` |
+| `job_consumer` | `--job-consumer NAME` | `COGNISTORE_JOB_CONSUMER` | `cognistore-workers` |
+| `ack_wait` | `--ack-wait SECONDS` | `COGNISTORE_ACK_WAIT` | `30` |
+| `stream_max_messages` | `--stream-max-messages COUNT` | `COGNISTORE_STREAM_MAX_MESSAGES` | `10000` |
+| `stream_max_bytes` | `--stream-max-bytes BYTES` | `COGNISTORE_STREAM_MAX_BYTES` | `1073741824` |
+| `dead_letter_stream` | `--dead-letter-stream NAME` | `COGNISTORE_DEAD_LETTER_STREAM` | `<job-stream>_DLQ` |
+| `dead_letter_subject` | `--dead-letter-subject SUBJECT` | `COGNISTORE_DEAD_LETTER_SUBJECT` | `<job-subject>.dead` |
+| `dead_letter_max_age` | `--dead-letter-max-age SECONDS` | `COGNISTORE_DEAD_LETTER_MAX_AGE` | `2592000` (30 days) |
+| `json` | `--json` / `--no-json` | `COGNISTORE_JSON` | `false` |
+| `dry_run` | `--dry-run` / `--no-dry-run` | `COGNISTORE_DRY_RUN` | `false` |
+| `verbose` | `-v` / `--verbose` | `COGNISTORE_VERBOSE` | `false` |
+
+In YAML, `nats_url` is a non-empty list of strings. Environment booleans
+accept `1`, `true`, `yes`, or `on`, and `0`, `false`, `no`, or `off`, without
+regard to case. Numeric values must be finite and use the type shown by the
+example. Repeated `-v` forms such as `-vv` are accepted; currently any positive
+verbosity count enables the same diagnostic stream.
+
+Some commands impose stronger requirements than the global default. Workers,
+normal schedulers, move inspection, and move recovery require a persistent
+SQLite catalog as described below. Tier operations require `--drivers`; only
+`put`, `get`, and `ls` can instead use the single POSIX `--base` driver.
+
+## JSON v1 and stream contracts
+
+`--json` reserves stdout for machine-readable output. Every object uses this
+common envelope:
+
+```json
+{
+  "schema": "cognistore.cli",
+  "schema_version": 1,
+  "command": "move",
+  "status": "completed"
+}
+```
+
+Command-specific fields are added to that envelope. Consumers should select a
+decoder using `schema`, `schema_version`, and `command`, branch on `status`,
+and tolerate additional fields. Typical successful statuses are `success`,
+`planned`, `queued`, `completed`, `redriven`, and `ready`.
+
+`--help` is human-readable by default. With `--json`, it returns one v1 success
+object whose `help_format` is `text` and whose `help` field contains the same
+usage text.
+
+Finite commands write exactly one JSON object followed by one newline. A
+successfully started `worker` or `scheduler` writes one `status: "ready"`
+object, including in `--once` mode. If the daemon later exits with an
+operational failure, it may append a v1 error object; treat daemon stdout as a
+JSON Lines event stream. Periodic `auto-refresh --interval SECONDS` writes one
+`status: "completed"` v1 object per completed cycle, so its stdout is JSON
+Lines. The one-cycle `auto-refresh` form writes one object.
+
+Human explanations, warnings, progress, verbose diagnostics, and logging go to
+stderr in JSON mode. They never precede or follow a finite command's JSON
+object on stdout. In human mode, successful results use stdout and diagnostics
+or errors use stderr.
+
+Failures use `status: "error"` and include this stable v1 core:
+
+```json
+{
+  "schema": "cognistore.cli",
+  "schema_version": 1,
+  "command": "move-resume",
+  "status": "error",
+  "error_type": "MoveJobNotFound",
+  "error": "move job not found: manual:reports-2026-08",
+  "exit_code": 1,
+  "retryable": false
+}
+```
+
+`command` can be `null` when failure happens before a command is identified.
+Exit status `0` means the requested operation or preview succeeded, `1` means
+an operational failure, `2` means invalid usage or configuration, and `130`
+means the process was interrupted. Errors always return a non-zero status even
+when a valid error object was written.
+
+### Verbose output and redaction
+
+`-v` enables configuration provenance and failure diagnostics on stderr. JSON
+mode does not disable verbose output; it keeps those diagnostics off stdout.
+
+Before CogniStore renders JSON, errors, or verbose messages, it recursively
+replaces recognized credentials with `[REDACTED]`. Redaction covers sensitive
+mapping keys (including passwords, API/access/secret keys, tokens, cookies,
+credentials, and private keys), URL user information and sensitive query
+parameters, authorization headers, cookies, bearer/basic credentials, and PEM
+private-key blocks. Operational identifiers such as profile names,
+correlation IDs, and move idempotency keys remain visible. Do not depend on
+redaction as secret storage: keep literal credentials out of command lines and
+configuration files and use the storage driver's documented credential chain.
+
+## Dry-run contract
+
+`--dry-run` performs validation and the reads needed to build a useful plan,
+but it does not perform CogniStore-managed storage, catalog, queue, cache, or
+local-output writes. A plan can therefore fail when a source is absent, a
+destination collides, a profile input is invalid, or another precondition is
+not satisfied. `--json` represents a preview with `status: "planned"` and,
+where applicable, `dry_run: true`.
+
+Read-only commands accept `--dry-run` for uniform scripting; it does not change
+their query. The complete command matrix is:
+
+| Command | Dry-run behavior |
+| --- | --- |
+| `put` | Validates the local input and reports its size and whether the destination would be overwritten, without writing the object. |
+| `get` | Stats the source and reports the local output path, size, and whether it would overwrite a file; does not create directories or write the file. |
+| `ls` | Read-only. Runs the normal listing and makes no mutations. |
+| `move` | Validates the complete source/destination plan and reports a planned move without storage or catalog writes. With `--idempotency-key`, it checks the persistent journal: an incomplete exact match reports `would_resume`, a completed match reports `already_completed`, and a failed job returns a non-zero error. |
+| `move-status` | Read-only. Returns the same stored job and transition history. |
+| `move-list` | Read-only. Returns the same deterministic, optionally filtered job list. |
+| `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. |
+| `ls-tier` | Read-only. Runs the normal tier listing and makes no mutations. |
+| `catalog-scan` | Scans the selected storage scope synchronously and returns the objects that would be indexed. It neither updates the catalog nor enqueues a background job; `--sync` is unnecessary. |
+| `tier-profile` | Validates and lists supported tier paths and any `--metrics-out` target. It does not run storage benchmarks or write metrics. This command profiles storage tiers; it is unrelated to selecting a CLI configuration profile. |
+| `devices-scan` | Performs read-only OS device discovery, but does not write `--hardware-out`. |
+| `auto-refresh` | Reports the cache paths, interval, and tiers without creating the cache directory, discovering devices, profiling storage, writing cache files, or entering the periodic loop. |
+| `policy-run` | Runs policy selection synchronously and returns planned actions without moves, catalog updates, or queue publication. It may read an existing catalog and fresh discovery caches, but never refreshes a missing/stale cache during a preview. |
+| `worker` | **Unsupported.** Consuming a delivery necessarily owns and settles queue state and may run writable catalog or storage handlers, so there is no faithful side-effect-free worker preview. The command exits with usage status `2`; preview the originating `catalog-scan` or `policy-run` command instead. If a profile enables `dry_run`, pass `--no-dry-run` when starting a worker. |
+| `scheduler` | Loads and validates the drivers and schedule file, then reports every declared schedule. It does not require or open the scheduler catalog, inspect durable due state, connect to NATS, reserve occurrences, or publish jobs; JSON includes `due_state_checked: false`. |
+| `dead-letter-redrive` (`job-redrive`, `dlq-redrive`) | Validates and canonicalizes the dead-letter UUID, then reports a planned redrive. It does not connect to NATS, check whether the entry exists, or republish it; JSON includes `existence_checked: false`. |
+
+The default writable forms of `catalog-scan` and `policy-run` publish a durable
+job. `--sync` instead performs their writes inline for development. Dry-run
+always remains synchronous and does neither kind of write. Background
+submissions ignore a configuration-file or environment `catalog_db`; the
+worker uses its own persistent catalog. Passing `--catalog-db` explicitly to a
+background submission is a usage error so an operator cannot accidentally
+target the wrong journal. Other commands that do not consume a catalog
+likewise do not open or create the configured database.
+
+## Durable manual-move recovery
+
+Manual moves use the same durable journal as policy-driven moves. Supply a
+stable caller-generated key and a persistent SQLite catalog when you need to
+recover an interrupted CLI process:
+
+```bash
+MOVE_ID='manual:reports-2026-08'
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db \
+  move hot warm demo-bucket reports/august.csv \
+  --idempotency-key "$MOVE_ID"
+```
+
+The key is permanently bound to the exact source tier, destination tier,
+bucket, and object key. Reusing it for different coordinates is rejected.
+Replaying the same `move ... --idempotency-key` command resumes the recorded
+non-terminal phase, even if destination publication already happened; a
+completed replay is an idempotent success.
+
+If the original process is interrupted, inspect the existing journal. These
+read-only commands require an existing persistent `--catalog-db`, but they do
+not require `--drivers`:
+
+```bash
+cognistore --catalog-db catalog.db move-status "$MOVE_ID" --json
+
+cognistore --catalog-db catalog.db move-list \
+  --state prepared --state transferred --state verified \
+  --state committed --state cleanup \
+  --idempotency-prefix 'manual:' --json
+```
+
+`move-status` returns the job and its ordered transition history. `move-list`
+accepts repeatable `--state` filters for `prepared`, `transferred`, `verified`,
+`committed`, `cleanup`, `completed`, and `failed`, plus an optional
+`--idempotency-prefix`. Results are ordered by creation time and then
+idempotency key.
+
+Preview and resume from the stored coordinates with:
+
+```bash
+cognistore --drivers drivers.yaml --catalog-db catalog.db \
+  move-resume "$MOVE_ID" --dry-run --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db \
+  move-resume "$MOVE_ID" --json
+```
+
+`move-resume` requires an existing persistent catalog and the drivers for the
+job's recorded tiers. It resumes only non-terminal jobs. A completed job
+returns success with `outcome: "already_completed"`; a failed job returns a
+non-zero `MoveJobFailedError` and its recorded terminal reason. This explicit
+workflow is preferable to relying on an automatically generated key, because
+an abrupt process loss can occur before that generated key is printed.

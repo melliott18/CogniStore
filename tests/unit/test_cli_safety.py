@@ -85,6 +85,10 @@ def test_policy_output_distinguishes_planned_from_completed(
     if json_output:
         payload = json.loads(captured.out)
         assert payload == {
+            "schema": "cognistore.cli",
+            "schema_version": 1,
+            "command": "policy-run",
+            "status": "planned" if dry_run else "completed",
             "actions": [
                 {
                     "bucket": BUCKET,

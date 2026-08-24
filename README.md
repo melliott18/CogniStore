@@ -48,6 +48,18 @@ python -m cognistore.cli --base /tmp/cognistore get demo-bucket path/to/key.txt 
 python -m cognistore.cli --base /tmp/cognistore ls demo-bucket --prefix path/
 ```
 
+Global YAML configuration and named profiles can replace repeated options. For
+example, after creating the v1 `local` profile shown in the
+[CLI reference](docs/cli.md):
+
+```bash
+cognistore --profile local move hot warm demo-bucket path/to/key.txt \
+  --idempotency-key manual:path-to-key --dry-run --json
+```
+
+The reference also defines configuration precedence, the JSON/stdout contract,
+the command-by-command dry-run matrix, and durable manual-move recovery.
+
 ### Driver configuration (optional)
 
 You can instantiate drivers from a YAML file using `cognistore.drivers.driver_loader.load_drivers`.
