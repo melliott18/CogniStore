@@ -79,8 +79,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] REST (FastAPI) and/or gRPC; Python SDK
 - [ ] Admin UI
   - [ ] Drivers, tiers, policies, actions, audit trail; dry-run previews and diffs
-- [ ] CLI polish
-  - [ ] Global config file, profiles, dry-run, verbose and JSON outputs
+- [x] CLI polish
+  - [x] Global config file, profiles, dry-run, verbose and JSON outputs
 
 ## Reliability, performance, cost
 

@@ -77,26 +77,6 @@ Copy/paste and fill for each new bug:
     1 MiB; verified move checksums are full-object digests.
   - Links: `cognistore/core/scanner.py`, `cognistore/core/indexer.py`; ticket #34
 
-- [ ] BUG-2026-005: Manual CLI moves cannot resume their durable move job
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `993fbb8`; components: CLI, move-job recovery
-  - Environment: reproduced with SQLite and two POSIX tiers
-  - Reporter: M1 implementation audit
-  - Owner: unassigned
-  - Created: 2026-08-20
-  - Updated: 2026-08-20
-  - Repro steps:
-    1. Interrupt a manual move after destination publication.
-    2. Repeat the same CLI command with the same catalog.
-  - Expected: the CLI resumes or exposes the existing durable job.
-  - Actual: every invocation generates a new idempotency key and preflight
-    exits on the existing destination, leaving the original job incomplete.
-  - Minimal test case: add CLI crash/resume coverage with a caller-supplied key.
-  - Notes/Workaround: recover through the Python mover API using the original
-    idempotency key; the CLI currently has no supported recovery command.
-  - Links: `cognistore/cli/cognistore_cli.py`; fold into ticket #26
-
 ## In Progress
 
 <!-- Assigned and actively being worked. Include branch/PR links. -->
@@ -115,6 +95,18 @@ Copy/paste and fill for each new bug:
 ## Fixed (Changelog)
 
 <!-- When closing a bug, move the checklist item here and add the commit/PR. -->
+
+- [x] BUG-2026-005: Manual CLI moves cannot resume their durable move job
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-24
+  - Resolution: `move --idempotency-key` now binds a caller-supplied key to a
+    durable SQLite move job and resumes that exact job on replay, including
+    after destination publication. `move-status`, filterable `move-list`, and
+    `move-resume` expose the journal and provide an explicit recovery workflow;
+    identity conflicts and terminal failures remain fail-closed.
+  - Verified by: `tests/integration/test_cli_move_recovery.py`.
+  - Operator guide: `docs/cli.md` (Durable manual-move recovery).
 
 - [x] BUG-2026-003: POSIX publication and deletion lack durability barriers
   - Status: fixed

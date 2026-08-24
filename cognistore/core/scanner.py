@@ -21,16 +21,30 @@ def scan_catalog(
     tier: str,
     bucket: str,
     driver: StorageDriver,
-    catalog: Any,
+    catalog: Any | None,
     prefix: str = "",
     indexer: Indexer | None = None,
+    dry_run: bool = False,
 ) -> list[ScanResult]:
-    """Scan one tier into a catalog and return the indexed object summaries."""
+    """Scan one tier and return object summaries.
+
+    A dry-run performs the same stable storage reads and indexing work, but it
+    never captures catalog fences or publishes observations.  This keeps the
+    preview useful while guaranteeing that it cannot mutate either storage or
+    catalog state.
+    """
+
+    if catalog is None and not dry_run:
+        raise ValueError("catalog is required unless dry_run is enabled")
 
     active_indexer = indexer or Indexer()
     results: list[ScanResult] = []
     for key in driver.list_objects(bucket, prefix=prefix):
-        fence = catalog.capture_scan_fence(bucket, key)
+        if dry_run:
+            fence = None
+        else:
+            assert catalog is not None
+            fence = catalog.capture_scan_fence(bucket, key)
         try:
             stat = driver.stat_object(bucket, key)
             generation = stat.get("generation")
@@ -57,6 +71,11 @@ def scan_catalog(
             # may retire an entry before it can be observed consistently.
             continue
 
+        if dry_run:
+            results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
+            continue
+
+        assert catalog is not None
         published = catalog.upsert_scan_observation(
             bucket,
             key,

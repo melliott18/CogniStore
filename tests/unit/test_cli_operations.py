@@ -546,9 +546,14 @@ def test_dead_letter_redrive_reports_operational_failure_as_json(
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload == {
+        "schema": "cognistore.cli",
+        "schema_version": 1,
+        "command": "dead-letter-redrive",
         "error": "NATS is unavailable",
         "error_type": "ConnectionError",
+        "exit_code": 1,
         "operation": "dead-letter-redrive",
+        "retryable": False,
         "status": "error",
     }
     assert captured.err == ""

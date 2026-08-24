@@ -124,7 +124,7 @@ CogniStore can move data between POSIX and S3-compatible tiers using a streaming
 - [x] [#23](https://github.com/melliott18/CogniStore/issues/23) — Make move jobs idempotent with two-phase catalog updates
 - [x] [#24](https://github.com/melliott18/CogniStore/issues/24) — Add retry, backoff, dead-letter, and redrive handling
 - [x] [#25](https://github.com/melliott18/CogniStore/issues/25) — Add per-tier concurrency, rate limiting, and backpressure
-- [ ] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
+- [x] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
 - [x] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
 - [ ] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
 - [ ] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
@@ -515,7 +515,7 @@ Scale-out orchestration → concurrency pools, rate limiting, and backpressure.
 - **Status:** Open
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:api`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-24
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -537,10 +537,10 @@ Make the CLI predictable for both operators and automation.
 
 #### Acceptance criteria
 
-- [ ] Configuration precedence is covered by tests and documented.
-- [ ] Every mutating command either supports dry-run or clearly documents why it cannot.
-- [ ] JSON output has versioned schemas and non-zero exit codes on failure.
-- [ ] Secrets are redacted from verbose and error output.
+- [x] Configuration precedence is covered by tests and documented.
+- [x] Every mutating command either supports dry-run or clearly documents why it cannot.
+- [x] JSON output has versioned schemas and non-zero exit codes on failure.
+- [x] Secrets are redacted from verbose and error output.
 
 #### Dependencies
 
