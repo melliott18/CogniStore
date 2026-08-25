@@ -1,0 +1,20 @@
+tiers:
+  hot:
+    driver: posix
+    path: /var/lib/cognistore/tiers/hot
+    chunk_size: 8388608
+  warm:
+    driver: posix
+    path: /var/lib/cognistore/tiers/warm
+    chunk_size: 8388608
+  object:
+    driver: s3
+    endpoint_url: http://minio:9000
+    region_name: us-east-1
+    access_key_env: COGNISTORE_MINIO_ACCESS_KEY
+    secret_key_env: COGNISTORE_MINIO_SECRET_KEY
+    addressing_style: path
+    auto_create_bucket: true
+    chunk_size: 8388608
+    list_page_size: 1000
+    multipart_threshold: 8388608

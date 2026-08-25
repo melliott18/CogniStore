@@ -6,6 +6,31 @@ AI-Powered Data Lifecycle Manager
 CogniStore supports CPython 3.10 through 3.14. CI exercises every supported
 minor version.
 
+### Docker stack
+
+Start the non-root CogniStore worker, file-backed NATS JetStream, and MinIO
+from a clean checkout:
+
+```bash
+docker compose up --build --wait
+```
+
+Run every integration test inside the same isolated stack with one command:
+
+```bash
+docker compose --profile integration up --build \
+  --abort-on-container-exit \
+  --exit-code-from integration-tests
+```
+
+Named volumes retain the worker catalog, storage tiers, JetStream state,
+MinIO data, and test report across ordinary stops. See the
+[Docker development and integration guide](docs/setup_guide.md) for service
+URLs, credentials, an editable development shell, safe shutdown diagnostics,
+and the explicit data-reset command.
+
+### Local Python environment
+
 - Create a virtual environment and install the package with its development
   tools:
 
@@ -174,8 +199,8 @@ python -m pytest -q -m integration tests/integration/test_s3_minio.py
 
 See [`docs/s3_driver.md`](docs/s3_driver.md) for every configuration option,
 credential guidance, AWS/MinIO examples, and the opt-in MinIO integration-test
-command. The repository-managed Docker Compose environment is intentionally
-tracked separately by [ticket #28](https://github.com/melliott18/CogniStore/issues/28).
+command. For a repository-managed MinIO instance, use the
+[Docker integration stack](docs/setup_guide.md#run-the-integration-suite).
 
 ### CLI with tiers
 

@@ -60,6 +60,9 @@ Use Conventional Commits, e.g.:
 - Run integration tests with `python -m pytest tests/integration`. NATS and
   MinIO cases require the isolated services and environment variables described
   in their respective documentation; local filesystem integration tests do not.
+- To build the test image and run the complete integration suite entirely in
+  containers, use `docker compose --profile integration up --build
+  --abort-on-container-exit --exit-code-from integration-tests`.
 - Coverage is measured against `cognistore` and must remain at or above 80%.
 - In VS Code, prefer the task “Run unit tests” (sets PYTHONPATH and verbosity)
 

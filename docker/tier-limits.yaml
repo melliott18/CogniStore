@@ -1,0 +1,8 @@
+max_queue_depth: 64
+defaults:
+  source_concurrency: 1
+  destination_concurrency: 1
+tiers:
+  hot: {}
+  warm: {}
+  object: {}

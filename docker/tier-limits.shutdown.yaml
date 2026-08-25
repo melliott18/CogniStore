@@ -1,0 +1,11 @@
+# A deliberately slow profile used only by verify_shutdown.sh so the worker
+# can be interrupted deterministically after its durable move journal exists.
+max_queue_depth: 8
+defaults:
+  source_concurrency: 1
+  destination_concurrency: 1
+  bytes_per_second: 1048576
+tiers:
+  hot: {}
+  warm: {}
+  object: {}
