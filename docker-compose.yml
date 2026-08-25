@@ -1,0 +1,218 @@
+name: cognistore
+
+services:
+  nats:
+    image: cognistore/nats:2.10.26
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nats
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:${COGNISTORE_NATS_PORT:-4222}:4222"
+      - "127.0.0.1:${COGNISTORE_NATS_MONITOR_PORT:-8222}:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null 'http://127.0.0.1:8222/healthz?js-enabled-only=true'",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 2s
+    stop_grace_period: 30s
+
+  minio:
+    image: cognistore/minio:2025-04-22
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MINIO_ROOT_USER: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
+      MINIO_ROOT_PASSWORD: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+    ports:
+      - "127.0.0.1:${COGNISTORE_MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${COGNISTORE_MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "http://127.0.0.1:9000/minio/health/live",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 3s
+    stop_grace_period: 30s
+
+  cognistore:
+    image: cognistore:runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
+      COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+    command:
+      - --no-config
+      - --drivers
+      - /etc/cognistore/drivers.yaml
+      - --catalog-db
+      - /var/lib/cognistore/catalog.sqlite3
+      - --nats-url
+      - nats://nats:4222
+      - worker
+      - --health-host
+      - 0.0.0.0
+      - --health-port
+      - "8081"
+      - --shutdown-grace
+      - "30"
+      - --settlement-timeout
+      - "5"
+      - --tier-limits
+      - /etc/cognistore/tier-limits.yaml
+    ports:
+      - "127.0.0.1:${COGNISTORE_HEALTH_PORT:-8081}:8081"
+    volumes:
+      - cognistore-data:/var/lib/cognistore
+      - ./docker/drivers.yaml:/etc/cognistore/drivers.yaml:ro
+      - type: bind
+        source: ${COGNISTORE_TIER_LIMITS_FILE:-./docker/tier-limits.yaml}
+        target: /etc/cognistore/tier-limits.yaml
+        read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/readyz', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    # The worker drains for up to 30 seconds and then settles its current
+    # delivery. Preserve extra time for the durable move checkpoint to flush.
+    stop_grace_period: 45s
+
+  integration-tests:
+    image: cognistore:development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    profiles:
+      - integration
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      cognistore:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_NATS_URL: nats://nats:4222
+      COGNISTORE_MINIO_ENDPOINT_URL: http://minio:9000
+      COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
+      COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+      COGNISTORE_MINIO_REGION: us-east-1
+      PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
+    command:
+      - python
+      - -m
+      - pytest
+      - -p
+      - no:cacheprovider
+      - tests/integration
+      - --junitxml=/test-results/integration.xml
+    volumes:
+      - test-results:/test-results
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+
+  development:
+    image: cognistore:development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    profiles:
+      - development
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      nats:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_NATS_URL: nats://nats:4222
+      COGNISTORE_MINIO_ENDPOINT_URL: http://minio:9000
+      COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
+      COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+      COGNISTORE_MINIO_REGION: us-east-1
+      PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/workspace
+      - cognistore-data:/var/lib/cognistore
+      - test-results:/test-results
+      - ./docker/drivers.yaml:/etc/cognistore/drivers.yaml:ro
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+
+volumes:
+  cognistore-data:
+  minio-data:
+  nats-data:
+  test-results:

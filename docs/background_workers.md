@@ -14,8 +14,9 @@ with:
 nats-server -js -sd /var/lib/cognistore/nats
 ```
 
-The repository-managed container environment belongs to ticket #28. Do not use
-an in-memory JetStream store for durable jobs.
+The [repository-managed container environment](setup_guide.md) runs this
+topology with file-backed JetStream on a named volume. Do not use an in-memory
+JetStream store for durable jobs.
 
 ## Start a worker
 

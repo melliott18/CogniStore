@@ -138,8 +138,8 @@ A process crash, `SIGKILL`, or machine loss cannot execute application cleanup.
 For production buckets, configure an S3 lifecycle rule with the
 `AbortIncompleteMultipartUpload` action as a defense-in-depth backstop for
 uploads that outlive the process. A repository-managed Docker Compose
-environment, including its MinIO service and health checks, belongs to ticket
-[#28](https://github.com/melliott18/CogniStore/issues/28).
+environment, including its MinIO service and health checks, is documented in
+the [setup guide](setup_guide.md).
 
 ## Opt-in MinIO integration tests
 
@@ -162,9 +162,9 @@ python -m pytest -q -m integration tests/integration/test_s3_minio.py
 
 Use a dedicated MinIO instance or credentials restricted to disposable test
 buckets. The tests create and remove their own uniquely named buckets and
-objects. Do not point them at a production AWS account. The one-command
-Compose-based test environment will be delivered under ticket #28; ticket #17
-intentionally requires a separately managed MinIO endpoint.
+objects. Do not point them at a production AWS account. The
+[Compose-based test environment](setup_guide.md#run-the-integration-suite)
+provides an isolated endpoint and injects all required settings automatically.
 
 ## Secret safety
 

@@ -1,0 +1,43 @@
+# Default-deny the build context. The development image copies only the
+# application, tests, and explicitly named project metadata below.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+!conftest.py
+!requirements.txt
+!drivers.yaml
+!drivers.rpi.yaml
+!cognistore/
+!cognistore/**
+!tests/
+!tests/**
+!docker/
+!docker/**
+
+# Never re-include generated files or credential-shaped files nested beneath
+# an allowlisted source directory.
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.env
+**/.env.*
+**/.envrc
+**/.netrc
+**/.pypirc
+**/.aws
+**/*.key
+**/*.pem
+**/id_ed25519*
+**/id_rsa*
+**/secrets.*
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite3
+**/*.log
