@@ -240,6 +240,66 @@ jobs:
       - name: Verify interrupted move diagnostics survive restart
         run: bash docker/verify_shutdown.sh
 
+      - name: Run reduced move qualification
+        run: |
+          docker compose --profile development run --rm \
+            -e COGNISTORE_QUALIFICATION_GIT_REVISION="${GITHUB_SHA}" \
+            -e COGNISTORE_QUALIFICATION_GIT_DIRTY=false \
+            -e CI \
+            -e GITHUB_ACTIONS \
+            -e GITHUB_RUN_ID \
+            -e GITHUB_RUN_ATTEMPT \
+            -e GITHUB_SHA \
+            -e RUNNER_OS \
+            -e RUNNER_ARCH \
+            development \
+            python tests/perf/perf_async_put_get.py \
+              --drivers docker/drivers.yaml \
+              --catalog-db "/var/lib/cognistore/qualification-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sqlite3" \
+              --output /test-results/m1-move-qualification.json \
+              --run-id "ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --profile reduced \
+              --object-count 12 \
+              --size 0 \
+              --size 257 \
+              --size 4097 \
+              --size 16385 \
+              --path posix:hot:warm \
+              --path s3:hot:object \
+              --workers 4 \
+              --faults standard \
+              --max-attempts 3 \
+              --retry-base-delay 0.05 \
+              --retry-max-delay 0.05 \
+              --lease-seconds 0.02 \
+              --worker-termination-timeout 30
+
+      - name: Export move qualification evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          qualification_output="test-results/m1-move-qualification.json"
+          qualification_temporary="$(mktemp test-results/.m1-move-qualification.XXXXXX)"
+          trap 'rm -f -- "${qualification_temporary}"' EXIT
+          rm -f -- "${qualification_output}"
+          docker compose --profile development run --rm --no-deps development \
+            python -c \
+              'from pathlib import Path; print(Path("/test-results/m1-move-qualification.json").read_text(), end="")' \
+            > "${qualification_temporary}"
+          test -s "${qualification_temporary}"
+          mv -- "${qualification_temporary}" "${qualification_output}"
+          trap - EXIT
+
+      - name: Upload move qualification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m1-move-qualification
+          path: test-results/m1-move-qualification.json
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Show Compose logs after a failure
         if: ${{ failure() }}
         run: docker compose --profile integration logs --no-color || true

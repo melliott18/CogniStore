@@ -409,7 +409,10 @@ class Mover:
         """Claim and resume every available non-terminal move job."""
 
         terminal = {MoveJobState.COMPLETED, MoveJobState.FAILED}
-        jobs = self.catalog.list_move_jobs(idempotency_prefix=idempotency_prefix)
+        jobs = self.catalog.list_move_jobs(
+            states=set(MoveJobState).difference(terminal),
+            idempotency_prefix=idempotency_prefix,
+        )
         recovered: list[MoveVerificationResult] = []
         first_terminal_failure: Exception | None = None
         for job in jobs:
@@ -444,8 +447,16 @@ class Mover:
     def get_job(self, idempotency_key: str) -> MoveJob | None:
         return self.catalog.get_move_job(idempotency_key)
 
-    def list_jobs(self) -> list[MoveJob]:
-        return self.catalog.list_move_jobs()
+    def list_jobs(
+        self,
+        *,
+        states: set[MoveJobState] | None = None,
+        idempotency_prefix: str | None = None,
+    ) -> list[MoveJob]:
+        return self.catalog.list_move_jobs(
+            states=states,
+            idempotency_prefix=idempotency_prefix,
+        )
 
     def get_job_transitions(
         self, idempotency_key: str

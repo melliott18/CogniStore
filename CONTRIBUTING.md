@@ -63,6 +63,9 @@ Use Conventional Commits, e.g.:
 - To build the test image and run the complete integration suite entirely in
   containers, use `docker compose --profile integration up --build
   --abort-on-container-exit --exit-code-from integration-tests`.
+- Run the deterministic reduced or full movement campaign only as documented in
+  the [scale and recovery qualification guide](docs/scale_qualification.md).
+  Archive its JSON evidence; a reduced run is not a one-million-object claim.
 - Coverage is measured against `cognistore` and must remain at or above 80%.
 - In VS Code, prefer the task “Run unit tests” (sets PYTHONPATH and verbosity)
 

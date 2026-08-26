@@ -158,13 +158,16 @@ def build_handlers(
                 admission_slots.release()
 
     async def recover_moves(mover: Mover, idempotency_prefix: str) -> None:
-        jobs = await asyncio.to_thread(mover.list_jobs)
+        nonterminal_states = {
+            state for state in MoveJobState if not state.terminal
+        }
+        jobs = await asyncio.to_thread(
+            mover.list_jobs,
+            states=nonterminal_states,
+            idempotency_prefix=idempotency_prefix,
+        )
         first_terminal_failure: Exception | None = None
         for move in jobs:
-            if move.state.terminal or not move.idempotency_key.startswith(
-                idempotency_prefix
-            ):
-                continue
             # A live lease means another delivery is still executing this
             # logical job. Propagate the retryable conflict before planning:
             # the owner may already have published the destination while the
