@@ -168,6 +168,61 @@ def test_policy_handler_moves_and_tolerates_duplicate_delivery(tmp_path: Path) -
         catalog.close()
 
 
+def test_policy_recovery_queries_only_its_nonterminal_move_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    catalog = Catalog()
+    observed: list[tuple[set[MoveJobState] | None, str | None]] = []
+    list_move_jobs = catalog.list_move_jobs
+
+    def record_list_move_jobs(
+        *,
+        states: set[MoveJobState] | None = None,
+        idempotency_prefix: str | None = None,
+    ):
+        observed.append((states, idempotency_prefix))
+        return list_move_jobs(
+            states=states,
+            idempotency_prefix=idempotency_prefix,
+        )
+
+    monkeypatch.setattr(catalog, "list_move_jobs", record_list_move_jobs)
+    handler = build_handlers(
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+        catalog,
+    )[POLICY_RUN_JOB]
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        policy_job_payload(
+            bucket="empty-bucket",
+            prefix="",
+            policy="simple",
+            threshold=1,
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+        ),
+    )
+
+    asyncio.run(handler(job, _context()))
+
+    assert observed == [
+        (
+            {state for state in MoveJobState if not state.terminal},
+            f"{job.job_id}:",
+        )
+    ]
+
+
 def test_policy_handler_isolates_failed_recovery_from_later_healthy_job(
     tmp_path: Path,
 ) -> None:

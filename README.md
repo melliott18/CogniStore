@@ -61,6 +61,12 @@ point to isolated test services; the filesystem/catalog integration suite runs
 without external services. Install Gitleaks separately and run
 `gitleaks git --redact .` to perform the same secret scan used in CI.
 
+For deterministic POSIX/S3 throughput, tail-latency, integrity, and injected
+failure-recovery evidence, use the
+[move scale and recovery qualification guide](docs/scale_qualification.md).
+The CI campaign is deliberately reduced scale; no one-million-object result is
+claimed by this branch.
+
 For a runtime-only install, use `python -m pip install .`. The generated
 `cognistore` command and `python -m cognistore.cli` invoke the same CLI.
 

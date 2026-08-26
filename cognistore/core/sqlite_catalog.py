@@ -31,7 +31,6 @@ _LIST_MOVE_JOBS_SQL = """
            destination_checksum, destination_generation, verification_details, terminal_reason,
            created_at, updated_at
     FROM move_jobs
-    ORDER BY created_at, idempotency_key
 """
 _SCAN_MOVE_JOBS_SQL = """
     SELECT idempotency_key, src_tier, dst_tier, bucket, object_key,
@@ -288,7 +287,8 @@ class SQLiteCatalog(Catalog):
                 SELECT bucket, key, size, tier, metadata
                 FROM objects
                 WHERE bucket=?
-                  AND substr(key, 1, length(?)) = ? COLLATE BINARY
+                  AND substr(CAST(key AS BLOB), 1, length(CAST(? AS BLOB)))
+                      = CAST(? AS BLOB)
                 """,
                 (bucket, prefix, prefix),
             )
@@ -417,18 +417,33 @@ class SQLiteCatalog(Catalog):
         states: set[MoveJobState] | None = None,
         idempotency_prefix: str | None = None,
     ) -> List[MoveJob]:
-        with self._lock:
-            rows = self._conn.execute(_LIST_MOVE_JOBS_SQL).fetchall()
-        jobs = [self._move_job_from_row(row) for row in rows]
-        return [
-            job
-            for job in jobs
-            if (states is None or job.state in states)
-            and (
-                idempotency_prefix is None
-                or job.idempotency_key.startswith(idempotency_prefix)
+        if states is not None and not states:
+            return []
+
+        predicates: list[str] = []
+        parameters: list[Any] = []
+        if states is not None:
+            state_values = sorted(state.value for state in states)
+            placeholders = ",".join("?" for _ in state_values)
+            predicates.append(f"state IN ({placeholders})")
+            parameters.extend(state_values)
+        if idempotency_prefix is not None:
+            # BLOB prefix comparison preserves Python's literal, case-sensitive
+            # ``str.startswith`` semantics, including embedded NUL characters.
+            # In particular, %, _, and \\ have no wildcard or escape behavior.
+            predicates.append(
+                "substr(CAST(idempotency_key AS BLOB), 1, "
+                "length(CAST(? AS BLOB))) = CAST(? AS BLOB)"
             )
-        ]
+            parameters.extend((idempotency_prefix, idempotency_prefix))
+
+        query = _LIST_MOVE_JOBS_SQL
+        if predicates:
+            query += " WHERE " + " AND ".join(predicates)
+        query += " ORDER BY created_at, idempotency_key"
+        with self._lock:
+            rows = self._conn.execute(query, parameters).fetchall()
+        return [self._move_job_from_row(row) for row in rows]
 
     def list_move_job_transitions(
         self, idempotency_key: str

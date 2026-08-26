@@ -4,7 +4,23 @@ from pathlib import Path
 import pytest
 
 from cognistore.core.catalog import Catalog
+from cognistore.core.move_jobs import MoveJobState
 from cognistore.core.sqlite_catalog import SQLiteCatalog
+
+
+def _claim_move(catalog: SQLiteCatalog, idempotency_key: str) -> None:
+    catalog.claim_move_job(
+        idempotency_key,
+        src_tier="hot",
+        dst_tier="warm",
+        bucket="bucket",
+        key=f"objects/{idempotency_key}",
+        expected_size=1,
+        source_metadata={"generation": f"generation:{idempotency_key}"},
+        owner_id="test-owner",
+        now="2000-01-01T00:00:00.000000Z",
+        lease_expires_at="2000-01-01T00:01:00.000000Z",
+    )
 
 
 def test_sqlite_catalog_crud(tmp_path: Path):
@@ -40,19 +56,31 @@ def test_sqlite_catalog_crud(tmp_path: Path):
 @pytest.mark.parametrize(
     ("prefix", "expected"),
     [
-        ("", ["Foo", "a%literal", "a\\literal", "a_one", "abone", "foo"]),
+        (
+            "",
+            ["Foo", "a%literal", "a\\literal", "a_one", "abone", "foo", "nul\0key"],
+        ),
         ("a_", ["a_one"]),
         ("a%", ["a%literal"]),
         ("a\\", ["a\\literal"]),
         ("Foo", ["Foo"]),
         ("foo", ["foo"]),
+        ("nul\0", ["nul\0key"]),
     ],
 )
 def test_list_prefix_matches_in_memory_literal_case_sensitive_semantics(
     tmp_path: Path, prefix: str, expected: list[str]
 ) -> None:
     catalogs = [Catalog(), SQLiteCatalog(tmp_path / "catalog.db")]
-    keys = ["a_one", "abone", "a%literal", "a\\literal", "Foo", "foo"]
+    keys = [
+        "a_one",
+        "abone",
+        "a%literal",
+        "a\\literal",
+        "Foo",
+        "foo",
+        "nul\0key",
+    ]
     for catalog in catalogs:
         for key in keys:
             catalog.upsert("bucket", key, size=1, tier="hot")
@@ -62,6 +90,90 @@ def test_list_prefix_matches_in_memory_literal_case_sensitive_semantics(
         assert sorted(record.key for record in catalog.list("bucket", prefix)) == expected
 
     catalogs[1].close()
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected"),
+    [
+        (
+            "",
+            [
+                "Batch_:one",
+                "batch%:one",
+                "batchX:one",
+                "batch\\:one",
+                "batch_:one",
+                "nul\0job",
+            ],
+        ),
+        ("batch_", ["batch_:one"]),
+        ("batch%", ["batch%:one"]),
+        ("batch\\", ["batch\\:one"]),
+        ("Batch_", ["Batch_:one"]),
+        ("nul\0", ["nul\0job"]),
+    ],
+)
+def test_list_move_jobs_prefix_is_literal_and_case_sensitive(
+    tmp_path: Path,
+    prefix: str,
+    expected: list[str],
+) -> None:
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    keys = [
+        "batch_:one",
+        "batchX:one",
+        "batch%:one",
+        "batch\\:one",
+        "Batch_:one",
+        "nul\0job",
+    ]
+    for key in keys:
+        _claim_move(catalog, key)
+
+    assert [
+        job.idempotency_key
+        for job in catalog.list_move_jobs(idempotency_prefix=prefix)
+    ] == expected
+    catalog.close()
+
+
+def test_list_move_jobs_applies_combined_filters_before_deserialization(
+    tmp_path: Path,
+) -> None:
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    for key in ("target:prepared", "target:failed", "unrelated:prepared"):
+        _claim_move(catalog, key)
+    catalog.transition_move_job(
+        "target:failed",
+        owner_id="test-owner",
+        expected_state=MoveJobState.PREPARED,
+        to_state=MoveJobState.FAILED,
+        reason="expected test failure",
+        now="2000-01-01T00:00:01.000000Z",
+        lease_expires_at="2000-01-01T00:01:01.000000Z",
+        updates={"terminal_reason": "expected test failure"},
+    )
+
+    # If either filter were still applied in Python, these excluded rows would
+    # be deserialized first and their deliberately invalid JSON would fail the
+    # query. SQL must discard them before MoveJob construction.
+    catalog._conn.execute(
+        """
+        UPDATE move_jobs
+        SET source_metadata='not-json'
+        WHERE idempotency_key IN ('target:failed', 'unrelated:prepared')
+        """
+    )
+    catalog._conn.commit()
+
+    jobs = catalog.list_move_jobs(
+        states={MoveJobState.PREPARED},
+        idempotency_prefix="target:",
+    )
+
+    assert [job.idempotency_key for job in jobs] == ["target:prepared"]
+    assert catalog.list_move_jobs(states=set()) == []
+    catalog.close()
 
 
 def test_upsert_placement_preserves_metadata_and_creates_missing_record(
