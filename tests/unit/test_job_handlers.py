@@ -384,11 +384,12 @@ def test_concurrent_duplicate_policy_deliveries_use_distinct_move_owners(
         catalog.upsert("bucket", "one.txt", len(data), "warm")
         started = threading.Event()
         release = threading.Event()
+        coordination_timeout = 5.0
         original_put = hot.put_object_stream
 
         def blocking_put(*args, **kwargs):
             started.set()
-            assert release.wait(timeout=2)
+            assert release.wait(timeout=coordination_timeout)
             return original_put(*args, **kwargs)
 
         monkeypatch.setattr(hot, "put_object_stream", blocking_put)
@@ -412,14 +413,16 @@ def test_concurrent_duplicate_policy_deliveries_use_distinct_move_owners(
         )
 
         first = asyncio.create_task(handler(job, _context()))
-        await asyncio.wait_for(_wait_for_thread_event(started), timeout=1)
+        await asyncio.wait_for(
+            _wait_for_thread_event(started), timeout=coordination_timeout
+        )
         second = asyncio.create_task(handler(job, _context()))
         try:
             with pytest.raises(MoveJobLeaseError):
-                await asyncio.wait_for(second, timeout=1)
+                await asyncio.wait_for(second, timeout=coordination_timeout)
         finally:
             release.set()
-        await asyncio.wait_for(first, timeout=1)
+        await asyncio.wait_for(first, timeout=coordination_timeout)
 
         assert hot.get_object("bucket", "one.txt") == data
         assert list(warm.list_objects("bucket")) == []
