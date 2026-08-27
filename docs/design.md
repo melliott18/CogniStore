@@ -132,9 +132,9 @@ not a supported recovery interface.
   requires a retained clean-revision report with
   `acceptance_status: full_scale_passed`.
 
-The default full-suite pytest command currently has a duplicate-module
-collection defect tracked by #90. Until fixed, use
-`python -m pytest --import-mode=importlib` for one combined invocation.
+The default `python -m pytest` command uses collision-safe import identities
+and collects the complete unit, conformance, and integration suite. Tests that
+require external services retain their documented skip behavior.
 
 ## Evolution rules
 
