@@ -1,5 +1,10 @@
 # M1 verification and repository review — 2026-08-27
 
+> **Follow-up:** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
+> subsequently closed #26, #89, and #90 with passing CI. The findings below
+> preserve the repository state at the time of this review. The retained
+> full-profile #29 report remains the sole M1 exit gate.
+
 This review verifies the five-step M1 completion sequence against commit
 `052487d`, the current GitHub tracker, the latest successful `main` CI run, and
 fresh local validation. It supersedes the delivery-status and next-step
