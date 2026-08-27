@@ -10,7 +10,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [ ] Queue + scheduler
   - [x] Message bus (NATS JetStream) and background workers
   - [x] Periodic scheduler for scans and policy passes, with a repair-job extension point
-  - [ ] Fenced recovery for stale scheduled runs after hard worker loss ([#89](https://github.com/melliott18/CogniStore/issues/89))
+  - [x] Fenced recovery for stale scheduled runs after hard worker loss ([#89](https://github.com/melliott18/CogniStore/issues/89))
 
 ## Indexing and knowledge layer
 
@@ -84,7 +84,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] Drivers, tiers, policies, actions, audit trail; dry-run previews and diffs
 - [ ] CLI polish
   - [x] Global config file, profiles, dry-run, verbose and JSON outputs
-  - [ ] Close secret-redaction and operator-contract gaps in [#26](https://github.com/melliott18/CogniStore/issues/26)
+  - [x] Close secret-redaction and operator-contract gaps in [#26](https://github.com/melliott18/CogniStore/issues/26)
 
 ## Reliability, performance, cost
 
@@ -93,7 +93,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] Execute and retain the canonical one-million-object report ([#29](https://github.com/melliott18/CogniStore/issues/29))
 - [ ] Chaos/resilience
   - [x] Reduced CI fault injection verifies mover retries, idempotency, and source retention
-  - [ ] Demonstrate the full-scale recovery profile and stale scheduled-run recovery
+  - [x] Demonstrate fenced stale scheduled-run recovery after a hard process kill
+  - [ ] Demonstrate the full-scale recovery profile
 - [ ] Cost/carbon modeling
   - [ ] Estimators per tier; what-if simulations for policy changes
 
@@ -113,7 +114,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 - [ ] M1: S3 driver + streaming mover + dry‑run + guardrails
   - Success: Move 1M small files hot↔warm reliably with idempotent jobs and integrity checks
-  - Exit gate: close #26, #89, and #90; retain a passing full-profile report and close #29; then close #16
+  - Exit gate: #26, #89, and #90 are closed; retain a passing full-profile report and close #29; then close #16
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`

@@ -77,74 +77,6 @@ Copy/paste and fill for each new bug:
     1 MiB; verified move checksums are full-object digests.
   - Links: `cognistore/core/scanner.py`, `cognistore/core/indexer.py`; ticket #34
 
-- [ ] BUG-2026-009: CLI usage errors can disclose a space-separated secret
-  - Status: open
-  - Severity: S2 (Medium)
-  - Affects: `052487d`; components: CLI parser, output redaction
-  - Environment: reproduced on CPython 3.12.2 and 3.12.7
-  - Reporter: M1 verification review
-  - Owner: unassigned
-  - Created: 2026-08-27
-  - Updated: 2026-08-27
-  - Repro steps:
-    1. Run `python -m cognistore.cli --json ls bucket --base /tmp --password swordfish`.
-    2. Inspect the JSON error written to stdout.
-  - Expected: the unknown sensitive option's value is replaced with
-    `[REDACTED]`.
-  - Actual: the error repeats `--password swordfish` verbatim.
-  - Minimal test case: add parser-error regressions for `--secret VALUE`,
-    short options, repeated values, and values beginning with `-`.
-  - Notes/Workaround: do not place credentials in command-line arguments; use
-    the documented environment/credential-chain mechanisms.
-  - Links: issue #26; `cognistore/cli/output.py`;
-    `cognistore/cli/cognistore_cli.py`
-
-- [ ] BUG-2026-010: Hard worker loss permanently wedges a scheduled scope
-  - Status: open
-  - Severity: S1 (High)
-  - Affects: `052487d`; components: scheduler, worker runtime, JetStream
-  - Environment: deterministic SQLite/unit reproduction; live composition gap
-  - Reporter: M1 verification review
-  - Owner: unassigned
-  - Created: 2026-08-27
-  - Updated: 2026-08-27
-  - Repro steps:
-    1. Let a scheduled delivery transition its durable occurrence to `running`.
-    2. Kill the worker before it records a retryable or terminal transition.
-    3. Redeliver the same JetStream envelope after its lease expires.
-  - Expected: after the former worker is explicitly fenced, an audited recovery
-    resumes the same occurrence without overlap.
-  - Actual: every redelivery is rejected, `active_job_id` remains set, and no
-    later occurrence for that scope can be reserved.
-  - Minimal test case: live JetStream hard-process-kill/restart coverage that
-    proves recovery, non-overlap, and later-interval progress.
-  - Notes/Workaround: fail-closed state prevents concurrent side effects. Fence
-    the former worker and preserve evidence; there is no supported recovery
-    command and direct database edits are unsafe.
-  - Links: issue #89; `cognistore/jobs/scheduler.py`;
-    `docs/background_workers.md`
-
-- [ ] BUG-2026-011: Default pytest invocation cannot collect the full suite
-  - Status: open
-  - Severity: S2 (Medium)
-  - Affects: `052487d`; components: test configuration, CI, contributor DX
-  - Environment: clean CPython 3.12.2 development install
-  - Reporter: M1 verification review
-  - Owner: unassigned
-  - Created: 2026-08-27
-  - Updated: 2026-08-27
-  - Repro steps:
-    1. Install `.[dev]` in a clean environment.
-    2. Run `python -m pytest`.
-  - Expected: the documented command collects the full default suite.
-  - Actual: collection stops because the unit and integration files named
-    `test_move_qualification.py` import as the same top-level module.
-  - Minimal test case: make the default invocation a CI step.
-  - Notes/Workaround: `python -m pytest --import-mode=importlib` completes with
-    564 passed and 10 documented service-dependent skips.
-  - Links: issue #90; `pyproject.toml`; `tests/unit/test_move_qualification.py`;
-    `tests/integration/test_move_qualification.py`
-
 - [ ] BUG-2026-012: POSIX containment is vulnerable to concurrent symlink swaps
   - Status: open
   - Severity: S1 (High)
@@ -187,6 +119,42 @@ Copy/paste and fill for each new bug:
 ## Fixed (Changelog)
 
 <!-- When closing a bug, move the checklist item here and add the commit/PR. -->
+
+- [x] BUG-2026-009: CLI usage errors can disclose a space-separated secret
+  - Status: fixed
+  - Severity: S2 (Medium)
+  - Updated: 2026-08-27
+  - Resolution: parser diagnostics and all pre-parser selectors now operate on
+    a token-preserving redacted argument view. Attached, separate, short,
+    repeated, multi-token, leading-dash, and selector-like secret values cannot
+    enter usage or configuration errors.
+  - Verified by: `tests/unit/test_cli_output.py` and
+    `tests/unit/test_cli_contract.py`.
+  - Fixed in: [PR #93](https://github.com/melliott18/CogniStore/pull/93).
+
+- [x] BUG-2026-010: Hard worker loss permanently wedges a scheduled scope
+  - Status: fixed
+  - Severity: S1 (High)
+  - Updated: 2026-08-27
+  - Resolution: operators can inspect stale occurrences read-only and apply an
+    explicitly fenced, owner-matched recovery. The same job and generation
+    become retryable in one audited, idempotent transaction while retaining the
+    logical scope lock.
+  - Verified by: `tests/unit/test_scheduler.py`,
+    `tests/unit/test_schedule_recovery_cli.py`, and
+    `tests/integration/test_scheduled_run_recovery.py`.
+  - Fixed in: [PR #93](https://github.com/melliott18/CogniStore/pull/93).
+
+- [x] BUG-2026-011: Default pytest invocation cannot collect the full suite
+  - Status: fixed
+  - Severity: S2 (Medium)
+  - Updated: 2026-08-27
+  - Resolution: pytest's default import mode gives duplicate-basename test
+    files distinct module identities, and CI runs the exact documented
+    `python -m pytest` command from a clean development install.
+  - Verified by: the default-suite CI job in
+    [run 33114755574](https://github.com/melliott18/CogniStore/actions/runs/33114755574).
+  - Fixed in: [PR #93](https://github.com/melliott18/CogniStore/pull/93).
 
 - [x] BUG-2026-005: Manual CLI moves cannot resume their durable move job
   - Status: fixed

@@ -6,7 +6,7 @@
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 65 issues; 54 open, 11 closed
+- **Snapshot:** 65 issues; 51 open, 14 closed
 
 ## How to use this mirror
 
@@ -91,7 +91,7 @@ Backlog is maintained against the default `main` branch; GitHub Issues is the ca
 - **GitHub milestone:** [M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/milestone/4)
 - **Delivery tickets:** 13
 - **Verification follow-ups:** 2
-- **Open:** 5 including the epic and verification follow-ups
+- **Open:** 2 including the epic
 
 ### [#16 — [Epic] M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/issues/16)
 
@@ -125,7 +125,7 @@ CogniStore can move data between POSIX and S3-compatible tiers using a streaming
 - [x] [#23](https://github.com/melliott18/CogniStore/issues/23) — Make move jobs idempotent with two-phase catalog updates
 - [x] [#24](https://github.com/melliott18/CogniStore/issues/24) — Add retry, backoff, dead-letter, and redrive handling
 - [x] [#25](https://github.com/melliott18/CogniStore/issues/25) — Add per-tier concurrency, rate limiting, and backpressure
-- [ ] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
+- [x] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
 - [x] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
 - [x] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
 - [ ] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
@@ -138,14 +138,14 @@ Dependencies listed inside each child issue are authoritative; checklist order i
 
 #### Verification follow-ups
 
-- [ ] [#89](https://github.com/melliott18/CogniStore/issues/89) — Recover stale scheduled runs safely after worker loss
-- [ ] [#90](https://github.com/melliott18/CogniStore/issues/90) — Make the default pytest command collect the full test suite
+- [x] [#89](https://github.com/melliott18/CogniStore/issues/89) — Recover stale scheduled runs safely after worker loss
+- [x] [#90](https://github.com/melliott18/CogniStore/issues/90) — Make the default pytest command collect the full test suite
 - [#91](https://github.com/melliott18/CogniStore/issues/91) — Make POSIX path containment race-safe against symlink swaps (scheduled for M4 hardening)
 
-Issue #26 remains unchecked because the 2026-08-27 verification reproduced a
-secret-redaction failure. Issue #29 remains unchecked until a retained
-full-profile report proves the one-million-object criterion and manual
-repeatability.
+Issues #26, #89, and #90 closed through
+[#93](https://github.com/melliott18/CogniStore/pull/93). Issue #29 remains
+unchecked until a retained full-profile report proves the one-million-object
+criterion and manual repeatability.
 
 ### Delivery tickets
 
@@ -524,7 +524,7 @@ Scale-out orchestration → concurrency pools, rate limiting, and backpressure.
 ### [#26 — [M1] Standardize CLI configuration, profiles, dry-run, verbose, and JSON output](https://github.com/melliott18/CogniStore/issues/26)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:api`
 - **Last updated:** 2026-08-27
@@ -552,7 +552,7 @@ Make the CLI predictable for both operators and automation.
 - [x] Configuration precedence is covered by tests and documented.
 - [x] Every mutating command either supports dry-run or clearly documents why it cannot.
 - [x] JSON output has versioned schemas and non-zero exit codes on failure.
-- [ ] Secrets are redacted from verbose and error output.
+- [x] Secrets are redacted from verbose and error output.
 
 #### Dependencies
 
@@ -564,10 +564,10 @@ API, CLI, and UI → CLI polish.
 
 #### Verification follow-ups — 2026-08-27
 
-- [ ] Usage-error redaction covers space-separated values after sensitive option names without exposing the value.
-- [ ] `move-resume --dry-run` reports which ownership and phase-specific storage preconditions were and were not checked; it must not imply readiness when it only inspected journal state.
-- [ ] The exit-status contract is made consistent and tested, or its versioned documentation explicitly defines the narrower guarantee automation can rely on.
-- [ ] A CLI option can disable verbosity enabled by a lower-precedence environment, profile, or default value.
+- [x] Usage-error redaction covers space-separated values after sensitive option names without exposing the value.
+- [x] `move-resume --dry-run` reports which ownership and phase-specific storage preconditions were and were not checked; it must not imply readiness when it only inspected journal state.
+- [x] The exit-status contract is made consistent and tested, or its versioned documentation explicitly defines the narrower guarantee automation can rely on.
+- [x] A CLI option can disable verbosity enabled by a lower-precedence environment, profile, or default value.
 
 ### [#27 — [M1] Establish Python packaging and CI quality gates](https://github.com/melliott18/CogniStore/issues/27)
 
@@ -704,7 +704,7 @@ M1 success criterion; benchmarks, scale tests, and chaos/resilience.
 ### [#89 — [M1] Recover stale scheduled runs safely after worker loss](https://github.com/melliott18/CogniStore/issues/89)
 
 - **Kind:** Bug follow-up
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `bug`, `roadmap`, `area:control-plane`, `area:orchestration`
 - **Last updated:** 2026-08-27
@@ -734,11 +734,11 @@ occurrences cannot be reserved, and the delivery can redeliver forever.
 
 #### Acceptance criteria
 
-- [ ] Operators can list and inspect stale/quarantined scheduled runs without direct database queries.
-- [ ] An explicitly fenced recovery resumes the same occurrence without overlapping the former worker.
-- [ ] Recovery is durable, audited, idempotent, and safe across process restarts.
-- [ ] A live JetStream hard-kill/restart test proves the scope resumes and later intervals can run.
-- [ ] The operator runbook documents fencing, inspection, recovery, and failure handling.
+- [x] Operators can list and inspect stale/quarantined scheduled runs without direct database queries.
+- [x] An explicitly fenced recovery resumes the same occurrence without overlapping the former worker.
+- [x] Recovery is durable, audited, idempotent, and safe across process restarts.
+- [x] A live JetStream hard-kill/restart test proves the scope resumes and later intervals can run.
+- [x] The operator runbook documents fencing, inspection, recovery, and failure handling.
 
 #### Dependencies
 
@@ -749,7 +749,7 @@ occurrences cannot be reserved, and the delivery can redeliver forever.
 ### [#90 — [M1] Make the default pytest command collect the full test suite](https://github.com/melliott18/CogniStore/issues/90)
 
 - **Kind:** Bug follow-up
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `bug`, `roadmap`, `type:chore`, `area:delivery`
 - **Last updated:** 2026-08-27
@@ -764,10 +764,10 @@ the collision by running the groups separately.
 
 #### Acceptance criteria
 
-- [ ] `python -m pytest` collects and runs the full default suite from a clean development install.
-- [ ] Unit and integration files may not collide through their import names.
-- [ ] CI exercises the default invocation on every supported Python version or in one dedicated full-suite job.
-- [ ] Coverage and documented external-service skip behavior remain intact.
+- [x] `python -m pytest` collects and runs the full default suite from a clean development install.
+- [x] Unit and integration files may not collide through their import names.
+- [x] CI exercises the default invocation on every supported Python version or in one dedicated full-suite job.
+- [x] Coverage and documented external-service skip behavior remain intact.
 
 ## M2 – Knowledge layer and search
 

@@ -1,5 +1,9 @@
 # Next-ticket execution roadmap — 2026-08-27
 
+> **Progress update:** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
+> completed Group 1 tickets #90, #26, and #89. The canonical full-scale #29
+> campaign and subsequent #16 closure remain outstanding.
+
 This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. The first
 group finishes M1; the later waves deliver M2 without starting downstream work
