@@ -12,6 +12,7 @@ from cognistore.cli.output import (
     emit_json,
     error_payload,
     redact,
+    redact_cli_arguments,
     redact_text,
     result_payload,
 )
@@ -112,6 +113,51 @@ def test_redact_text_scrubs_assignments_headers_and_private_keys() -> None:
     assert "top-secret" not in safe
     assert "key-material" not in safe
     assert safe.count(REDACTED) >= 4
+
+
+def test_cli_argument_redaction_preserves_tokens_and_covers_sensitive_forms() -> None:
+    arguments = [
+        "--password",
+        "open sesame",
+        "--client-secret=attached-secret",
+        "-p",
+        "-leading-dash-secret",
+        "--password",
+        "first-secret",
+        "--password",
+        "second-secret",
+        "--profile",
+        "production",
+    ]
+
+    safe = redact_cli_arguments(arguments)
+
+    assert arguments[1] == "open sesame"
+    assert safe == [
+        "--password",
+        REDACTED,
+        f"--client-secret={REDACTED}",
+        "-p",
+        REDACTED,
+        "--password",
+        REDACTED,
+        "--password",
+        REDACTED,
+        "--profile",
+        "production",
+    ]
+    rendered = redact_text(
+        "unrecognized arguments: --password text-secret "
+        "--client-secret=attached-text-secret -p short-text-secret"
+    )
+    for secret in ("text-secret", "attached-text-secret", "short-text-secret"):
+        assert secret not in rendered
+
+
+def test_cli_argument_redaction_preserves_positionals_after_end_of_options() -> None:
+    arguments = ["put", "bucket", "key", "--", "-psecret-file"]
+
+    assert redact_cli_arguments(arguments) == arguments
 
 
 def test_error_payload_uses_exception_type_and_redacts_exception_message() -> None:

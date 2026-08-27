@@ -143,6 +143,16 @@ _BEARER_CREDENTIAL = re.compile(
     r"\b(?P<scheme>Bearer|Basic)\s+(?P<credential>[A-Za-z0-9._~+/=-]+)",
     flags=re.IGNORECASE,
 )
+_CLI_LONG_OPTION_VALUE = re.compile(
+    r"(?P<option>(?<!\S)--(?P<key>[A-Za-z][A-Za-z0-9_.-]*))"
+    r"(?:(?P<equals>=)(?P<attached>[^\s]*?)|(?P<space>\s+)(?P<separate>\S+))"
+    r"(?=$|\s)",
+)
+_CLI_SHORT_OPTION_VALUE = re.compile(
+    r"(?P<option>(?<!\S)-(?P<key>[pPkKsStT]))"
+    r"(?:(?P<equals>=?)(?P<attached>[^\s]+)|(?P<space>\s+)(?P<separate>\S+))"
+    r"(?=$|\s)",
+)
 _KEY_VALUE = re.compile(
     r"(?=(?P<assignment>"
     r"(?P<prefix>(?<![\w.-])(?P<quote>[\"']?)(?P<key>[A-Za-z_]"
@@ -151,6 +161,11 @@ _KEY_VALUE = re.compile(
     r"'(?:\\.|[^'\\])*'|[^\s,;&}\]\)]+)"
     r"))"
 )
+
+# Unknown short options have no parser metadata that can reveal their meaning.
+# Treat the conventional password/key/secret/token aliases conservatively so a
+# typo such as ``-p VALUE`` cannot disclose the following command-line token.
+_SECRET_SHORT_OPTIONS = frozenset("pPkKsStT")
 
 
 def _normalize_key(key: str) -> tuple[str, frozenset[str]]:
@@ -222,6 +237,94 @@ def _redact_key_values(text: str) -> str:
     return "".join(result)
 
 
+def _redact_cli_option_text(text: str) -> str:
+    """Redact sensitive option/value pairs embedded in diagnostic text."""
+
+    def redact_long(match: re.Match[str]) -> str:
+        if not _is_secret_key(match.group("key")):
+            return match.group(0)
+        separator = match.group("equals") or match.group("space") or ""
+        return f"{match.group('option')}{separator}{REDACTED}"
+
+    def redact_short(match: re.Match[str]) -> str:
+        if match.group("key") not in _SECRET_SHORT_OPTIONS:
+            return match.group(0)
+        separator = match.group("equals") or match.group("space") or ""
+        return f"{match.group('option')}{separator}{REDACTED}"
+
+    return _CLI_SHORT_OPTION_VALUE.sub(
+        redact_short,
+        _CLI_LONG_OPTION_VALUE.sub(redact_long, text),
+    )
+
+
+def redact_cli_arguments(arguments: Sequence[str]) -> list[str]:
+    """Copy CLI tokens while redacting values of sensitive-looking options.
+
+    ``argparse`` flattens unknown arguments into one string before calling
+    ``error()``, which loses token boundaries and can expose a value containing
+    spaces. Sanitizing the original token list first keeps that boundary and
+    also handles attached, repeated, short-option, and leading-dash values.
+    """
+
+    safe: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = str(arguments[index])
+        if argument == "--":
+            # Everything after the end-of-options marker is positional data.
+            # Preserve it verbatim so a legitimate path such as ``-psecret``
+            # is not mistaken for an unknown credential option.
+            safe.extend(str(item) for item in arguments[index:])
+            break
+        long_option = argument.startswith("--") and len(argument) > 2
+        if long_option:
+            option, equals, _attached = argument.partition("=")
+            if _is_secret_key(option[2:]):
+                safe.append(f"{option}={REDACTED}" if equals else option)
+                if not equals and index + 1 < len(arguments):
+                    safe.append(REDACTED)
+                    index += 2
+                    while index < len(arguments) and not str(
+                        arguments[index]
+                    ).startswith("-"):
+                        safe.append(REDACTED)
+                        index += 1
+                    continue
+                index += 1
+                continue
+
+        short_option = (
+            len(argument) >= 2
+            and argument[0] == "-"
+            and argument[1] in _SECRET_SHORT_OPTIONS
+            and not argument.startswith("--")
+        )
+        if short_option:
+            option = argument[:2]
+            attached = argument[2:]
+            if attached:
+                separator = "=" if attached.startswith("=") else ""
+                safe.append(f"{option}{separator}{REDACTED}")
+            else:
+                safe.append(option)
+                if index + 1 < len(arguments):
+                    safe.append(REDACTED)
+                    index += 2
+                    while index < len(arguments) and not str(
+                        arguments[index]
+                    ).startswith("-"):
+                        safe.append(REDACTED)
+                        index += 1
+                    continue
+            index += 1
+            continue
+
+        safe.append(argument)
+        index += 1
+    return safe
+
+
 def redact_text(text: str) -> str:
     """Return *text* with common credential representations removed.
 
@@ -257,6 +360,7 @@ def redact_text(text: str) -> str:
         redacted,
     )
 
+    redacted = _redact_cli_option_text(redacted)
     return _redact_key_values(redacted)
 
 
@@ -398,6 +502,7 @@ __all__ = [
     "emit_verbose",
     "error_payload",
     "redact",
+    "redact_cli_arguments",
     "redact_text",
     "result_payload",
 ]

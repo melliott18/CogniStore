@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterator
@@ -312,6 +313,259 @@ def test_json_usage_error_is_one_versioned_stdout_document_with_nonzero_code(
     assert payload["status"] == "error"
     assert payload["error_type"] == "UsageError"
     assert payload["exit_code"] == exc_info.value.code
+
+
+@pytest.mark.parametrize(
+    ("unknown_arguments", "secrets"),
+    [
+        (["--password", "space-separated-secret"], ["space-separated-secret"]),
+        (["--password=attached-secret"], ["attached-secret"]),
+        (["-p", "short-option-secret"], ["short-option-secret"]),
+        (["--password", "-leading-dash-secret"], ["-leading-dash-secret"]),
+        (
+            ["--secret", "first-value-secret", "second-value-secret"],
+            ["first-value-secret", "second-value-secret"],
+        ),
+        (
+            [
+                "--client-secret",
+                "first-repeated-secret",
+                "--client-secret",
+                "second-repeated-secret",
+            ],
+            ["first-repeated-secret", "second-repeated-secret"],
+        ),
+        (["--password", "secret containing spaces"], ["secret containing spaces"]),
+    ],
+)
+def test_usage_errors_redact_sensitive_unknown_option_values(
+    unknown_arguments: list[str],
+    secrets: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            ["--json", "ls", "bucket", "--base", "unused", *unknown_arguments]
+        )
+
+    payload, diagnostics = _json_document(capsys)
+    assert exc_info.value.code == 2
+    assert diagnostics == ""
+    assert payload["error_type"] == "UsageError"
+    assert "[REDACTED]" in payload["error"]
+    for secret in secrets:
+        assert secret not in payload["error"]
+
+
+def test_human_usage_error_redacts_sensitive_unknown_option_value(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            ["ls", "bucket", "--base", "unused", "--password", "human-secret"]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 2
+    assert captured.out == ""
+    assert "human-secret" not in captured.err
+    assert "--password [REDACTED]" in captured.err
+
+
+def test_json_usage_error_redacts_sensitive_option_before_subcommand(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "pre-subcommand-json-secret"
+
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            [
+                "--json",
+                "--password",
+                secret,
+                "ls",
+                "bucket",
+                "--base",
+                "unused",
+            ]
+        )
+
+    payload, diagnostics = _json_document(capsys)
+    assert exc_info.value.code == 2
+    assert diagnostics == ""
+    assert payload["error_type"] == "UsageError"
+    assert secret not in payload["error"]
+    assert "[REDACTED]" in payload["error"]
+
+
+def test_human_usage_error_redacts_short_sensitive_option_before_subcommand(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "pre-subcommand-human-secret"
+
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            ["-p", secret, "ls", "bucket", "--base", "unused"]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 2
+    assert captured.out == ""
+    assert secret not in captured.err
+    assert "[REDACTED]" in captured.err
+
+
+@pytest.mark.parametrize(
+    ("placement", "secret_arguments", "secrets"),
+    [
+        (
+            "after-command",
+            ["--password", "--config", "leak-leading-config-path"],
+            ["leak-leading-config-path"],
+        ),
+        (
+            "after-command",
+            ["--password", "--config=leak-attached-config-path"],
+            ["leak-attached-config-path"],
+        ),
+        (
+            "before-command",
+            ["--password", "--profile=leak-attached-profile"],
+            ["leak-attached-profile"],
+        ),
+    ],
+)
+def test_sensitive_selector_like_values_are_not_used_by_early_resolution(
+    placement: str,
+    secret_arguments: list[str],
+    secrets: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    command = ["ls", "bucket", "--base", "unused"]
+    argv = (
+        ["--json", *secret_arguments, *command]
+        if placement == "before-command"
+        else ["--json", *command, *secret_arguments]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(argv)
+
+    payload, diagnostics = _json_document(capsys)
+    assert exc_info.value.code == 2
+    assert diagnostics == ""
+    assert payload["error_type"] == "UsageError"
+    assert "[REDACTED]" in payload["error"]
+    for secret in secrets:
+        assert secret not in payload["error"]
+
+
+def test_sensitive_output_selectors_do_not_change_early_json_or_verbose_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    logging_modes: list[bool] = []
+
+    @contextmanager
+    def capture_logging(enabled: bool) -> Iterator[None]:
+        logging_modes.append(enabled)
+        yield
+
+    monkeypatch.setattr(cognistore_cli, "_cli_logging", capture_logging)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cognistore_cli.main(
+            [
+                "--json",
+                "ls",
+                "bucket",
+                "--base",
+                "unused",
+                "--password",
+                "--no-json",
+                "--password",
+                "--verbose",
+            ]
+        )
+
+    payload, diagnostics = _json_document(capsys)
+    assert exc_info.value.code == 2
+    assert diagnostics == ""
+    assert payload["error_type"] == "UsageError"
+    assert logging_modes == [False]
+
+
+def test_no_verbose_overrides_lower_precedence_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class ListingDriver:
+        def __init__(self, _base: str | Path) -> None:
+            pass
+
+        def list_objects(self, _bucket: str, prefix: str = "") -> Iterator[str]:
+            return iter(("object",))
+
+    config_path = tmp_path / "verbose.yaml"
+    config_path.write_text(
+        "version: 1\ndefaults:\n  verbose: true\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cognistore_cli, "PosixDriver", ListingDriver)
+    monkeypatch.setenv("COGNISTORE_VERBOSE", "true")
+
+    for argv in (
+        [
+            "--config",
+            str(config_path),
+            "--no-verbose",
+            "--base",
+            "unused",
+            "ls",
+            "bucket",
+            "--json",
+        ],
+        [
+            "--config",
+            str(config_path),
+            "--base",
+            "unused",
+            "ls",
+            "bucket",
+            "--json",
+            "--no-verbose",
+        ],
+    ):
+        assert cognistore_cli.main(argv) == 0
+        payload, diagnostics = _json_document(capsys)
+        assert payload["status"] == "success"
+        assert diagnostics == ""
+
+
+def test_interrupted_command_uses_documented_v1_exit_status(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class InterruptedDriver:
+        def __init__(self, _base: str | Path) -> None:
+            pass
+
+        def list_objects(self, _bucket: str, prefix: str = "") -> Iterator[str]:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(cognistore_cli, "PosixDriver", InterruptedDriver)
+
+    exit_code = cognistore_cli.main(
+        ["--base", "unused", "ls", "bucket", "--json"]
+    )
+    payload, diagnostics = _json_document(capsys)
+
+    assert exit_code == 130
+    assert diagnostics == ""
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "Interrupted"
+    assert payload["exit_code"] == 130
 
 
 @pytest.mark.parametrize(

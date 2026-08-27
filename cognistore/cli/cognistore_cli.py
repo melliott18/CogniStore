@@ -13,7 +13,7 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
 from typing import Any, Literal, NoReturn, Sequence
@@ -30,6 +30,7 @@ from cognistore.cli.output import (
 	emit_json,
 	error_payload,
 	redact,
+	redact_cli_arguments,
 	redact_text,
 	result_payload,
 )
@@ -67,8 +68,12 @@ from cognistore.jobs.nats_queue import (
 )
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 from cognistore.jobs.scheduler import (
+	SCHEDULED_RUN_STATES,
 	PeriodicScheduler,
 	ScheduledRunCoordinator,
+	ScheduledRunRecord,
+	ScheduledRunRecovery,
+	ScheduledRunRecoveryError,
 	SQLiteScheduleStore,
 	load_schedule_config,
 )
@@ -95,6 +100,9 @@ _COMMAND_NAMES = frozenset(
 		"move-status",
 		"move-list",
 		"move-resume",
+		"schedule-run-list",
+		"schedule-run-status",
+		"schedule-run-recover",
 		"ls-tier",
 		"catalog-scan",
 		"tier-profile",
@@ -127,6 +135,62 @@ _CLI_VALUE_OPTIONS = {
 	"--dry-run": "dry_run",
 	"--no-dry-run": "dry_run",
 	"--verbose": "verbose",
+	"--no-verbose": "verbose",
+}
+
+_MOVE_RESUME_STORAGE_PRECONDITIONS = {
+	MoveJobState.PREPARED: (
+		(
+			"source_generation",
+			"the source exists and remains at the generation recorded by the job",
+		),
+		(
+			"destination_publication",
+			"the destination is absent or an existing publication can be made durable",
+		),
+	),
+	MoveJobState.TRANSFERRED: (
+		(
+			"source_integrity",
+			"recorded source integrity evidence is available or can be recomputed",
+		),
+		(
+			"destination_integrity",
+			"destination size, checksum, and generation match the transferred object",
+		),
+	),
+	MoveJobState.VERIFIED: (
+		(
+			"destination_generation_for_cleanup",
+			"the verified destination remains intact before source cleanup",
+		),
+		(
+			"source_generation_for_cleanup",
+			"conditional cleanup still addresses the recorded source generation",
+		),
+	),
+	MoveJobState.COMMITTED: (
+		(
+			"destination_generation_for_cleanup",
+			"the committed destination remains intact before source cleanup",
+		),
+		(
+			"source_generation_for_cleanup",
+			"conditional cleanup still addresses the recorded source generation",
+		),
+	),
+	MoveJobState.CLEANUP: (
+		(
+			"destination_generation_for_cleanup",
+			"the committed destination remains intact before repeating cleanup",
+		),
+		(
+			"source_generation_for_cleanup",
+			"conditional cleanup still addresses the recorded source generation",
+		),
+	),
+	MoveJobState.COMPLETED: (),
+	MoveJobState.FAILED: (),
 }
 
 
@@ -163,6 +227,25 @@ class _CliArgumentParser(argparse.ArgumentParser):
 
 	json_output = False
 	command_hint: str | None = None
+
+	def parse_args(  # type: ignore[override]
+		self,
+		args: Sequence[str] | None = None,
+		namespace: argparse.Namespace | None = None,
+	) -> argparse.Namespace:
+		arguments = list(sys.argv[1:] if args is None else args)
+		# argparse can consume the value of an unknown option as the subcommand
+		# and raise from inside parse_known_args().  Give it a token-preserving,
+		# redacted copy so even those early diagnostics never see credential text.
+		parsed, unknown = self.parse_known_args(
+			redact_cli_arguments(arguments), namespace
+		)
+		if unknown:
+			self.error(
+				"unrecognized arguments: "
+				+ " ".join(redact_cli_arguments(unknown))
+			)
+		return parsed
 
 	def print_help(self, file: Any | None = None) -> None:
 		if type(self).json_output:
@@ -279,6 +362,14 @@ def _add_output_options(
 		default=argparse.SUPPRESS if subcommand else 0,
 		help="Emit redacted diagnostics to stderr (repeat for more detail)",
 	)
+	parser.add_argument(
+		"--no-verbose",
+		dest="verbose",
+		action="store_const",
+		const=0,
+		default=argparse.SUPPRESS if subcommand else 0,
+		help="Disable diagnostics enabled by configuration or the environment",
+	)
 
 
 def _emit_result(
@@ -363,6 +454,119 @@ def _move_transition_payload(transition: MoveJobTransition) -> dict[str, object]
 		"to_state": transition.to_state.value,
 		"reason": redact_text(transition.reason),
 		"created_at": transition.created_at,
+	}
+
+
+def _utc_text(value: datetime | None) -> str | None:
+	if value is None:
+		return None
+	return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _scheduled_run_payload(run: ScheduledRunRecord) -> dict[str, object]:
+	return {
+		"job_id": run.job_id,
+		"run_sequence": run.run_sequence,
+		"schedule_id": run.schedule_id,
+		"scope": run.scope,
+		"state": run.state,
+		"scheduled_for": _utc_text(run.scheduled_for),
+		"published_at": _utc_text(run.published_at),
+		"execution_owner": run.execution_owner,
+		"execution_lease_expires_at": _utc_text(
+			run.execution_lease_expires_at
+		),
+		"execution_generation": run.execution_generation,
+		"completed_at": _utc_text(run.completed_at),
+		"outcome": run.outcome,
+		"created_at": _utc_text(run.created_at),
+		"updated_at": _utc_text(run.updated_at),
+		"stale": run.stale,
+	}
+
+
+def _scheduled_recovery_payload(
+	recovery: ScheduledRunRecovery,
+) -> dict[str, object]:
+	return {
+		"recovery_id": recovery.recovery_id,
+		"job_id": recovery.job_id,
+		"schedule_id": recovery.schedule_id,
+		"scope": recovery.scope,
+		"execution_generation": recovery.execution_generation,
+		"prior_execution_owner": recovery.prior_execution_owner,
+		"prior_lease_expires_at": _utc_text(
+			recovery.prior_lease_expires_at
+		),
+		"operator": recovery.operator,
+		"reason": recovery.reason,
+		"fence_evidence": recovery.fence_evidence,
+		"recovered_at": _utc_text(recovery.recovered_at),
+	}
+
+
+def _schedule_recovery_preconditions(run: ScheduledRunRecord) -> dict[str, object]:
+	return {
+		"readiness": "confirmed_at_preview_time",
+		"state_running": {"checked": True, "satisfied": True},
+		"expected_owner": {
+			"checked": True,
+			"satisfied": True,
+			"owner": run.execution_owner,
+		},
+		"lease_expired": {
+			"checked": True,
+			"satisfied": True,
+			"lease_expires_at": _utc_text(run.execution_lease_expires_at),
+		},
+		"durable_scope_lock": {"checked": True, "satisfied": True},
+		"former_worker_fenced": {
+			"checked": True,
+			"operator_confirmed": True,
+		},
+		"atomic_recheck_on_write": True,
+	}
+
+
+def _move_resume_preconditions(job: MoveJob) -> dict[str, object]:
+	"""Describe exactly what a read-only recovery preview did and did not prove."""
+
+	completed = job.state == MoveJobState.COMPLETED
+	unchecked_reason = (
+		"the read-only preview did not claim the move or execute its current phase"
+	)
+	return {
+		"readiness": "not_required" if completed else "not_confirmed",
+		"journal": {
+			"checked": True,
+			"satisfied": True,
+			"state": job.state.value,
+		},
+		"driver_pair": {
+			"checked": True,
+			"satisfied": True,
+			"source_tier": job.src_tier,
+			"destination_tier": job.dst_tier,
+		},
+		"ownership": {
+			"checked": False,
+			"satisfied": None,
+			"claim_attempted": False,
+			"detail": (
+				"the job is already complete; no ownership claim is required"
+				if completed
+				else "writable ownership can change after this preview and was not claimed"
+			),
+		},
+		"storage": [
+			{
+				"name": name,
+				"checked": False,
+				"satisfied": None,
+				"detail": f"{detail}; {unchecked_reason}",
+			}
+			for name, detail in _MOVE_RESUME_STORAGE_PRECONDITIONS[job.state]
+		],
 	}
 
 
@@ -947,6 +1151,54 @@ def _run_cli(
 	p_move_resume = command("move-resume", help="Resume one durable move job")
 	p_move_resume.add_argument("idempotency_key")
 
+	p_schedule_run_status = command(
+		"schedule-run-status",
+		help="Inspect one durable scheduled occurrence and its recovery audit",
+	)
+	p_schedule_run_status.add_argument("job_id")
+
+	p_schedule_run_list = command(
+		"schedule-run-list",
+		help="List durable scheduled occurrences",
+	)
+	p_schedule_run_list.add_argument(
+		"--state",
+		action="append",
+		choices=SCHEDULED_RUN_STATES,
+		help="Filter by state (repeatable)",
+	)
+	p_schedule_run_list.add_argument("--schedule-id")
+	p_schedule_run_list.add_argument(
+		"--stale",
+		action="store_true",
+		help="Show only running occurrences whose execution lease expired",
+	)
+
+	p_schedule_run_recover = command(
+		"schedule-run-recover",
+		help="Release one explicitly fenced stale scheduled occurrence",
+	)
+	p_schedule_run_recover.add_argument("job_id")
+	p_schedule_run_recover.add_argument(
+		"--recovery-id",
+		required=True,
+		help="Stable UUID for idempotent recovery retries",
+	)
+	p_schedule_run_recover.add_argument(
+		"--expected-owner",
+		required=True,
+		help="Execution owner copied from schedule-run-status",
+	)
+	p_schedule_run_recover.add_argument("--operator", required=True)
+	p_schedule_run_recover.add_argument("--reason", required=True)
+	p_schedule_run_recover.add_argument("--fence-evidence", required=True)
+	p_schedule_run_recover.add_argument(
+		"--confirm-former-worker-fenced",
+		action="store_true",
+		required=True,
+		help="Confirm the former process cannot still execute side effects",
+	)
+
 	p_lst = command("ls-tier")
 	p_lst.add_argument("tier")
 	p_lst.add_argument("bucket")
@@ -1225,6 +1477,145 @@ def _run_cli(
 			return 0
 		finally:
 			status_catalog.close()
+
+	if args.cmd in {
+		"schedule-run-list",
+		"schedule-run-status",
+		"schedule-run-recover",
+	}:
+		if not args.catalog_db or args.catalog_db == ":memory:":
+			parser.error(
+				"--catalog-db must name an existing persistent SQLite file for "
+				f"{args.cmd}"
+			)
+		schedule_path = Path(args.catalog_db).expanduser()
+		if not schedule_path.is_file():
+			parser.error(f"--catalog-db does not exist: {schedule_path}")
+		schedule_now = datetime.now(timezone.utc)
+		read_only = args.cmd != "schedule-run-recover" or dry_run
+		request_fields: tuple[str, str, str, str] | None = None
+		if args.cmd == "schedule-run-recover":
+			try:
+				request_fields = SQLiteScheduleStore.validate_recovery_request(
+					args.recovery_id,
+					args.operator,
+					args.reason,
+					args.fence_evidence,
+				)
+			except ValueError as exc:
+				parser.error(str(exc))
+		store = SQLiteScheduleStore(schedule_path, read_only=read_only)
+		try:
+			if args.cmd == "schedule-run-list":
+				runs = store.list_runs(
+					now=schedule_now,
+					states=args.state,
+					schedule_id=args.schedule_id,
+					stale_only=args.stale,
+				)
+				_emit_result(
+					"schedule-run-list",
+					"success",
+					json_output=args.json,
+					human=[
+						f"{run.job_id} schedule={run.schedule_id} "
+						f"state={run.state} stale={str(run.stale).lower()}"
+						for run in runs
+					],
+					count=len(runs),
+					runs=[_scheduled_run_payload(run) for run in runs],
+				)
+				return 0
+
+			if args.cmd == "schedule-run-status":
+				run = store.get_run(args.job_id, now=schedule_now)
+				if run is None:
+					return _emit_failure(
+						"schedule-run-status",
+						f"scheduled run not found: {args.job_id}",
+						json_output=args.json,
+						error_type="ScheduledRunNotFound",
+						job_id=args.job_id,
+					)
+				recoveries = store.list_recoveries(args.job_id)
+				_emit_result(
+					"schedule-run-status",
+					"success",
+					json_output=args.json,
+					human=(
+						f"{run.job_id} schedule={run.schedule_id} "
+						f"state={run.state} stale={str(run.stale).lower()}"
+					),
+					run=_scheduled_run_payload(run),
+					recoveries=[
+						_scheduled_recovery_payload(recovery)
+						for recovery in recoveries
+					],
+				)
+				return 0
+
+			assert request_fields is not None
+			recovery_id, operator, reason, fence_evidence = request_fields
+			if dry_run:
+				candidate = store.inspect_recovery(
+					args.job_id,
+					expected_owner=args.expected_owner,
+					former_worker_fenced=args.confirm_former_worker_fenced,
+					now=schedule_now,
+				)
+				_emit_result(
+					"schedule-run-recover",
+					"planned",
+					json_output=args.json,
+					human=(
+						f"planned fenced recovery {recovery_id} "
+						f"for scheduled run {candidate.job_id}"
+					),
+					dry_run=True,
+					recovery_id=recovery_id,
+					operator=operator,
+					reason=reason,
+					fence_evidence=fence_evidence,
+					candidate=_scheduled_run_payload(candidate),
+					preconditions=_schedule_recovery_preconditions(candidate),
+				)
+				return 0
+
+			recovery = store.recover_stale_run(
+				args.job_id,
+				recovery_id=recovery_id,
+				expected_owner=args.expected_owner,
+				operator=operator,
+				reason=reason,
+				fence_evidence=fence_evidence,
+				former_worker_fenced=args.confirm_former_worker_fenced,
+				now=schedule_now,
+			)
+			run = store.get_run(args.job_id, now=schedule_now)
+			assert run is not None
+			_emit_result(
+				"schedule-run-recover",
+				"recovered",
+				json_output=args.json,
+				human=(
+					f"recovered scheduled run {run.job_id} "
+					f"with recovery {recovery.recovery_id}"
+				),
+				dry_run=False,
+				run=_scheduled_run_payload(run),
+				recovery=_scheduled_recovery_payload(recovery),
+			)
+			return 0
+		except (ScheduledRunRecoveryError, ValueError) as exc:
+			return _emit_failure(
+				args.cmd,
+				exc,
+				json_output=args.json,
+				error_type=type(exc).__name__,
+				job_id=getattr(args, "job_id", None),
+			)
+		finally:
+			store.close()
 
 	background_submission = (
 		args.cmd in {"catalog-scan", "policy-run"}
@@ -1647,6 +2038,15 @@ def _run_cli(
 					if existing_move_job is None
 					else _move_job_payload(existing_move_job)
 				),
+				**(
+					{
+						"resume_preconditions": _move_resume_preconditions(
+							existing_move_job
+						)
+					}
+					if dry_run and existing_move_job is not None
+					else {}
+				),
 				"verification": None if verification is None else asdict(verification),
 			},
 		)
@@ -1683,6 +2083,7 @@ def _run_cli(
 					else "would_resume"
 				),
 				job=_move_job_payload(existing_move_job),
+				resume_preconditions=_move_resume_preconditions(existing_move_job),
 				verification=None,
 			)
 			if isinstance(catalog, SQLiteCatalog):
@@ -2144,12 +2545,43 @@ def _early_json_requested(argv: Sequence[str]) -> bool:
 	return requested
 
 
+def _verbose_requested(
+	argv: Sequence[str], resolution: CliConfigResolution
+) -> bool:
+	"""Resolve the diagnostic stream before full argument parsing.
+
+	The main exception boundary needs this value before ``_run_cli`` constructs
+	its parser. Scan in command-line order so ``--no-verbose`` can override any
+	lower-precedence configured value while a later ``-v`` can explicitly turn
+	diagnostics back on.
+	"""
+
+	requested = bool(resolution.values.get("verbose", False))
+	for argument in argv:
+		if argument == "--":
+			break
+		if argument == "--no-verbose":
+			requested = False
+		elif argument == "--verbose" or (
+			argument.startswith("-v")
+			and not argument.startswith("--")
+			and set(argument[1:]) == {"v"}
+		):
+			requested = True
+	return requested
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	arguments = list(sys.argv[1:] if argv is None else argv)
-	command = _command_hint(arguments)
-	json_output = _early_json_requested(arguments)
+	# Early selectors run before argparse can reject unknown options.  Use the
+	# same structural redaction as parser diagnostics so a sensitive option's
+	# value cannot masquerade as --config, --profile, --json, or --verbose.
+	# The original arguments still go to _run_cli for normal runtime semantics.
+	early_arguments = redact_cli_arguments(arguments)
+	command = _command_hint(early_arguments)
+	json_output = _early_json_requested(early_arguments)
 	try:
-		resolution = resolve_cli_config(arguments)
+		resolution = resolve_cli_config(early_arguments)
 	except CliConfigError as exc:
 		return _emit_failure(
 			command,
@@ -2159,14 +2591,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 			error_type="ConfigurationError",
 		)
 
-	json_output = json_requested(arguments, resolution)
+	json_output = json_requested(early_arguments, resolution)
 	_CliArgumentParser.json_output = json_output
 	_CliArgumentParser.command_hint = command
-	verbose = bool(resolution.values.get("verbose", False)) or any(
-		argument == "--verbose"
-		or (argument.startswith("-v") and not argument.startswith("--"))
-		for argument in arguments
-	)
+	verbose = _verbose_requested(early_arguments, resolution)
 	reporter = VerboseReporter(verbose)
 	try:
 		with _cli_logging(verbose), ExitStack() as catalog_stack:

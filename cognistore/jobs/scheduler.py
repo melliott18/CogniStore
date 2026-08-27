@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import yaml
 
@@ -60,6 +60,8 @@ _TERMINAL_RUN_STATES = frozenset(
     {"succeeded", "dead_lettered", "publication_failed"}
 )
 _ACTIVE_RUN_STATES = frozenset({"reserved", "enqueued", "running", "retry_wait"})
+_ALL_RUN_STATES = _TERMINAL_RUN_STATES | _ACTIVE_RUN_STATES
+SCHEDULED_RUN_STATES = tuple(sorted(_ALL_RUN_STATES))
 _REDRIVE_METADATA = frozenset(
     {
         ATTEMPT_OFFSET_METADATA,
@@ -133,6 +135,10 @@ class ScheduledRunStateUnavailableError(InvalidJobError):
     fail_worker = True
 
 
+class ScheduledRunRecoveryError(RuntimeError):
+    """Raised when an operator recovery request cannot be applied safely."""
+
+
 class JobPublisher(Protocol):
     async def connect(self) -> None: ...
 
@@ -189,6 +195,24 @@ def _header_string(value: object, field_name: str) -> str:
         text.encode("utf-8")
     except UnicodeEncodeError as exc:
         raise ValueError(f"{field_name} must be valid UTF-8") from exc
+    return text
+
+
+def _canonical_uuid(value: object, field_name: str) -> str:
+    text = _header_string(value, field_name)
+    try:
+        parsed = UUID(text)
+    except (AttributeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a UUID") from exc
+    if str(parsed) != text.lower():
+        raise ValueError(f"{field_name} must use canonical UUID format")
+    return str(parsed)
+
+
+def _audit_text(value: object, field_name: str, *, maximum: int) -> str:
+    text = _header_string(value, field_name).strip()
+    if len(text) > maximum:
+        raise ValueError(f"{field_name} must not exceed {maximum} characters")
     return text
 
 
@@ -512,6 +536,44 @@ class ScheduledRun:
 
 
 @dataclass(frozen=True)
+class ScheduledRunRecord:
+    """Operator-facing durable state for one scheduled occurrence."""
+
+    job_id: str
+    run_sequence: int
+    schedule_id: str
+    scope: str
+    state: str
+    scheduled_for: datetime
+    published_at: datetime | None
+    execution_owner: str | None
+    execution_lease_expires_at: datetime | None
+    execution_generation: int
+    completed_at: datetime | None
+    outcome: str | None
+    created_at: datetime
+    updated_at: datetime
+    stale: bool
+
+
+@dataclass(frozen=True)
+class ScheduledRunRecovery:
+    """Immutable audit record for one fenced stale-run recovery."""
+
+    recovery_id: str
+    job_id: str
+    schedule_id: str
+    scope: str
+    execution_generation: int
+    prior_execution_owner: str
+    prior_lease_expires_at: datetime
+    operator: str
+    reason: str
+    fence_evidence: str
+    recovered_at: datetime
+
+
+@dataclass(frozen=True)
 class _ExecutionClaim:
     execute: bool
     owner_id: str | None
@@ -520,9 +582,24 @@ class _ExecutionClaim:
 class SQLiteScheduleStore:
     """Durable timing, publication, and execution leases for recurring jobs."""
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, *, read_only: bool = False) -> None:
         self.db_path = str(db_path)
+        self.read_only = read_only
         self._lock = threading.RLock()
+        if read_only:
+            if self.db_path == ":memory:":
+                raise ValueError("an in-memory schedule store cannot be opened read-only")
+            uri = f"{Path(self.db_path).expanduser().resolve().as_uri()}?mode=ro"
+            self._conn = sqlite3.connect(
+                uri,
+                uri=True,
+                check_same_thread=False,
+                timeout=5.0,
+            )
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout = 5000")
+            self._conn.execute("PRAGMA query_only = ON")
+            return
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=5.0)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA busy_timeout = 5000")
@@ -568,6 +645,24 @@ class SQLiteScheduleStore:
                 ON scheduled_runs(state, publish_lease_expires_at);
             CREATE INDEX IF NOT EXISTS scheduled_runs_scope_idx
                 ON scheduled_runs(scope, created_at);
+            CREATE INDEX IF NOT EXISTS scheduled_runs_execution_idx
+                ON scheduled_runs(state, execution_lease_expires_at);
+            CREATE TABLE IF NOT EXISTS scheduled_run_recoveries (
+                recovery_id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                schedule_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                execution_generation INTEGER NOT NULL,
+                prior_execution_owner TEXT NOT NULL,
+                prior_lease_expires_at TEXT NOT NULL,
+                operator TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                fence_evidence TEXT NOT NULL,
+                recovered_at TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES scheduled_runs(job_id)
+            );
+            CREATE INDEX IF NOT EXISTS scheduled_run_recoveries_job_idx
+                ON scheduled_run_recoveries(job_id, recovered_at);
             """
         )
         self._conn.execute("BEGIN IMMEDIATE")
@@ -621,6 +716,279 @@ class SQLiteScheduleStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    @staticmethod
+    def validate_recovery_request(
+        recovery_id: str,
+        operator: str,
+        reason: str,
+        fence_evidence: str,
+    ) -> tuple[str, str, str, str]:
+        """Normalize operator evidence without opening a write transaction."""
+
+        return (
+            _canonical_uuid(recovery_id, "recovery_id"),
+            _audit_text(operator, "operator", maximum=256),
+            _audit_text(reason, "reason", maximum=2048),
+            _audit_text(fence_evidence, "fence_evidence", maximum=4096),
+        )
+
+    def get_run(
+        self,
+        job_id: str,
+        *,
+        now: datetime,
+    ) -> ScheduledRunRecord | None:
+        current = _aware_utc(now)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM scheduled_runs WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+        return None if row is None else self._record_from_row(row, current)
+
+    def list_runs(
+        self,
+        *,
+        now: datetime,
+        states: Iterable[str] | None = None,
+        schedule_id: str | None = None,
+        stale_only: bool = False,
+    ) -> tuple[ScheduledRunRecord, ...]:
+        current = _aware_utc(now)
+        requested_states = None if states is None else frozenset(states)
+        if requested_states is not None:
+            unknown = sorted(requested_states.difference(_ALL_RUN_STATES))
+            if unknown:
+                raise ValueError(
+                    "unsupported scheduled run state(s): " + ", ".join(unknown)
+                )
+        if schedule_id is not None:
+            schedule_id = _header_string(schedule_id, "schedule_id")
+
+        clauses: list[str] = []
+        values: list[object] = []
+        if requested_states:
+            placeholders = ",".join("?" for _ in requested_states)
+            clauses.append(f"state IN ({placeholders})")
+            values.extend(sorted(requested_states))
+        if schedule_id is not None:
+            clauses.append("schedule_id=?")
+            values.append(schedule_id)
+        if stale_only:
+            clauses.extend(
+                [
+                    "state='running'",
+                    "execution_owner IS NOT NULL",
+                    "execution_lease_expires_at IS NOT NULL",
+                    "execution_lease_expires_at<=?",
+                ]
+            )
+            values.append(_timestamp(current))
+        where = "" if not clauses else " WHERE " + " AND ".join(clauses)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM scheduled_runs" + where + " ORDER BY run_sequence",
+                tuple(values),
+            ).fetchall()
+        return tuple(self._record_from_row(row, current) for row in rows)
+
+    def list_recoveries(self, job_id: str) -> tuple[ScheduledRunRecovery, ...]:
+        with self._lock:
+            table = self._conn.execute(
+                """
+                SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='scheduled_run_recoveries'
+                """
+            ).fetchone()
+            if table is None:
+                return ()
+            rows = self._conn.execute(
+                """
+                SELECT * FROM scheduled_run_recoveries
+                WHERE job_id=?
+                ORDER BY recovered_at, recovery_id
+                """,
+                (job_id,),
+            ).fetchall()
+        return tuple(self._recovery_from_row(row) for row in rows)
+
+    def inspect_recovery(
+        self,
+        job_id: str,
+        *,
+        expected_owner: str,
+        former_worker_fenced: bool,
+        now: datetime,
+    ) -> ScheduledRunRecord:
+        """Validate a recovery candidate without changing durable state."""
+
+        current = _aware_utc(now)
+        expected = _header_string(expected_owner, "expected_owner")
+        if former_worker_fenced is not True:
+            raise ScheduledRunRecoveryError(
+                "recovery requires explicit confirmation that the former worker is fenced"
+            )
+        with self._lock:
+            row = self._recovery_candidate(job_id, expected, current)
+        return self._record_from_row(row, current)
+
+    def recover_stale_run(
+        self,
+        job_id: str,
+        *,
+        recovery_id: str,
+        expected_owner: str,
+        operator: str,
+        reason: str,
+        fence_evidence: str,
+        former_worker_fenced: bool,
+        now: datetime,
+    ) -> ScheduledRunRecovery:
+        """Release one explicitly fenced stale owner and retain immutable evidence."""
+
+        identifier, actor, recovery_reason, evidence = self.validate_recovery_request(
+            recovery_id,
+            operator,
+            reason,
+            fence_evidence,
+        )
+        expected = _header_string(expected_owner, "expected_owner")
+        current = _aware_utc(now)
+        recovered_at = _timestamp(current)
+        if former_worker_fenced is not True:
+            raise ScheduledRunRecoveryError(
+                "recovery requires explicit confirmation that the former worker is fenced"
+            )
+
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                prior = self._conn.execute(
+                    "SELECT * FROM scheduled_run_recoveries WHERE recovery_id=?",
+                    (identifier,),
+                ).fetchone()
+                if prior is not None:
+                    recovery = self._recovery_from_row(prior)
+                    if (
+                        recovery.job_id != job_id
+                        or recovery.prior_execution_owner != expected
+                        or recovery.operator != actor
+                        or recovery.reason != recovery_reason
+                        or recovery.fence_evidence != evidence
+                    ):
+                        raise ScheduledRunRecoveryError(
+                            "recovery_id is already assigned to a different request"
+                        )
+                    self._conn.commit()
+                    return recovery
+
+                row = self._recovery_candidate(job_id, expected, current)
+                generation = int(row["execution_generation"])
+                prior_expiry = row["execution_lease_expires_at"]
+                assert isinstance(prior_expiry, str)
+                self._conn.execute(
+                    """
+                    INSERT INTO scheduled_run_recoveries(
+                        recovery_id, job_id, schedule_id, scope,
+                        execution_generation, prior_execution_owner,
+                        prior_lease_expires_at, operator, reason,
+                        fence_evidence, recovered_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        identifier,
+                        job_id,
+                        row["schedule_id"],
+                        row["scope"],
+                        generation,
+                        expected,
+                        prior_expiry,
+                        actor,
+                        recovery_reason,
+                        evidence,
+                        recovered_at,
+                    ),
+                )
+                updated = self._conn.execute(
+                    """
+                    UPDATE scheduled_runs
+                    SET state='retry_wait', execution_owner=NULL,
+                        execution_lease_expires_at=NULL, updated_at=?
+                    WHERE job_id=? AND state='running'
+                      AND execution_owner=? AND execution_generation=?
+                    """,
+                    (recovered_at, job_id, expected, generation),
+                )
+                if updated.rowcount != 1:
+                    raise ScheduledRunRecoveryError(
+                        "scheduled run changed while fenced recovery was being applied"
+                    )
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+        LOGGER.info(
+            "recovered fenced stale scheduled run job_id=%s recovery_id=%s "
+            "prior_owner=%s operator=%s",
+            job_id,
+            identifier,
+            expected,
+            actor,
+        )
+        return ScheduledRunRecovery(
+            recovery_id=identifier,
+            job_id=job_id,
+            schedule_id=str(row["schedule_id"]),
+            scope=str(row["scope"]),
+            execution_generation=generation,
+            prior_execution_owner=expected,
+            prior_lease_expires_at=_parse_timestamp(prior_expiry),
+            operator=actor,
+            reason=recovery_reason,
+            fence_evidence=evidence,
+            recovered_at=current,
+        )
+
+    def _recovery_candidate(
+        self,
+        job_id: str,
+        expected_owner: str,
+        now: datetime,
+    ) -> sqlite3.Row:
+        row = self._conn.execute(
+            "SELECT * FROM scheduled_runs WHERE job_id=?",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise ScheduledRunRecoveryError(f"scheduled run not found: {job_id}")
+        if row["state"] != "running":
+            raise ScheduledRunRecoveryError(
+                f"scheduled run is not running: state={row['state']}"
+            )
+        if row["execution_owner"] != expected_owner:
+            raise ScheduledRunRecoveryError(
+                "scheduled run owner changed; inspect it again before recovery"
+            )
+        lease = row["execution_lease_expires_at"]
+        if lease is None:
+            raise ScheduledRunRecoveryError(
+                "running scheduled run is missing its execution lease"
+            )
+        if _parse_timestamp(lease) > now:
+            raise ScheduledRunRecoveryError(
+                "scheduled run lease has not expired; fence and inspect the owner again"
+            )
+        active = self._conn.execute(
+            "SELECT active_job_id FROM scheduled_jobs WHERE scope=?",
+            (row["scope"],),
+        ).fetchone()
+        if active is None or active["active_job_id"] != job_id:
+            raise ScheduledRunRecoveryError(
+                "scheduled run no longer owns its durable execution scope"
+            )
+        return row
 
     def sync(self, schedules: Sequence[ScheduledJob], now: datetime) -> None:
         current = _aware_utc(now)
@@ -1315,6 +1683,62 @@ class SQLiteScheduleStore:
                 "scheduled run envelope does not match its durable state"
             )
         return stored
+
+    @staticmethod
+    def _record_from_row(row: sqlite3.Row, now: datetime) -> ScheduledRunRecord:
+        lease = (
+            None
+            if row["execution_lease_expires_at"] is None
+            else _parse_timestamp(row["execution_lease_expires_at"])
+        )
+        owner = row["execution_owner"]
+        stale = (
+            row["state"] == "running"
+            and owner is not None
+            and lease is not None
+            and lease <= now
+        )
+        return ScheduledRunRecord(
+            job_id=str(row["job_id"]),
+            run_sequence=int(row["run_sequence"]),
+            schedule_id=str(row["schedule_id"]),
+            scope=str(row["scope"]),
+            state=str(row["state"]),
+            scheduled_for=_parse_timestamp(row["scheduled_for"]),
+            published_at=(
+                None
+                if row["published_at"] is None
+                else _parse_timestamp(row["published_at"])
+            ),
+            execution_owner=None if owner is None else str(owner),
+            execution_lease_expires_at=lease,
+            execution_generation=int(row["execution_generation"]),
+            completed_at=(
+                None
+                if row["completed_at"] is None
+                else _parse_timestamp(row["completed_at"])
+            ),
+            outcome=None if row["outcome"] is None else str(row["outcome"]),
+            created_at=_parse_timestamp(row["created_at"]),
+            updated_at=_parse_timestamp(row["updated_at"]),
+            stale=stale,
+        )
+
+    @staticmethod
+    def _recovery_from_row(row: sqlite3.Row) -> ScheduledRunRecovery:
+        return ScheduledRunRecovery(
+            recovery_id=str(row["recovery_id"]),
+            job_id=str(row["job_id"]),
+            schedule_id=str(row["schedule_id"]),
+            scope=str(row["scope"]),
+            execution_generation=int(row["execution_generation"]),
+            prior_execution_owner=str(row["prior_execution_owner"]),
+            prior_lease_expires_at=_parse_timestamp(row["prior_lease_expires_at"]),
+            operator=str(row["operator"]),
+            reason=str(row["reason"]),
+            fence_evidence=str(row["fence_evidence"]),
+            recovered_at=_parse_timestamp(row["recovered_at"]),
+        )
 
     @staticmethod
     def _run_from_row(row: sqlite3.Row) -> ScheduledRun:
