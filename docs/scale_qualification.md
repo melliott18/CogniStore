@@ -5,12 +5,13 @@ moves through the real CogniStore drivers and move journal. It measures the
 POSIX and S3-compatible paths separately, injects recovery faults, moves every
 object forward and back, and writes a machine-readable evidence report.
 
-> **Evidence status:** no one-million-object campaign has been executed or
-> claimed on this branch. CI automates the same reduced campaign so repeat runs
-> are available, but each reduced artifact represents only one execution and
-> is not one-million-object evidence. Only an actual full-profile report with
+> **Evidence status (verified 2026-08-27):** no one-million-object campaign has
+> been executed or claimed on this branch. Three independent reduced CI
+> artifacts passed, which demonstrates reduced-profile repeatability but is not
+> one-million-object evidence. Only an actual full-profile report with
 > `acceptance_status: full_scale_passed`, from a clean identified revision, can
-> support that acceptance claim.
+> support that acceptance claim. Ticket
+> [#29](https://github.com/melliott18/CogniStore/issues/29) remains open.
 
 Run the harness from the repository root with this exact entry point:
 

@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues on 2026-08-22. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
+> Snapshot synchronized from GitHub Issues on 2026-08-27. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 62 issues; 53 open, 9 closed
+- **Snapshot:** 65 issues; 54 open, 11 closed
 
 ## How to use this mirror
 
@@ -90,7 +90,8 @@ Backlog is maintained against the default `main` branch; GitHub Issues is the ca
 
 - **GitHub milestone:** [M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/milestone/4)
 - **Delivery tickets:** 13
-- **Open:** 5 including the epic
+- **Verification follow-ups:** 2
+- **Open:** 5 including the epic and verification follow-ups
 
 ### [#16 — [Epic] M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/issues/16)
 
@@ -98,7 +99,7 @@ Backlog is maintained against the default `main` branch; GitHub Issues is the ca
 - **Status:** Open
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:epic`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-22
+- **Last updated:** 2026-08-27
 
 Parent roadmap: [#12](https://github.com/melliott18/CogniStore/issues/12)
 
@@ -117,16 +118,16 @@ CogniStore can move data between POSIX and S3-compatible tiers using a streaming
 
 - [x] [#17](https://github.com/melliott18/CogniStore/issues/17) — Implement an S3-compatible storage driver and conformance suite
 - [x] [#18](https://github.com/melliott18/CogniStore/issues/18) — Add a message bus and background worker runtime
-- [ ] [#19](https://github.com/melliott18/CogniStore/issues/19) — Schedule catalog scans and policy passes
+- [x] [#19](https://github.com/melliott18/CogniStore/issues/19) — Schedule catalog scans and policy passes
 - [x] [#20](https://github.com/melliott18/CogniStore/issues/20) — Enforce movement and CLI safety guardrails
 - [x] [#21](https://github.com/melliott18/CogniStore/issues/21) — Stream object moves with bounded memory and S3 multipart upload
 - [x] [#22](https://github.com/melliott18/CogniStore/issues/22) — Verify object integrity before deleting the source
 - [x] [#23](https://github.com/melliott18/CogniStore/issues/23) — Make move jobs idempotent with two-phase catalog updates
 - [x] [#24](https://github.com/melliott18/CogniStore/issues/24) — Add retry, backoff, dead-letter, and redrive handling
 - [x] [#25](https://github.com/melliott18/CogniStore/issues/25) — Add per-tier concurrency, rate limiting, and backpressure
-- [x] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
+- [ ] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
 - [x] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
-- [ ] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
+- [x] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
 - [ ] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
 
 Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.
@@ -134,6 +135,17 @@ Dependencies listed inside each child issue are authoritative; checklist order i
 #### Source
 
 `docs/roadmap.md`: M1, platform foundation, scale-out orchestration, S3 backend, CLI polish, benchmarks, packaging, and CI/CD.
+
+#### Verification follow-ups
+
+- [ ] [#89](https://github.com/melliott18/CogniStore/issues/89) — Recover stale scheduled runs safely after worker loss
+- [ ] [#90](https://github.com/melliott18/CogniStore/issues/90) — Make the default pytest command collect the full test suite
+- [#91](https://github.com/melliott18/CogniStore/issues/91) — Make POSIX path containment race-safe against symlink swaps (scheduled for M4 hardening)
+
+Issue #26 remains unchecked because the 2026-08-27 verification reproduced a
+secret-redaction failure. Issue #29 remains unchecked until a retained
+full-profile report proves the one-million-object criterion and manual
+repeatability.
 
 ### Delivery tickets
 
@@ -222,10 +234,10 @@ Platform foundation → message bus and background workers.
 ### [#19 — [M1] Schedule catalog scans and policy passes](https://github.com/melliott18/CogniStore/issues/19)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:control-plane`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-27
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -247,10 +259,10 @@ Provide configurable periodic execution for recurring control-plane work.
 
 #### Acceptance criteria
 
-- [ ] Scheduled work is enqueued rather than executed inline.
-- [ ] Overlapping runs of the same scoped job are prevented.
-- [ ] Intervals and disabled jobs are configurable.
-- [ ] Tests use a controllable clock and cover restart behavior.
+- [x] Scheduled work is enqueued rather than executed inline.
+- [x] Overlapping runs of the same scoped job are prevented.
+- [x] Intervals and disabled jobs are configurable.
+- [x] Tests use a controllable clock and cover restart behavior.
 
 #### Dependencies
 
@@ -515,7 +527,7 @@ Scale-out orchestration → concurrency pools, rate limiting, and backpressure.
 - **Status:** Open
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:feature`, `roadmap`, `area:api`
-- **Last updated:** 2026-08-24
+- **Last updated:** 2026-08-27
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -540,7 +552,7 @@ Make the CLI predictable for both operators and automation.
 - [x] Configuration precedence is covered by tests and documented.
 - [x] Every mutating command either supports dry-run or clearly documents why it cannot.
 - [x] JSON output has versioned schemas and non-zero exit codes on failure.
-- [x] Secrets are redacted from verbose and error output.
+- [ ] Secrets are redacted from verbose and error output.
 
 #### Dependencies
 
@@ -549,6 +561,13 @@ Make the CLI predictable for both operators and automation.
 #### Roadmap coverage
 
 API, CLI, and UI → CLI polish.
+
+#### Verification follow-ups — 2026-08-27
+
+- [ ] Usage-error redaction covers space-separated values after sensitive option names without exposing the value.
+- [ ] `move-resume --dry-run` reports which ownership and phase-specific storage preconditions were and were not checked; it must not imply readiness when it only inspected journal state.
+- [ ] The exit-status contract is made consistent and tested, or its versioned documentation explicitly defines the narrower guarantee automation can rely on.
+- [ ] A CLI option can disable verbosity enabled by a lower-precedence environment, profile, or default value.
 
 ### [#27 — [M1] Establish Python packaging and CI quality gates](https://github.com/melliott18/CogniStore/issues/27)
 
@@ -594,10 +613,10 @@ Delivery and DX → CI/CD; packaging baseline.
 ### [#28 — [M1] Provide a Docker-based development and integration environment](https://github.com/melliott18/CogniStore/issues/28)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `roadmap`, `type:chore`, `area:delivery`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-27
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -619,10 +638,10 @@ Make the application, S3 backend, and worker infrastructure reproducible without
 
 #### Acceptance criteria
 
-- [ ] The stack starts from a clean checkout with documented commands.
-- [ ] Integration tests can run entirely inside the stack.
-- [ ] Images run as non-root and do not bake in secrets.
-- [ ] Shutdown leaves no incomplete test movement without a diagnosable job record.
+- [x] The stack starts from a clean checkout with documented commands.
+- [x] Integration tests can run entirely inside the stack.
+- [x] Images run as non-root and do not bake in secrets.
+- [x] Shutdown leaves no incomplete test movement without a diagnosable job record.
 
 #### Dependencies
 
@@ -639,7 +658,7 @@ Delivery and DX → Docker images and production-like configuration samples (dev
 - **Status:** Open
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `roadmap`, `area:observability`, `type:chore`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-27
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -662,8 +681,8 @@ Demonstrate the M1 reliability target with repeatable scale and resilience evide
 #### Acceptance criteria
 
 - [ ] A documented run moves 1 million small objects hot↔warm without silent loss or corruption.
-- [ ] All injected failures respect idempotency, retry limits, and source-retention rules.
-- [ ] Results include environment, configuration, throughput, tail latency, failures, and recovery time.
+- [x] All injected failures respect idempotency, retry limits, and source-retention rules.
+- [x] Results include environment, configuration, throughput, tail latency, failures, and recovery time.
 - [ ] The harness is repeatable in CI at reduced scale and manually at full scale.
 
 #### Dependencies
@@ -679,6 +698,76 @@ Demonstrate the M1 reliability target with repeatable scale and resilience evide
 #### Roadmap coverage
 
 M1 success criterion; benchmarks, scale tests, and chaos/resilience.
+
+### Verification follow-up tickets
+
+### [#89 — [M1] Recover stale scheduled runs safely after worker loss](https://github.com/melliott18/CogniStore/issues/89)
+
+- **Kind:** Bug follow-up
+- **Status:** Open
+- **Milestone:** M1 – Reliable multi-backend movement
+- **Labels:** `bug`, `roadmap`, `area:control-plane`, `area:orchestration`
+- **Last updated:** 2026-08-27
+
+Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
+
+#### Problem
+
+If a worker exits after a scheduled occurrence enters `running`, JetStream
+redelivers the same envelope and job ID, but the scheduler coordinator rejects
+that occurrence indefinitely. The active job continues to own its scope, later
+occurrences cannot be reserved, and the delivery can redeliver forever.
+
+#### Scope
+
+- Add read-only list/status inspection for quarantined or stale `running` scheduled occurrences.
+- Add an explicit, audited recovery operation that requires the prior worker to be fenced or stopped.
+- Atomically transition the same job and generation to a retryable state while preserving its logical scope and identity.
+- Clear execution ownership only through that fenced recovery path.
+- Add a live JetStream test that kills a worker process after the `running` transition, restarts processing, and proves recovery without overlap.
+
+#### Safety constraints
+
+- Never authorize takeover solely because a lease TTL expired.
+- Never create a successor occurrence while the original occurrence remains unresolved.
+- Preserve job ID, redrive generation, transition history, and operator-supplied recovery reason.
+
+#### Acceptance criteria
+
+- [ ] Operators can list and inspect stale/quarantined scheduled runs without direct database queries.
+- [ ] An explicitly fenced recovery resumes the same occurrence without overlapping the former worker.
+- [ ] Recovery is durable, audited, idempotent, and safe across process restarts.
+- [ ] A live JetStream hard-kill/restart test proves the scope resumes and later intervals can run.
+- [ ] The operator runbook documents fencing, inspection, recovery, and failure handling.
+
+#### Dependencies
+
+- [#18](https://github.com/melliott18/CogniStore/issues/18) — message bus and worker runtime
+- [#19](https://github.com/melliott18/CogniStore/issues/19) — recurring scheduler
+- [#24](https://github.com/melliott18/CogniStore/issues/24) — retry, dead-letter, and redrive handling
+
+### [#90 — [M1] Make the default pytest command collect the full test suite](https://github.com/melliott18/CogniStore/issues/90)
+
+- **Kind:** Bug follow-up
+- **Status:** Open
+- **Milestone:** M1 – Reliable multi-backend movement
+- **Labels:** `bug`, `roadmap`, `type:chore`, `area:delivery`
+- **Last updated:** 2026-08-27
+
+Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
+
+#### Problem
+
+The documented `python -m pytest` command fails collection because the unit and
+integration qualification files import as the same top-level module. CI avoids
+the collision by running the groups separately.
+
+#### Acceptance criteria
+
+- [ ] `python -m pytest` collects and runs the full default suite from a clean development install.
+- [ ] Unit and integration files may not collide through their import names.
+- [ ] CI exercises the default invocation on every supported Python version or in one dedicated full-suite job.
+- [ ] Coverage and documented external-service skip behavior remain intact.
 
 ## M2 – Knowledge layer and search
 
@@ -1788,7 +1877,8 @@ Policy engine v2 and reliability/cost → budget guardrails and what-if simulati
 
 - **GitHub milestone:** [M4 – Production platform](https://github.com/melliott18/CogniStore/milestone/3)
 - **Delivery tickets:** 20
-- **Open:** 21 including the epic
+- **Hardening follow-ups:** 1
+- **Open:** 22 including the epic and hardening follow-up
 
 ### [#14 — [Epic] M4 – Production platform](https://github.com/melliott18/CogniStore/issues/14)
 
@@ -1796,7 +1886,7 @@ Policy engine v2 and reliability/cost → budget guardrails and what-if simulati
 - **Status:** Open
 - **Milestone:** M4 – Production platform
 - **Labels:** `type:epic`, `roadmap`, `area:delivery`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-27
 
 Parent roadmap: [#12](https://github.com/melliott18/CogniStore/issues/12)
 
@@ -1839,6 +1929,10 @@ Dependencies listed inside each child issue are authoritative; checklist order i
 #### Source
 
 `docs/roadmap.md`: multi-backend storage, security/compliance/tenancy, observability/ops, admin UI, resilience, deployment, and documentation.
+
+#### Hardening follow-ups
+
+- [ ] [#91](https://github.com/melliott18/CogniStore/issues/91) — Make POSIX path containment race-safe against symlink swaps
 
 ### Delivery tickets
 
@@ -2706,3 +2800,30 @@ Give operators tested procedures for installing, upgrading, recovering, and trou
 #### Roadmap coverage
 
 Delivery and DX → operator runbooks, migration guides, and reference architectures.
+
+### Hardening follow-up
+
+### [#91 — Make POSIX path containment race-safe against symlink swaps](https://github.com/melliott18/CogniStore/issues/91)
+
+- **Kind:** Bug follow-up
+- **Status:** Open
+- **Milestone:** M4 – Production platform
+- **Labels:** `bug`, `roadmap`, `area:storage`, `area:security`
+- **Last updated:** 2026-08-27
+
+Parent epic: [#14](https://github.com/melliott18/CogniStore/issues/14)
+Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
+
+#### Problem
+
+The POSIX driver rejects static symlinks and validates below-root paths, but
+later path-based operations remain vulnerable to a concurrent directory or
+symlink swap. The repository does not yet define and enforce a trusted,
+non-mutating tier-root boundary.
+
+#### Acceptance criteria
+
+- [ ] A concurrent symlink or directory swap cannot make CogniStore read, publish, or delete outside the configured tier root.
+- [ ] Containment guarantees and platform limitations are documented.
+- [ ] POSIX conformance and mover cleanup tests cover adversarial swaps.
+- [ ] Unsupported platforms or filesystems fail closed rather than silently weakening containment.

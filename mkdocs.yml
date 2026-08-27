@@ -11,9 +11,14 @@ nav:
       - Raspberry Pi tiers: rpi_three_tier_setup.md
   - Qualification:
       - Move scale and recovery: scale_qualification.md
-      - M1 review: m1_review_2026-08-20.md
+      - M1 verification (current): m1_verification_2026-08-27.md
+      - M1 review (historical): m1_review_2026-08-20.md
   - Project:
+      - Architecture: architecture.md
+      - Design contracts: design.md
+      - NATS worker decision: adr/0001-nats-jetstream-workers.md
       - Roadmap: roadmap.md
+      - Next-ticket execution: next_ticket_roadmap_2026-08-27.md
       - Tickets: tickets.md
       - Bug tracker: bug_tracker.md
       - Git workflows: git_workflows.md

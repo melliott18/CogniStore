@@ -9,7 +9,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] Event/audit tables for moves, policy decisions, failures, retries
 - [ ] Queue + scheduler
   - [x] Message bus (NATS JetStream) and background workers
-  - [ ] Periodic scheduler for scans, policy passes, and repair jobs
+  - [x] Periodic scheduler for scans and policy passes, with a repair-job extension point
+  - [ ] Fenced recovery for stale scheduled runs after hard worker loss ([#89](https://github.com/melliott18/CogniStore/issues/89))
 
 ## Indexing and knowledge layer
 
@@ -41,10 +42,10 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [x] Throughput controls
   - [x] Concurrency pools per tier, rate limiting, backpressure
 
-> Review note (2026-08-20): these components meet their written delivery
-> criteria. The cleanup races recorded as BUG-2026-001 and BUG-2026-002 were
-> resolved with generation-fenced cleanup; the remaining M1 delivery work is
-> tracked in `docs/m1_review_2026-08-20.md`.
+> Verification note (2026-08-27): these components meet their written delivery
+> criteria. The cleanup races recorded as BUG-2026-001 and BUG-2026-002 remain
+> fixed with generation-fenced cleanup. Current M1 blockers and validation
+> evidence are tracked in `docs/m1_verification_2026-08-27.md`.
 
 ## Multi-backend storage
 
@@ -57,6 +58,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Security, compliance, tenancy
 
+- [ ] Storage boundary hardening
+  - [ ] Race-safe POSIX containment under concurrent path mutation ([#91](https://github.com/melliott18/CogniStore/issues/91))
 - [ ] AuthN/Z and tenancy
   - [ ] JWT/OIDC; RBAC; per-tenant isolation
 - [ ] Secrets + encryption
@@ -79,22 +82,26 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [ ] REST (FastAPI) and/or gRPC; Python SDK
 - [ ] Admin UI
   - [ ] Drivers, tiers, policies, actions, audit trail; dry-run previews and diffs
-- [x] CLI polish
+- [ ] CLI polish
   - [x] Global config file, profiles, dry-run, verbose and JSON outputs
+  - [ ] Close secret-redaction and operator-contract gaps in [#26](https://github.com/melliott18/CogniStore/issues/26)
 
 ## Reliability, performance, cost
 
 - [ ] Benchmarks and scale tests
-  - [ ] N objects, mixed sizes; throughput and tail latencies per backend
+  - [x] Configurable mixed-size harness with throughput and tail latencies per backend
+  - [ ] Execute and retain the canonical one-million-object report ([#29](https://github.com/melliott18/CogniStore/issues/29))
 - [ ] Chaos/resilience
-  - [ ] Inject failures/timeouts; verify retries/idempotency; fault budgets
+  - [x] Reduced CI fault injection verifies mover retries, idempotency, and source retention
+  - [ ] Demonstrate the full-scale recovery profile and stale scheduled-run recovery
 - [ ] Cost/carbon modeling
   - [ ] Estimators per tier; what-if simulations for policy changes
 
 ## Delivery and DX
 
 - [ ] Packaging and deployments
-  - [ ] Docker images, Helm charts, Terraform samples; production configs
+  - [x] Non-root runtime/development Docker images and local Compose stack
+  - [ ] Helm charts, Terraform samples, locked dependencies, and production configs
 - [x] CI/CD
   - [x] Ruff/mypy, test matrix, coverage gates, security scans
 - [ ] Docs
@@ -106,8 +113,10 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 - [ ] M1: S3 driver + streaming mover + dry‑run + guardrails
   - Success: Move 1M small files hot↔warm reliably with idempotent jobs and integrity checks
+  - Exit gate: close #26, #89, and #90; retain a passing full-profile report and close #29; then close #16
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
+  - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
 - [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
   - Success: Automated, explainable actions under budget constraints; no tier flapping
 - [ ] M4: Multi-tenant, observable, and deployable
