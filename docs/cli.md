@@ -27,7 +27,9 @@ highest to lowest precedence:
 An explicit `--nats-url` replaces the complete configured URL list on its
 first occurrence; repeat it to provide a CLI-selected cluster. Boolean output
 settings can be explicitly disabled with `--no-json` or `--no-dry-run`, which
-is useful when a lower-precedence layer enables them.
+is useful when a lower-precedence layer enables them. A lower-precedence
+`verbose: true` currently has no `--no-verbose` override; that usability gap is
+tracked in [#26](https://github.com/melliott18/CogniStore/issues/26).
 
 ### Configuration file selection
 
@@ -203,10 +205,14 @@ Failures use `status: "error"` and include this stable v1 core:
 ```
 
 `command` can be `null` when failure happens before a command is identified.
-Exit status `0` means the requested operation or preview succeeded, `1` means
-an operational failure, `2` means invalid usage or configuration, and `130`
-means the process was interrupted. Errors always return a non-zero status even
-when a valid error object was written.
+Exit status `0` means the requested operation or preview succeeded and `130`
+means the process was interrupted. Other failures always return a non-zero
+status even when a valid error object was written. The current implementation
+uses both `1` and `2`, but does not yet provide a stable semantic taxonomy for
+those two values across parser, configuration, handler-validation, and
+operational preflight paths. Automation should branch on the JSON `status` and
+`error_type`, not infer a category from `1` versus `2`. Standardizing that
+split is tracked in [#26](https://github.com/melliott18/CogniStore/issues/26).
 
 ### Verbose output and redaction
 
@@ -222,6 +228,12 @@ private-key blocks. Operational identifiers such as profile names,
 correlation IDs, and move idempotency keys remain visible. Do not depend on
 redaction as secret storage: keep literal credentials out of command lines and
 configuration files and use the storage driver's documented credential chain.
+
+Known limitation: a parser error can currently repeat a space-separated value
+after an unrecognized sensitive option such as `--password VALUE`. This is the
+open redaction criterion in [#26](https://github.com/melliott18/CogniStore/issues/26).
+Until it is fixed, never place credentials in command-line arguments, including
+arguments that CogniStore does not recognize.
 
 ## Dry-run contract
 
@@ -243,7 +255,7 @@ their query. The complete command matrix is:
 | `move` | Validates the complete source/destination plan and reports a planned move without storage or catalog writes. With `--idempotency-key`, it checks the persistent journal: an incomplete exact match reports `would_resume`, a completed match reports `already_completed`, and a failed job returns a non-zero error. |
 | `move-status` | Read-only. Returns the same stored job and transition history. |
 | `move-list` | Read-only. Returns the same deterministic, optionally filtered job list. |
-| `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. |
+| `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `would_resume` describes the journal state only: preview does not prove that a live lease is clear or that phase-specific storage preconditions still hold, so the writable resume may still fail. |
 | `ls-tier` | Read-only. Runs the normal tier listing and makes no mutations. |
 | `catalog-scan` | Scans the selected storage scope synchronously and returns the objects that would be indexed. It neither updates the catalog nor enqueues a background job; `--sync` is unnecessary. |
 | `tier-profile` | Validates and lists supported tier paths and any `--metrics-out` target. It does not run storage benchmarks or write metrics. This command profiles storage tiers; it is unrelated to selecting a CLI configuration profile. |

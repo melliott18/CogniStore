@@ -1,10 +1,15 @@
 # Docker development and integration environment
 
-The repository contains a reproducible local stack for CogniStore, its durable
+The repository contains a repeatable local stack for CogniStore, its durable
 NATS JetStream queue, and an S3-compatible MinIO tier. Docker builds a small
 runtime image for the worker and a separate development image containing the
 test and quality tooling. Every image in the stack runs as an unprivileged
 user, and credentials are injected only when containers start.
+
+Base images are digest-pinned. Python dependency versions are resolved from
+the bounds in `pyproject.toml` at build time, so identical source is not yet a
+byte-for-byte reproducible dependency build. Rebuild and rerun the integration
+suite when evaluating a later dependency resolution.
 
 ## Prerequisites
 

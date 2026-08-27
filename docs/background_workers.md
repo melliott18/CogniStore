@@ -141,8 +141,12 @@ lease every one-third of the TTL. A second delivery cannot execute while the
 run has a durable owner: TTL expiry is a liveness signal, not proof that a
 thread-backed operation stopped, and never authorizes automatic takeover of a
 `running` occurrence. A hard worker crash after that transition may therefore
-require operator/database recovery in this version; automatic takeover is not
+leave the occurrence quarantined in this version; automatic takeover is not
 available because the new process cannot prove that old side effects stopped.
+There is not yet a supported recovery command. Fence or stop the former worker,
+preserve the catalog and queue evidence, and follow
+[#89](https://github.com/melliott18/CogniStore/issues/89); do not clear scheduler
+ownership fields with ad hoc database edits.
 A retryable failure explicitly clears the delivery owner but keeps the logical
 scope active, so delayed NAK and redelivery cannot overlap a later occurrence.
 Success marks the occurrence complete and releases its scope before ACK; an

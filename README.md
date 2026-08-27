@@ -48,7 +48,8 @@ python -m ruff check .
 python -m mypy cognistore
 python -m pytest tests/unit tests/conformance
 python -m pytest tests/integration
-python -m pytest --cov=cognistore --cov-report=term-missing --cov-report=xml
+python -m pytest --import-mode=importlib \
+  --cov=cognistore --cov-report=term-missing --cov-report=xml
 python -m bandit -c pyproject.toml -r cognistore -ll -ii
 python -m pip_audit .
 python -m build
@@ -58,7 +59,10 @@ python -m twine check dist/*
 The coverage command enforces the repository's 80% minimum. Integration tests
 that require NATS or MinIO skip unless their documented environment variables
 point to isolated test services; the filesystem/catalog integration suite runs
-without external services. Install Gitleaks separately and run
+without external services. The explicit import mode is a temporary workaround
+for the duplicate qualification-test basenames tracked in
+[#90](https://github.com/melliott18/CogniStore/issues/90); grouped test commands
+do not collide. Install Gitleaks separately and run
 `gitleaks git --redact .` to perform the same secret scan used in CI.
 
 For deterministic POSIX/S3 throughput, tail-latency, integrity, and injected

@@ -21,7 +21,8 @@ python -m pip install -e ".[dev]"
 ```bash
 python -m ruff check .
 python -m mypy cognistore
-python -m pytest --cov=cognistore --cov-report=term-missing --cov-report=xml
+python -m pytest --import-mode=importlib \
+  --cov=cognistore --cov-report=term-missing --cov-report=xml
 python -m bandit -c pyproject.toml -r cognistore -ll -ii
 python -m pip_audit .
 python -m build
@@ -54,7 +55,9 @@ Use Conventional Commits, e.g.:
 
 ## Testing
 
-- Use `python -m pytest` (configured in `pyproject.toml`).
+- Until [#90](https://github.com/melliott18/CogniStore/issues/90) is resolved,
+  use `python -m pytest --import-mode=importlib` for one full-suite invocation;
+  plain `python -m pytest` collides on duplicate qualification-test basenames.
 - Run unit and conformance tests with
   `python -m pytest tests/unit tests/conformance`.
 - Run integration tests with `python -m pytest tests/integration`. NATS and
@@ -102,7 +105,8 @@ git switch -c feature/<topic>
 # write code + tests
 python -m ruff check .
 python -m mypy cognistore
-python -m pytest --cov=cognistore --cov-report=term-missing
+python -m pytest --import-mode=importlib \
+  --cov=cognistore --cov-report=term-missing
 ```
 Commit using Conventional Commits:
 ```bash
@@ -115,7 +119,8 @@ git commit -m "feat(policy): add content-aware rules"
 git fetch origin
 git rebase origin/main
 # resolve conflicts if any, run tests again
-python -m pytest --cov=cognistore --cov-report=term-missing
+python -m pytest --import-mode=importlib \
+  --cov=cognistore --cov-report=term-missing
 ```
 
 5) Push and open a PR targeting `main`

@@ -131,7 +131,9 @@ Use `--force-with-lease` only for your short-lived branch. Never force-push
 
 ## Testing and documentation
 
-- Run `python -m pytest` using the configuration in `pyproject.toml`.
+- Until [#90](https://github.com/melliott18/CogniStore/issues/90) is resolved,
+  run `python -m pytest --import-mode=importlib` for the full suite; grouped
+  unit/conformance and integration commands are unaffected.
 - Run Ruff, mypy, coverage, package, and security gates documented in
   `CONTRIBUTING.md`.
 - Update `README.md` and `docs/*` for user-visible changes.
