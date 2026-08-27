@@ -78,9 +78,10 @@ Manual operator jobs are independent and must not be aimed at a scheduled scope
 without coordination.
 
 Lease expiry is a liveness signal, not proof that a thread-backed side effect
-stopped. Automatic takeover based only on TTL is forbidden. Issue #89 must add
-fenced, audited recovery of the same occurrence and preserve its job ID,
-generation, history, and scope.
+stopped. Automatic takeover based only on TTL is forbidden. Operators can
+inspect stale occurrences read-only and release one only after explicitly
+confirming that its former worker is fenced. The audited, idempotent recovery
+preserves the occurrence's job ID, generation, history, and logical scope.
 
 ## Configuration and external contracts
 
@@ -96,15 +97,15 @@ tolerate additive fields.
 
 Redaction is defense in depth, not secret storage. Credentials belong in
 backend credential chains or environment indirection, never literal command
-arguments or committed configuration. BUG-2026-009 / #26 tracks a known parser
-error path that can echo a space-separated sensitive value.
+arguments or committed configuration. Parser diagnostics operate on a
+token-preserving redacted argument view so attached, space-separated, repeated,
+short-option, multi-token, and leading-dash secret values are not echoed.
 
 Dry-run forbids CogniStore-managed storage, catalog, queue, cache, and local
-output writes. The CLI reference must disclose which live preconditions a
-preview does not check. In particular, current `move-resume` preview reports
-journal state, not a guarantee that writable recovery can acquire ownership
-and satisfy storage preconditions. Explicit per-preview checked/unchecked
-fields remain follow-up work in #26.
+output writes. The CLI reference discloses which live preconditions a preview
+does not check. In particular, `move-resume` previews report the journal and
+driver pair as checked while marking ownership and phase-specific storage
+preconditions unchecked; they do not claim that writable recovery is ready.
 
 ## Failure policy
 
@@ -132,9 +133,9 @@ not a supported recovery interface.
   requires a retained clean-revision report with
   `acceptance_status: full_scale_passed`.
 
-The default full-suite pytest command currently has a duplicate-module
-collection defect tracked by #90. Until fixed, use
-`python -m pytest --import-mode=importlib` for one combined invocation.
+The default `python -m pytest` command uses collision-safe import identities
+and collects the complete unit, conformance, and integration suite. Tests that
+require external services retain their documented skip behavior.
 
 ## Evolution rules
 

@@ -27,9 +27,9 @@ highest to lowest precedence:
 An explicit `--nats-url` replaces the complete configured URL list on its
 first occurrence; repeat it to provide a CLI-selected cluster. Boolean output
 settings can be explicitly disabled with `--no-json` or `--no-dry-run`, which
-is useful when a lower-precedence layer enables them. A lower-precedence
-`verbose: true` currently has no `--no-verbose` override; that usability gap is
-tracked in [#26](https://github.com/melliott18/CogniStore/issues/26).
+is useful when a lower-precedence layer enables them. `--no-verbose` likewise
+disables diagnostics enabled by an environment value, selected profile, or
+file default; a later `-v` or `--verbose` on the same command enables them.
 
 ### Configuration file selection
 
@@ -140,7 +140,7 @@ forms are global options:
 | `dead_letter_max_age` | `--dead-letter-max-age SECONDS` | `COGNISTORE_DEAD_LETTER_MAX_AGE` | `2592000` (30 days) |
 | `json` | `--json` / `--no-json` | `COGNISTORE_JSON` | `false` |
 | `dry_run` | `--dry-run` / `--no-dry-run` | `COGNISTORE_DRY_RUN` | `false` |
-| `verbose` | `-v` / `--verbose` | `COGNISTORE_VERBOSE` | `false` |
+| `verbose` | `-v` / `--verbose` / `--no-verbose` | `COGNISTORE_VERBOSE` | `false` |
 
 In YAML, `nats_url` is a non-empty list of strings. Environment booleans
 accept `1`, `true`, `yes`, or `on`, and `0`, `false`, `no`, or `off`, without
@@ -205,14 +205,13 @@ Failures use `status: "error"` and include this stable v1 core:
 ```
 
 `command` can be `null` when failure happens before a command is identified.
-Exit status `0` means the requested operation or preview succeeded and `130`
-means the process was interrupted. Other failures always return a non-zero
-status even when a valid error object was written. The current implementation
-uses both `1` and `2`, but does not yet provide a stable semantic taxonomy for
-those two values across parser, configuration, handler-validation, and
-operational preflight paths. Automation should branch on the JSON `status` and
-`error_type`, not infer a category from `1` versus `2`. Standardizing that
-split is tracked in [#26](https://github.com/melliott18/CogniStore/issues/26).
+The version 1 exit contract guarantees `0` for a successful operation or
+preview, `130` for interruption, and a non-zero status for every other
+failure, even when a valid error object was written. Values `1` and `2` do not
+carry stable category semantics in schema version 1 across parser,
+configuration, handler-validation, and operational-preflight paths.
+Automation must branch on the JSON `status` and `error_type`, not infer a
+category from `1` versus `2`.
 
 ### Verbose output and redaction
 
@@ -223,17 +222,12 @@ Before CogniStore renders JSON, errors, or verbose messages, it recursively
 replaces recognized credentials with `[REDACTED]`. Redaction covers sensitive
 mapping keys (including passwords, API/access/secret keys, tokens, cookies,
 credentials, and private keys), URL user information and sensitive query
-parameters, authorization headers, cookies, bearer/basic credentials, and PEM
-private-key blocks. Operational identifiers such as profile names,
-correlation IDs, and move idempotency keys remain visible. Do not depend on
-redaction as secret storage: keep literal credentials out of command lines and
+parameters, authorization headers, cookies, bearer/basic credentials, PEM
+private-key blocks, and values attached to or following sensitive-looking CLI
+options. Operational identifiers such as profile names, correlation IDs, and
+move idempotency keys remain visible. Redaction is defense in depth rather than
+secret storage: keep literal credentials out of command lines and
 configuration files and use the storage driver's documented credential chain.
-
-Known limitation: a parser error can currently repeat a space-separated value
-after an unrecognized sensitive option such as `--password VALUE`. This is the
-open redaction criterion in [#26](https://github.com/melliott18/CogniStore/issues/26).
-Until it is fixed, never place credentials in command-line arguments, including
-arguments that CogniStore does not recognize.
 
 ## Dry-run contract
 
@@ -255,7 +249,10 @@ their query. The complete command matrix is:
 | `move` | Validates the complete source/destination plan and reports a planned move without storage or catalog writes. With `--idempotency-key`, it checks the persistent journal: an incomplete exact match reports `would_resume`, a completed match reports `already_completed`, and a failed job returns a non-zero error. |
 | `move-status` | Read-only. Returns the same stored job and transition history. |
 | `move-list` | Read-only. Returns the same deterministic, optionally filtered job list. |
-| `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `would_resume` describes the journal state only: preview does not prove that a live lease is clear or that phase-specific storage preconditions still hold, so the writable resume may still fail. |
+| `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `resume_preconditions` records the checked journal state and driver pair, reports that no ownership claim was attempted, and names every phase-specific storage condition left unchecked. A non-terminal preview therefore reports `readiness: "not_confirmed"`; the writable resume may still fail. |
+| `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
+| `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
+| `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the catalog read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
 | `ls-tier` | Read-only. Runs the normal tier listing and makes no mutations. |
 | `catalog-scan` | Scans the selected storage scope synchronously and returns the objects that would be indexed. It neither updates the catalog nor enqueues a background job; `--sync` is unnecessary. |
 | `tier-profile` | Validates and lists supported tier paths and any `--metrics-out` target. It does not run storage benchmarks or write metrics. This command profiles storage tiers; it is unrelated to selecting a CLI configuration profile. |
@@ -330,3 +327,32 @@ returns success with `outcome: "already_completed"`; a failed job returns a
 non-zero `MoveJobFailedError` and its recorded terminal reason. This explicit
 workflow is preferable to relying on an automatically generated key, because
 an abrupt process loss can occur before that generated key is printed.
+
+A non-terminal dry-run is intentionally a journal preview rather than a
+readiness promise. Its `resume_preconditions` object marks the journal and
+driver-pair checks as complete, marks the writable ownership claim as
+unchecked, and lists the unchecked storage checks required by the recorded
+phase. Only the writable command can atomically claim ownership and evaluate
+those conditions against live storage.
+
+## Scheduled-run inspection and recovery
+
+`schedule-run-list` and `schedule-run-status` require an existing persistent
+`--catalog-db` but do not require `--drivers` or `--base`. They open SQLite in
+read-only mode. Use `schedule-run-list --stale` to select only `running`
+occurrences whose execution owner is present and whose lease expired, then use
+`schedule-run-status JOB_ID` to copy the exact owner and review earlier
+recovery records.
+
+`schedule-run-recover` requires a stable recovery UUID, the expected owner,
+operator identity, reason, fence evidence, and
+`--confirm-former-worker-fenced`. A successful write preserves the occurrence
+job ID, scope, and redrive generation, changes it to `retry_wait`, clears only
+its stale execution ownership, and appends an immutable audit record. Repeating
+an uncertain request with the same UUID and identical fields returns the same
+record; changed fields fail closed. Use `--dry-run` first to receive the
+`preconditions` object. The preview is a point-in-time inspection, so the write
+still performs an atomic recheck.
+
+The required process-fencing sequence, example commands, and failure handling
+are in the [background-worker recovery runbook](background_workers.md#recover-a-stale-scheduled-run).

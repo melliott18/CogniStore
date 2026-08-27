@@ -24,6 +24,7 @@ from cognistore.jobs.scheduler import (
     PeriodicScheduler,
     ScheduledJobDefinition,
     ScheduledRunCoordinator,
+    ScheduledRunRecoveryError,
     ScheduleRegistry,
     SQLiteScheduleStore,
     default_schedule_registry,
@@ -1184,6 +1185,155 @@ def test_running_scope_owner_remains_locked_after_lease_expiry(tmp_path: Path) -
         assert settled is not None and settled.execute is False
         await scheduler.close()
         store.close()
+
+    asyncio.run(scenario())
+
+
+def test_fenced_stale_run_recovery_is_audited_idempotent_and_restart_safe(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    database = tmp_path / "scheduler.db"
+    _write_schedules(config_path, _scan_job("scan-reports"))
+    schedules = _load(config_path)
+    queue = RecordingQueue()
+    clock = MutableClock()
+    recovery_id = "b18b9b9e-cc06-432a-a273-4de85441e773"
+
+    async def scenario() -> None:
+        store = SQLiteScheduleStore(database)
+        scheduler = PeriodicScheduler(queue, store, schedules, clock=clock)
+        await scheduler.start()
+        assert await scheduler.run_due() == 1
+
+        coordinator = ScheduledRunCoordinator(store, clock=clock, lease_seconds=30)
+        original = queue.enqueued[0]
+        first = await coordinator.begin(original, _context())
+        assert first is not None and first.execute is True
+        assert first.owner_id is not None
+        prior_owner = first.owner_id
+
+        running = store.get_run(original.job_id, now=clock())
+        assert running is not None
+        assert running.state == "running"
+        assert running.stale is False
+        assert store.list_runs(now=clock(), stale_only=True) == ()
+        with pytest.raises(ScheduledRunRecoveryError, match="explicit confirmation"):
+            store.inspect_recovery(
+                original.job_id,
+                expected_owner=prior_owner,
+                former_worker_fenced=False,
+                now=clock(),
+            )
+        with pytest.raises(ScheduledRunRecoveryError, match="has not expired"):
+            store.inspect_recovery(
+                original.job_id,
+                expected_owner=prior_owner,
+                former_worker_fenced=True,
+                now=clock(),
+            )
+
+        clock.advance(31)
+        reader = SQLiteScheduleStore(database, read_only=True)
+        try:
+            stale_runs = reader.list_runs(now=clock(), stale_only=True)
+            assert [run.job_id for run in stale_runs] == [original.job_id]
+            assert stale_runs[0].stale is True
+            with pytest.raises(ScheduledRunRecoveryError, match="owner changed"):
+                reader.inspect_recovery(
+                    original.job_id,
+                    expected_owner="different-owner",
+                    former_worker_fenced=True,
+                    now=clock(),
+                )
+            inspected = reader.inspect_recovery(
+                original.job_id,
+                expected_owner=prior_owner,
+                former_worker_fenced=True,
+                now=clock(),
+            )
+            assert inspected.execution_generation == 0
+        finally:
+            reader.close()
+
+        recovery = store.recover_stale_run(
+            original.job_id,
+            recovery_id=recovery_id,
+            expected_owner=prior_owner,
+            operator="test-operator",
+            reason="worker process was killed during the handler",
+            fence_evidence="process exit code -9 observed and supervisor stopped",
+            former_worker_fenced=True,
+            now=clock(),
+        )
+        assert recovery.execution_generation == 0
+        assert recovery.prior_execution_owner == prior_owner
+        assert store.recover_stale_run(
+            original.job_id,
+            recovery_id=recovery_id,
+            expected_owner=prior_owner,
+            operator="test-operator",
+            reason="worker process was killed during the handler",
+            fence_evidence="process exit code -9 observed and supervisor stopped",
+            former_worker_fenced=True,
+            now=clock(),
+        ) == recovery
+        with pytest.raises(ScheduledRunRecoveryError, match="different request"):
+            store.recover_stale_run(
+                original.job_id,
+                recovery_id=recovery_id,
+                expected_owner=prior_owner,
+                operator="test-operator",
+                reason="different recovery reason",
+                fence_evidence="process exit code -9 observed and supervisor stopped",
+                former_worker_fenced=True,
+                now=clock(),
+            )
+        with pytest.raises(ScheduledRunRecoveryError, match="not running"):
+            store.recover_stale_run(
+                original.job_id,
+                recovery_id="7610b48d-1e0c-4306-84d4-91831037ba95",
+                expected_owner=prior_owner,
+                operator="test-operator",
+                reason="duplicate recovery",
+                fence_evidence="process exit code -9 observed and supervisor stopped",
+                former_worker_fenced=True,
+                now=clock(),
+            )
+        assert store.list_recoveries(original.job_id) == (recovery,)
+        released = store.get_run(original.job_id, now=clock())
+        assert released is not None
+        assert released.state == "retry_wait"
+        assert released.execution_owner is None
+        assert released.execution_generation == 0
+
+        with pytest.raises(RuntimeError, match="lease.*lost"):
+            await first.succeed()
+
+        store.close()
+        restarted_store = SQLiteScheduleStore(database)
+        replacement = await ScheduledRunCoordinator(
+            restarted_store,
+            clock=clock,
+            lease_seconds=30,
+        ).begin(original, _context(attempt=2))
+        assert replacement is not None and replacement.execute is True
+        assert replacement.owner_id != prior_owner
+        await replacement.succeed()
+
+        clock.advance(29)
+        restarted_scheduler = PeriodicScheduler(
+            queue,
+            restarted_store,
+            schedules,
+            clock=clock,
+        )
+        await restarted_scheduler.start()
+        assert await restarted_scheduler.run_due() == 1
+        assert queue.enqueued[-1].job_id != original.job_id
+        await restarted_scheduler.close()
+        restarted_store.close()
+        await scheduler.close()
 
     asyncio.run(scenario())
 

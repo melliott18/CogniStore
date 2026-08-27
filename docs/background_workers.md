@@ -140,13 +140,68 @@ Workers coordinate scheduled deliveries through a lease controlled by
 lease every one-third of the TTL. A second delivery cannot execute while the
 run has a durable owner: TTL expiry is a liveness signal, not proof that a
 thread-backed operation stopped, and never authorizes automatic takeover of a
-`running` occurrence. A hard worker crash after that transition may therefore
-leave the occurrence quarantined in this version; automatic takeover is not
-available because the new process cannot prove that old side effects stopped.
-There is not yet a supported recovery command. Fence or stop the former worker,
-preserve the catalog and queue evidence, and follow
-[#89](https://github.com/melliott18/CogniStore/issues/89); do not clear scheduler
-ownership fields with ad hoc database edits.
+`running` occurrence. A hard worker crash after that transition therefore
+leaves the occurrence quarantined until an operator proves the former worker
+has stopped and uses the fenced recovery workflow below. Lease expiry alone
+never clears ownership.
+
+### Recover a stale scheduled run
+
+Use this workflow only after a worker process was lost while a scheduled run
+was `running`:
+
+1. Fence the former worker outside CogniStore. Stop its service, scale its
+   deployment to zero, or isolate the host, and obtain durable evidence such as
+   the exited PID, supervisor event, terminated instance ID, or deployment
+   generation. Stop any automatic restart policy until recovery is complete.
+2. Preserve the SQLite catalog and JetStream diagnostics. Wait at least the
+   configured `--schedule-lock-ttl`, then list stale runs and inspect the exact
+   occurrence. These commands open the catalog read-only.
+
+   ```bash
+   cognistore --catalog-db catalog.db schedule-run-list --stale --json
+   cognistore --catalog-db catalog.db schedule-run-status JOB_ID --json
+   ```
+
+3. Copy the current `execution_owner` from the status response and choose a
+   stable recovery UUID. Preview the request first. The preview checks the
+   running state, expected owner, expired lease, and durable scope lock but
+   does not reserve that state; the writable command rechecks all conditions
+   in one transaction.
+
+   ```bash
+   recovery_id="$(python -c 'import uuid; print(uuid.uuid4())')"
+   cognistore --catalog-db catalog.db schedule-run-recover JOB_ID \
+     --recovery-id "${recovery_id}" \
+     --expected-owner OWNER_ID \
+     --operator OPERATOR_ID \
+     --reason "worker host terminated during scheduled scan" \
+     --fence-evidence "instance i-0123456789 stopped; event 2026-08-27T20:15Z" \
+     --confirm-former-worker-fenced --dry-run --json
+
+   cognistore --catalog-db catalog.db schedule-run-recover JOB_ID \
+     --recovery-id "${recovery_id}" \
+     --expected-owner OWNER_ID \
+     --operator OPERATOR_ID \
+     --reason "worker host terminated during scheduled scan" \
+     --fence-evidence "instance i-0123456789 stopped; event 2026-08-27T20:15Z" \
+     --confirm-former-worker-fenced --json
+   ```
+
+4. Restart a replacement worker on the same catalog and durable consumer. The
+   original JetStream delivery resumes with the same job ID, schedule scope,
+   and redrive generation. After it succeeds, verify `schedule-run-status` and
+   allow the scheduler to publish the next interval.
+
+Recovery atomically changes only the same occurrence from `running` to
+`retry_wait`; it does not create a successor occurrence or advance the
+dead-letter redrive generation. The immutable audit record retains the
+recovery UUID, prior owner and lease, operator, reason, fence evidence, and
+timestamp. Repeating an uncertain request with the same UUID and identical
+fields returns the original record. Reusing that UUID with different fields,
+recovering before lease expiry, or using an owner that changed since inspection
+fails closed. Re-inspect rather than editing scheduler tables directly.
+
 A retryable failure explicitly clears the delivery owner but keeps the logical
 scope active, so delayed NAK and redelivery cannot overlap a later occurrence.
 Success marks the occurrence complete and releases its scope before ACK; an
@@ -398,14 +453,17 @@ Tests use unique streams and expect an isolated JetStream-enabled server:
 
 ```bash
 export COGNISTORE_NATS_URL=nats://127.0.0.1:4222
-python -m pytest -q -m integration tests/integration/test_nats_worker.py
+python -m pytest -q -m integration \
+  tests/integration/test_nats_worker.py \
+  tests/integration/test_scheduled_run_recovery.py
 ```
 
 They cover publish/claim/ACK, explicit and delayed NAK redelivery,
 connection-loss restart redelivery with the same job and correlation IDs,
-graceful in-flight shutdown, message and byte capacity without eviction,
-DLQ/redrive behavior, and sequential/concurrent rejection of conflicting
-consumer lease settings. Unit and conformance coverage additionally exercises
+graceful in-flight shutdown, a live worker SIGKILL followed by fenced
+same-occurrence recovery and later-interval progress, message and byte capacity
+without eviction, DLQ/redrive behavior, and sequential/concurrent rejection of
+conflicting consumer lease settings. Unit and conformance coverage additionally exercises
 bounded concurrent claiming, per-tier source/destination fairness, byte and
 operation pacing, atomic live reload, cancellation cleanup, and a 10,000-attempt
 `tracemalloc` saturation stress case.

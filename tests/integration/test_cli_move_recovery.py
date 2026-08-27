@@ -271,6 +271,7 @@ def test_cli_recovers_transferred_move_despite_visible_destination(
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "completed"
+    assert "resume_preconditions" not in payload
     if recovery_command == "move":
         assert payload["idempotency_key"] == move_id
         assert payload["would_resume"] is True
@@ -396,6 +397,28 @@ def test_move_resume_dry_run_does_not_mutate_transferred_job_or_storage(
     assert payload["outcome"] == "would_resume"
     assert payload["job"]["state"] == "transferred"
     assert payload["verification"] is None
+    preconditions = payload["resume_preconditions"]
+    assert preconditions["readiness"] == "not_confirmed"
+    assert preconditions["journal"] == {
+        "checked": True,
+        "satisfied": True,
+        "state": "transferred",
+    }
+    assert preconditions["driver_pair"] == {
+        "checked": True,
+        "satisfied": True,
+        "source_tier": "hot",
+        "destination_tier": "warm",
+    }
+    assert preconditions["ownership"]["checked"] is False
+    assert preconditions["ownership"]["satisfied"] is None
+    assert preconditions["ownership"]["claim_attempted"] is False
+    assert [check["name"] for check in preconditions["storage"]] == [
+        "source_integrity",
+        "destination_integrity",
+    ]
+    assert all(check["checked"] is False for check in preconditions["storage"])
+    assert all(check["satisfied"] is None for check in preconditions["storage"])
 
     assert database.read_bytes() == database_before
     assert hot.get_object(BUCKET, key) == data
@@ -405,6 +428,78 @@ def test_move_resume_dry_run_does_not_mutate_transferred_job_or_storage(
     assert catalog.list_move_job_transitions(move_id) == transitions_before
     assert _placement_tier(catalog, key) == "hot"
     catalog.close()
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_checks"),
+    [
+        (
+            MoveJobState.PREPARED,
+            ["source_generation", "destination_publication"],
+        ),
+        (
+            MoveJobState.VERIFIED,
+            [
+                "destination_generation_for_cleanup",
+                "source_generation_for_cleanup",
+            ],
+        ),
+        (
+            MoveJobState.COMMITTED,
+            [
+                "destination_generation_for_cleanup",
+                "source_generation_for_cleanup",
+            ],
+        ),
+        (
+            MoveJobState.CLEANUP,
+            [
+                "destination_generation_for_cleanup",
+                "source_generation_for_cleanup",
+            ],
+        ),
+    ],
+)
+def test_move_resume_preview_names_unchecked_phase_storage_preconditions(
+    tmp_path: Path,
+    state: MoveJobState,
+    expected_checks: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path, hot, warm = _drivers_and_config(tmp_path)
+    database = tmp_path / "catalog.sqlite"
+    move_id = f"manual:preview:{state.value}"
+    catalog = SQLiteCatalog(database)
+    _interrupt_move(
+        catalog,
+        hot,
+        warm,
+        move_id=move_id,
+        key=f"preview/{state.value}.bin",
+        data=f"preview {state.value}".encode(),
+        crash_state=state,
+    )
+    catalog.close()
+    database_before = database.read_bytes()
+
+    assert (
+        cognistore_cli.main(
+            [
+                *_cli_prefix(config_path, database),
+                "move-resume",
+                move_id,
+                "--dry-run",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    preconditions = payload["resume_preconditions"]
+    assert preconditions["readiness"] == "not_confirmed"
+    assert [item["name"] for item in preconditions["storage"]] == expected_checks
+    assert all(item["checked"] is False for item in preconditions["storage"])
+    assert database.read_bytes() == database_before
 
 
 def test_move_list_is_deterministic_and_filterable(

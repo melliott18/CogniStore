@@ -111,10 +111,12 @@ idempotent, and settlement order is deliberate:
   and
 - unknown settlement outcomes do not trigger a contradictory second action.
 
-One known availability gap remains: a hard crash after scheduled execution
-becomes `running` quarantines the occurrence because TTL expiry alone cannot
-prove prior side effects stopped. Issue #89 tracks the planned explicit fenced
-recovery workflow.
+A hard crash after scheduled execution becomes `running` leaves the occurrence
+fail-closed because TTL expiry alone cannot prove prior side effects stopped.
+The CLI provides read-only stale-run inspection and an explicit recovery that
+requires former-worker fencing evidence, records an immutable operator audit,
+and atomically releases the same occurrence for JetStream redelivery without
+releasing its logical scope.
 
 ## Deployment topology
 

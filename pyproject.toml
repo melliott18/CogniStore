@@ -78,7 +78,13 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = ["-vv", "-rA", "--strict-config", "--strict-markers"]
+addopts = [
+  "-vv",
+  "-rA",
+  "--strict-config",
+  "--strict-markers",
+  "--import-mode=importlib",
+]
 testpaths = ["tests"]
 filterwarnings = [
   "ignore::DeprecationWarning",
