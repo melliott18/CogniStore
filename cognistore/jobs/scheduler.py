@@ -766,30 +766,35 @@ class SQLiteScheduleStore:
         if schedule_id is not None:
             schedule_id = _header_string(schedule_id, "schedule_id")
 
-        clauses: list[str] = []
-        values: list[object] = []
-        if requested_states:
-            placeholders = ",".join("?" for _ in requested_states)
-            clauses.append(f"state IN ({placeholders})")
-            values.extend(sorted(requested_states))
-        if schedule_id is not None:
-            clauses.append("schedule_id=?")
-            values.append(schedule_id)
-        if stale_only:
-            clauses.extend(
-                [
-                    "state='running'",
-                    "execution_owner IS NOT NULL",
-                    "execution_lease_expires_at IS NOT NULL",
-                    "execution_lease_expires_at<=?",
-                ]
-            )
-            values.append(_timestamp(current))
-        where = "" if not clauses else " WHERE " + " AND ".join(clauses)
+        # Keep the statement text fixed and bind every operator filter. Besides
+        # avoiding dynamic SQL, padding to the finite state vocabulary keeps an
+        # empty/repeated ``--state`` selection equivalent to no state filter.
+        state_values = sorted(requested_states or _ALL_RUN_STATES)
+        state_values.extend("" for _ in range(len(_ALL_RUN_STATES) - len(state_values)))
+        values: tuple[object, ...] = (
+            *state_values,
+            schedule_id,
+            schedule_id,
+            int(stale_only),
+            _timestamp(current),
+        )
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM scheduled_runs" + where + " ORDER BY run_sequence",
-                tuple(values),
+                """
+                SELECT * FROM scheduled_runs
+                WHERE state IN (?,?,?,?,?,?,?)
+                  AND (? IS NULL OR schedule_id=?)
+                  AND (
+                    ?=0 OR (
+                      state='running'
+                      AND execution_owner IS NOT NULL
+                      AND execution_lease_expires_at IS NOT NULL
+                      AND execution_lease_expires_at<=?
+                    )
+                  )
+                ORDER BY run_sequence
+                """,
+                values,
             ).fetchall()
         return tuple(self._record_from_row(row, current) for row in rows)
 
