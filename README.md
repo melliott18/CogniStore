@@ -8,8 +8,8 @@ minor version.
 
 ### Docker stack
 
-Start the non-root CogniStore worker, file-backed NATS JetStream, and MinIO
-from a clean checkout:
+Start the non-root CogniStore worker, PostgreSQL with pgvector, file-backed
+NATS JetStream, and MinIO from a clean checkout:
 
 ```bash
 docker compose up --build --wait
@@ -23,9 +23,9 @@ docker compose --profile integration up --build \
   --exit-code-from integration-tests
 ```
 
-Named volumes retain the worker catalog, storage tiers, JetStream state,
-MinIO data, and test report across ordinary stops. See the
-[Docker development and integration guide](docs/setup_guide.md) for service
+Named volumes retain the PostgreSQL catalog, SQLite scheduler state, storage
+tiers, JetStream state, MinIO data, and test report across ordinary stops. See
+the [Docker development and integration guide](docs/setup_guide.md) for service
 URLs, credentials, an editable development shell, safe shutdown diagnostics,
 and the explicit data-reset command.
 
@@ -59,9 +59,9 @@ python -m twine check dist/*
 The repository configures collision-safe import identities, so plain
 `python -m pytest` collects and runs the complete default suite. The coverage
 command enforces the repository's 80% minimum. Integration tests that require
-NATS or MinIO skip unless their documented environment variables point to
-isolated test services; the filesystem/catalog integration suite runs without
-external services. Install Gitleaks separately and run
+NATS, MinIO, or PostgreSQL skip unless their documented environment variables
+point to isolated test services; filesystem and SQLite catalog coverage runs
+without external services. Install Gitleaks separately and run
 `gitleaks git --redact .` to perform the same secret scan used in CI.
 
 For deterministic POSIX/S3 throughput, tail-latency, integrity, and injected
@@ -193,9 +193,10 @@ cannot run application cleanup, production buckets should also use an
 Each executed move is also a catalog-backed state machine. An explicit
 idempotency key can safely be replayed across worker delivery attempts. The
 destination is transferred and verified before the catalog placement changes;
-source cleanup happens only after that atomic catalog commit. SQLite catalogs
-persist phase history, terminal reasons, ownership, and expiring leases so an
-incomplete move can be claimed and resumed after a worker failure.
+source cleanup happens only after that atomic catalog commit. Durable SQL
+catalogs on SQLite or PostgreSQL persist phase history, terminal reasons,
+ownership, and expiring leases so an incomplete move can be claimed and
+resumed after a worker failure.
 
 MinIO integration tests are opt-in. With a separately managed test instance
 running, set its API endpoint and disposable credentials, then run the marked
@@ -264,7 +265,7 @@ uses version IDs and an atomic ETag precondition.
 You can build a catalog from an existing tier and then run a simple policy pass to move objects automatically.
 
 ```bash
-# Optionally use a persistent SQLite catalog
+# Optionally use a persistent SQLite catalog for local inline work
 CAT_DB=/tmp/cognistore/catalog.db
 
 # Scan a tier (e.g., hot); the worker owns the persistent catalog
@@ -287,6 +288,9 @@ python -m cognistore.cli --drivers drivers.yaml ls-tier warm demo-bucket --prefi
 Notes:
 - The worker must use a persistent `--catalog-db`; background submissions intentionally do not select a database.
 - Inline commands use an in-memory catalog when `--catalog-db` is omitted.
+- `--catalog-db` accepts a SQLite path/URL or PostgreSQL DSN;
+  `--catalog-url` is an equivalent CLI spelling. Writable SQL catalogs apply
+  the packaged migrations automatically.
 - Writable `catalog-scan` and `policy-run` commands enqueue durable background jobs by default; run a worker with a persistent `--catalog-db`. Dry-runs stay synchronous, and `--sync` is available for explicit development-only inline execution.
 - `catalog-scan` captures metadata including sha256, mime, and a small sample length.
 - `policy-run` supports:
@@ -343,15 +347,36 @@ jobs:
       allowed_tiers: [hot, warm]
 ```
 
-Run the scheduler as a separate process, using the same catalog database as
-every worker that consumes its jobs:
+Run the scheduler as a separate process. With SQLite, the scheduler can keep
+using the catalog file as its scheduler-state file for compatibility:
 
 ```bash
 cognistore --drivers drivers.yaml --catalog-db catalog.db scheduler --schedule-config schedules.yaml
 ```
 
-This must be a persistent SQLite file; worker and scheduler commands reject
-`:memory:` because their control-plane state must be shared across connections.
+With a PostgreSQL catalog, scheduler state remains a separate persistent SQLite
+store, and both worker and scheduler must receive its path:
+
+```bash
+export COGNISTORE_CATALOG_DB='postgresql://cognistore@db.example/cognistore'
+export COGNISTORE_SCHEDULE_DB=/var/lib/cognistore/schedule.sqlite3
+
+cognistore --drivers drivers.yaml worker
+cognistore --drivers drivers.yaml scheduler --schedule-config schedules.yaml
+```
+
+Keep database credentials in deployment secrets rather than the command line.
+The DSN may omit its password when libpq obtains it from `PGPASSWORD`, a
+password file, or the deployment's equivalent secret injection; the Compose
+stack maps `COGNISTORE_POSTGRES_PASSWORD` to `PGPASSWORD` for its clients.
+The PostgreSQL catalog contains objects, placements, and move journals;
+`--schedule-db` contains schedule timing, reservations, execution leases, and
+recovery audits. See the [PostgreSQL catalog operations guide](docs/postgres_catalog.md)
+for schema migrations and the supported offline SQLite import.
+
+The scheduler-state file must be persistent; worker and scheduler commands
+reject `:memory:` because their coordination state must be shared across
+connections.
 
 New and re-enabled schedules run immediately. Later runs use a fixed interval
 from reservation time, and missed intervals coalesce while the exact target

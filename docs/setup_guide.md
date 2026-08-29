@@ -1,10 +1,11 @@
 # Docker development and integration environment
 
-The repository contains a repeatable local stack for CogniStore, its durable
-NATS JetStream queue, and an S3-compatible MinIO tier. Docker builds a small
-runtime image for the worker and a separate development image containing the
-test and quality tooling. Every image in the stack runs as an unprivileged
-user, and credentials are injected only when containers start.
+The repository contains a repeatable local stack for CogniStore, its
+PostgreSQL/pgvector catalog, durable NATS JetStream queue, and an S3-compatible
+MinIO tier. Docker builds a small runtime image for the worker and a separate
+development image containing the test and quality tooling. Every application
+image in the stack runs as an unprivileged user, and credentials are injected
+only when containers start.
 
 Base images are digest-pinned. Python dependency versions are resolved from
 the bounds in `pyproject.toml` at build time, so identical source is not yet a
@@ -14,10 +15,10 @@ suite when evaluating a later dependency resolution.
 ## Prerequisites
 
 - Docker Engine 24 or Docker Desktop with Docker Compose v2.17 or newer.
-- Free host ports 4222, 8081, 8222, 9000, and 9001. Each port can be overridden
-  with the environment variables listed below.
+- Free host ports 4222, 8081, 8222, 9000, 9001, and 55432. Each port can be
+  overridden with the environment variables listed below.
 
-No host Python, NATS, MinIO, or package installation is required.
+No host Python, PostgreSQL, NATS, MinIO, or package installation is required.
 
 ## Start the stack
 
@@ -33,27 +34,43 @@ This starts:
 | Service | Host endpoint | Purpose |
 | --- | --- | --- |
 | CogniStore | `http://127.0.0.1:8081/readyz` | Worker readiness and JetStream probe |
+| PostgreSQL | `postgresql://cognistore@127.0.0.1:55432/cognistore` | Migration-managed catalog with pgvector |
 | NATS | `nats://127.0.0.1:4222` | Durable job transport |
 | NATS monitor | `http://127.0.0.1:8222` | Broker health and diagnostics |
 | MinIO | `http://127.0.0.1:9000` | S3-compatible API |
 | MinIO console | `http://127.0.0.1:9001` | Local object-store console |
 
-The default MinIO identity is `cognistore` with password
+The default PostgreSQL and MinIO user is `cognistore`; both use the password
 `cognistore-development-only`. These are public, disposable development
 defaults, not production credentials. Override them at container runtime when
 the stack is shared:
 
 ```bash
+export COGNISTORE_POSTGRES_PASSWORD='<local database password>'
 export COGNISTORE_MINIO_ACCESS_KEY='<local access key>'
 export COGNISTORE_MINIO_SECRET_KEY='<local secret of at least eight characters>'
 docker compose up --build --wait
 ```
 
+Compose passes `COGNISTORE_POSTGRES_PASSWORD` to PostgreSQL as
+`POSTGRES_PASSWORD` and to CogniStore clients as libpq's `PGPASSWORD`, so its
+catalog DSNs intentionally omit the password. For a host-side `psql` or other
+libpq client, set `PGPASSWORD` from the same local secret before using the
+PostgreSQL endpoint above.
+
 Compose also accepts `COGNISTORE_NATS_PORT`,
 `COGNISTORE_NATS_MONITOR_PORT`, `COGNISTORE_MINIO_PORT`,
-`COGNISTORE_MINIO_CONSOLE_PORT`, and `COGNISTORE_HEALTH_PORT` to change the
-published host ports. Container-to-container traffic always uses the internal
-service names and is unaffected by those overrides.
+`COGNISTORE_MINIO_CONSOLE_PORT`, `COGNISTORE_POSTGRES_PORT`, and
+`COGNISTORE_HEALTH_PORT` to change the published host ports.
+Container-to-container traffic always uses the internal service names and is
+unaffected by those overrides.
+
+The worker receives `COGNISTORE_CATALOG_DB` as a PostgreSQL DSN and applies the
+catalog's packaged Alembic migrations on startup. It receives
+`COGNISTORE_SCHEDULE_DB=/var/lib/cognistore/schedule.sqlite3` separately because
+scheduler reservations and execution leases remain SQLite-owned. The catalog
+and scheduler-state boundaries are described in the
+[PostgreSQL catalog guide](postgres_catalog.md).
 
 ## Run the integration suite
 
@@ -69,9 +86,10 @@ docker compose --profile integration up --build \
 The command returns pytest's exit status and stops the other containers after
 the test runner exits. NATS and MinIO tests receive their service URLs and
 disposable credentials from Compose, so they do not silently fall back to host
-services or the ambient AWS credential chain. A JUnit report remains in the
-`test-results` named volume. To copy it into the ignored local
-`test-results/` directory:
+services or the ambient AWS credential chain. PostgreSQL catalog tests receive
+an administrative test DSN and create an isolated database for each test. A
+JUnit report remains in the `test-results` named volume. To copy it into the
+ignored local `test-results/` directory:
 
 ```bash
 mkdir -p test-results
@@ -96,6 +114,7 @@ endpoints:
 ```bash
 export COGNISTORE_NATS_URL=nats://nats:4222
 export COGNISTORE_MINIO_ENDPOINT_URL=http://minio:9000
+export COGNISTORE_TEST_POSTGRES_DSN=postgresql://cognistore@postgres:5432/postgres
 ```
 
 For example, run the environment-independent suite with:
@@ -116,20 +135,23 @@ docker compose stop
 
 The worker stops claiming deliveries, drains current work, and records its
 last safe movement phase before exiting. Compose allows 45 seconds for the
-configured 30-second drain plus settlement. The SQLite catalog and POSIX tiers
-remain in `cognistore-data`; queued and claimed jobs remain in `nats-data`; and
-MinIO objects remain in `minio-data`. Restart with `docker compose up --wait`.
+configured 30-second drain plus settlement. The PostgreSQL catalog remains in
+`postgres-data`; SQLite scheduler state and POSIX tiers remain in
+`cognistore-data`; queued and claimed jobs remain in `nats-data`; and MinIO
+objects remain in `minio-data`. Restart with `docker compose up --wait`.
 
-Inspect durable movement state without starting the dependencies:
+To inspect durable movement state without restarting the worker, start only
+PostgreSQL and run the read-only command with the catalog DSN already supplied
+by the Compose service environment:
 
 ```bash
+docker compose up -d --wait postgres
+
 docker compose run --rm --no-deps cognistore \
   --no-config \
-  --drivers /etc/cognistore/drivers.yaml \
-  --catalog-db /var/lib/cognistore/catalog.sqlite3 \
   move-list --json
 
-docker compose logs cognistore nats
+docker compose logs cognistore postgres nats
 ```
 
 Inspect the logs after `stop` and before removing containers. Once the evidence
@@ -151,8 +173,8 @@ bash docker/verify_shutdown.sh
 
 It uses a separate Compose project and high-numbered host ports, forces an
 interruption only after a non-terminal move journal exists, verifies its phase
-history from the stopped worker's volume, restarts the worker, and deletes its
-isolated test volumes on exit.
+history from the isolated PostgreSQL catalog volume, restarts the worker, and
+deletes its isolated test volumes on exit.
 
 ## Reset all local data
 
@@ -172,7 +194,7 @@ This reset is destructive and the removed local state cannot be recovered.
   `runtime` target contains only CogniStore and runtime dependencies; the
   `development` target adds `.[dev]` tooling and the checkout.
 - `.dockerignore` excludes Git history, local environments, credentials,
-  caches, reports, build artifacts, logs, and local SQLite state.
+  caches, reports, build artifacts, logs, and local database state.
 - `docker/drivers.yaml` contains only paths, the internal MinIO endpoint, and
   environment-variable names. It contains no literal credential value.
 - `docker/tier-limits.yaml` keeps the normal stack unthrottled while declaring

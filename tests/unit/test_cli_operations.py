@@ -56,27 +56,18 @@ def test_base_driver_put_get_and_list_commands(
     storage = tmp_path / "storage"
 
     assert (
-        cognistore_cli.main(
-            ["--base", str(storage), "put", "bucket", "nested/key", str(source)]
-        )
+        cognistore_cli.main(["--base", str(storage), "put", "bucket", "nested/key", str(source)])
         == 0
     )
 
     output = tmp_path / "downloads" / "result.bin"
     assert (
-        cognistore_cli.main(
-            ["--base", str(storage), "get", "bucket", "nested/key", str(output)]
-        )
+        cognistore_cli.main(["--base", str(storage), "get", "bucket", "nested/key", str(output)])
         == 0
     )
     assert output.read_bytes() == b"payload"
 
-    assert (
-        cognistore_cli.main(
-            ["--base", str(storage), "ls", "bucket", "--prefix", "nested/"]
-        )
-        == 0
-    )
+    assert cognistore_cli.main(["--base", str(storage), "ls", "bucket", "--prefix", "nested/"]) == 0
     assert capsys.readouterr().out == "nested/key\n"
 
 
@@ -91,17 +82,9 @@ def test_configured_driver_put_and_tier_listing(
     source.write_bytes(b"configured")
 
     assert (
-        cognistore_cli.main(
-            ["--drivers", "ignored.yaml", "put", "bucket", "key", str(source)]
-        )
-        == 0
+        cognistore_cli.main(["--drivers", "ignored.yaml", "put", "bucket", "key", str(source)]) == 0
     )
-    assert (
-        cognistore_cli.main(
-            ["--drivers", "ignored.yaml", "ls-tier", "hot", "bucket"]
-        )
-        == 0
-    )
+    assert cognistore_cli.main(["--drivers", "ignored.yaml", "ls-tier", "hot", "bucket"]) == 0
     assert capsys.readouterr().out == "key\n"
 
 
@@ -347,7 +330,7 @@ def test_queue_configuration_and_plain_enqueue_output(
     assert capsys.readouterr().out.startswith("queued test.job job_id=")
 
 
-def test_scheduler_once_loads_validated_schedule_without_connecting_to_nats(
+def test_scheduler_once_accepts_sqlite_catalog_url_without_connecting_to_nats(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -384,13 +367,14 @@ jobs:
     monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", unexpected_queue)
 
     catalog_path = tmp_path / "catalog.db"
+    catalog_url = f"sqlite:///{catalog_path.as_posix()}"
     assert (
         cognistore_cli.main(
             [
                 "--drivers",
                 "drivers.yaml",
                 "--catalog-db",
-                str(catalog_path),
+                catalog_url,
                 "scheduler",
                 "--schedule-config",
                 str(schedule_path),
@@ -405,7 +389,7 @@ jobs:
     assert isinstance(args, argparse.Namespace)
     assert args.once is True
     assert args.schedule_config == str(schedule_path)
-    assert args.catalog_db == str(catalog_path)
+    assert args.catalog_db == catalog_url
     schedules = seen["schedules"]
     assert isinstance(schedules, tuple)
     assert len(schedules) == 1
@@ -424,13 +408,67 @@ jobs:
 
 
 @pytest.mark.parametrize(
+    ("catalog_locator", "command", "message"),
+    (
+        (
+            ":memory:",
+            ["worker"],
+            "--catalog-db must be a persistent catalog for worker",
+        ),
+        (
+            "sqlite:///:memory:",
+            ["worker"],
+            "--catalog-db must be a persistent catalog for worker",
+        ),
+        (
+            "sqlite:///:memory:?cache=shared",
+            ["worker"],
+            "--catalog-db must be a persistent catalog for worker",
+        ),
+        (
+            ":memory:",
+            ["scheduler", "--schedule-config", "unused-schedules.yaml"],
+            "--schedule-db must be a persistent SQLite file",
+        ),
+        (
+            "sqlite:///:memory:",
+            ["scheduler", "--schedule-config", "unused-schedules.yaml"],
+            "--schedule-db must be a persistent SQLite file",
+        ),
+        (
+            "sqlite:///:memory:?cache=shared",
+            ["scheduler", "--schedule-config", "unused-schedules.yaml"],
+            "--schedule-db must be a persistent SQLite file",
+        ),
+    ),
+)
+def test_worker_and_scheduler_reject_in_memory_catalog_state(
+    catalog_locator: str,
+    command: list[str],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": object()})
+
+    with pytest.raises(SystemExit) as raised:
+        cognistore_cli.main(
+            ["--drivers", "drivers.yaml", "--catalog-db", catalog_locator, *command]
+        )
+
+    assert raised.value.code == 2
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
     "command",
     (
         ["worker"],
         ["scheduler", "--schedule-config", "unused-schedules.yaml"],
     ),
 )
-def test_worker_and_scheduler_reject_in_memory_catalog_state(
+def test_worker_and_scheduler_reject_in_memory_schedule_db(
+    tmp_path: Path,
     command: list[str],
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -439,14 +477,40 @@ def test_worker_and_scheduler_reject_in_memory_catalog_state(
 
     with pytest.raises(SystemExit) as raised:
         cognistore_cli.main(
-            ["--drivers", "drivers.yaml", "--catalog-db", ":memory:", *command]
+            [
+                "--drivers",
+                "drivers.yaml",
+                "--catalog-db",
+                str(tmp_path / "catalog.db"),
+                "--schedule-db",
+                ":memory:",
+                *command,
+            ]
         )
 
     assert raised.value.code == 2
-    assert (
-        "--catalog-db must be a persistent SQLite file for worker and scheduler"
-        in capsys.readouterr().err
-    )
+    assert "--schedule-db must be a persistent SQLite file" in capsys.readouterr().err
+
+
+def test_postgres_worker_requires_separate_sqlite_scheduler_state(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": object()})
+
+    with pytest.raises(SystemExit) as raised:
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "drivers.yaml",
+                "--catalog-url",
+                "postgresql://catalog.example/cognistore",
+                "worker",
+            ]
+        )
+
+    assert raised.value.code == 2
+    assert "--schedule-db is required with a PostgreSQL worker catalog" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -537,12 +601,7 @@ def test_dead_letter_redrive_reports_operational_failure_as_json(
 
     monkeypatch.setattr(cognistore_cli, "_redrive_dead_letter", redrive)
 
-    assert (
-        cognistore_cli.main(
-            ["dead-letter-redrive", str(uuid4()), "--json"]
-        )
-        == 1
-    )
+    assert cognistore_cli.main(["dead-letter-redrive", str(uuid4()), "--json"]) == 1
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload == {
@@ -568,16 +627,9 @@ def test_dead_letter_redrive_suppresses_nats_traceback_callback(
         await options["error_cb"](ConnectionRefusedError("connection refused"))
         raise ConnectionError("NATS is unavailable")
 
-    monkeypatch.setattr(
-        "cognistore.jobs.nats_queue.nats.connect", unavailable_connect
-    )
+    monkeypatch.setattr("cognistore.jobs.nats_queue.nats.connect", unavailable_connect)
 
-    assert (
-        cognistore_cli.main(
-            ["dead-letter-redrive", str(uuid4()), "--json"]
-        )
-        == 1
-    )
+    assert cognistore_cli.main(["dead-letter-redrive", str(uuid4()), "--json"]) == 1
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["status"] == "error"
@@ -592,9 +644,7 @@ def test_dead_letter_redrive_rejects_bad_id_before_connecting(
     async def unexpected_connect(**options):  # pragma: no cover - safety assertion
         raise AssertionError("invalid ID must not connect")
 
-    monkeypatch.setattr(
-        "cognistore.jobs.nats_queue.nats.connect", unexpected_connect
-    )
+    monkeypatch.setattr("cognistore.jobs.nats_queue.nats.connect", unexpected_connect)
 
     assert cognistore_cli.main(["dead-letter-redrive", "not-a-uuid", "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
@@ -656,9 +706,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             return asyncio.wrap_future(executor.submit(function))
 
     class FakeWorker:
-        def __init__(
-            self, queue, handlers, *, config, throughput=None, coordinator=None
-        ) -> None:
+        def __init__(self, queue, handlers, *, config, throughput=None, coordinator=None) -> None:
             self.state = WorkerState.STARTING
             self.throughput = throughput
             assert coordinator is not None
@@ -667,20 +715,14 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             self.state = WorkerState.RUNNING
 
         async def wait_for_shutdown_request(self) -> None:
-            limits_path.write_text(
-                "tiers:\n  hot:\n    source_concurrency: 2\n"
-            )
+            limits_path.write_text("tiers:\n  hot:\n    source_concurrency: 2\n")
             callbacks[signal.SIGHUP]()
             while not reload_started.is_set():
                 await asyncio.sleep(0)
-            limits_path.write_text(
-                "tiers:\n  hot:\n    source_concurrency: 3\n"
-            )
+            limits_path.write_text("tiers:\n  hot:\n    source_concurrency: 3\n")
             callbacks[signal.SIGHUP]()
             release_reload.set()
-            while (
-                self.throughput.config.tiers["hot"].source_concurrency != 3
-            ):
+            while self.throughput.config.tiers["hot"].source_concurrency != 3:
                 await asyncio.sleep(0)
 
         async def shutdown(self):
@@ -725,18 +767,14 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         once=True,
         health_host="127.0.0.1",
         health_port=0,
+        schedule_db=str(tmp_path / "schedule.db"),
         tier_limits=str(limits_path),
         _throughput_config=cognistore_cli.ThroughputConfig(
             tiers={"hot": cognistore_cli.TierLimits()}
         ),
     )
 
-    assert (
-        asyncio.run(
-            cognistore_cli._serve_worker(args, {"hot": object()}, object())
-        )
-        == 0
-    )
+    assert asyncio.run(cognistore_cli._serve_worker(args, {"hot": object()}, object())) == 0
     assert events == [
         "health:start",
         "add:SIGINT",

@@ -65,6 +65,28 @@ services:
       start_period: 3s
     stop_grace_period: 30s
 
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+    environment:
+      POSTGRES_DB: cognistore
+      POSTGRES_USER: cognistore
+      POSTGRES_PASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
+    ports:
+      - "127.0.0.1:${COGNISTORE_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 30s
+
   cognistore:
     image: cognistore:runtime
     build:
@@ -82,16 +104,19 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_CATALOG_DB: postgresql://cognistore@postgres:5432/cognistore
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
       COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+      COGNISTORE_SCHEDULE_DB: /var/lib/cognistore/schedule.sqlite3
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
     command:
       - --no-config
       - --drivers
       - /etc/cognistore/drivers.yaml
-      - --catalog-db
-      - /var/lib/cognistore/catalog.sqlite3
       - --nats-url
       - nats://nats:4222
       - worker
@@ -153,6 +178,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_NATS_URL: nats://nats:4222
@@ -160,6 +187,8 @@ services:
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
       COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
       COGNISTORE_MINIO_REGION: us-east-1
+      COGNISTORE_TEST_POSTGRES_DSN: postgresql://cognistore@postgres:5432/postgres
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
       PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
     command:
       - python
@@ -192,6 +221,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_NATS_URL: nats://nats:4222
@@ -199,6 +230,8 @@ services:
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
       COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
       COGNISTORE_MINIO_REGION: us-east-1
+      COGNISTORE_TEST_POSTGRES_DSN: postgresql://cognistore@postgres:5432/postgres
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
       PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
     command: ["bash"]
     stdin_open: true
@@ -215,4 +248,5 @@ volumes:
   cognistore-data:
   minio-data:
   nats-data:
+  postgres-data:
   test-results:

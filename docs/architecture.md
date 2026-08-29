@@ -1,37 +1,24 @@
 # CogniStore architecture
 
-This document describes the architecture implemented on `main` after the M1
-work. It is a current-state reference, not a promise that the later M2–M4
-components already exist.
+This document describes the currently implemented architecture. It is a
+current-state reference, not a promise that every later M2–M4 component already
+exists.
 
 ## System view
 
 ```text
-                         ┌─────────────────────┐
-                         │ CLI / operator      │
-                         └──────┬───────┬──────┘
-                                │       │ enqueue
-                                │       v
-                    ┌───────────v──┐  ┌──────────────┐
-                    │ Catalog/DAL  │  │ NATS         │
-                    │ memory/SQLite│  │ JetStream    │
-                    └──────┬───────┘  └──────┬───────┘
-                           │                 │ at-least-once
-                 ┌─────────v────────┐  ┌─────v────────────┐
-                 │ Scheduler state │  │ Async workers    │
-                 │ SQLite          │  │ retry / DLQ      │
-                 └─────────┬────────┘  └─────┬────────────┘
-                           │ enqueue          │ handlers
-                           └──────────────────┤
-                                              v
-                               ┌────────────────────────┐
-                               │ scan / policy / mover  │
-                               └───────────┬────────────┘
-                                           │ driver contract
-                              ┌────────────v─────────────┐
-                              │ POSIX and S3-compatible │
-                              │ storage tiers           │
-                              └──────────────────────────┘
+CLI / operator -- catalog calls --> CatalogStore --> memory / SQLite / PostgreSQL
+      |
+      +-- enqueue --> NATS JetStream -- at least once --> async workers
+                          ^                                  |       |
+                          |                                  |       +-- catalog --> CatalogStore
+                    scheduler                               |
+                          ^                                  +-- coordinate --+
+                          |                                                   |
+                          +---------- SQLite scheduler state <----------------+
+
+async workers -- handlers --> scan / policy / mover -- driver contract -->
+                              POSIX and S3-compatible storage tiers
 ```
 
 The CLI can execute selected development operations synchronously, but normal
@@ -44,7 +31,7 @@ also publishes durable envelopes; it never runs scan or policy logic inline.
 | --- | --- | --- |
 | CLI | `cognistore/cli/` | Strict configuration/profile resolution, human or JSON output, previews, storage commands, worker/scheduler lifecycle, move recovery, and DLQ redrive |
 | Storage | `cognistore/drivers/` | Common object contract plus POSIX and S3-compatible drivers, streaming I/O, capability flags, generations, conditional deletion, and durability hooks |
-| Catalog | `cognistore/core/catalog.py`, `sqlite_catalog.py` | Object placement/metadata, scan fences, durable move journals, leases, and transition history; in-memory and SQLite implementations |
+| Catalog | `cognistore/core/catalog.py`, `cognistore/db/` | Backend-neutral `CatalogStore` contract plus the in-memory `Catalog` and transactional `SQLCatalog`; normalized objects, placements, tiers, pools, scan fences, durable move journals, leases, and transition history on SQLite or PostgreSQL |
 | Movement | `cognistore/core/mover.py`, `move_jobs.py` | Bounded transfer, full SHA-256 verification, generation fencing, resumable phases, and catalog placement commit |
 | Queue | `cognistore/jobs/nats_queue.py` | Bounded JetStream setup, publish/claim/ACK/NAK, health, dead-letter records, and redrive |
 | Worker | `cognistore/jobs/runtime.py`, `handlers.py` | Bounded concurrent delivery, heartbeats, retry classification, graceful shutdown, and job dispatch |
@@ -54,22 +41,37 @@ also publishes durable envelopes; it never runs scan or policy logic inline.
 
 ## State and ownership
 
-CogniStore currently has three durable state planes:
+CogniStore currently has four durable state planes:
 
 1. JetStream owns job delivery, redelivery, and source-message settlement.
-2. SQLite owns object placement, move state and transitions, leases, and
-   scheduled occurrence/reservation state.
-3. Storage backends own object bytes and backend-specific generation tokens.
+2. The catalog DAL owns object placement, move state and transitions, and move
+   leases in either PostgreSQL or SQLite.
+3. `SQLiteScheduleStore` separately owns scheduled occurrence/reservation
+   state, execution leases, and fenced-recovery audits.
+4. Storage backends own object bytes and backend-specific generation tokens.
 
 No one plane is sufficient evidence that an operation completed. A move is
 complete only after storage verification, a durable catalog transition, safe
 source cleanup, and terminal job state. A worker ACK happens only after its
 handler and coordination transitions succeed.
 
-The in-memory catalog is useful for isolated synchronous operation and tests.
-Workers, schedulers, durable move inspection, and recovery require SQLite. M2
-ticket #30 will introduce Postgres/pgvector behind a transactional DAL and a
-documented SQLite migration path.
+Core movement, scanning, policy, and worker code depend on the `CatalogStore`
+interface rather than database-specific SQL. The in-memory `Catalog` remains
+useful for isolated synchronous operation and tests. `SQLCatalog` is the
+durable implementation: it owns one short transaction per operation and
+supports both SQLite and PostgreSQL through the same contract. Writable opens
+apply the packaged Alembic migrations; PostgreSQL migration startup is
+serialized, and read-only opens reject a schema that is not at the current
+head.
+
+The normalized catalog schema separates objects, their single current
+placement, tiers, and pools. Durable object and move-claim fence rows serialize
+concurrent mutations. PostgreSQL additionally provisions the `vector`
+extension and records whether CogniStore created it, but embedding and search
+indexes are not part of this milestone. Scheduler state intentionally remains
+outside the catalog DAL in a persistent SQLite file. See the
+[PostgreSQL catalog operations guide](postgres_catalog.md) for migrations,
+cutover, and that compatibility boundary.
 
 ## Movement flow
 
@@ -121,12 +123,14 @@ releasing its logical scope.
 ## Deployment topology
 
 `Dockerfile` builds non-root runtime and development targets. `docker-compose.yml`
-provides health-gated CogniStore, file-backed NATS JetStream, MinIO, integration
-tests, and an editable development shell. Named volumes retain catalogs,
+provides health-gated CogniStore, PostgreSQL with pgvector, file-backed NATS
+JetStream, MinIO, integration tests, and an editable development shell. The
+default worker uses PostgreSQL for its catalog and a separate SQLite file for
+scheduler coordination. Named volumes retain catalog data, scheduler state,
 objects, queue state, and test evidence across ordinary stops.
 
-CI exercises Python 3.10–3.14, live NATS and MinIO integration, package and
-security gates, the Compose shutdown probe, and a reduced movement
+CI exercises Python 3.10–3.14, live NATS, MinIO, and PostgreSQL/pgvector
+integration, package and security gates, the Compose shutdown probe, and a reduced movement
 qualification. The manual full profile completed on 2026-08-29 with one million
 objects on each POSIX and S3-compatible path; its
 [report and checksum](evidence/m1/README.md) are retained as the M1 acceptance
@@ -134,8 +138,9 @@ artifact.
 
 ## Current boundaries
 
-- Postgres/pgvector, extraction, embeddings, keyword search, Ask, REST, SDK,
-  and UI are M2 work, not current components.
+- PostgreSQL catalog persistence and pgvector extension setup are present;
+  extraction, embeddings, vector/keyword indexing, Ask, REST, SDK, and UI are
+  not current components.
 - The catalog scanner's canonical checksum/metadata model is incomplete and
   tracked by BUG-2026-004 / #34.
 - POSIX path containment rejects static symlinks but is not yet race-safe

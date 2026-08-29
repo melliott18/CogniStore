@@ -86,18 +86,25 @@ profiles:
   local:
     drivers: ./drivers.yaml
     catalog_db: ./catalog.db
+    schedule_db: ./schedule.db
     nats_url:
       - nats://127.0.0.1:4222
 
   production:
     drivers: /etc/cognistore/drivers.yaml
-    catalog_db: /var/lib/cognistore/catalog.db
+    schedule_db: /var/lib/cognistore/schedule.sqlite3
     nats_url:
       - nats://nats-a.internal:4222
       - nats://nats-b.internal:4222
     dead_letter_stream: COGNISTORE_JOBS_DLQ
     dead_letter_subject: cognistore.jobs.dead
 ```
+
+For the production profile, supply the PostgreSQL catalog DSN through
+`COGNISTORE_CATALOG_DB`. Supply its password from the deployment secret store
+through a libpq credential source such as `PGPASSWORD` or a password file; the
+DSN can then remain passwordless. YAML does not interpolate environment
+placeholders, so do not put a password-bearing DSN in this file.
 
 The v1 loader is strict: `version` must be the integer `1`; unknown or
 duplicate keys, unsafe YAML tags, invalid types, an undefined default profile,
@@ -127,7 +134,8 @@ forms are global options:
 | --- | --- | --- | --- |
 | `base` | `--base PATH` | `COGNISTORE_BASE` | none |
 | `drivers` | `--drivers PATH` | `COGNISTORE_DRIVERS` | none |
-| `catalog_db` | `--catalog-db PATH` | `COGNISTORE_CATALOG_DB` | in-memory when the command permits it |
+| `catalog_db` | `--catalog-db LOCATOR` / `--catalog-url LOCATOR` | `COGNISTORE_CATALOG_DB` | in-memory when the command permits it |
+| `schedule_db` | `--schedule-db PATH` | `COGNISTORE_SCHEDULE_DB` | the SQLite catalog path when compatible; otherwise none |
 | `nats_url` | `--nats-url URL` (repeatable) | `COGNISTORE_NATS_URL` (comma-separated) | `nats://127.0.0.1:4222` |
 | `job_stream` | `--job-stream NAME` | `COGNISTORE_JOB_STREAM` | `COGNISTORE_JOBS` |
 | `job_subject` | `--job-subject SUBJECT` | `COGNISTORE_JOB_SUBJECT` | `cognistore.jobs` |
@@ -148,10 +156,23 @@ regard to case. Numeric values must be finite and use the type shown by the
 example. Repeated `-v` forms such as `-vv` are accepted; currently any positive
 verbosity count enables the same diagnostic stream.
 
+`catalog_db` accepts a filesystem path, a `sqlite://` URL, or a
+`postgresql://`/`postgres://` DSN. `--catalog-url` is only an alias for the CLI
+option; the YAML key remains `catalog_db` and the environment variable remains
+`COGNISTORE_CATALOG_DB`. Writable SQLite and PostgreSQL catalogs apply the
+packaged Alembic migrations automatically. A read-only command refuses a
+catalog that has not already reached the current migration head. The
+[PostgreSQL catalog operations guide](postgres_catalog.md) covers schema
+ownership and SQLite cutover.
+
 Some commands impose stronger requirements than the global default. Workers,
-normal schedulers, move inspection, and move recovery require a persistent
-SQLite catalog as described below. Tier operations require `--drivers`; only
-`put`, `get`, and `ls` can instead use the single POSIX `--base` driver.
+move inspection, and move recovery require a persistent SQL catalog. Scheduler
+state is always SQLite: a PostgreSQL worker requires an explicit persistent
+`schedule_db`, while a SQLite worker may reuse its catalog file when
+`schedule_db` is omitted. A non-preview scheduler requires a persistent
+`schedule_db` or a SQLite `catalog_db` fallback. Tier operations require
+`--drivers`; only `put`, `get`, and `ls` can instead use the single POSIX
+`--base` driver.
 
 ## JSON v1 and stream contracts
 
@@ -252,7 +273,7 @@ their query. The complete command matrix is:
 | `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `resume_preconditions` records the checked journal state and driver pair, reports that no ownership claim was attempted, and names every phase-specific storage condition left unchecked. A non-terminal preview therefore reports `readiness: "not_confirmed"`; the writable resume may still fail. |
 | `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
 | `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
-| `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the catalog read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
+| `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the SQLite scheduler store read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
 | `ls-tier` | Read-only. Runs the normal tier listing and makes no mutations. |
 | `catalog-scan` | Scans the selected storage scope synchronously and returns the objects that would be indexed. It neither updates the catalog nor enqueues a background job; `--sync` is unnecessary. |
 | `tier-profile` | Validates and lists supported tier paths and any `--metrics-out` target. It does not run storage benchmarks or write metrics. This command profiles storage tiers; it is unrelated to selecting a CLI configuration profile. |
@@ -267,16 +288,16 @@ The default writable forms of `catalog-scan` and `policy-run` publish a durable
 job. `--sync` instead performs their writes inline for development. Dry-run
 always remains synchronous and does neither kind of write. Background
 submissions ignore a configuration-file or environment `catalog_db`; the
-worker uses its own persistent catalog. Passing `--catalog-db` explicitly to a
-background submission is a usage error so an operator cannot accidentally
-target the wrong journal. Other commands that do not consume a catalog
-likewise do not open or create the configured database.
+worker uses its own persistent catalog. Passing `--catalog-db` or
+`--catalog-url` explicitly to a background submission is a usage error so an
+operator cannot accidentally target the wrong journal. Other commands that do
+not consume a catalog likewise do not open or create the configured database.
 
 ## Durable manual-move recovery
 
 Manual moves use the same durable journal as policy-driven moves. Supply a
-stable caller-generated key and a persistent SQLite catalog when you need to
-recover an interrupted CLI process:
+stable caller-generated key and a persistent SQLite or PostgreSQL catalog when
+you need to recover an interrupted CLI process:
 
 ```bash
 MOVE_ID='manual:reports-2026-08'
@@ -338,8 +359,11 @@ those conditions against live storage.
 ## Scheduled-run inspection and recovery
 
 `schedule-run-list` and `schedule-run-status` require an existing persistent
-`--catalog-db` but do not require `--drivers` or `--base`. They open SQLite in
-read-only mode. Use `schedule-run-list --stale` to select only `running`
+SQLite scheduler store but do not require `--drivers` or `--base`. Select it
+with `--schedule-db`; for compatibility, `--catalog-db` is used as the fallback
+when it names a SQLite file or SQLite URL. These commands reject non-SQLite
+database URLs and open the scheduler file read-only. Use
+`schedule-run-list --stale` to select only `running`
 occurrences whose execution owner is present and whose lease expired, then use
 `schedule-run-status JOB_ID` to copy the exact owner and review earlier
 recovery records.

@@ -57,6 +57,7 @@ jobs:
       COGNISTORE_MINIO_ACCESS_KEY: minioadmin
       COGNISTORE_MINIO_SECRET_KEY: minioadmin
       COGNISTORE_MINIO_REGION: us-east-1
+      COGNISTORE_TEST_POSTGRES_DSN: postgresql://cognistore:cognistore-test-only@127.0.0.1:55432/postgres
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -99,12 +100,21 @@ jobs:
             --env MINIO_ROOT_PASSWORD=minioadmin \
             quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e \
             server /data
+          docker run --detach --rm \
+            --name cognistore-postgres \
+            --publish 55432:5432 \
+            --env POSTGRES_DB=postgres \
+            --env POSTGRES_USER=cognistore \
+            --env POSTGRES_PASSWORD=cognistore-test-only \
+            pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
 
           for attempt in {1..30}; do
             if curl --fail --silent --show-error \
                 "http://127.0.0.1:8222/healthz?js-enabled-only=true" >/dev/null \
               && curl --fail --silent --show-error \
-                "http://127.0.0.1:9000/minio/health/live" >/dev/null; then
+                "http://127.0.0.1:9000/minio/health/live" >/dev/null \
+              && docker exec cognistore-postgres \
+                pg_isready -U cognistore -d postgres >/dev/null; then
               exit 0
             fi
             sleep 1
@@ -113,6 +123,7 @@ jobs:
           echo "Integration services did not become healthy within 30 seconds."
           docker logs cognistore-nats || true
           docker logs cognistore-minio || true
+          docker logs cognistore-postgres || true
           exit 1
 
       - name: Run integration tests
@@ -150,6 +161,7 @@ jobs:
         run: |
           docker logs --tail 200 cognistore-nats || true
           docker logs --tail 200 cognistore-minio || true
+          docker logs --tail 200 cognistore-postgres || true
 
   default-suite:
     name: Default full test suite
@@ -206,6 +218,18 @@ jobs:
           "${RUNNER_TEMP}/cognistore-smoke/bin/python" -c \
             'import cognistore; from importlib.metadata import version; print(version("cognistore"))'
           "${RUNNER_TEMP}/cognistore-smoke/bin/cognistore" --help >/dev/null
+          "${RUNNER_TEMP}/cognistore-smoke/bin/python" - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          from cognistore.db import MigrationManager, SQLCatalog
+
+          with TemporaryDirectory() as directory:
+              with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
+                  migrations = MigrationManager()
+                  assert migrations.heads() == ("0002_normalized_catalog",)
+                  assert migrations.is_at_head(catalog.engine)
+          PY
 
       - name: Upload verified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

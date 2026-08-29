@@ -23,15 +23,36 @@ JetStream store for durable jobs.
 Workers load storage credentials and driver paths from their own trusted
 configuration. Jobs carry operation inputs, never driver configuration or
 credentials. All workers attached to one consumer must therefore use the same
-drivers and catalog database.
+drivers and catalog database. Catalog consumers use the backend-neutral
+`CatalogStore` contract; the durable `SQLCatalog` implementation accepts
+SQLite or PostgreSQL and owns a short transaction for each operation.
 
 ```bash
+export COGNISTORE_CATALOG_DB='postgresql://cognistore@db.example/cognistore'
+
 python -m cognistore.cli \
   --drivers drivers.yaml \
-  --catalog-db /var/lib/cognistore/catalog.db \
+  --schedule-db /var/lib/cognistore/schedule.sqlite3 \
   --nats-url nats://127.0.0.1:4222 \
   worker
 ```
+
+`--catalog-url` is an alias for `--catalog-db`; configuration files and the
+environment use `catalog_db` and `COGNISTORE_CATALOG_DB`. A writable catalog
+open applies the packaged Alembic migrations. Keep DSN credentials in the
+deployment secret store rather than in commands or checked-in YAML. A
+passwordless DSN can use libpq's `PGPASSWORD` or password-file support; Compose
+maps `COGNISTORE_POSTGRES_PASSWORD` to `PGPASSWORD` for its clients. For local
+single-host operation, a SQLite path such as
+`--catalog-db /var/lib/cognistore/catalog.sqlite3` remains supported.
+
+The scheduler coordination store is a separate concern. It is always a
+persistent SQLite file. A PostgreSQL worker therefore requires
+`--schedule-db`; a SQLite worker can omit it to reuse the SQLite catalog file
+for backward compatibility. Every scheduler and worker that handles scheduled
+jobs must use the same scheduler-state file. That topology is suitable for a
+single host; do not place SQLite on an unsafe network filesystem to simulate a
+multi-host coordinator.
 
 The URL can instead be set with `COGNISTORE_NATS_URL`. The default topology is
 stream `COGNISTORE_JOBS`, subject `cognistore.jobs`, and durable consumer
@@ -91,18 +112,23 @@ It also accepts `prefix`, `llm_threshold`, and the content-policy lists
 `hot_name_patterns`, `warm_name_patterns`, `cold_name_patterns`,
 `hot_mime_prefixes`, `warm_mime_prefixes`, and `cold_mime_prefixes`.
 
-Start it with the same NATS topology, drivers, and catalog database used by its
-workers:
+Start it with the same NATS topology, drivers, and SQLite scheduler-state file
+used by its workers:
 
 ```bash
-cognistore --drivers drivers.yaml --catalog-db catalog.db scheduler --schedule-config schedules.yaml
+cognistore --drivers drivers.yaml \
+  --schedule-db /var/lib/cognistore/schedule.sqlite3 \
+  scheduler --schedule-config schedules.yaml
 ```
 
-The shared persistent catalog database is mandatory: it holds schedule timing,
-the full pending job envelope, active-scope state, and worker execution leases.
-The SQLite `:memory:` database is rejected for schedulers and workers because
-separate connections and processes cannot share it. A new schedule is due
-immediately. Setting `enabled: false` prevents new
+The shared persistent scheduler database is mandatory: it holds schedule
+timing, the full pending job envelope, active-scope state, worker execution
+leases, and fenced-recovery audits. It is outside the PostgreSQL catalog DAL
+and outside the SQLite-to-PostgreSQL catalog import. For compatibility, a
+SQLite deployment may pass only `--catalog-db catalog.sqlite3`; the scheduler
+then uses that file. The SQLite `:memory:` database is rejected for normal
+schedulers and workers because separate connections and processes cannot share
+it. A new schedule is due immediately. Setting `enabled: false` prevents new
 reservations; after changing it back to `true` and restarting the scheduler,
 the schedule is immediately due again. Entries removed from the file are also
 disabled in durable state.
@@ -154,13 +180,14 @@ was `running`:
    deployment to zero, or isolate the host, and obtain durable evidence such as
    the exited PID, supervisor event, terminated instance ID, or deployment
    generation. Stop any automatic restart policy until recovery is complete.
-2. Preserve the SQLite catalog and JetStream diagnostics. Wait at least the
+2. Preserve the SQLite scheduler store and JetStream diagnostics. Wait at
+   least the
    configured `--schedule-lock-ttl`, then list stale runs and inspect the exact
-   occurrence. These commands open the catalog read-only.
+   occurrence. These commands open the scheduler store read-only.
 
    ```bash
-   cognistore --catalog-db catalog.db schedule-run-list --stale --json
-   cognistore --catalog-db catalog.db schedule-run-status JOB_ID --json
+   cognistore --schedule-db schedule.sqlite3 schedule-run-list --stale --json
+   cognistore --schedule-db schedule.sqlite3 schedule-run-status JOB_ID --json
    ```
 
 3. Copy the current `execution_owner` from the status response and choose a
@@ -171,7 +198,7 @@ was `running`:
 
    ```bash
    recovery_id="$(python -c 'import uuid; print(uuid.uuid4())')"
-   cognistore --catalog-db catalog.db schedule-run-recover JOB_ID \
+   cognistore --schedule-db schedule.sqlite3 schedule-run-recover JOB_ID \
      --recovery-id "${recovery_id}" \
      --expected-owner OWNER_ID \
      --operator OPERATOR_ID \
@@ -179,7 +206,7 @@ was `running`:
      --fence-evidence "instance i-0123456789 stopped; event 2026-08-27T20:15Z" \
      --confirm-former-worker-fenced --dry-run --json
 
-   cognistore --catalog-db catalog.db schedule-run-recover JOB_ID \
+   cognistore --schedule-db schedule.sqlite3 schedule-run-recover JOB_ID \
      --recovery-id "${recovery_id}" \
      --expected-owner OWNER_ID \
      --operator OPERATOR_ID \
@@ -213,13 +240,13 @@ If delivery or lease renewal fails, the worker fails closed: it cancels the
 handler and leaves the source message unsettled. Thread-backed storage work is
 allowed to reach its safe side-effect boundary while its execution lease keeps
 renewing. Once that boundary is reached, the worker attempts an owner-fenced
-transition back to retryable state; if SQLite remains unavailable, the run
-stays quarantined as `running` instead of risking overlap. Missing or mismatched
-scheduler state likewise fails the worker closed instead of dead-lettering and
-permanently wedging the real scope. A dead-letter redrive reuses the occurrence
-ID and advances a durable redrive generation; the same generation cannot
-execute twice, and an old occurrence cannot be redriven after a newer
-occurrence for that scope has been created.
+transition back to retryable state; if the SQLite scheduler store remains
+unavailable, the run stays quarantined as `running` instead of risking overlap.
+Missing or mismatched scheduler state likewise fails the worker closed instead
+of dead-lettering and permanently wedging the real scope. A dead-letter redrive
+reuses the occurrence ID and advances a durable redrive generation; the same
+generation cannot execute twice, and an old occurrence cannot be redriven
+after a newer occurrence for that scope has been created.
 
 Additional scheduled job families, such as future repair operations, can be
 added without branching in the scheduler: define a `ScheduledJobDefinition`
@@ -324,9 +351,10 @@ publish was deduplicated. Pass `--job-id UUID` when retrying an uncertain
 submission inside the server deduplication window, and `--correlation-id VALUE`
 to carry an existing request or trace identifier.
 
-`--catalog-db` is intentionally rejected on background submission because the
-worker owns the persistent catalog configuration. This prevents a CLI from
-appearing to target one database while a remote worker uses another.
+Explicit `--catalog-db` and `--catalog-url` options are intentionally rejected
+on background submission because the worker owns the persistent catalog
+configuration. This prevents a CLI from appearing to target one database while
+a remote worker uses another.
 
 ## At-least-once warning for consumers
 
@@ -343,8 +371,9 @@ delivery cycle.
 ## Retry and terminal-error policy
 
 Timeouts, connection failures, unavailable/5xx backends, throttling/429
-responses, SQLite contention, and live move leases are retryable. Malformed
-envelopes or payloads, unknown job types, invalid storage requests, permission
+responses, catalog or scheduler database contention, and live move leases are
+retryable. Malformed envelopes or payloads, unknown job types, invalid storage
+requests, permission
 failures, destination collisions, and proven integrity mismatches are terminal.
 Unclassified third-party backend exceptions receive bounded retries rather than
 looping forever.
@@ -406,7 +435,7 @@ failures are emitted as a machine-readable error object and return nonzero.
 
 Policy handlers derive a distinct move idempotency key for each object from the
 stable policy-job ID. Each move persists these checkpoints in the worker's
-SQLite catalog:
+SQL catalog:
 
 `prepared -> transferred -> verified -> committed -> cleanup -> completed`
 
@@ -417,12 +446,13 @@ Move rows carry an owner and expiring lease. The same owner may immediately
 resume its work, while another worker must wait for lease expiry after a
 process failure.
 
-Operators and diagnostics can query `SQLiteCatalog.get_move_job()`,
-`list_move_jobs()`, and `list_move_job_transitions()`. `Mover.recover_incomplete()`
-claims available non-terminal jobs for synchronous callers. Policy handlers
-perform the equivalent recovery through the tier admission controller before
-making new placement decisions; a move with another live owner defers the
-whole delivery instead of planning around an in-progress destination.
+Operators and diagnostics can use the CLI's `move-status` and `move-list`
+commands or query `SQLCatalog.get_move_job()`, `list_move_jobs()`, and
+`list_move_job_transitions()`. `Mover.recover_incomplete()` claims available
+non-terminal jobs for synchronous callers. Policy handlers perform the
+equivalent recovery through the tier admission controller before making new
+placement decisions; a move with another live owner defers the whole delivery
+instead of planning around an in-progress destination.
 
 ## Health and readiness
 

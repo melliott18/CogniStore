@@ -130,9 +130,7 @@ def test_schedule_run_inspection_is_read_only_and_recovery_is_audited(
     assert status["run"]["execution_owner"] == owner
     assert status["recoveries"] == []
 
-    assert cognistore_cli.main(
-        _recovery_arguments(database, job_id, owner, dry_run=True)
-    ) == 0
+    assert cognistore_cli.main(_recovery_arguments(database, job_id, owner, dry_run=True)) == 0
     preview = _json(capsys)
     assert preview["status"] == "planned"
     assert preview["preconditions"]["readiness"] == "confirmed_at_preview_time"
@@ -141,9 +139,7 @@ def test_schedule_run_inspection_is_read_only_and_recovery_is_audited(
     assert database.read_bytes() == original_bytes
     assert database.stat().st_mtime_ns == original_mtime
 
-    assert cognistore_cli.main(
-        _recovery_arguments(database, job_id, owner)
-    ) == 0
+    assert cognistore_cli.main(_recovery_arguments(database, job_id, owner)) == 0
     recovered = _json(capsys)
     assert recovered["status"] == "recovered"
     assert recovered["run"]["state"] == "retry_wait"
@@ -153,9 +149,7 @@ def test_schedule_run_inspection_is_read_only_and_recovery_is_audited(
     assert recovered["recovery"]["reason"] == "worker process was killed"
 
     # An uncertain client may repeat the exact request after process restart.
-    assert cognistore_cli.main(
-        _recovery_arguments(database, job_id, owner)
-    ) == 0
+    assert cognistore_cli.main(_recovery_arguments(database, job_id, owner)) == 0
     replay = _json(capsys)
     assert replay["recovery"] == recovered["recovery"]
 
@@ -176,6 +170,30 @@ def test_schedule_run_inspection_is_read_only_and_recovery_is_audited(
     assert final_status["recoveries"] == [recovered["recovery"]]
 
 
+def test_schedule_run_list_accepts_sqlite_catalog_url_fallback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "catalog.sqlite"
+    job_id, _owner = _stale_run(database)
+    catalog_url = f"sqlite:///{database.as_posix()}"
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--catalog-db",
+                catalog_url,
+                "schedule-run-list",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    listed = _json(capsys)
+    assert listed["count"] == 1
+    assert listed["runs"][0]["job_id"] == job_id
+
+
 def test_schedule_run_recovery_rejects_changed_idempotent_request(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -183,19 +201,20 @@ def test_schedule_run_recovery_rejects_changed_idempotent_request(
     database = tmp_path / "catalog.sqlite"
     job_id, owner = _stale_run(database)
 
-    assert cognistore_cli.main(
-        _recovery_arguments(database, job_id, owner)
-    ) == 0
+    assert cognistore_cli.main(_recovery_arguments(database, job_id, owner)) == 0
     _json(capsys)
 
-    assert cognistore_cli.main(
-        _recovery_arguments(
-            database,
-            job_id,
-            owner,
-            reason="different recovery reason",
+    assert (
+        cognistore_cli.main(
+            _recovery_arguments(
+                database,
+                job_id,
+                owner,
+                reason="different recovery reason",
+            )
         )
-    ) == 1
+        == 1
+    )
     failure = _json(capsys)
     assert failure["status"] == "error"
     assert failure["error_type"] == "ScheduledRunRecoveryError"

@@ -34,19 +34,26 @@ from cognistore.cli.output import (
 	redact_text,
 	result_payload,
 )
-from cognistore.core.catalog import Catalog
+from cognistore.core.catalog import Catalog, CatalogStore
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
 from cognistore.core.mover import Mover
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
-from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.core.sqlite_catalog import SQLiteCatalog as SQLiteCatalog
 from cognistore.core.throughput import (
 	DEFAULT_MAX_QUEUE_DEPTH,
 	ThroughputConfig,
 	ThroughputController,
 	TierLimits,
 	load_throughput_config,
+)
+from cognistore.db import (
+	CatalogSchemaNotInstalledError,
+	catalog_locator_is_persistent,
+	catalog_locator_is_postgres,
+	open_catalog,
+	sqlite_catalog_path,
 )
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
@@ -120,6 +127,8 @@ _CLI_VALUE_OPTIONS = {
 	"--base": "base",
 	"--drivers": "drivers",
 	"--catalog-db": "catalog_db",
+	"--catalog-url": "catalog_db",
+	"--schedule-db": "schedule_db",
 	"--nats-url": "nats_url",
 	"--job-stream": "job_stream",
 	"--job-subject": "job_subject",
@@ -762,7 +771,7 @@ def _render_redrive_error(exc: Exception, *, json_output: bool) -> None:
 
 
 async def _serve_worker(
-	args: argparse.Namespace, drivers, catalog: SQLiteCatalog
+	args: argparse.Namespace, drivers, catalog: CatalogStore
 ) -> int:
 	throughput = (
 		ThroughputController(
@@ -773,12 +782,20 @@ async def _serve_worker(
 		else None
 	)
 	queue = NatsJetStreamQueue(_queue_config(args, client_name="cognistore-worker"))
-	schedule_db = getattr(args, "catalog_db", None) or getattr(
-		catalog, "db_path", ":memory:"
-	)
-	if not isinstance(schedule_db, (str, Path)):
-		schedule_db = ":memory:"
-	schedule_store = SQLiteScheduleStore(schedule_db)
+	schedule_locator = getattr(args, "schedule_db", None)
+	if schedule_locator is None:
+		catalog_locator = getattr(args, "catalog_db", None)
+		if catalog_locator is None:
+			catalog_locator = getattr(catalog, "db_path", ":memory:")
+		if not isinstance(catalog_locator, (str, Path)):
+			catalog_locator = ":memory:"
+		schedule_locator = catalog_locator
+	if not isinstance(schedule_locator, (str, Path)):
+		raise ValueError("worker scheduler state requires a persistent SQLite database")
+	schedule_path = sqlite_catalog_path(schedule_locator)
+	if schedule_path is None:  # guarded by CLI validation before serving
+		raise ValueError("worker scheduler state requires a persistent SQLite database")
+	schedule_store = SQLiteScheduleStore(schedule_path)
 	worker = AsyncWorker(
 		queue,
 		build_handlers(drivers, catalog, throughput=throughput),
@@ -895,7 +912,10 @@ async def _serve_worker(
 
 
 async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
-	store = SQLiteScheduleStore(args.catalog_db)
+	schedule_path = sqlite_catalog_path(args.schedule_db or args.catalog_db)
+	if schedule_path is None:  # guarded by CLI validation before serving
+		raise ValueError("scheduler state requires a persistent SQLite database")
+	store = SQLiteScheduleStore(schedule_path)
 	queue = NatsJetStreamQueue(
 		_queue_config(args, client_name="cognistore-scheduler"), consume=False
 	)
@@ -993,14 +1013,25 @@ def _run_cli(
 	resolution: CliConfigResolution,
 	catalog_stack: ExitStack,
 ) -> int:
-	def open_sqlite_catalog(
-		path: str | Path,
+	def open_sql_catalog(
+		locator: str | Path,
 		*,
 		read_only: bool = False,
-	) -> SQLiteCatalog:
-		opened = SQLiteCatalog(path, read_only=read_only)
-		catalog_stack.callback(opened.close)
+	) -> CatalogStore:
+		opened = open_catalog(locator, read_only=read_only)
+		close = getattr(opened, "close", None)
+		if callable(close):
+			catalog_stack.callback(close)
 		return opened
+
+	def close_catalog(opened: CatalogStore | None) -> None:
+		close = getattr(opened, "close", None)
+		if callable(close):
+			close()
+
+	def existing_sqlite_catalog_path(locator: str | Path) -> Path | None:
+		path = sqlite_catalog_path(locator)
+		return path if path is not None and path.is_file() else None
 
 	parser = _CliArgumentParser(prog="cognistore", description="CogniStore CLI")
 	parser.add_argument(
@@ -1016,7 +1047,19 @@ def _run_cli(
 	_add_output_options(parser)
 	parser.add_argument("--base", help="Base path for POSIX storage (used when --drivers is not provided)")
 	parser.add_argument("--drivers", help="Path to drivers.yaml to enable multi-tier operations")
-	parser.add_argument("--catalog-db", help="Path to SQLite catalog DB; if omitted uses in-memory catalog")
+	parser.add_argument(
+		"--catalog-db",
+		"--catalog-url",
+		dest="catalog_db",
+		help=(
+			"SQLite catalog path/URL or PostgreSQL DSN; if omitted, commands "
+			"that permit it use an in-memory catalog"
+		),
+	)
+	parser.add_argument(
+		"--schedule-db",
+		help="SQLite scheduler-state path (required with a PostgreSQL worker catalog)",
+	)
 	parser.add_argument(
 		"--nats-url",
 		action=_AppendOverrideDefault,
@@ -1318,6 +1361,7 @@ def _run_cli(
 		"base",
 		"drivers",
 		"catalog_db",
+		"schedule_db",
 		"nats_url",
 		"job_stream",
 		"job_subject",
@@ -1413,15 +1457,15 @@ def _run_cli(
 		return 0
 
 	if args.cmd in {"move-status", "move-list"}:
-		if not args.catalog_db or args.catalog_db == ":memory:":
+		if not args.catalog_db or not catalog_locator_is_persistent(args.catalog_db):
 			parser.error(
-				"--catalog-db must name an existing persistent SQLite file for "
+				"--catalog-db must name an existing persistent catalog for "
 				f"{args.cmd}"
 			)
-		catalog_path = Path(args.catalog_db).expanduser()
-		if not catalog_path.is_file():
+		catalog_path = sqlite_catalog_path(args.catalog_db)
+		if catalog_path is not None and not catalog_path.is_file():
 			parser.error(f"--catalog-db does not exist: {catalog_path}")
-		status_catalog = open_sqlite_catalog(catalog_path, read_only=True)
+		status_catalog = open_sql_catalog(args.catalog_db, read_only=True)
 		try:
 			if args.cmd == "move-status":
 				job = status_catalog.get_move_job(args.idempotency_key)
@@ -1476,21 +1520,26 @@ def _run_cli(
 			)
 			return 0
 		finally:
-			status_catalog.close()
+			close_catalog(status_catalog)
 
 	if args.cmd in {
 		"schedule-run-list",
 		"schedule-run-status",
 		"schedule-run-recover",
 	}:
-		if not args.catalog_db or args.catalog_db == ":memory:":
+		schedule_locator = args.schedule_db or args.catalog_db
+		schedule_path = (
+			sqlite_catalog_path(schedule_locator)
+			if schedule_locator is not None
+			else None
+		)
+		if schedule_path is None:
 			parser.error(
-				"--catalog-db must name an existing persistent SQLite file for "
+				"--schedule-db must name an existing persistent SQLite file for "
 				f"{args.cmd}"
 			)
-		schedule_path = Path(args.catalog_db).expanduser()
 		if not schedule_path.is_file():
-			parser.error(f"--catalog-db does not exist: {schedule_path}")
+			parser.error(f"--schedule-db does not exist: {schedule_path}")
 		schedule_now = datetime.now(timezone.utc)
 		read_only = args.cmd != "schedule-run-recover" or dry_run
 		request_fields: tuple[str, str, str, str] | None = None
@@ -1632,13 +1681,18 @@ def _run_cli(
 		if idempotency_key is not None and not idempotency_key.strip():
 			parser.error("--idempotency-key must not be blank")
 		if args.cmd == "move-resume" or idempotency_key is not None:
-			if not args.catalog_db or args.catalog_db == ":memory:":
+			if not args.catalog_db or not catalog_locator_is_persistent(
+				args.catalog_db
+			):
 				parser.error(
 					"a persistent --catalog-db is required for resumable moves"
 				)
-			if args.cmd == "move-resume" and not Path(
-				args.catalog_db
-			).expanduser().is_file():
+			catalog_path = sqlite_catalog_path(args.catalog_db)
+			if (
+				args.cmd == "move-resume"
+				and catalog_path is not None
+				and not catalog_path.is_file()
+			):
 				parser.error("--catalog-db must already exist for move-resume")
 	driver: StorageDriver | None = None
 	drivers: dict[str, StorageDriver] | None = None
@@ -1653,16 +1707,23 @@ def _run_cli(
 		parser.error("--drivers is required for tier operations")
 	if args.cmd == "worker" and not args.catalog_db:
 		parser.error("--catalog-db is required for worker")
-	if args.cmd == "scheduler" and not dry_run and not args.catalog_db:
-		parser.error("--catalog-db is required for scheduler state")
-	if (
-		args.cmd in {"worker", "scheduler"}
-		and not (args.cmd == "scheduler" and dry_run)
-		and args.catalog_db == ":memory:"
+	if args.cmd == "worker" and not catalog_locator_is_persistent(args.catalog_db):
+		parser.error("--catalog-db must be a persistent catalog for worker")
+	if args.cmd == "worker" and catalog_locator_is_postgres(args.catalog_db):
+		if not args.schedule_db:
+			parser.error("--schedule-db is required with a PostgreSQL worker catalog")
+	if args.cmd == "worker":
+		schedule_locator = args.schedule_db or args.catalog_db
+		if sqlite_catalog_path(schedule_locator) is None:
+			parser.error("--schedule-db must be a persistent SQLite file")
+	if args.cmd == "scheduler" and not dry_run and not (
+		args.schedule_db or args.catalog_db
 	):
-		parser.error(
-			"--catalog-db must be a persistent SQLite file for worker and scheduler"
-		)
+		parser.error("--schedule-db is required for scheduler state")
+	if args.cmd == "scheduler" and not dry_run:
+		schedule_locator = args.schedule_db or args.catalog_db
+		if schedule_locator is None or sqlite_catalog_path(schedule_locator) is None:
+			parser.error("--schedule-db must be a persistent SQLite file")
 	if args.cmd == "worker" and args.heartbeat_interval >= args.ack_wait:
 		parser.error("--heartbeat-interval must be less than --ack-wait")
 	if args.cmd == "worker" and args.max_ack_pending < args.max_in_flight:
@@ -1734,17 +1795,21 @@ def _run_cli(
 	elif args.cmd == "move":
 		assert drivers is not None
 		if args.idempotency_key is not None:
-			move_catalog_path = Path(args.catalog_db).expanduser()
-			if move_catalog_path.is_file():
-				lookup_catalog = open_sqlite_catalog(
-					move_catalog_path, read_only=True
-				)
+			move_catalog_path = existing_sqlite_catalog_path(args.catalog_db)
+			if move_catalog_path is not None or catalog_locator_is_postgres(
+				args.catalog_db
+			):
 				try:
-					existing_move_job = lookup_catalog.get_move_job(
-						args.idempotency_key
-					)
-				finally:
-					lookup_catalog.close()
+					lookup_catalog = open_sql_catalog(args.catalog_db, read_only=True)
+				except CatalogSchemaNotInstalledError:
+					pass
+				else:
+					try:
+						existing_move_job = lookup_catalog.get_move_job(
+							args.idempotency_key
+						)
+					finally:
+						close_catalog(lookup_catalog)
 			if existing_move_job is not None:
 				expected_identity = (
 					existing_move_job.src_tier,
@@ -1773,11 +1838,11 @@ def _run_cli(
 				parser.error(str(exc))
 	elif args.cmd == "move-resume":
 		assert drivers is not None
-		lookup_catalog = open_sqlite_catalog(args.catalog_db, read_only=True)
+		lookup_catalog = open_sql_catalog(args.catalog_db, read_only=True)
 		try:
 			existing_move_job = lookup_catalog.get_move_job(args.idempotency_key)
 		finally:
-			lookup_catalog.close()
+			close_catalog(lookup_catalog)
 		if existing_move_job is None:
 			return _emit_failure(
 				"move-resume",
@@ -1794,7 +1859,7 @@ def _run_cli(
 		except ValueError as exc:
 			parser.error(str(exc))
 
-	catalog: Catalog | None
+	catalog: CatalogStore | None
 	catalog_commands = {
 		"worker",
 		"move",
@@ -1809,20 +1874,16 @@ def _run_cli(
 	):
 		catalog = None
 	elif args.catalog_db and args.cmd == "policy-run" and dry_run:
-		if not Path(args.catalog_db).expanduser().exists():
+		catalog_path = sqlite_catalog_path(args.catalog_db)
+		if catalog_path is not None and not catalog_path.exists():
 			parser.error("--catalog-db must already exist for policy-run --dry-run")
-		catalog = open_sqlite_catalog(args.catalog_db, read_only=True)
+		catalog = open_sql_catalog(args.catalog_db, read_only=True)
 	elif args.catalog_db and args.cmd in {"move", "move-resume"} and dry_run:
-		move_catalog_path = Path(args.catalog_db).expanduser()
-		catalog = (
-			open_sqlite_catalog(move_catalog_path, read_only=True)
-			if move_catalog_path.is_file()
-			else Catalog()
-		)
+		catalog = Catalog()
 	elif args.cmd == "catalog-scan" and dry_run:
 		catalog = None
 	elif args.catalog_db:
-		catalog = open_sqlite_catalog(args.catalog_db)
+		catalog = open_sql_catalog(args.catalog_db)
 	else:
 		catalog = Catalog()
 
@@ -1856,11 +1917,11 @@ def _run_cli(
 
 	if args.cmd == "worker":
 		assert drivers is not None
-		assert isinstance(catalog, SQLiteCatalog)
+		assert catalog is not None
 		try:
 			return asyncio.run(_serve_worker(args, drivers, catalog))
 		finally:
-			catalog.close()
+			close_catalog(catalog)
 
 	if args.cmd == "put":
 		source_path = Path(args.file)
@@ -1972,8 +2033,7 @@ def _run_cli(
 			existing_move_job is not None
 			and existing_move_job.state == MoveJobState.FAILED
 		):
-			if isinstance(catalog, SQLiteCatalog):
-				catalog.close()
+			close_catalog(catalog)
 			return _emit_failure(
 				"move",
 				existing_move_job.terminal_reason or "move job is terminally failed",
@@ -2050,16 +2110,14 @@ def _run_cli(
 				"verification": None if verification is None else asdict(verification),
 			},
 		)
-		if isinstance(catalog, SQLiteCatalog):
-			catalog.close()
+		close_catalog(catalog)
 		return 0
 
 	if args.cmd == "move-resume":
 		assert catalog is not None
 		assert existing_move_job is not None
 		if existing_move_job.state == MoveJobState.FAILED:
-			if isinstance(catalog, SQLiteCatalog):
-				catalog.close()
+			close_catalog(catalog)
 			return _emit_failure(
 				"move-resume",
 				existing_move_job.terminal_reason or "move job is terminally failed",
@@ -2086,8 +2144,7 @@ def _run_cli(
 				resume_preconditions=_move_resume_preconditions(existing_move_job),
 				verification=None,
 			)
-			if isinstance(catalog, SQLiteCatalog):
-				catalog.close()
+			close_catalog(catalog)
 			return 0
 		if existing_move_job.state == MoveJobState.COMPLETED:
 			_emit_result(
@@ -2100,8 +2157,7 @@ def _run_cli(
 				job=_move_job_payload(existing_move_job),
 				verification=None,
 			)
-			if isinstance(catalog, SQLiteCatalog):
-				catalog.close()
+			close_catalog(catalog)
 			return 0
 		mv = Mover(drivers, catalog)
 		verification = mv.move(
@@ -2126,8 +2182,7 @@ def _run_cli(
 			),
 			verification=asdict(verification),
 		)
-		if isinstance(catalog, SQLiteCatalog):
-			catalog.close()
+		close_catalog(catalog)
 		return 0
 
 	if args.cmd == "ls-tier":
@@ -2185,8 +2240,7 @@ def _run_cli(
 			count=len(items),
 			objects=items,
 		)
-		if isinstance(catalog, SQLiteCatalog):
-			catalog.close()
+		close_catalog(catalog)
 		return 0
 
 	if args.cmd == "tier-profile":
@@ -2526,8 +2580,7 @@ def _run_cli(
 			dry_run=dry_run,
 			json_output=args.json,
 		)
-		if isinstance(catalog, SQLiteCatalog):
-			catalog.close()
+		close_catalog(catalog)
 		return 0
 	return 1
 

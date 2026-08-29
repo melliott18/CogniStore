@@ -2,10 +2,12 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
 
 from cognistore.core.catalog import Catalog
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.db.schema import object_placements
 
 
 def _claim_move(catalog: SQLiteCatalog, idempotency_key: str) -> None:
@@ -51,6 +53,36 @@ def test_sqlite_catalog_crud(tmp_path: Path):
     assert cat.get(bucket, key) is None
 
     cat.close()
+
+
+def test_same_tier_writes_preserve_pool_assignment(tmp_path: Path) -> None:
+    with SQLiteCatalog(tmp_path / "catalog.db") as catalog:
+        catalog.upsert("bucket", "object", size=1, tier="hot")
+        catalog.register_pool("pool-a", "hot", {"device": "nvme0"})
+        with catalog.engine.begin() as connection:
+            connection.execute(sa.update(object_placements).values(pool_id="pool-a"))
+
+        catalog.upsert("bucket", "object", size=2, tier="hot")
+        catalog.update_placement("bucket", "object", "hot")
+        catalog.upsert_placement("bucket", "object", size=3, tier="hot")
+        fence = catalog.capture_scan_fence("bucket", "object")
+        assert catalog.upsert_scan_observation(
+            "bucket",
+            "object",
+            size=4,
+            tier="hot",
+            generation="hot:v2",
+            metadata={},
+            fence=fence,
+        )
+        with catalog.engine.connect() as connection:
+            assert (
+                connection.execute(sa.select(object_placements.c.pool_id)).scalar_one() == "pool-a"
+            )
+
+        catalog.update_placement("bucket", "object", "warm")
+        with catalog.engine.connect() as connection:
+            assert connection.execute(sa.select(object_placements.c.pool_id)).scalar_one() is None
 
 
 @pytest.mark.parametrize(
@@ -131,8 +163,7 @@ def test_list_move_jobs_prefix_is_literal_and_case_sensitive(
         _claim_move(catalog, key)
 
     assert [
-        job.idempotency_key
-        for job in catalog.list_move_jobs(idempotency_prefix=prefix)
+        job.idempotency_key for job in catalog.list_move_jobs(idempotency_prefix=prefix)
     ] == expected
     catalog.close()
 
@@ -255,13 +286,74 @@ def test_existing_move_job_schema_is_migrated_for_destination_generations(
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE move_job_transitions (
+            idempotency_key TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            from_state TEXT,
+            to_state TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(idempotency_key, sequence),
+            FOREIGN KEY(idempotency_key) REFERENCES move_jobs(idempotency_key)
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO move_jobs(
+            idempotency_key, src_tier, dst_tier, bucket, object_key,
+            expected_size, source_metadata, state, owner_id,
+            lease_expires_at, verification_details, created_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            "legacy:move",
+            "hot",
+            "warm",
+            "bucket",
+            "object",
+            1,
+            "{}",
+            MoveJobState.PREPARED.value,
+            "worker",
+            "2000-01-01T00:01:00.000000Z",
+            "[]",
+            "2000-01-01T00:00:00.000000Z",
+            "2000-01-01T00:00:00.000000Z",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO move_job_transitions(
+            idempotency_key, sequence, from_state, to_state, reason, created_at
+        ) VALUES(?,?,?,?,?,?)
+        """,
+        (
+            "legacy:move",
+            1,
+            None,
+            MoveJobState.PREPARED.value,
+            "move prepared",
+            "2000-01-01T00:00:00.000000Z",
+        ),
+    )
     connection.commit()
     connection.close()
 
     catalog = SQLiteCatalog(database)
 
-    columns = {
-        row[1] for row in catalog._conn.execute("PRAGMA table_info(move_jobs)")
-    }
+    columns = {row[1] for row in catalog._conn.execute("PRAGMA table_info(move_jobs)")}
     assert "destination_generation" in columns
+    idempotency_column = next(
+        row
+        for row in catalog._conn.execute("PRAGMA table_info(move_jobs)")
+        if row[1] == "idempotency_key"
+    )
+    assert idempotency_column[3] == 1
+    assert [
+        transition.to_state for transition in catalog.list_move_job_transitions("legacy:move")
+    ] == [MoveJobState.PREPARED]
+    assert catalog._conn.execute("PRAGMA foreign_key_check").fetchall() == []
     catalog.close()

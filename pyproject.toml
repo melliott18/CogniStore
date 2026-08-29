@@ -28,9 +28,12 @@ classifiers = [
   "Topic :: System :: Filesystems",
 ]
 dependencies = [
+  "alembic>=1.17.1,<2",
   "boto3>=1.35.9",
   "nats-py>=2.9,<3",
+  "psycopg[binary]>=3.3,<4",
   "PyYAML>=6.0",
+  "SQLAlchemy>=2.0.44,<3",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +61,13 @@ Repository = "https://github.com/melliott18/CogniStore.git"
 
 [tool.setuptools.packages.find]
 include = ["cognistore*"]
+
+[tool.setuptools.package-data]
+"cognistore.db" = [
+  "migrations/*.py",
+  "migrations/*.mako",
+  "migrations/versions/*.py",
+]
 
 [tool.ruff]
 line-length = 100

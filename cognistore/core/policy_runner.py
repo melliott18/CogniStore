@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List, Literal
 
 from cognistore.drivers.storage_driver import StorageDriver
 
-from .catalog import Catalog
+from .catalog import CatalogStore
 from .mover import Mover
 from .policy import Policy
 
@@ -27,7 +27,7 @@ class PolicyRunner:
 
     def __init__(
         self,
-        catalog: Catalog,
+        catalog: CatalogStore,
         drivers: Dict[str, StorageDriver],
         mover: Mover,
         policy: Policy,

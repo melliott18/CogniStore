@@ -5,6 +5,7 @@ nav:
   - Setup:
       - Docker development: setup_guide.md
       - CLI reference: cli.md
+      - PostgreSQL catalog: postgres_catalog.md
       - Background workers: background_workers.md
       - S3 driver: s3_driver.md
       - Tier profiling: tier_profiling.md

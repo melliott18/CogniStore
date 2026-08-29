@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, AsyncContextManager, Callable, Protocol
 from uuid import uuid4
 
+from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
 from cognistore.core.mover import Mover
 from cognistore.core.policy_factory import build_policy
@@ -107,7 +108,7 @@ def _strings(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
 
 def build_handlers(
     drivers: Mapping[str, StorageDriver],
-    catalog: Any,
+    catalog: CatalogStore,
     *,
     throughput: MoveThroughputController | None = None,
 ) -> dict[str, JobHandler]:

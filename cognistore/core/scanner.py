@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from cognistore.drivers.storage_driver import StorageDriver
 
+from .catalog import CatalogStore
 from .indexer import Indexer
 
 
@@ -21,7 +21,7 @@ def scan_catalog(
     tier: str,
     bucket: str,
     driver: StorageDriver,
-    catalog: Any | None,
+    catalog: CatalogStore | None,
     prefix: str = "",
     indexer: Indexer | None = None,
     dry_run: bool = False,
@@ -76,6 +76,7 @@ def scan_catalog(
             continue
 
         assert catalog is not None
+        assert fence is not None
         published = catalog.upsert_scan_observation(
             bucket,
             key,

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterator, Literal, Mapping, Protocol
 from uuid import uuid4
 
-from cognistore.core.catalog import Catalog
+from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import (
     MoveJob,
     MoveJobFailedError,
@@ -128,7 +128,7 @@ class Mover:
     def __init__(
         self,
         drivers: Dict[str, StorageDriver],
-        catalog: Catalog,
+        catalog: CatalogStore,
         *,
         owner_id: str | None = None,
         lease_seconds: float = 30.0,
