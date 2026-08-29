@@ -1,12 +1,12 @@
 # M1 verification and repository review — 2026-08-27
 
-> **Final follow-up:** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
+> **Closeout update:** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
 > closed #26, #89, and #90 with passing CI. Canonical full-profile run
-> `full-20260827-205845` subsequently passed from clean revision `7961c82`; its
-> [report and checksum](evidence/m1/README.md) satisfy #29's remaining technical
-> gate. Retain that evidence on `main` before closing #29 and the M1 epic. The
-> findings below preserve the repository state at the time of this historical
-> review.
+> `full-20260827-205845` subsequently passed from clean revision `7961c82`.
+> [PR #95](https://github.com/melliott18/CogniStore/pull/95) retained its
+> [report and checksum](evidence/m1/README.md), after which #29, #16, and the M1
+> milestone closed on 2026-08-29. The findings below preserve the repository
+> state at the time of this historical review.
 
 This review verifies the five-step M1 completion sequence against commit
 `052487d`, the current GitHub tracker, the latest successful `main` CI run, and
@@ -16,10 +16,10 @@ document remains the historical record for the movement-race reproductions.
 
 ## Decision
 
-M1 is **not complete**. The scheduler and Docker tickets are correctly closed,
-but the CLI ticket has been reopened, the full-scale qualification remains
-unproven, and two newly tracked M1 follow-ups must be resolved before the epic
-can close.
+At the time of this review, M1 was **not complete**. The scheduler and Docker
+tickets were correctly closed, but the CLI ticket had been reopened, the
+full-scale qualification remained unproven, and two newly tracked M1
+follow-ups still had to be resolved before the epic could close.
 
 | Step | Verified result | Tracker action |
 | --- | --- | --- |

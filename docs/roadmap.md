@@ -113,9 +113,9 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Milestones
 
-- [ ] M1: S3 driver + streaming mover + dry‑run + guardrails
+- [x] M1: S3 driver + streaming mover + dry‑run + guardrails (completed 2026-08-29)
   - Success: Move 1M small files hot↔warm reliably with idempotent jobs and integrity checks
-  - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed; retain it on `main`, then close #29 and #16
+  - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed and is retained on `main`; #29, #16, and the M1 milestone are closed
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
