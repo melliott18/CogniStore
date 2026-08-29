@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues on 2026-08-27. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
+> Snapshot synchronized from GitHub Issues on 2026-08-29. GitHub is the source of truth; this file is a local, read-only reference and may become stale after issue updates.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 65 issues; 51 open, 14 closed
+- **Snapshot:** 65 issues; 49 open, 16 closed
 
 ## How to use this mirror
 
@@ -19,7 +19,7 @@
 
 | Milestone | Epic | Delivery tickets | GitHub |
 | --- | --- | ---: | --- |
-| M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/4) |
+| M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 15 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
 | M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
@@ -52,7 +52,7 @@
 - **Status:** Open
 - **Milestone:** None
 - **Labels:** `type:epic`, `roadmap`
-- **Last updated:** 2026-08-22
+- **Last updated:** 2026-08-29
 
 #### Purpose
 
@@ -70,14 +70,14 @@ Each formal milestone has one epic. Delivery work lives in separately scoped chi
 
 #### Milestone epics
 
-- [ ] [#16](https://github.com/melliott18/CogniStore/issues/16) — [M1 milestone](https://github.com/melliott18/CogniStore/milestone/4): reliable multi-backend movement
+- [x] [#16](https://github.com/melliott18/CogniStore/issues/16) — [M1 milestone](https://github.com/melliott18/CogniStore/milestone/4): reliable multi-backend movement
 - [ ] [#13](https://github.com/melliott18/CogniStore/issues/13) — [M2 milestone](https://github.com/melliott18/CogniStore/milestone/1): knowledge layer and search
 - [ ] [#15](https://github.com/melliott18/CogniStore/issues/15) — [M3 milestone](https://github.com/melliott18/CogniStore/milestone/2): explainable policy engine
 - [ ] [#14](https://github.com/melliott18/CogniStore/issues/14) — [M4 milestone](https://github.com/melliott18/CogniStore/milestone/3): production platform
 
 #### Backlog inventory
 
-- M1: 13 delivery issues
+- M1: 15 delivery issues (13 original + 2 verification follow-ups)
 - M2: 13 delivery issues
 - M3: 11 delivery issues
 - M4: 20 delivery issues
@@ -86,20 +86,27 @@ Each formal milestone has one epic. Delivery work lives in separately scoped chi
 
 Backlog is maintained against the default `main` branch; GitHub Issues is the canonical tracker.
 
+#### M1 completion
+
+M1 completed on 2026-08-29. Epic #16 and milestone 4 are closed. The
+[canonical clean full-scale qualification report](https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json)
+is retained with SHA-256
+`0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39`.
+
 ## M1 – Reliable multi-backend movement
 
 - **GitHub milestone:** [M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/milestone/4)
-- **Delivery tickets:** 13
+- **Original delivery tickets:** 13
 - **Verification follow-ups:** 2
-- **Open:** 2 including the epic
+- **Open:** 0
 
 ### [#16 — [Epic] M1 – Reliable multi-backend movement](https://github.com/melliott18/CogniStore/issues/16)
 
 - **Kind:** Milestone epic
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `type:epic`, `roadmap`, `area:orchestration`
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-08-29
 
 Parent roadmap: [#12](https://github.com/melliott18/CogniStore/issues/12)
 
@@ -128,7 +135,7 @@ CogniStore can move data between POSIX and S3-compatible tiers using a streaming
 - [x] [#26](https://github.com/melliott18/CogniStore/issues/26) — Standardize CLI configuration, profiles, dry-run, verbose, and JSON output
 - [x] [#27](https://github.com/melliott18/CogniStore/issues/27) — Establish Python packaging and CI quality gates
 - [x] [#28](https://github.com/melliott18/CogniStore/issues/28) — Provide a Docker-based development and integration environment
-- [ ] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
+- [x] [#29](https://github.com/melliott18/CogniStore/issues/29) — Qualify one-million-object moves and failure recovery
 
 Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.
 
@@ -143,9 +150,19 @@ Dependencies listed inside each child issue are authoritative; checklist order i
 - [#91](https://github.com/melliott18/CogniStore/issues/91) — Make POSIX path containment race-safe against symlink swaps (scheduled for M4 hardening)
 
 Issues #26, #89, and #90 closed through
-[#93](https://github.com/melliott18/CogniStore/pull/93). Issue #29 remains
-unchecked until a retained full-profile report proves the one-million-object
-criterion and manual repeatability.
+[#93](https://github.com/melliott18/CogniStore/pull/93). Issue #29 then closed
+from the independently validated canonical full-profile report retained by
+[#95](https://github.com/melliott18/CogniStore/pull/95). Issue #91 remains
+scheduled for M4 hardening and is not an M1 blocker.
+
+#### Closeout evidence
+
+- Clean qualified revision: `7961c82b560cc661587d20a925a63266d870b4e1`
+- [Immutable report](https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json)
+- SHA-256: `0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39`
+- Evidence PR: [#95](https://github.com/melliott18/CogniStore/pull/95)
+
+All M1 child issues and verification follow-ups are complete.
 
 ### Delivery tickets
 
@@ -655,10 +672,10 @@ Delivery and DX → Docker images and production-like configuration samples (dev
 ### [#29 — [M1] Qualify one-million-object moves and failure recovery](https://github.com/melliott18/CogniStore/issues/29)
 
 - **Kind:** Delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `roadmap`, `area:observability`, `type:chore`
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-08-29
 
 Parent epic: [#16](https://github.com/melliott18/CogniStore/issues/16)
 Roadmap tracker: [#12](https://github.com/melliott18/CogniStore/issues/12)
@@ -680,10 +697,10 @@ Demonstrate the M1 reliability target with repeatable scale and resilience evide
 
 #### Acceptance criteria
 
-- [ ] A documented run moves 1 million small objects hot↔warm without silent loss or corruption.
+- [x] A documented run moves 1 million small objects hot↔warm without silent loss or corruption.
 - [x] All injected failures respect idempotency, retry limits, and source-retention rules.
 - [x] Results include environment, configuration, throughput, tail latency, failures, and recovery time.
-- [ ] The harness is repeatable in CI at reduced scale and manually at full scale.
+- [x] The harness is repeatable in CI at reduced scale and manually at full scale.
 
 #### Dependencies
 
@@ -698,6 +715,29 @@ Demonstrate the M1 reliability target with repeatable scale and resilience evide
 #### Roadmap coverage
 
 M1 success criterion; benchmarks, scale tests, and chaos/resilience.
+
+#### Evidence
+
+Canonical full-profile run `full-20260827-205845` passed and is retained on
+`main`.
+
+- Clean source revision: `7961c82b560cc661587d20a925a63266d870b4e1` (`dirty: false`)
+- [Immutable report](https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json)
+- [Evidence index](https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/README.md)
+- Report SHA-256: `0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39`
+- Evidence PR: [#95](https://github.com/melliott18/CogniStore/pull/95)
+- Result: `status: passed`, `acceptance_status: full_scale_passed`
+- Coverage: exactly 1,000,000 objects on each required POSIX and S3-compatible
+  path; 4,000,000 logical moves; full forward/reverse audits; 8/8 standard
+  fault scenarios recovered; zero ambient failure objects, silent loss, or
+  corruption
+
+Three independent reduced CI artifacts recorded in the verification comment
+provide repeated harness executions. The same documented command then
+completed this clean canonical manual full-scale execution. This satisfies the
+stated repeatability gate under the ticket's recorded closure rule—retain one
+independently reviewed `full_scale_passed` report—without claiming multiple
+manual full campaigns.
 
 ### Verification follow-up tickets
 
