@@ -20,6 +20,7 @@ from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 
 NATS_URL = os.environ.get("COGNISTORE_NATS_URL")
+TEST_STREAM_MAX_BYTES = 16 * 1024 * 1024
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
@@ -41,6 +42,9 @@ def _config(*, ack_wait: float = 0.4) -> NatsJetStreamConfig:
         connect_timeout=1.0,
         request_timeout=1.0,
         drain_timeout=1.0,
+        # Each test owns a durable stream. Keep its reservation small so the
+        # suite is independent of the CI runner's remaining container disk.
+        stream_max_bytes=TEST_STREAM_MAX_BYTES,
     )
 
 

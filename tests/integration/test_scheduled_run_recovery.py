@@ -26,6 +26,7 @@ from cognistore.jobs.scheduler import (
 NATS_URL = os.environ.get("COGNISTORE_NATS_URL")
 JOB_TYPE = "test.scheduled-recovery"
 LEASE_SECONDS = 0.75
+TEST_STREAM_MAX_BYTES = 16 * 1024 * 1024
 
 pytestmark = [
     pytest.mark.integration,
@@ -57,6 +58,9 @@ def _queue_config(
         request_timeout=1.0,
         drain_timeout=1.0,
         client_name=client_name,
+        # This test's unique durable stream must not reserve the production
+        # default of 1 GiB on space-constrained container CI runners.
+        stream_max_bytes=TEST_STREAM_MAX_BYTES,
     )
 
 
