@@ -178,8 +178,10 @@ Copy/paste and fill for each new bug:
     closed around their required barriers. Darwin uses `F_FULLFSYNC`.
   - Verified by: `tests/unit/test_posix_driver.py` and
     `tests/integration/test_move_jobs.py::test_recovery_reconfirms_visible_destination_durability_before_source_cleanup`.
-  - Follow-up: filesystem and sudden-power-loss qualification remains under
-    ticket #29.
+  - Scope note: #29 validated process-level timeout, throttling, backend
+    unavailability, and forced-SIGKILL recovery under isolated Compose. It did
+    not simulate physical power loss; media and power-loss durability remain
+    future production-hardening work outside M1 acceptance.
 
 - [x] BUG-2026-006: One failed recovery job prevents later jobs from resuming
   - Status: fixed

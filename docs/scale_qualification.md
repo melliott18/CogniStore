@@ -5,13 +5,13 @@ moves through the real CogniStore drivers and move journal. It measures the
 POSIX and S3-compatible paths separately, injects recovery faults, moves every
 object forward and back, and writes a machine-readable evidence report.
 
-> **Evidence status (verified 2026-08-27):** no one-million-object campaign has
-> been executed or claimed on this branch. Three independent reduced CI
-> artifacts passed, which demonstrates reduced-profile repeatability but is not
-> one-million-object evidence. Only an actual full-profile report with
-> `acceptance_status: full_scale_passed`, from a clean identified revision, can
-> support that acceptance claim. Ticket
-> [#29](https://github.com/melliott18/CogniStore/issues/29) remains open.
+> **Evidence status (verified 2026-08-29):** canonical run
+> `full-20260827-205845` passed from clean revision `7961c82` with exactly one
+> million objects on each required path, all eight fault scenarios recovered,
+> and zero silent loss or corruption. The complete report and SHA-256 checksum
+> are retained in the [M1 closeout evidence](evidence/m1/README.md). Repeated
+> CI artifacts demonstrate reduced-scale repeatability; this retained artifact
+> records the successful manual full-profile execution.
 
 Run the harness from the repository root with this exact entry point:
 
@@ -415,7 +415,10 @@ Before any run:
 
 For a full run, also capture the clean revision as shown above and retain
 machine details, storage topology, container image versions, runner settings,
-and the complete JSON report with the result.
+and the complete JSON report with the result. Accepted repository evidence is
+stored under `docs/evidence/<milestone>/` with a human-readable index and a
+`SHA256SUMS` manifest; the canonical M1 package is
+[`docs/evidence/m1/`](evidence/m1/README.md).
 
 After a run, copy the JSON evidence out before cleanup. `docker compose down`
 preserves the named volumes. If the full example used its dedicated

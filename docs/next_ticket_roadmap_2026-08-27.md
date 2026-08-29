@@ -1,32 +1,30 @@
 # Next-ticket execution roadmap — 2026-08-27
 
-> **Progress update:** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
-> completed Group 1 tickets #90, #26, and #89. The canonical full-scale #29
-> campaign and subsequent #16 closure remain outstanding.
+> **Progress update (2026-08-29):** [PR #93](https://github.com/melliott18/CogniStore/pull/93)
+> completed Group 1 tickets #90, #26, and #89. Canonical full-scale run
+> `full-20260827-205845` then passed from clean revision `7961c82`; its retained
+> [evidence](evidence/m1/README.md) satisfies #29's technical gate. Merge the
+> evidence, then close #29 and #16 before starting Group 2.
 
 This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. The first
 group finishes M1; the later waves deliver M2 without starting downstream work
 before its storage and indexing contracts are stable.
 
-## Group 1 — finish the M1 exit gate
+## Group 1 — retain evidence and close the M1 exit gate
 
-Three implementation tickets can begin in parallel:
+The three implementation lanes and full campaign are complete; evidence
+retention and tracker closure remain:
 
-| Lane | Ticket | Deliverable | Exit signal |
+| Lane | Ticket | Deliverable | Result |
 | --- | --- | --- | --- |
-| A | [#90](https://github.com/melliott18/CogniStore/issues/90) | Make plain `python -m pytest` collect the entire suite and add the invocation to CI | Full default suite passes from a clean install |
-| B | [#26](https://github.com/melliott18/CogniStore/issues/26) | Redact space-separated sensitive options; make recovery-preview, exit, and verbosity semantics truthful and tested | All original and verification follow-up criteria checked; security reproduction redacted |
-| C | [#89](https://github.com/melliott18/CogniStore/issues/89) | Add fenced, audited inspection and recovery for stale scheduled runs | Live JetStream hard-kill/restart test recovers the same occurrence without overlap |
+| A | [#90](https://github.com/melliott18/CogniStore/issues/90) | Collision-safe default test collection and CI enforcement | Complete |
+| B | [#26](https://github.com/melliott18/CogniStore/issues/26) | Secret-safe CLI and truthful recovery-preview, exit, and verbosity contracts | Complete |
+| C | [#89](https://github.com/melliott18/CogniStore/issues/89) | Fenced, audited stale scheduled-run recovery | Complete |
+| Evidence | [#29](https://github.com/melliott18/CogniStore/issues/29) | Clean-revision one-million-object POSIX/S3 campaign | Passed; [report prepared for retention](evidence/m1/README.md) |
 
-After all three lanes pass, execute
-[#29](https://github.com/melliott18/CogniStore/issues/29). Use the documented
-full profile from a clean revision, preserve the complete JSON report before
-cleanup, and review its integrity, failure, recovery, and environment evidence.
-Do not close #29 or the M1 epic from a reduced artifact.
-
-Group 1 is complete only when #26, #89, #90, #29, and then #16 are closed with
-linked evidence.
+Complete Group 1 in the planned order: retain the full evidence on `main`, close
+#29 with the immutable report link, then close #16 and the M1 milestone.
 
 ## Group 2 — establish the M2 data foundation
 
@@ -115,7 +113,7 @@ The remaining dependency chain is sequential at its core:
 
 ```text
 M1:  #90 ─┐
-      #26 ─┼─> #29 full evidence ─> close #16
+      #26 ─┼─> #29 full evidence ─> close #16  [closure in progress]
       #89 ─┘
 
 M2:  #30 ─┬─> #31
@@ -125,9 +123,8 @@ M2:  #30 ─┬─> #31
                                                            └─> #42
 ```
 
-The M1 arrows show this review's chosen closure order, not formal dependency
-links in #29. The M2 arrows reflect the dependencies recorded in the issue
-bodies.
+The M1 arrows show the final closure order, not formal dependency links in #29.
+The M2 arrows reflect the dependencies recorded in the issue bodies.
 
 #31 remains an M2 completion requirement even though no later ticket depends
 on it. #42 also depends directly on #32 and #36, as recorded in its issue.

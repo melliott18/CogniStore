@@ -127,8 +127,10 @@ objects, queue state, and test evidence across ordinary stops.
 
 CI exercises Python 3.10–3.14, live NATS and MinIO integration, package and
 security gates, the Compose shutdown probe, and a reduced movement
-qualification. The full one-million-object profile is manual and remains an
-open M1 evidence gate.
+qualification. The manual full profile completed on 2026-08-29 with one million
+objects on each POSIX and S3-compatible path; its
+[report and checksum](evidence/m1/README.md) are retained as the M1 acceptance
+artifact.
 
 ## Current boundaries
 
@@ -141,6 +143,7 @@ open M1 evidence gate.
 - Authentication, authorization, tenancy, production observability, repair,
   Helm, and Terraform belong to M4.
 
-See the [design contracts](design.md), [current M1 verification](m1_verification_2026-08-27.md),
-and [next-ticket roadmap](next_ticket_roadmap_2026-08-27.md) for invariants,
+See the [design contracts](design.md), [M1 closeout evidence](evidence/m1/README.md),
+[historical M1 verification](m1_verification_2026-08-27.md), and
+[next-ticket roadmap](next_ticket_roadmap_2026-08-27.md) for invariants, evidence,
 open findings, and implementation order.
