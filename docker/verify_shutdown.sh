@@ -10,6 +10,7 @@ export COGNISTORE_NATS_PORT="${COGNISTORE_NATS_PORT:-24222}"
 export COGNISTORE_NATS_MONITOR_PORT="${COGNISTORE_NATS_MONITOR_PORT:-28222}"
 export COGNISTORE_MINIO_PORT="${COGNISTORE_MINIO_PORT:-29000}"
 export COGNISTORE_MINIO_CONSOLE_PORT="${COGNISTORE_MINIO_CONSOLE_PORT:-29001}"
+export COGNISTORE_POSTGRES_PORT="${COGNISTORE_POSTGRES_PORT:-25432}"
 export COGNISTORE_HEALTH_PORT="${COGNISTORE_HEALTH_PORT:-28081}"
 export COGNISTORE_TIER_LIMITS_FILE="${COGNISTORE_TIER_LIMITS_FILE:-./docker/tier-limits.shutdown.yaml}"
 
@@ -46,7 +47,6 @@ driver.put_object(
 compose exec -T cognistore cognistore \
   --no-config \
   --drivers /etc/cognistore/drivers.yaml \
-  --catalog-db /var/lib/cognistore/catalog.sqlite3 \
   catalog-scan hot shutdown-diagnostics --sync --json >/dev/null
 
 compose exec -T cognistore cognistore \
@@ -61,9 +61,11 @@ compose exec -T cognistore cognistore \
 journal_ready=false
 for _attempt in {1..100}; do
   if compose exec -T cognistore python -c '
-from cognistore.core.sqlite_catalog import SQLiteCatalog
+import os
 
-catalog = SQLiteCatalog("/var/lib/cognistore/catalog.sqlite3", read_only=True)
+from cognistore.db.catalog import SQLCatalog
+
+catalog = SQLCatalog(os.environ["COGNISTORE_CATALOG_DB"], read_only=True)
 try:
     jobs = catalog.list_move_jobs()
 finally:
@@ -87,10 +89,11 @@ compose stop --timeout 2 cognistore
 
 compose run --rm --no-deps --entrypoint python cognistore -c '
 import json
+import os
 
-from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.db.catalog import SQLCatalog
 
-catalog = SQLiteCatalog("/var/lib/cognistore/catalog.sqlite3", read_only=True)
+catalog = SQLCatalog(os.environ["COGNISTORE_CATALOG_DB"], read_only=True)
 try:
     jobs = catalog.list_move_jobs()
     assert jobs, "interrupted move has no durable job record"
@@ -119,9 +122,11 @@ finally:
 compose up --wait --wait-timeout 90 cognistore
 
 compose run --rm --no-deps --entrypoint python cognistore -c '
-from cognistore.core.sqlite_catalog import SQLiteCatalog
+import os
 
-catalog = SQLiteCatalog("/var/lib/cognistore/catalog.sqlite3", read_only=True)
+from cognistore.db.catalog import SQLCatalog
+
+catalog = SQLCatalog(os.environ["COGNISTORE_CATALOG_DB"], read_only=True)
 try:
     assert catalog.list_move_jobs(), "move journal disappeared after restart"
 finally:

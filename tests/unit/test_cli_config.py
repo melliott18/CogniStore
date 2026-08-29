@@ -113,6 +113,8 @@ def test_environment_values_are_parsed_to_cli_types(tmp_path: Path) -> None:
     environ = {
         "HOME": str(missing_default),
         "COGNISTORE_BASE": "/data",
+        "COGNISTORE_CATALOG_DB": "postgresql://catalog.example/cognistore",
+        "COGNISTORE_SCHEDULE_DB": "/state/schedule.sqlite3",
         "COGNISTORE_NATS_URL": "nats://one:4222, nats://two:4222",
         "COGNISTORE_ACK_WAIT": "1.25",
         "COGNISTORE_DEAD_LETTER_MAX_AGE": "3600",
@@ -128,6 +130,8 @@ def test_environment_values_are_parsed_to_cli_types(tmp_path: Path) -> None:
     assert resolution.path is None
     assert resolution.values == {
         "base": "/data",
+        "catalog_db": "postgresql://catalog.example/cognistore",
+        "schedule_db": "/state/schedule.sqlite3",
         "nats_url": ["nats://one:4222", "nats://two:4222"],
         "ack_wait": 1.25,
         "stream_max_messages": 123,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Protocol
 
 from .move_jobs import (
 	MoveJob,
@@ -44,10 +44,133 @@ class ScanFence:
 	move_jobs: tuple[MoveJobScanFingerprint, ...]
 
 
-class Catalog:
+def validate_catalog_size(value: object, *, field: str = "size") -> int:
+	"""Return a backend-neutral, non-negative catalog size."""
+
+	if (
+		isinstance(value, bool)
+		or not isinstance(value, int)
+		or value < 0
+		or value > 2**63 - 1
+	):
+		raise ValueError(
+			f"{field} must be a non-negative integer no greater than {2**63 - 1}"
+		)
+	return value
+
+
+class CatalogStore(Protocol):
+	"""Backend-neutral persistence contract for catalog state."""
+
+	def upsert(
+		self,
+		bucket: str,
+		key: str,
+		size: int,
+		tier: str,
+		metadata: Optional[Dict[str, object]] = None,
+	) -> None: ...
+
+	def capture_scan_fence(self, bucket: str, key: str) -> ScanFence: ...
+
+	def upsert_scan_observation(
+		self,
+		bucket: str,
+		key: str,
+		*,
+		size: int,
+		tier: str,
+		generation: str,
+		metadata: Optional[Dict[str, object]],
+		fence: ScanFence,
+	) -> bool: ...
+
+	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]: ...
+
+	def update_placement(self, bucket: str, key: str, tier: str) -> None: ...
+
+	def upsert_placement(
+		self,
+		bucket: str,
+		key: str,
+		*,
+		size: int,
+		tier: str,
+		checksum: Optional[str] = None,
+	) -> None: ...
+
+	def delete(self, bucket: str, key: str) -> None: ...
+
+	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]: ...
+
+	def claim_move_job(
+		self,
+		idempotency_key: str,
+		*,
+		src_tier: str,
+		dst_tier: str,
+		bucket: str,
+		key: str,
+		expected_size: int,
+		source_metadata: Mapping[str, Any],
+		owner_id: str,
+		now: str,
+		lease_expires_at: str,
+	) -> MoveJob: ...
+
+	def get_move_job(self, idempotency_key: str) -> MoveJob | None: ...
+
+	def list_move_jobs(
+		self,
+		*,
+		states: set[MoveJobState] | None = None,
+		idempotency_prefix: str | None = None,
+	) -> List[MoveJob]: ...
+
+	def list_move_job_transitions(
+		self, idempotency_key: str
+	) -> List[MoveJobTransition]: ...
+
+	def renew_move_job_lease(
+		self,
+		idempotency_key: str,
+		*,
+		owner_id: str,
+		expected_state: MoveJobState | None,
+		now: str,
+		lease_expires_at: str,
+	) -> MoveJob: ...
+
+	def transition_move_job(
+		self,
+		idempotency_key: str,
+		*,
+		owner_id: str,
+		expected_state: MoveJobState,
+		to_state: MoveJobState,
+		reason: str,
+		now: str,
+		lease_expires_at: str,
+		updates: Mapping[str, Any] | None = None,
+	) -> MoveJob: ...
+
+	def commit_move_job_placement(
+		self,
+		idempotency_key: str,
+		*,
+		owner_id: str,
+		size: int,
+		tier: str,
+		checksum: str,
+		now: str,
+		lease_expires_at: str,
+	) -> MoveJob: ...
+
+
+class Catalog(CatalogStore):
 	"""A tiny in-memory catalog for objects and their current tier/metadata.
 
-	This is an MVP placeholder. A future version will persist to a DB.
+	This implementation is useful for isolated inline operations and tests.
 	"""
 
 	def __init__(self) -> None:
@@ -64,6 +187,7 @@ class Catalog:
 		tier: str,
 		metadata: Optional[Dict[str, object]] = None,
 	) -> None:
+		validate_catalog_size(size)
 		with self._lock:
 			rec = ObjectRecord(
 				bucket=bucket,
@@ -107,6 +231,7 @@ class Catalog:
 			raise ValueError("scan fence does not identify the observed object")
 		if not isinstance(generation, str) or not generation:
 			raise ValueError("scan observation requires a non-empty generation")
+		validate_catalog_size(size)
 
 		with self._lock:
 			jobs = self._scan_move_jobs(bucket, key)
@@ -147,6 +272,7 @@ class Catalog:
 	) -> None:
 		"""Commit verified placement data without replacing other metadata."""
 
+		validate_catalog_size(size)
 		with self._lock:
 			rec = self._objects.get((bucket, key))
 			metadata = dict(rec.metadata) if rec is not None else {}
@@ -192,6 +318,7 @@ class Catalog:
 
 		if not idempotency_key.strip():
 			raise ValueError("idempotency_key must be a non-empty string")
+		validate_catalog_size(expected_size, field="expected_size")
 		with self._lock:
 			existing = self._move_jobs.get(idempotency_key)
 			if existing is None:
@@ -317,6 +444,9 @@ class Catalog:
 		updates: Mapping[str, Any] | None = None,
 	) -> MoveJob:
 		validate_move_job_transition(expected_state, to_state)
+		changes = dict(updates or {})
+		if "verification_details" in changes:
+			changes["verification_details"] = tuple(changes["verification_details"])
 		with self._lock:
 			job = self._owned_move_job(idempotency_key, owner_id, expected_state)
 			updated = self._replace_move_job(
@@ -325,7 +455,7 @@ class Catalog:
 				owner_id=None if to_state.terminal else owner_id,
 				lease_expires_at=None if to_state.terminal else lease_expires_at,
 				updated_at=now,
-				**dict(updates or {}),
+				**changes,
 			)
 			self._move_jobs[idempotency_key] = updated
 			self._append_move_transition(job, expected_state, to_state, reason, now)
@@ -347,6 +477,7 @@ class Catalog:
 		validate_move_job_transition(
 			MoveJobState.VERIFIED, MoveJobState.COMMITTED
 		)
+		validate_catalog_size(size)
 		with self._lock:
 			job = self._owned_move_job(
 				idempotency_key, owner_id, MoveJobState.VERIFIED

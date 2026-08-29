@@ -123,8 +123,8 @@ not a supported recovery interface.
 
 - Shared conformance tests enforce the storage-driver contract.
 - Unit tests use controllable clocks and deterministic fault boundaries.
-- Integration tests use isolated NATS and MinIO; they skip only when their
-  documented environment variables are absent.
+- Integration tests use isolated NATS, MinIO, and PostgreSQL/pgvector; they
+  skip only when their documented environment variables are absent.
 - CI runs every supported Python minor, branch coverage of at least 80%, Ruff,
   mypy, package validation, dependency/static security scans, and secret scan.
 - Compose validates non-root images, health, live integration, and interrupted
