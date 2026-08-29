@@ -42,10 +42,11 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [x] Throughput controls
   - [x] Concurrency pools per tier, rate limiting, backpressure
 
-> Verification note (2026-08-27): these components meet their written delivery
-> criteria. The cleanup races recorded as BUG-2026-001 and BUG-2026-002 remain
-> fixed with generation-fenced cleanup. Current M1 blockers and validation
-> evidence are tracked in `docs/m1_verification_2026-08-27.md`.
+> Verification note (updated 2026-08-29): these components meet their written
+> delivery criteria. The cleanup races recorded as BUG-2026-001 and
+> BUG-2026-002 remain fixed with generation-fenced cleanup. M1 acceptance is
+> recorded in the [retained closeout evidence](evidence/m1/README.md); the
+> 2026-08-27 verification document remains a historical review.
 
 ## Multi-backend storage
 
@@ -88,13 +89,13 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Reliability, performance, cost
 
-- [ ] Benchmarks and scale tests
+- [x] Benchmarks and scale tests
   - [x] Configurable mixed-size harness with throughput and tail latencies per backend
-  - [ ] Execute and retain the canonical one-million-object report ([#29](https://github.com/melliott18/CogniStore/issues/29))
-- [ ] Chaos/resilience
+  - [x] Execute and retain the canonical one-million-object report ([evidence](evidence/m1/README.md), [#29](https://github.com/melliott18/CogniStore/issues/29))
+- [x] Chaos/resilience
   - [x] Reduced CI fault injection verifies mover retries, idempotency, and source retention
   - [x] Demonstrate fenced stale scheduled-run recovery after a hard process kill
-  - [ ] Demonstrate the full-scale recovery profile
+  - [x] Demonstrate the full-scale recovery profile
 - [ ] Cost/carbon modeling
   - [ ] Estimators per tier; what-if simulations for policy changes
 
@@ -114,7 +115,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 - [ ] M1: S3 driver + streaming mover + dry‑run + guardrails
   - Success: Move 1M small files hot↔warm reliably with idempotent jobs and integrity checks
-  - Exit gate: #26, #89, and #90 are closed; retain a passing full-profile report and close #29; then close #16
+  - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed; retain it on `main`, then close #29 and #16
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`

@@ -67,8 +67,10 @@ external services. Install Gitleaks separately and run
 For deterministic POSIX/S3 throughput, tail-latency, integrity, and injected
 failure-recovery evidence, use the
 [move scale and recovery qualification guide](docs/scale_qualification.md).
-The CI campaign is deliberately reduced scale; no one-million-object result is
-claimed by this branch.
+The canonical M1 campaign passed with one million objects on each required path;
+the complete report and checksum are retained in the
+[M1 closeout evidence](docs/evidence/m1/README.md). CI continues to exercise the
+same harness at reduced scale.
 
 For a runtime-only install, use `python -m pip install .`. The generated
 `cognistore` command and `python -m cognistore.cli` invoke the same CLI.

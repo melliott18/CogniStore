@@ -1,0 +1,616 @@
+{
+  "acceptance_status": "full_scale_passed",
+  "configuration": {
+    "bucket": "cognistore-qualification",
+    "catalog_path": "/var/lib/cognistore/full-20260827-205845.sqlite3",
+    "drivers_configuration_sha256": "948e38f6f0b8ae69a55fe414cfdf801c35f24d49a2acc9639cfd83995c54b6a7",
+    "drivers_path": "/workspace/docker/drivers.yaml",
+    "fault_execution_scope": "direct Mover calls with production classify_job_error and RetryPolicy; JetStream DLQ/redrive is not evaluated by this report",
+    "faults": "standard",
+    "lease_seconds": 0.05,
+    "max_attempts": 3,
+    "object_count": 1000000,
+    "paths": [
+      {
+        "destination_tier": "warm",
+        "name": "posix",
+        "source_tier": "hot"
+      },
+      {
+        "destination_tier": "object",
+        "name": "s3",
+        "source_tier": "hot"
+      }
+    ],
+    "profile": "full",
+    "retry_base_delay_seconds": 0.1,
+    "retry_max_delay_seconds": 0.2,
+    "run_id": "full-20260827-205845",
+    "seed": 29,
+    "size_classes": [
+      {
+        "bytes": 256,
+        "weight": 50
+      },
+      {
+        "bytes": 1024,
+        "weight": 30
+      },
+      {
+        "bytes": 4096,
+        "weight": 15
+      },
+      {
+        "bytes": 16384,
+        "weight": 5
+      }
+    ],
+    "size_distribution": [
+      {
+        "bytes": 256,
+        "objects": 500000,
+        "total_bytes": 128000000
+      },
+      {
+        "bytes": 1024,
+        "objects": 300000,
+        "total_bytes": 307200000
+      },
+      {
+        "bytes": 4096,
+        "objects": 150000,
+        "total_bytes": 614400000
+      },
+      {
+        "bytes": 16384,
+        "objects": 50000,
+        "total_bytes": 819200000
+      }
+    ],
+    "worker_termination_timeout_seconds": 30.0,
+    "workers": 4
+  },
+  "drivers": {
+    "hot": {
+      "capabilities": {
+        "atomic_no_overwrite": true,
+        "conditional_delete": true,
+        "range_reads": true,
+        "range_writes": true
+      },
+      "chunk_size": 8388608,
+      "path": "/var/lib/cognistore/tiers/hot",
+      "type": "PosixDriver"
+    },
+    "object": {
+      "addressing_style": "path",
+      "auto_create_bucket": true,
+      "capabilities": {
+        "atomic_no_overwrite": true,
+        "conditional_delete": true,
+        "range_reads": true,
+        "range_writes": false
+      },
+      "chunk_size": 8388608,
+      "endpoint_url": "http://minio:9000",
+      "list_page_size": 1000,
+      "multipart_threshold": 8388608,
+      "partition": "aws",
+      "region_name": "us-east-1",
+      "type": "S3Driver"
+    },
+    "warm": {
+      "capabilities": {
+        "atomic_no_overwrite": true,
+        "conditional_delete": true,
+        "range_reads": true,
+        "range_writes": true
+      },
+      "chunk_size": 8388608,
+      "path": "/var/lib/cognistore/tiers/warm",
+      "type": "PosixDriver"
+    }
+  },
+  "environment": {
+    "ci": {},
+    "cognistore_version": "0.1.0",
+    "cpu_count": 10,
+    "git": {
+      "dirty": false,
+      "revision": "7961c82b560cc661587d20a925a63266d870b4e1",
+      "source": "environment"
+    },
+    "hostname": "a1a0520e862e",
+    "machine": "aarch64",
+    "memory_bytes": 16756506624,
+    "platform": "Linux-6.4.16-linuxkit-aarch64-with-glibc2.36",
+    "python": "3.12.11",
+    "python_implementation": "CPython",
+    "release": "6.4.16-linuxkit",
+    "system": "Linux"
+  },
+  "finished_at": "2026-08-29T11:31:29.371232Z",
+  "paths": [
+    {
+      "backend_path": "PosixDriver->PosixDriver",
+      "current_phase": "completed",
+      "destination_tier": "warm",
+      "failures": [
+        {
+          "after_publication": true,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "timeout",
+              "error_type": "TimeoutError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 2,
+          "failure_duration_seconds": 0.1321522919461131,
+          "idempotency_key": "qualification:full-20260827-205845:posix:forward:0",
+          "injected": true,
+          "injections": 1,
+          "kind": "timeout",
+          "max_attempts": 3,
+          "mechanism": "destination proxy timeout after publication",
+          "object_index": 0,
+          "recovered": true,
+          "recovery_attempts": 0,
+          "recovery_seconds": 0.1321522919461131,
+          "retry_limit_reached": false,
+          "source_retained": true
+        },
+        {
+          "after_publication": false,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "throttled",
+              "error_type": "_InjectedThrottlingError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 2,
+          "failure_duration_seconds": 0.1382487079827115,
+          "idempotency_key": "qualification:full-20260827-205845:posix:forward:1",
+          "injected": true,
+          "injections": 1,
+          "kind": "throttling",
+          "max_attempts": 3,
+          "mechanism": "one-shot destination proxy before publication",
+          "object_index": 1,
+          "recovered": true,
+          "recovery_attempts": 0,
+          "recovery_seconds": 0.1382487079827115,
+          "retry_limit_reached": false,
+          "source_retained": true
+        },
+        {
+          "after_publication": false,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            },
+            {
+              "attempt": 2,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            },
+            {
+              "attempt": 3,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 4,
+          "bounded_retry_attempts": 3,
+          "failure_duration_seconds": 0.5518262919504195,
+          "idempotency_key": "qualification:full-20260827-205845:posix:forward:2",
+          "injected": true,
+          "injections": 3,
+          "kind": "backend_unavailable",
+          "max_attempts": 3,
+          "mechanism": "destination proxy unavailable through bounded retry limit, then same-key resume",
+          "object_index": 2,
+          "recovered": true,
+          "recovery_attempts": 1,
+          "recovery_seconds": 0.5518262919504195,
+          "retry_limit_reached": true,
+          "source_retained": true
+        },
+        {
+          "after_publication": true,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "worker_termination",
+              "error_type": "WorkerProcessTerminated",
+              "phase": "terminated_worker",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 1,
+          "checkpoint": "transferred",
+          "failure_duration_seconds": 0.07035804190672934,
+          "idempotency_key": "qualification:full-20260827-205845:posix:forward:3",
+          "injected": true,
+          "injections": 1,
+          "kind": "worker_termination",
+          "max_attempts": 3,
+          "mechanism": "forced process termination after durable TRANSFERRED checkpoint",
+          "object_index": 3,
+          "recovered": true,
+          "recovery_attempts": 1,
+          "recovery_seconds": 0.07035824994090945,
+          "retry_limit_reached": false,
+          "source_retained": true,
+          "terminated_exit_code": -9,
+          "terminated_signal": "SIGKILL",
+          "termination_actions": [
+            "kill"
+          ]
+        }
+      ],
+      "forward": {
+        "attempts": 1000006,
+        "bytes": 1868800000,
+        "elapsed_seconds": 27789.840052775922,
+        "latency_definition": "logical move invocation through durable completion, including retries and retry backoff but excluding executor queue wait",
+        "latency_ms": {
+          "max": 4141.180043923669,
+          "min": 47.14975005481392,
+          "p50": 106.05504200793803,
+          "p95": 155.3876670077443,
+          "p99": 217.0244159642607
+        },
+        "mib_per_second": 0.06413230731502442,
+        "objects": 1000000,
+        "objects_per_second": 35.98437407703288,
+        "retries": 6,
+        "throughput_definition": "logical payload bytes completed per wall-clock second"
+      },
+      "idempotency": {
+        "forward_replays": 5,
+        "new_transitions_on_replay": 0,
+        "reverse_replays": 5
+      },
+      "integrity": {
+        "corruption": 0,
+        "forward": {
+          "absent_objects": 0,
+          "absent_tier": "hot",
+          "catalog_placements": 1000000,
+          "checksum_algorithm": "sha256",
+          "completed_move_jobs": 1000000,
+          "elapsed_seconds": 1179.0340865330072,
+          "present_objects": 1000000,
+          "present_tier": "warm",
+          "verified_objects": 1000000
+        },
+        "reverse": {
+          "absent_objects": 0,
+          "absent_tier": "warm",
+          "catalog_placements": 1000000,
+          "checksum_algorithm": "sha256",
+          "completed_move_jobs": 1000000,
+          "elapsed_seconds": 1161.1484724470647,
+          "present_objects": 1000000,
+          "present_tier": "hot",
+          "verified_objects": 1000000
+        },
+        "silent_loss": 0
+      },
+      "name": "posix",
+      "observed_retries": {
+        "categories": {},
+        "failed_attempts": 0,
+        "max_recovery_seconds": 0.0,
+        "objects_with_failures": 0,
+        "recovered_objects": 0,
+        "sample_limit": 20,
+        "samples": [],
+        "source_retention_failures": 0,
+        "unrecovered_objects": 0
+      },
+      "prefix": "qualification/full-20260827-205845/posix/",
+      "reverse": {
+        "attempts": 1000000,
+        "bytes": 1868800000,
+        "elapsed_seconds": 28229.98140181601,
+        "latency_definition": "logical move invocation through durable completion, including retries and retry backoff but excluding executor queue wait",
+        "latency_ms": {
+          "max": 3862.969669047743,
+          "min": 50.609666970558465,
+          "p50": 107.45224996935576,
+          "p95": 157.75391703937203,
+          "p99": 223.5287920339033
+        },
+        "mib_per_second": 0.06313240299851387,
+        "objects": 1000000,
+        "objects_per_second": 35.423331874234634,
+        "retries": 0,
+        "throughput_definition": "logical payload bytes completed per wall-clock second"
+      },
+      "setup": {
+        "bytes": 1868800000,
+        "elapsed_seconds": 1790.915325311944,
+        "objects": 1000000
+      },
+      "source_tier": "hot",
+      "status": "passed"
+    },
+    {
+      "backend_path": "PosixDriver->S3Driver",
+      "current_phase": "completed",
+      "destination_tier": "object",
+      "failures": [
+        {
+          "after_publication": true,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "timeout",
+              "error_type": "TimeoutError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 2,
+          "failure_duration_seconds": 0.14971833396703005,
+          "idempotency_key": "qualification:full-20260827-205845:s3:forward:0",
+          "injected": true,
+          "injections": 1,
+          "kind": "timeout",
+          "max_attempts": 3,
+          "mechanism": "destination proxy timeout after publication",
+          "object_index": 0,
+          "recovered": true,
+          "recovery_attempts": 0,
+          "recovery_seconds": 0.14971833396703005,
+          "retry_limit_reached": false,
+          "source_retained": true
+        },
+        {
+          "after_publication": false,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "throttled",
+              "error_type": "_InjectedThrottlingError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 2,
+          "failure_duration_seconds": 0.14402391703333706,
+          "idempotency_key": "qualification:full-20260827-205845:s3:forward:1",
+          "injected": true,
+          "injections": 1,
+          "kind": "throttling",
+          "max_attempts": 3,
+          "mechanism": "one-shot destination proxy before publication",
+          "object_index": 1,
+          "recovered": true,
+          "recovery_attempts": 0,
+          "recovery_seconds": 0.14402391703333706,
+          "retry_limit_reached": false,
+          "source_retained": true
+        },
+        {
+          "after_publication": false,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            },
+            {
+              "attempt": 2,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            },
+            {
+              "attempt": 3,
+              "category": "unavailable",
+              "error_type": "ConnectionError",
+              "phase": "bounded_retry",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 4,
+          "bounded_retry_attempts": 3,
+          "failure_duration_seconds": 0.5647374580148607,
+          "idempotency_key": "qualification:full-20260827-205845:s3:forward:2",
+          "injected": true,
+          "injections": 3,
+          "kind": "backend_unavailable",
+          "max_attempts": 3,
+          "mechanism": "destination proxy unavailable through bounded retry limit, then same-key resume",
+          "object_index": 2,
+          "recovered": true,
+          "recovery_attempts": 1,
+          "recovery_seconds": 0.5647374580148607,
+          "retry_limit_reached": true,
+          "source_retained": true
+        },
+        {
+          "after_publication": true,
+          "attempt_failures": [
+            {
+              "attempt": 1,
+              "category": "worker_termination",
+              "error_type": "WorkerProcessTerminated",
+              "phase": "terminated_worker",
+              "retryable": true,
+              "source_retained": true
+            }
+          ],
+          "attempts": 2,
+          "bounded_retry_attempts": 1,
+          "checkpoint": "transferred",
+          "failure_duration_seconds": 0.09229924995452166,
+          "idempotency_key": "qualification:full-20260827-205845:s3:forward:3",
+          "injected": true,
+          "injections": 1,
+          "kind": "worker_termination",
+          "max_attempts": 3,
+          "mechanism": "forced process termination after durable TRANSFERRED checkpoint",
+          "object_index": 3,
+          "recovered": true,
+          "recovery_attempts": 1,
+          "recovery_seconds": 0.09229933295864612,
+          "retry_limit_reached": false,
+          "source_retained": true,
+          "terminated_exit_code": -9,
+          "terminated_signal": "SIGKILL",
+          "termination_actions": [
+            "kill"
+          ]
+        }
+      ],
+      "forward": {
+        "attempts": 1000006,
+        "bytes": 1868800000,
+        "elapsed_seconds": 36827.68429282692,
+        "latency_definition": "logical move invocation through durable completion, including retries and retry backoff but excluding executor queue wait",
+        "latency_ms": {
+          "max": 4778.398085967638,
+          "min": 67.50104203820229,
+          "p50": 139.0149591024965,
+          "p95": 206.5985839581117,
+          "p99": 289.48658402077854
+        },
+        "mib_per_second": 0.04839366353662187,
+        "objects": 1000000,
+        "objects_per_second": 27.1534857323292,
+        "retries": 6,
+        "throughput_definition": "logical payload bytes completed per wall-clock second"
+      },
+      "idempotency": {
+        "forward_replays": 5,
+        "new_transitions_on_replay": 0,
+        "reverse_replays": 5
+      },
+      "integrity": {
+        "corruption": 0,
+        "forward": {
+          "absent_objects": 0,
+          "absent_tier": "hot",
+          "catalog_placements": 1000000,
+          "checksum_algorithm": "sha256",
+          "completed_move_jobs": 1000000,
+          "elapsed_seconds": 2609.9884287739405,
+          "present_objects": 1000000,
+          "present_tier": "object",
+          "verified_objects": 1000000
+        },
+        "reverse": {
+          "absent_objects": 0,
+          "absent_tier": "object",
+          "catalog_placements": 1000000,
+          "checksum_algorithm": "sha256",
+          "completed_move_jobs": 1000000,
+          "elapsed_seconds": 2090.2536038300022,
+          "present_objects": 1000000,
+          "present_tier": "hot",
+          "verified_objects": 1000000
+        },
+        "silent_loss": 0
+      },
+      "name": "s3",
+      "observed_retries": {
+        "categories": {},
+        "failed_attempts": 0,
+        "max_recovery_seconds": 0.0,
+        "objects_with_failures": 0,
+        "recovered_objects": 0,
+        "sample_limit": 20,
+        "samples": [],
+        "source_retention_failures": 0,
+        "unrecovered_objects": 0
+      },
+      "prefix": "qualification/full-20260827-205845/s3/",
+      "reverse": {
+        "attempts": 1000000,
+        "bytes": 1868800000,
+        "elapsed_seconds": 35287.061848592944,
+        "latency_definition": "logical move invocation through durable completion, including retries and retry backoff but excluding executor queue wait",
+        "latency_ms": {
+          "max": 5587.742086034268,
+          "min": 68.94979195203632,
+          "p50": 132.97437503933907,
+          "p95": 199.5663749985397,
+          "p99": 296.4730829698965
+        },
+        "mib_per_second": 0.05050651624516212,
+        "objects": 1000000,
+        "objects_per_second": 28.3389987041348,
+        "retries": 0,
+        "throughput_definition": "logical payload bytes completed per wall-clock second"
+      },
+      "setup": {
+        "bytes": 1868800000,
+        "elapsed_seconds": 1762.0997704280308,
+        "objects": 1000000
+      },
+      "source_tier": "hot",
+      "status": "passed"
+    }
+  ],
+  "profile": "full",
+  "schema": "cognistore.move-qualification",
+  "schema_version": 1,
+  "started_at": "2026-08-27T20:59:02.967789Z",
+  "status": "passed",
+  "summary": {
+    "acceptance_criteria": {
+      "environment_configuration_and_metrics_recorded": "passed",
+      "injected_failure_idempotency_retry_and_source_retention": "passed",
+      "one_million_object_round_trip": "passed"
+    },
+    "corruption": 0,
+    "elapsed_seconds": 138744.145588135,
+    "failed_attempts": 12,
+    "fault_scenarios": 8,
+    "injected_failure_events": 12,
+    "logical_moves": 4000000,
+    "objects_per_path": 1000000,
+    "observed_failure_objects": 0,
+    "paths_completed": 2,
+    "paths_started": 2,
+    "payload_bytes_moved": 7475200000,
+    "recovered_fault_scenarios": 8,
+    "silent_loss": 0
+  }
+}
