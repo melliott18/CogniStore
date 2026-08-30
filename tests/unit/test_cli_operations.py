@@ -677,6 +677,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
 ) -> None:
     events: list[str] = []
     callbacks = {}
+    catalog_sentinel = object()
     limits_path = tmp_path / "limits.yaml"
     limits_path.write_text("tiers:\n  hot:\n    source_concurrency: 1\n")
     reload_started = threading.Event()
@@ -706,10 +707,20 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             return asyncio.wrap_future(executor.submit(function))
 
     class FakeWorker:
-        def __init__(self, queue, handlers, *, config, throughput=None, coordinator=None) -> None:
+        def __init__(
+            self,
+            queue,
+            handlers,
+            *,
+            config,
+            throughput=None,
+            coordinator=None,
+            audit_catalog=None,
+        ) -> None:
             self.state = WorkerState.STARTING
             self.throughput = throughput
             assert coordinator is not None
+            assert audit_catalog is catalog_sentinel
 
         async def start(self) -> None:
             self.state = WorkerState.RUNNING
@@ -774,7 +785,16 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         ),
     )
 
-    assert asyncio.run(cognistore_cli._serve_worker(args, {"hot": object()}, object())) == 0
+    assert (
+        asyncio.run(
+            cognistore_cli._serve_worker(
+                args,
+                {"hot": object()},
+                catalog_sentinel,
+            )
+        )
+        == 0
+    )
     assert events == [
         "health:start",
         "add:SIGINT",

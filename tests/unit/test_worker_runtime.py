@@ -8,7 +8,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping
 
+from cognistore.core.audit import (
+    AuditEventType,
+    AuditQuery,
+    AuditRetentionPolicy,
+    stable_audit_event_id,
+)
+from cognistore.core.catalog import Catalog
 from cognistore.core.throughput import ThroughputSaturatedError
+from cognistore.db.catalog import SQLCatalog
 from cognistore.jobs.handlers import _run_blocking_safely
 from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
@@ -742,6 +750,231 @@ def test_handler_failure_nacks_for_redelivery_with_same_job_context() -> None:
         assert delivery.ack_count == 0
         assert report.nacked == 1
         assert report.retried == 1
+
+    asyncio.run(scenario())
+
+
+def test_failure_and_retry_audits_are_durable_before_nack_and_restart(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "worker-audit.db"
+    audit_retention = AuditRetentionPolicy(max_age_seconds=None)
+    occurred_at = datetime(2026, 8, 29, 12, 30, tzinfo=timezone.utc)
+
+    async def scenario() -> tuple[str, set[str]]:
+        audit_catalog = SQLCatalog(
+            database,
+            audit_retention=audit_retention,
+        )
+        queue = FakeQueue()
+        job = JobEnvelope.create(
+            "test.audited-retry",
+            {"password": "payload-secret-must-not-be-copied"},
+            correlation_id="request-audited-retry",
+        )
+        delivery = FakeDelivery(job, stream_sequence=41, consumer_sequence=17)
+        original_nack = delivery.nack
+        observed_before_nack: set[str] = set()
+
+        async def handler(delivered_job, context) -> None:
+            raise TimeoutError(
+                "password=raw-exception-secret "
+                "https://worker:credential@example.invalid/private"
+            )
+
+        async def nack_after_audit(delay: float | None = None) -> None:
+            events = audit_catalog.list_audit_events(AuditQuery(job_id=job.job_id))
+            observed_before_nack.update(event.event_type for event in events)
+            assert observed_before_nack == {
+                AuditEventType.JOB_FAILURE.value,
+                AuditEventType.JOB_RETRY.value,
+            }
+            await original_nack(delay)
+
+        delivery.nack = nack_after_audit  # type: ignore[method-assign]
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(stop_after_jobs=1),
+            clock=lambda: occurred_at,
+            audit_catalog=audit_catalog,
+        )
+        try:
+            await worker.start()
+            await worker.wait_for_shutdown_request()
+            report = await worker.shutdown()
+
+            assert report.retried == 1
+            assert delivery.nack_count == 1
+            assert delivery.ack_count == 0
+        finally:
+            audit_catalog.close()
+        return job.job_id, observed_before_nack
+
+    job_id, observed_before_nack = asyncio.run(scenario())
+    assert observed_before_nack == {
+        AuditEventType.JOB_FAILURE.value,
+        AuditEventType.JOB_RETRY.value,
+    }
+
+    with SQLCatalog(
+        database,
+        migrate=False,
+        audit_retention=audit_retention,
+    ) as restarted_catalog:
+        events = restarted_catalog.list_audit_events(AuditQuery(job_id=job_id))
+
+    assert len(events) == 2
+    by_type = {event.event_type: event for event in events}
+    failure = by_type[AuditEventType.JOB_FAILURE.value]
+    retry = by_type[AuditEventType.JOB_RETRY.value]
+    expected_failure_id = stable_audit_event_id(
+        "worker-delivery",
+        AuditEventType.JOB_FAILURE.value,
+        job_id,
+        "TEST_JOBS",
+        "41",
+        "test-workers",
+        "17",
+        "1",
+    )
+    expected_retry_id = stable_audit_event_id(
+        "worker-delivery",
+        AuditEventType.JOB_RETRY.value,
+        job_id,
+        "TEST_JOBS",
+        "41",
+        "test-workers",
+        "17",
+        "1",
+    )
+    assert failure.event_id == expected_failure_id
+    assert retry.event_id == expected_retry_id
+    assert failure.correlation_id == "request-audited-retry"
+    assert retry.correlation_id == failure.correlation_id
+    assert retry.causation_id == failure.event_id
+    assert failure.outcome == "failed"
+    assert retry.outcome == "retrying"
+    assert failure.expires_at is None
+    assert retry.expires_at is None
+    assert failure.details["exception_type"] == "builtins.TimeoutError"
+    assert failure.details["category"] == "timeout"
+    assert retry.details["retry_delay_seconds"] == 1.0
+    assert retry.details["next_attempt"] == 2
+    persisted_details = json.dumps(
+        [failure.details, retry.details],
+        sort_keys=True,
+    )
+    assert "payload-secret-must-not-be-copied" not in persisted_details
+    assert "raw-exception-secret" not in persisted_details
+    assert "credential" not in persisted_details
+    assert "exception_message" not in failure.details
+    assert "traceback" not in failure.details
+
+
+def test_dead_letter_audit_is_durable_before_source_ack() -> None:
+    async def scenario() -> None:
+        audit_catalog = Catalog(
+            audit_retention=AuditRetentionPolicy(max_age_seconds=None)
+        )
+        queue = FakeQueue()
+        occurred_at = datetime(2026, 8, 29, 13, 0, tzinfo=timezone.utc)
+        job = JobEnvelope.create(
+            "test.audited-terminal",
+            {},
+            correlation_id="request-audited-terminal",
+        )
+        delivery = FakeDelivery(job, stream_sequence=52, consumer_sequence=23)
+
+        async def handler(delivered_job, context) -> None:
+            raise ValueError(
+                "token=terminal-exception-secret and traceback must stay private"
+            )
+
+        async def ack_after_audit() -> None:
+            events = audit_catalog.list_audit_events(AuditQuery(job_id=job.job_id))
+            assert {event.event_type for event in events} == {
+                AuditEventType.JOB_FAILURE.value,
+                AuditEventType.JOB_DEAD_LETTERED.value,
+            }
+            assert len(queue.dead_letters) == 1
+            delivery.ack_count += 1
+
+        delivery.ack = ack_after_audit  # type: ignore[method-assign]
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(stop_after_jobs=1),
+            clock=lambda: occurred_at,
+            audit_catalog=audit_catalog,
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert report.dead_lettered == 1
+        assert delivery.ack_count == 1
+        assert delivery.nack_count == 0
+        events = audit_catalog.list_audit_events(AuditQuery(job_id=job.job_id))
+        by_type = {event.event_type: event for event in events}
+        failure = by_type[AuditEventType.JOB_FAILURE.value]
+        dead_lettered = by_type[AuditEventType.JOB_DEAD_LETTERED.value]
+        assert dead_lettered.causation_id == failure.event_id
+        assert dead_lettered.details["disposition"] == "terminal"
+        assert dead_lettered.details["dead_letter_id"] == (
+            queue.dead_letters[0].dead_letter_id
+        )
+        assert dead_lettered.details["dead_letter_stream"] == "TEST_JOBS_DLQ"
+        assert dead_lettered.details["dead_letter_sequence"] == 1
+        persisted_details = json.dumps(
+            [failure.details, dead_lettered.details],
+            sort_keys=True,
+        )
+        assert "terminal-exception-secret" not in persisted_details
+        assert "exception_message" not in failure.details
+        assert "traceback" not in failure.details
+
+    asyncio.run(scenario())
+
+
+def test_audit_failure_leaves_source_unsettled_and_fails_worker_closed() -> None:
+    class FailingAuditCatalog:
+        def append_audit_event(self, event):
+            raise OSError("audit store unavailable")
+
+    async def scenario() -> None:
+        queue = FakeQueue()
+        job = JobEnvelope.create("test.audit-unavailable", {})
+        delivery = FakeDelivery(job)
+        coordinator_events: list[str] = []
+        coordinator = FakeCoordinator(
+            FakeExecution(coordinator_events),
+            coordinator_events,
+        )
+
+        async def handler(delivered_job, context) -> None:
+            raise TimeoutError("handler failed")
+
+        await queue.deliveries.put(delivery)
+        worker = AsyncWorker(
+            queue,
+            {job.job_type: handler},
+            config=_worker_config(),
+            coordinator=coordinator,
+            audit_catalog=FailingAuditCatalog(),  # type: ignore[arg-type]
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+
+        assert worker.state == WorkerState.FAILED
+        assert report.graceful is False
+        assert delivery.ack_count == 0
+        assert delivery.nack_count == 0
+        assert queue.dead_letters == []
+        assert coordinator_events == ["begin", "retry"]
 
     asyncio.run(scenario())
 

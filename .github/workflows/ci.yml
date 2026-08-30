@@ -227,7 +227,7 @@ jobs:
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
                   migrations = MigrationManager()
-                  assert migrations.heads() == ("0002_normalized_catalog",)
+                  assert migrations.heads() == ("0003_audit_events",)
                   assert migrations.is_at_head(catalog.engine)
           PY
 

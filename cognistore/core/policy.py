@@ -69,12 +69,21 @@ class LLMPolicy:
         }
         try:
             result = self.provider.decide(payload) or {}
-        except Exception as e:  # defensive
-            return PolicyDecision(action="stay", dst_tier=None, reason=f"provider_error: {e}")
+        except Exception as error:  # defensive
+            return PolicyDecision(
+                action="stay",
+                dst_tier=None,
+                reason=f"provider_error:{type(error).__name__}",
+            )
 
         action = result.get("action")
         dst = result.get("dst_tier")
-        reason = result.get("reason", "llm policy no reason provided")
+        provider_reason = result.get("reason")
+        reason = (
+            provider_reason[:512]
+            if isinstance(provider_reason, str) and provider_reason
+            else "llm policy no reason provided"
+        )
 
         if action == "move" and isinstance(dst, str) and dst in self.allowed_tiers and dst != current_tier:
             return PolicyDecision(action="move", dst_tier=dst, reason=reason)

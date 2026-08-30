@@ -369,10 +369,13 @@ Keep database credentials in deployment secrets rather than the command line.
 The DSN may omit its password when libpq obtains it from `PGPASSWORD`, a
 password file, or the deployment's equivalent secret injection; the Compose
 stack maps `COGNISTORE_POSTGRES_PASSWORD` to `PGPASSWORD` for its clients.
-The PostgreSQL catalog contains objects, placements, and move journals;
-`--schedule-db` contains schedule timing, reservations, execution leases, and
-recovery audits. See the [PostgreSQL catalog operations guide](docs/postgres_catalog.md)
-for schema migrations and the supported offline SQLite import.
+The PostgreSQL catalog contains objects, placements, move journals, and a
+versioned operational history correlating policy decisions, jobs, manual
+actions, retries, failures, and terminal moves. See the
+[audit-event operations guide](docs/audit_events.md). `--schedule-db` contains
+schedule timing, reservations, execution leases, and recovery audits. See the
+[PostgreSQL catalog operations guide](docs/postgres_catalog.md) for schema
+migrations and the supported offline SQLite import.
 
 The scheduler-state file must be persistent; worker and scheduler commands
 reject `:memory:` because their coordination state must be shared across

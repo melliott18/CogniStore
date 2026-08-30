@@ -118,6 +118,7 @@ def test_environment_values_are_parsed_to_cli_types(tmp_path: Path) -> None:
         "COGNISTORE_NATS_URL": "nats://one:4222, nats://two:4222",
         "COGNISTORE_ACK_WAIT": "1.25",
         "COGNISTORE_DEAD_LETTER_MAX_AGE": "3600",
+        "COGNISTORE_AUDIT_RETENTION_MAX_AGE": "86400",
         "COGNISTORE_STREAM_MAX_MESSAGES": "123",
         "COGNISTORE_STREAM_MAX_BYTES": "456",
         "COGNISTORE_JSON": "YES",
@@ -137,6 +138,7 @@ def test_environment_values_are_parsed_to_cli_types(tmp_path: Path) -> None:
         "stream_max_messages": 123,
         "stream_max_bytes": 456,
         "dead_letter_max_age": 3600.0,
+        "audit_retention_max_age": 86400.0,
         "json": True,
         "dry_run": False,
         "verbose": True,
@@ -153,6 +155,11 @@ def test_environment_values_are_parsed_to_cli_types(tmp_path: Path) -> None:
         ("COGNISTORE_JSON", "not-a-secret-bool", "must be a boolean"),
         ("COGNISTORE_STREAM_MAX_BYTES", "not-a-secret-int", "must be an integer"),
         ("COGNISTORE_ACK_WAIT", "not-a-secret-float", "must be a finite number"),
+        (
+            "COGNISTORE_AUDIT_RETENTION_MAX_AGE",
+            "not-a-secret-retention",
+            "must be a finite number",
+        ),
         ("COGNISTORE_NATS_URL", "nats://ok,,not-a-secret-url", "comma-separated"),
     ],
 )

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterator, Literal, Mapping, Protocol
 from uuid import uuid4
 
+from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import (
     MoveJob,
@@ -135,6 +136,7 @@ class Mover:
         clock: Callable[[], datetime] | None = None,
         transition_hook: Callable[[MoveJob], None] | None = None,
         throughput: ByteThroughputController | None = None,
+        audit_context: AuditContext | None = None,
     ) -> None:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be greater than zero")
@@ -145,6 +147,7 @@ class Mover:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._transition_hook = transition_hook
         self._throughput = throughput
+        self.audit_context = audit_context
 
     def _drivers_for_move(
         self, src_tier: str, dst_tier: str
@@ -274,7 +277,7 @@ class Mover:
                 destination_generation = observed_generation
         except FileNotFoundError as error:
             failures.append(
-                f"destination stat failed with {type(error).__name__}: {error}"
+                f"destination stat failed with {type(error).__name__}"
             )
 
         destination_hasher = hashlib.sha256()
@@ -306,7 +309,7 @@ class Mover:
         except (FileNotFoundError, TypeError, ValueError) as error:
             failures.append(
                 "destination checksum read failed after "
-                f"{destination_size} bytes with {type(error).__name__}: {error}"
+                f"{destination_size} bytes with {type(error).__name__}"
             )
 
         if destination_generation is not None:
@@ -314,7 +317,7 @@ class Mover:
                 final_generation = dst.object_generation(plan.bucket, plan.key)
             except FileNotFoundError as error:
                 failures.append(
-                    f"destination generation check failed with {type(error).__name__}: {error}"
+                    f"destination generation check failed with {type(error).__name__}"
                 )
             else:
                 if final_generation != destination_generation:
@@ -358,6 +361,7 @@ class Mover:
         key: str,
         *,
         idempotency_key: str | None = None,
+        audit_context: AuditContext | None = None,
     ) -> MoveVerificationResult:
         """Execute or resume one durable, idempotent object move.
 
@@ -367,6 +371,7 @@ class Mover:
 
         self._drivers_for_move(src_tier, dst_tier)
         move_key = idempotency_key or str(uuid4())
+        context = audit_context or self.audit_context
         existing = self.catalog.get_move_job(move_key)
         was_new = existing is None
         if existing is None:
@@ -393,6 +398,7 @@ class Mover:
             owner_id=self.owner_id,
             now=now,
             lease_expires_at=lease_expires_at,
+            audit_context=context,
         )
         if was_new:
             self._after_transition(job)
@@ -401,7 +407,7 @@ class Mover:
         if job.state == MoveJobState.FAILED:
             raise MoveJobFailedError(job)
         with self._lease_heartbeat(job.idempotency_key):
-            return self._resume(job)
+            return self._resume(job, audit_context=context)
 
     def recover_incomplete(
         self, *, idempotency_prefix: str | None = None
@@ -463,7 +469,12 @@ class Mover:
     ) -> list[MoveJobTransition]:
         return self.catalog.list_move_job_transitions(idempotency_key)
 
-    def _resume(self, job: MoveJob) -> MoveVerificationResult:
+    def _resume(
+        self,
+        job: MoveJob,
+        *,
+        audit_context: AuditContext | None,
+    ) -> MoveVerificationResult:
         plan = MovePlan(
             src_tier=job.src_tier,
             dst_tier=job.dst_tier,
@@ -530,7 +541,7 @@ class Mover:
                     except FileNotFoundError:
                         failure_reason = (
                             "source object is missing before transfer completed: "
-                            f"{type(error).__name__}: {error}"
+                            f"{type(error).__name__}"
                         )
                         job = self._transition(
                             job,
@@ -540,6 +551,7 @@ class Mover:
                                 "verification_details": (failure_reason,),
                                 "terminal_reason": failure_reason,
                             },
+                            audit_context=audit_context,
                         )
                         raise MoveJobFailedError(job) from error
                     raise
@@ -550,6 +562,7 @@ class Mover:
                         MoveJobState.FAILED,
                         reason,
                         updates={"terminal_reason": reason},
+                        audit_context=audit_context,
                     )
                     raise MoveGenerationMismatchError(plan, "source")
                 job = self._transition(
@@ -561,6 +574,7 @@ class Mover:
                         "source_size": source_size,
                         "source_checksum": source_checksum,
                     },
+                    audit_context=audit_context,
                 )
 
             elif job.state == MoveJobState.TRANSFERRED:
@@ -596,6 +610,7 @@ class Mover:
                         MoveJobState.FAILED,
                         reason,
                         updates={**updates, "terminal_reason": reason},
+                        audit_context=audit_context,
                     )
                     raise MoveVerificationError(plan, verification)
                 job = self._transition(
@@ -603,6 +618,7 @@ class Mover:
                     MoveJobState.VERIFIED,
                     "destination size and checksum verified",
                     updates=updates,
+                    audit_context=audit_context,
                 )
 
             elif job.state == MoveJobState.VERIFIED:
@@ -618,6 +634,7 @@ class Mover:
                     checksum=job.destination_checksum,
                     now=now,
                     lease_expires_at=lease_expires_at,
+                    audit_context=audit_context,
                 )
                 self._after_transition(job)
 
@@ -626,6 +643,7 @@ class Mover:
                     job,
                     MoveJobState.CLEANUP,
                     "source cleanup started",
+                    audit_context=audit_context,
                 )
 
             elif job.state == MoveJobState.CLEANUP:
@@ -666,6 +684,7 @@ class Mover:
                             "verification_details": (reason,),
                             "terminal_reason": reason,
                         },
+                        audit_context=audit_context,
                     )
                     raise MoveGenerationMismatchError(plan, role) from error
                 job = self._transition(
@@ -673,6 +692,7 @@ class Mover:
                     MoveJobState.COMPLETED,
                     "source cleanup completed",
                     updates={"terminal_reason": "move completed"},
+                    audit_context=audit_context,
                 )
 
             elif job.state == MoveJobState.COMPLETED:
@@ -687,6 +707,7 @@ class Mover:
         reason: str,
         *,
         updates: Mapping[str, Any] | None = None,
+        audit_context: AuditContext | None = None,
     ) -> MoveJob:
         now, lease_expires_at = self._lease_window()
         updated = self.catalog.transition_move_job(
@@ -698,6 +719,7 @@ class Mover:
             now=now,
             lease_expires_at=lease_expires_at,
             updates=updates,
+            audit_context=audit_context,
         )
         self._after_transition(updated)
         return updated

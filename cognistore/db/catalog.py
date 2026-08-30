@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator, Mapping
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
@@ -14,6 +15,18 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from cognistore.core.audit import (
+    AuditContext,
+    AuditEvent,
+    AuditEventType,
+    AuditOutcome,
+    AuditQuery,
+    AuditRetentionPolicy,
+    audit_event_replay_digest,
+    audit_text_identity,
+    redact_audit_event,
+    stable_audit_event_id,
+)
 from cognistore.core.catalog import (
     Catalog,
     ObjectRecord,
@@ -27,10 +40,14 @@ from cognistore.core.move_jobs import (
     MoveJobTransition,
     validate_move_job_transition,
 )
+from cognistore.utils.redaction import redact, redact_text
 
 from .engine import create_catalog_engine
 from .migrations import MigrationManager, catalog_schema_exists
 from .schema import (
+    audit_event_tombstones,
+    audit_events,
+    audit_move_heads,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
@@ -96,13 +113,15 @@ class SQLCatalog(Catalog):
         *,
         read_only: bool = False,
         migrate: bool = True,
+        audit_retention: AuditRetentionPolicy | None = None,
     ) -> None:
         self.db_path = str(locator)
         self.read_only = read_only
+        self.audit_retention = audit_retention or AuditRetentionPolicy()
         self._engine, self._conn = create_catalog_engine(locator, read_only=read_only)
         self._sqlite_lock = threading.RLock()
         self._closed = False
-        migrations = MigrationManager()
+        migrations = MigrationManager(audit_retention=self.audit_retention)
         try:
             if read_only:
                 schema_exists = catalog_schema_exists(self._engine)
@@ -519,6 +538,337 @@ class SQLCatalog(Catalog):
             rows = connection.execute(statement).mappings().all()
         return [self._record(row) for row in rows]
 
+    def append_audit_event(self, event: AuditEvent) -> AuditEvent:
+        """Append one redacted event, idempotently by event UUID."""
+
+        if self.read_only:
+            raise PermissionError("cannot append audit events to a read-only catalog")
+        if not isinstance(event, AuditEvent):
+            raise ValueError("event must be an AuditEvent")
+        with self._transaction() as connection:
+            direct_replay = self._select_audit_event(connection, event.event_id)
+            if direct_replay == event:
+                return direct_replay
+            tombstone = self._select_audit_tombstone(connection, event.event_id)
+            safe = self._prepare_audit_event(
+                event,
+                allow_pseudonyms=tombstone is not None,
+            )
+            return self._insert_audit_event(connection, safe)
+
+    def get_audit_event(self, event_id: str) -> AuditEvent | None:
+        try:
+            identifier = UUID(str(event_id))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ValueError("event_id must be a UUID") from exc
+        with self._connection() as connection:
+            row = (
+                connection.execute(
+                    sa.select(audit_events).where(audit_events.c.event_id == identifier)
+                )
+                .mappings()
+                .first()
+            )
+        return None if row is None else self._audit_event_from_row(row)
+
+    def list_audit_events(self, query: AuditQuery | None = None) -> List[AuditEvent]:
+        criteria = query or AuditQuery()
+        if not isinstance(criteria, AuditQuery):
+            raise ValueError("query must be an AuditQuery")
+        statement = sa.select(audit_events)
+        for column, value in (
+            (audit_events.c.correlation_id, criteria.correlation_id),
+            (audit_events.c.job_id, criteria.job_id),
+            (audit_events.c.move_id, criteria.move_id),
+            (audit_events.c.bucket, criteria.bucket),
+            (audit_events.c.object_key, criteria.object_key),
+            (audit_events.c.policy_name, criteria.policy_name),
+            (audit_events.c.policy_version, criteria.policy_version),
+            (audit_events.c.actor_type, criteria.actor_type),
+            (audit_events.c.actor_id, criteria.actor_id),
+        ):
+            if value is not None:
+                statement = statement.where(column == value)
+        if criteria.event_types is not None:
+            statement = statement.where(audit_events.c.event_type.in_(sorted(criteria.event_types)))
+        if criteria.outcomes is not None:
+            statement = statement.where(audit_events.c.outcome.in_(sorted(criteria.outcomes)))
+        if criteria.occurred_after is not None:
+            statement = statement.where(audit_events.c.occurred_at >= criteria.occurred_after)
+        if criteria.occurred_before is not None:
+            statement = statement.where(audit_events.c.occurred_at < criteria.occurred_before)
+        order = (
+            (audit_events.c.occurred_at.asc(), audit_events.c.event_id.asc())
+            if criteria.ascending
+            else (audit_events.c.occurred_at.desc(), audit_events.c.event_id.desc())
+        )
+        statement = statement.order_by(*order).limit(criteria.limit)
+        with self._connection() as connection:
+            rows = connection.execute(statement).mappings().all()
+        return [self._audit_event_from_row(row) for row in rows]
+
+    def prune_audit_events(
+        self,
+        occurred_before: str | datetime,
+        *,
+        limit: int = 1000,
+    ) -> int:
+        query_value = (
+            occurred_before.isoformat()
+            if isinstance(occurred_before, datetime)
+            else occurred_before
+        )
+        cutoff = AuditQuery(occurred_before=query_value, limit=limit).occurred_before
+        assert cutoff is not None
+        return self._prune_audit_events(
+            audit_events.c.occurred_at < cutoff,
+            limit=limit,
+        )
+
+    def prune_expired_audit_events(
+        self,
+        now: str | datetime,
+        *,
+        limit: int = 1000,
+    ) -> int:
+        query_value = now.isoformat() if isinstance(now, datetime) else now
+        cutoff = AuditQuery(occurred_before=query_value, limit=limit).occurred_before
+        assert cutoff is not None
+        return self._prune_audit_events(
+            audit_events.c.expires_at.is_not(None) & (audit_events.c.expires_at <= cutoff),
+            limit=limit,
+        )
+
+    def _prune_audit_events(self, predicate: Any, *, limit: int) -> int:
+        if self.read_only:
+            raise PermissionError("cannot prune audit events from a read-only catalog")
+        # AuditQuery supplies the shared bounded-limit validation.
+        AuditQuery(limit=limit)
+        with self._transaction() as connection:
+            rows = connection.execute(
+                sa.select(audit_events)
+                .where(predicate)
+                .order_by(audit_events.c.occurred_at, audit_events.c.event_id)
+                .limit(limit)
+            ).mappings().all()
+            events = [self._audit_event_from_row(row) for row in rows]
+            identifiers = [UUID(event.event_id) for event in events]
+            for event in events:
+                self._do_nothing_insert(
+                    connection,
+                    audit_event_tombstones,
+                    {
+                        "event_id": UUID(event.event_id),
+                        "replay_digest": audit_event_replay_digest(event),
+                        "causation_id": (
+                            None
+                            if event.causation_id is None
+                            else UUID(event.causation_id)
+                        ),
+                        "expires_at": event.expires_at,
+                    },
+                )
+            if identifiers:
+                result = connection.execute(
+                    sa.delete(audit_events).where(audit_events.c.event_id.in_(identifiers))
+                )
+                return max(0, int(result.rowcount or 0))
+            return 0
+
+    def _prepare_audit_event(
+        self,
+        event: AuditEvent,
+        *,
+        allow_pseudonyms: bool = False,
+    ) -> AuditEvent:
+        if not isinstance(event, AuditEvent):
+            raise ValueError("event must be an AuditEvent")
+        return redact_audit_event(
+            replace(
+                event,
+                expires_at=self.audit_retention.expires_at(event.occurred_at),
+            ),
+            _allow_pseudonyms=allow_pseudonyms,
+        )
+
+    def _insert_audit_event(
+        self,
+        connection: Connection,
+        event: AuditEvent,
+    ) -> AuditEvent:
+        existing = self._select_audit_event(connection, event.event_id)
+        if existing is not None:
+            self._assert_audit_replay_matches(existing, event)
+            return existing
+        tombstone = self._select_audit_tombstone(connection, event.event_id)
+        if tombstone is not None:
+            if audit_event_replay_digest(event) != tombstone["replay_digest"]:
+                raise ValueError(
+                    f"audit event {event.event_id} was pruned with different data"
+                )
+            return replace(
+                event,
+                causation_id=(
+                    None
+                    if tombstone["causation_id"] is None
+                    else str(tombstone["causation_id"])
+                ),
+                expires_at=tombstone["expires_at"],
+            )
+
+        move_sequence: int | None = None
+        head: RowMapping | None = None
+        if event.move_id is not None:
+            self._lock_move_key(connection, event.move_id)
+            existing = self._select_audit_event(connection, event.event_id)
+            if existing is not None:
+                self._assert_audit_replay_matches(existing, event)
+                return existing
+            head = (
+                connection.execute(
+                    sa.select(
+                        audit_move_heads.c.last_event_id,
+                        audit_move_heads.c.last_sequence,
+                    )
+                    .where(
+                        audit_move_heads.c.move_id == event.move_id,
+                    )
+                )
+                .mappings()
+                .first()
+            )
+            if head is None:
+                move_sequence = 1
+            else:
+                last_event_id = str(head["last_event_id"])
+                move_sequence = int(head["last_sequence"]) + 1
+                event = replace(event, causation_id=last_event_id)
+
+        self._do_nothing_insert(
+            connection,
+            audit_events,
+            self._audit_event_values(event, move_sequence=move_sequence),
+        )
+        persisted = self._select_audit_event(connection, event.event_id)
+        assert persisted is not None
+        self._assert_audit_replay_matches(persisted, event)
+        if event.move_id is not None:
+            assert move_sequence is not None
+            head_values = {
+                "move_id": event.move_id,
+                "last_sequence": move_sequence,
+                "last_event_id": UUID(event.event_id),
+            }
+            if head is None:
+                connection.execute(sa.insert(audit_move_heads).values(**head_values))
+            else:
+                connection.execute(
+                    sa.update(audit_move_heads)
+                    .where(audit_move_heads.c.move_id == event.move_id)
+                    .values(
+                        last_sequence=move_sequence,
+                        last_event_id=UUID(event.event_id),
+                    )
+                )
+        return persisted
+
+    @staticmethod
+    def _audit_event_values(
+        event: AuditEvent,
+        *,
+        move_sequence: int | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "event_id": UUID(event.event_id),
+            "schema_version": event.schema_version,
+            "event_type": event.event_type,
+            "outcome": event.outcome,
+            "occurred_at": event.occurred_at,
+            "recorded_at": event.recorded_at,
+            "expires_at": event.expires_at,
+            "correlation_id": event.correlation_id,
+            "causation_id": (None if event.causation_id is None else UUID(event.causation_id)),
+            "actor_type": event.actor_type,
+            "actor_id": event.actor_id,
+            "bucket": event.bucket,
+            "object_key": event.object_key,
+            "job_id": event.job_id,
+            "move_id": event.move_id,
+            "move_sequence": move_sequence,
+            "policy_name": event.policy_name,
+            "policy_version": event.policy_version,
+            "details": dict(event.details),
+        }
+
+    @staticmethod
+    def _select_audit_event(
+        connection: Connection,
+        event_id: str,
+    ) -> AuditEvent | None:
+        row = (
+            connection.execute(
+                sa.select(audit_events).where(
+                    audit_events.c.event_id == UUID(event_id)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        return None if row is None else SQLCatalog._audit_event_from_row(row)
+
+    @staticmethod
+    def _select_audit_tombstone(
+        connection: Connection,
+        event_id: str,
+    ) -> RowMapping | None:
+        return (
+            connection.execute(
+                sa.select(audit_event_tombstones).where(
+                    audit_event_tombstones.c.event_id == UUID(event_id)
+                )
+            )
+            .mappings()
+            .first()
+        )
+
+    @staticmethod
+    def _assert_audit_replay_matches(
+        persisted: AuditEvent,
+        event: AuditEvent,
+    ) -> None:
+        expected = (
+            replace(event, causation_id=persisted.causation_id)
+            if event.move_id is not None
+            else event
+        )
+        if replace(persisted, expires_at=event.expires_at) != expected:
+            raise ValueError(
+                f"audit event {event.event_id} already exists with different data"
+            )
+
+    @staticmethod
+    def _audit_event_from_row(row: RowMapping) -> AuditEvent:
+        return AuditEvent(
+            event_id=str(row["event_id"]),
+            schema_version=row["schema_version"],
+            event_type=row["event_type"],
+            outcome=row["outcome"],
+            occurred_at=row["occurred_at"],
+            recorded_at=row["recorded_at"],
+            expires_at=row["expires_at"],
+            correlation_id=row["correlation_id"],
+            causation_id=(None if row["causation_id"] is None else str(row["causation_id"])),
+            actor_type=row["actor_type"],
+            actor_id=row["actor_id"],
+            bucket=row["bucket"],
+            object_key=row["object_key"],
+            job_id=row["job_id"],
+            move_id=row["move_id"],
+            policy_name=row["policy_name"],
+            policy_version=row["policy_version"],
+            details=dict(row["details"] or {}),
+        )
+
     def claim_move_job(
         self,
         idempotency_key: str,
@@ -532,6 +882,7 @@ class SQLCatalog(Catalog):
         owner_id: str,
         now: str,
         lease_expires_at: str,
+        audit_context: AuditContext | None = None,
     ) -> MoveJob:
         if not idempotency_key.strip():
             raise ValueError("idempotency_key must be a non-empty string")
@@ -540,6 +891,8 @@ class SQLCatalog(Catalog):
             self._lock_move_key(connection, idempotency_key)
             self._lock_object(connection, bucket, key)
             existing = self._select_move_job(connection, idempotency_key, for_update=True)
+            transition: MoveJobTransition | None = None
+            retry_from: MoveJob | None = None
             if existing is None:
                 connection.execute(
                     sa.insert(move_jobs).values(
@@ -558,7 +911,7 @@ class SQLCatalog(Catalog):
                         updated_at=now,
                     )
                 )
-                self._insert_move_transition(
+                transition = self._insert_move_transition(
                     connection,
                     idempotency_key,
                     None,
@@ -594,8 +947,25 @@ class SQLCatalog(Catalog):
                         updated_at=now,
                     )
                 )
+                retry_from = existing
             claimed = self._select_move_job(connection, idempotency_key)
             assert claimed is not None
+            if transition is not None:
+                self._insert_move_audit_event(
+                    connection,
+                    claimed,
+                    transition,
+                    owner_id=owner_id,
+                    audit_context=audit_context,
+                )
+            elif retry_from is not None:
+                self._insert_move_retry_audit_event(
+                    connection,
+                    retry_from,
+                    claimed,
+                    owner_id=owner_id,
+                    audit_context=audit_context,
+                )
             return claimed
 
     def get_move_job(self, idempotency_key: str) -> MoveJob | None:
@@ -702,9 +1072,11 @@ class SQLCatalog(Catalog):
         now: str,
         lease_expires_at: str,
         updates: Mapping[str, Any] | None = None,
+        audit_context: AuditContext | None = None,
     ) -> MoveJob:
         validate_move_job_transition(expected_state, to_state)
-        changes = dict(updates or {})
+        changes = dict(redact(dict(updates or {})))
+        reason = redact_text(reason)
         unknown = changes.keys() - _ALLOWED_MOVE_UPDATES
         if unknown:
             raise ValueError(f"Unsupported move-job updates: {', '.join(sorted(unknown))}")
@@ -740,7 +1112,7 @@ class SQLCatalog(Catalog):
                 .where(move_jobs.c.idempotency_key == idempotency_key)
                 .values(**values)
             )
-            self._insert_move_transition(
+            transition = self._insert_move_transition(
                 connection,
                 idempotency_key,
                 expected_state,
@@ -750,6 +1122,14 @@ class SQLCatalog(Catalog):
             )
             updated = self._select_move_job(connection, idempotency_key)
             assert updated is not None
+            self._insert_move_audit_event(
+                connection,
+                updated,
+                transition,
+                owner_id=owner_id,
+                audit_context=audit_context,
+                updates=changes,
+            )
             return updated
 
     def commit_move_job_placement(
@@ -762,6 +1142,7 @@ class SQLCatalog(Catalog):
         checksum: str,
         now: str,
         lease_expires_at: str,
+        audit_context: AuditContext | None = None,
     ) -> MoveJob:
         validate_move_job_transition(MoveJobState.VERIFIED, MoveJobState.COMMITTED)
         validate_catalog_size(size)
@@ -803,7 +1184,7 @@ class SQLCatalog(Catalog):
                     updated_at=now,
                 )
             )
-            self._insert_move_transition(
+            transition = self._insert_move_transition(
                 connection,
                 idempotency_key,
                 MoveJobState.VERIFIED,
@@ -813,6 +1194,13 @@ class SQLCatalog(Catalog):
             )
             updated = self._select_move_job(connection, idempotency_key)
             assert updated is not None
+            self._insert_move_audit_event(
+                connection,
+                updated,
+                transition,
+                owner_id=owner_id,
+                audit_context=audit_context,
+            )
             return updated
 
     def register_tier(self, name: str, metadata: Mapping[str, object] | None = None) -> None:
@@ -913,6 +1301,136 @@ class SQLCatalog(Catalog):
             SQLCatalog._move_job_from_row(row) for row in connection.execute(statement).mappings()
         ]
 
+    def _insert_move_audit_event(
+        self,
+        connection: Connection,
+        job: MoveJob,
+        transition: MoveJobTransition,
+        *,
+        owner_id: str,
+        audit_context: AuditContext | None,
+        updates: Mapping[str, Any] | None = None,
+    ) -> AuditEvent:
+        previous_event_id = self._latest_sql_move_audit_event_id(
+            connection,
+            job.idempotency_key,
+        )
+        context = Catalog._move_audit_context(
+            job.idempotency_key,
+            owner_id=owner_id,
+            audit_context=audit_context,
+            causation_id=(
+                previous_event_id
+                if previous_event_id is not None
+                else None
+                if audit_context is None
+                else audit_context.causation_id
+            ),
+        )
+        event_type = AuditEventType.MOVE_TRANSITIONED
+        outcome = AuditOutcome.SUCCEEDED
+        if transition.to_state == MoveJobState.PREPARED:
+            event_type = AuditEventType.MOVE_PREPARED
+            outcome = AuditOutcome.STARTED
+        elif transition.to_state == MoveJobState.COMPLETED:
+            event_type = AuditEventType.MOVE_COMPLETED
+        elif transition.to_state == MoveJobState.FAILED:
+            event_type = AuditEventType.MOVE_FAILED
+            outcome = AuditOutcome.FAILED
+
+        details: dict[str, Any] = {
+            "transition_sequence": transition.sequence,
+            "from_state": (None if transition.from_state is None else transition.from_state.value),
+            "to_state": transition.to_state.value,
+            "reason": transition.reason,
+            "src_tier": job.src_tier,
+            "dst_tier": job.dst_tier,
+            "expected_size": job.expected_size,
+        }
+        for name, value in (updates or {}).items():
+            if name in _ALLOWED_MOVE_UPDATES:
+                details[name] = list(value) if isinstance(value, tuple) else value
+        event = AuditEvent.create(
+            event_type,
+            outcome,
+            context,
+            event_id=stable_audit_event_id(
+                "move-transition",
+                job.idempotency_key,
+                str(transition.sequence),
+            ),
+            occurred_at=transition.created_at,
+            recorded_at=transition.created_at,
+            retention=self.audit_retention,
+            bucket=job.bucket,
+            object_key=job.key,
+            move_id=job.idempotency_key,
+            details=details,
+        )
+        return self._insert_audit_event(connection, self._prepare_audit_event(event))
+
+    def _insert_move_retry_audit_event(
+        self,
+        connection: Connection,
+        previous_job: MoveJob,
+        claimed_job: MoveJob,
+        *,
+        owner_id: str,
+        audit_context: AuditContext | None,
+    ) -> AuditEvent:
+        previous_event_id = self._latest_sql_move_audit_event_id(
+            connection,
+            claimed_job.idempotency_key,
+        )
+        context = Catalog._move_audit_context(
+            claimed_job.idempotency_key,
+            owner_id=owner_id,
+            audit_context=audit_context,
+            causation_id=(
+                previous_event_id
+                if previous_event_id is not None
+                else None
+                if audit_context is None
+                else audit_context.causation_id
+            ),
+        )
+        event = AuditEvent.create(
+            AuditEventType.MOVE_RETRY,
+            AuditOutcome.RETRYING,
+            context,
+            event_id=stable_audit_event_id(
+                "move-retry",
+                claimed_job.idempotency_key,
+                previous_event_id or "",
+                claimed_job.updated_at,
+                owner_id,
+            ),
+            occurred_at=claimed_job.updated_at,
+            recorded_at=claimed_job.updated_at,
+            retention=self.audit_retention,
+            bucket=claimed_job.bucket,
+            object_key=claimed_job.key,
+            move_id=claimed_job.idempotency_key,
+            details={
+                "state": claimed_job.state.value,
+                "previous_owner": previous_job.owner_id,
+                "lease_expires_at": previous_job.lease_expires_at,
+            },
+        )
+        return self._insert_audit_event(connection, self._prepare_audit_event(event))
+
+    @staticmethod
+    def _latest_sql_move_audit_event_id(
+        connection: Connection,
+        move_id: str,
+    ) -> str | None:
+        event_id = connection.execute(
+            sa.select(audit_move_heads.c.last_event_id).where(
+                audit_move_heads.c.move_id == audit_text_identity(move_id)
+            )
+        ).scalar_one_or_none()
+        return None if event_id is None else str(event_id)
+
     @staticmethod
     def _insert_move_transition(
         connection: Connection,
@@ -921,7 +1439,7 @@ class SQLCatalog(Catalog):
         to_state: MoveJobState,
         reason: str,
         now: str,
-    ) -> None:
+    ) -> MoveJobTransition:
         next_sequence = connection.execute(
             sa.select(sa.func.coalesce(sa.func.max(move_job_transitions.c.sequence), 0) + 1).where(
                 move_job_transitions.c.idempotency_key == idempotency_key
@@ -936,6 +1454,14 @@ class SQLCatalog(Catalog):
                 reason=reason,
                 created_at=now,
             )
+        )
+        return MoveJobTransition(
+            sequence=next_sequence,
+            idempotency_key=idempotency_key,
+            from_state=from_state,
+            to_state=to_state,
+            reason=reason,
+            created_at=now,
         )
 
     @staticmethod

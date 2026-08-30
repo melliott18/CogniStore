@@ -4,6 +4,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 
+from cognistore.core.audit import AuditRetentionPolicy
 from cognistore.core.catalog import CatalogStore
 
 from .catalog import SQLCatalog
@@ -32,8 +33,14 @@ def open_catalog(
     *,
     read_only: bool = False,
     migrate: bool = True,
+    audit_retention: AuditRetentionPolicy | None = None,
 ) -> CatalogStore:
-    return SQLCatalog(locator, read_only=read_only, migrate=migrate)
+    return SQLCatalog(
+        locator,
+        read_only=read_only,
+        migrate=migrate,
+        audit_retention=audit_retention,
+    )
 
 
 def catalog_locator_is_postgres(locator: str | Path) -> bool:

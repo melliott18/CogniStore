@@ -148,3 +148,97 @@ move_job_transitions = sa.Table(
     sa.Column("reason", NulSafeText(), nullable=False),
     sa.Column("created_at", sa.Text(), nullable=False),
 )
+
+audit_events = sa.Table(
+    "audit_events",
+    metadata,
+    sa.Column("event_id", uuid_type, primary_key=True),
+    sa.Column("schema_version", sa.Integer(), nullable=False),
+    sa.Column("event_type", sa.Text(), nullable=False),
+    sa.Column("outcome", sa.Text(), nullable=False),
+    sa.Column("occurred_at", sa.Text(), nullable=False),
+    sa.Column("recorded_at", sa.Text(), nullable=False),
+    sa.Column("expires_at", sa.Text()),
+    sa.Column("correlation_id", NulSafeText(), nullable=False),
+    sa.Column("causation_id", uuid_type),
+    sa.Column("actor_type", sa.Text(), nullable=False),
+    sa.Column("actor_id", NulSafeText(), nullable=False),
+    sa.Column("bucket", NulSafeText()),
+    sa.Column("object_key", NulSafeText()),
+    sa.Column("job_id", NulSafeText()),
+    sa.Column("move_id", NulSafeText()),
+    sa.Column("move_sequence", sa.BigInteger()),
+    sa.Column("policy_name", NulSafeText()),
+    sa.Column("policy_version", NulSafeText()),
+    sa.Column("details", json_type, nullable=False, server_default=sa.text("'{}'")),
+    sa.CheckConstraint(
+        "schema_version > 0",
+        name="audit_event_schema_version_positive",
+    ),
+    sa.CheckConstraint(
+        "(bucket IS NULL AND object_key IS NULL) OR "
+        "(bucket IS NOT NULL AND object_key IS NOT NULL)",
+        name="audit_event_object_coordinates_complete",
+    ),
+    sa.CheckConstraint(
+        "move_sequence IS NULL OR move_sequence > 0",
+        name="audit_event_move_sequence_positive",
+    ),
+    sa.UniqueConstraint(
+        "move_id",
+        "move_sequence",
+        name="uq_audit_events_move_sequence",
+    ),
+)
+audit_move_heads = sa.Table(
+    "audit_move_heads",
+    metadata,
+    sa.Column("move_id", NulSafeText(), primary_key=True),
+    sa.Column("last_sequence", sa.BigInteger(), nullable=False),
+    sa.Column("last_event_id", uuid_type, nullable=False),
+    sa.CheckConstraint(
+        "last_sequence > 0",
+        name="audit_move_head_sequence_positive",
+    ),
+)
+audit_event_tombstones = sa.Table(
+    "audit_event_tombstones",
+    metadata,
+    sa.Column("event_id", uuid_type, primary_key=True),
+    sa.Column("replay_digest", sa.Text(), nullable=False),
+    sa.Column("causation_id", uuid_type),
+    sa.Column("expires_at", sa.Text()),
+    sa.CheckConstraint(
+        "length(replay_digest) = 64",
+        name="audit_event_tombstone_digest_length",
+    ),
+)
+sa.Index(
+    "audit_events_correlation_idx",
+    audit_events.c.correlation_id,
+    audit_events.c.occurred_at,
+    audit_events.c.event_id,
+)
+sa.Index(
+    "audit_events_job_idx",
+    audit_events.c.job_id,
+    audit_events.c.occurred_at,
+)
+sa.Index(
+    "audit_events_move_idx",
+    audit_events.c.move_id,
+    audit_events.c.occurred_at,
+)
+sa.Index(
+    "audit_events_object_idx",
+    audit_events.c.bucket,
+    audit_events.c.object_key,
+    audit_events.c.occurred_at,
+)
+sa.Index(
+    "audit_events_type_idx",
+    audit_events.c.event_type,
+    audit_events.c.outcome,
+    audit_events.c.occurred_at,
+)
+sa.Index("audit_events_expiry_idx", audit_events.c.expires_at)
