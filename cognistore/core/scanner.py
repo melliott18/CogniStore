@@ -87,6 +87,7 @@ def scan_catalog(
                 "path": stat.get("path"),
                 "sha256": indexed.sha256,
                 "mime": indexed.mime,
+                "mime_detection": indexed.mime_detection.to_metadata(),
                 "sample_len": len(indexed.sample),
             },
             fence=fence,

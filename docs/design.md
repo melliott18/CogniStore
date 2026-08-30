@@ -51,6 +51,26 @@ large-object scans store a first-megabyte sample under an ambiguous `sha256`
 name and can replace metadata. M2 #34 must introduce full-object, streaming,
 versioned checksums/chunks/CAS mappings without weakening scan fences.
 
+MIME detection is content-first. The indexing adapter asks libmagic to inspect
+the sampled bytes and uses Python's filename inference only when libmagic is
+unavailable, fails for that object, or returns no usable type. A libmagic
+result wins when it disagrees with the filename. Scans retain the selected
+type in the compatibility `mime` field and persist a versioned
+`mime_detection` record containing both candidates, detector, provenance,
+qualitative confidence, status, fallback reason, and disagreement. Confidence
+is a CogniStore trust tier rather than a probability reported by libmagic;
+generic binary/empty types and filename guesses are low confidence.
+Disagreement is the literal inequality of the content and filename MIME
+candidates. Filename compression encoding is retained separately because it
+can describe an outer layer while the filename MIME describes inner content.
+
+The `python-magic` wrapper requires the native libmagic library. CogniStore's
+container images include it; host installations must provide their platform's
+compatible libmagic package or library as described in the README. If the
+native library is missing, indexing remains available through the recorded
+filename fallback; one failed detection never aborts the rest of a catalog
+scan.
+
 ## Queue and worker contract
 
 Delivery is at least once. A versioned JSON envelope carries one stable job ID,

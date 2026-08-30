@@ -29,7 +29,10 @@ ENV LANG=C.UTF-8 \
 
 ARG COGNISTORE_UID=10001
 ARG COGNISTORE_GID=10001
-RUN groupadd --gid "${COGNISTORE_GID}" cognistore \
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libmagic1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid "${COGNISTORE_GID}" cognistore \
     && useradd \
         --uid "${COGNISTORE_UID}" \
         --gid "${COGNISTORE_GID}" \
