@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from cognistore.core.audit import AuditEventType, AuditQuery
 from cognistore.core.catalog import Catalog
 from cognistore.core.move_jobs import (
     MoveJobFailedError,
@@ -168,6 +169,123 @@ def test_policy_handler_moves_and_tolerates_duplicate_delivery(tmp_path: Path) -
         catalog.close()
 
 
+def test_policy_handler_correlates_worker_decisions_and_moves(tmp_path: Path) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    data = b"audited policy move"
+    warm.put_object("bucket", "one.txt", data)
+    catalog = Catalog()
+    catalog.upsert("bucket", "one.txt", len(data), "warm")
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        policy_job_payload(
+            bucket="bucket",
+            prefix="",
+            policy="simple",
+            threshold=len(data),
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+        ),
+        job_id="00000000-0000-4000-8000-000000000031",
+        correlation_id="policy-correlation-31",
+    )
+
+    handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
+    asyncio.run(handler(job, _context()))
+
+    events = catalog.list_audit_events(
+        AuditQuery(correlation_id=job.correlation_id, job_id=job.job_id)
+    )
+    decision = next(
+        event for event in events if event.event_type == AuditEventType.POLICY_DECISION.value
+    )
+    move_events = [
+        event
+        for event in events
+        if event.move_id is not None and event.event_type != AuditEventType.POLICY_DECISION.value
+    ]
+
+    assert decision.actor_type == "worker"
+    assert decision.actor_id == job.job_id
+    assert decision.policy_name == "simple"
+    assert decision.policy_version == "1"
+    assert move_events
+    assert decision.move_id == move_events[0].move_id
+    assert move_events[0].causation_id == decision.event_id
+    assert [event.causation_id for event in move_events[1:]] == [
+        event.event_id for event in move_events[:-1]
+    ]
+    assert move_events[-1].event_type == AuditEventType.MOVE_COMPLETED.value
+    assert all(event.actor_type == "worker" for event in move_events)
+    assert all(event.actor_id == job.job_id for event in move_events)
+    assert all(event.job_id == job.job_id for event in move_events)
+    assert hot.get_object("bucket", "one.txt") == data
+
+
+def test_policy_handler_uses_job_audit_context_for_move_recovery(tmp_path: Path) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    data = b"audited recovery"
+    warm.put_object("bucket", "recover.txt", data)
+    catalog = Catalog()
+    catalog.upsert("bucket", "recover.txt", len(data), "warm")
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        policy_job_payload(
+            bucket="bucket",
+            prefix="",
+            policy="simple",
+            threshold=len(data),
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+        ),
+        job_id="00000000-0000-4000-8000-000000000032",
+        correlation_id="policy-recovery-correlation-31",
+    )
+    move_id = f"{job.job_id}:recovery"
+    source_metadata = warm.stat_object("bucket", "recover.txt")
+    catalog.claim_move_job(
+        move_id,
+        src_tier="warm",
+        dst_tier="hot",
+        bucket="bucket",
+        key="recover.txt",
+        expected_size=len(data),
+        source_metadata=source_metadata,
+        owner_id="crashed-worker",
+        now="2000-01-01T00:00:00.000000Z",
+        lease_expires_at="2000-01-01T00:00:01.000000Z",
+    )
+
+    handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
+    asyncio.run(handler(job, _context()))
+
+    recovery_events = [
+        event
+        for event in catalog.list_audit_events(AuditQuery(move_id=move_id))
+        if event.event_type != AuditEventType.MOVE_PREPARED.value
+    ]
+    assert any(event.event_type == AuditEventType.MOVE_RETRY.value for event in recovery_events)
+    assert any(event.event_type == AuditEventType.MOVE_COMPLETED.value for event in recovery_events)
+    assert all(event.correlation_id == job.correlation_id for event in recovery_events)
+    assert all(event.actor_type == "worker" for event in recovery_events)
+    assert all(event.actor_id == job.job_id for event in recovery_events)
+    assert all(event.job_id == job.job_id for event in recovery_events)
+    assert hot.get_object("bucket", "recover.txt") == data
+
+
 def test_policy_recovery_queries_only_its_nonterminal_move_namespace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -275,9 +393,7 @@ def test_policy_handler_isolates_failed_recovery_from_later_healthy_job(
 
     try:
         handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
-        with pytest.raises(
-            MoveJobFailedError, match="01-missing"
-        ) as recovery_failure:
+        with pytest.raises(MoveJobFailedError, match="01-missing") as recovery_failure:
             asyncio.run(handler(job, _context()))
         assert isinstance(recovery_failure.value.__cause__, FileNotFoundError)
 
@@ -413,9 +529,7 @@ def test_concurrent_duplicate_policy_deliveries_use_distinct_move_owners(
         )
 
         first = asyncio.create_task(handler(job, _context()))
-        await asyncio.wait_for(
-            _wait_for_thread_event(started), timeout=coordination_timeout
-        )
+        await asyncio.wait_for(_wait_for_thread_event(started), timeout=coordination_timeout)
         second = asyncio.create_task(handler(job, _context()))
         try:
             with pytest.raises(MoveJobLeaseError):
@@ -445,11 +559,26 @@ def test_duplicate_with_published_destination_retries_live_move_lease(
         release_transition = threading.Event()
         original_transition = Mover._transition
 
-        def block_first_transfer_transition(mover, move, to_state, reason, *, updates=None):
+        def block_first_transfer_transition(
+            mover,
+            move,
+            to_state,
+            reason,
+            *,
+            updates=None,
+            audit_context=None,
+        ):
             if move.state == MoveJobState.PREPARED:
                 transition_started.set()
                 assert release_transition.wait(timeout=2)
-            return original_transition(mover, move, to_state, reason, updates=updates)
+            return original_transition(
+                mover,
+                move,
+                to_state,
+                reason,
+                updates=updates,
+                audit_context=audit_context,
+            )
 
         monkeypatch.setattr(Mover, "_transition", block_first_transfer_transition)
         handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]

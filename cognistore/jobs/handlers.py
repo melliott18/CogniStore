@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, AsyncContextManager, Callable, Protocol
 from uuid import uuid4
 
+from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
 from cognistore.core.mover import Mover
@@ -22,6 +23,7 @@ from .runtime import JobHandler
 LOGGER = logging.getLogger(__name__)
 CATALOG_SCAN_JOB = "catalog.scan"
 POLICY_RUN_JOB = "policy.run"
+POLICY_AUDIT_VERSION = "1"
 
 
 class MoveThroughputController(Protocol):
@@ -158,7 +160,12 @@ def build_handlers(
             if not admitted:
                 admission_slots.release()
 
-    async def recover_moves(mover: Mover, idempotency_prefix: str) -> None:
+    async def recover_moves(
+        mover: Mover,
+        idempotency_prefix: str,
+        *,
+        audit_context: AuditContext | None = None,
+    ) -> None:
         nonterminal_states = {
             state for state in MoveJobState if not state.terminal
         }
@@ -184,6 +191,7 @@ def build_handlers(
                     move.bucket,
                     move.key,
                     idempotency_key=move.idempotency_key,
+                    audit_context=audit_context,
                 )
             except MoveJobLeaseError:
                 raise
@@ -328,6 +336,12 @@ def build_handlers(
             warm_mime_prefixes=_strings(job.payload, "warm_mime_prefixes"),
             cold_mime_prefixes=_strings(job.payload, "cold_mime_prefixes"),
         )
+        audit_context = AuditContext(
+            correlation_id=job.correlation_id,
+            actor_type="worker",
+            actor_id=job.job_id,
+            job_id=job.job_id,
+        )
         # Each delivery owns a distinct catalog lease. Reusing one process-wide
         # owner would let concurrent duplicate deliveries bypass exclusivity.
         mover = Mover(
@@ -335,8 +349,13 @@ def build_handlers(
             catalog,
             owner_id=f"{job.job_id}:{uuid4()}",
             throughput=throughput,
+            audit_context=audit_context,
         )
-        await recover_moves(mover, f"{job.job_id}:")
+        await recover_moves(
+            mover,
+            f"{job.job_id}:",
+            audit_context=audit_context,
+        )
         runner = PolicyRunner(
             catalog,
             dict(drivers),
@@ -344,6 +363,10 @@ def build_handlers(
             policy,
             allowed_tiers=allowed_tiers,
             idempotency_namespace=job.job_id,
+            policy_name=policy_name,
+            policy_version=POLICY_AUDIT_VERSION,
+            audit_context=audit_context,
+            audit_occurred_at=job.created_at,
         )
         actions = await _run_blocking_safely(
             runner.plan_once,

@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from cognistore.core.audit import AuditContext, AuditEventType, AuditQuery
 from cognistore.core.catalog import Catalog
 from cognistore.core.mover import Mover
 from cognistore.core.policy import PolicyDecision, SimplePolicy
@@ -171,6 +173,45 @@ def test_policy_runner_execution_is_completed_and_mutates_placement(tmp_path: Pa
     assert record is not None
     assert record.tier == "warm"
     assert record.size == len(data)
+
+
+def test_policy_decision_replay_is_idempotent_before_execution(tmp_path: Path) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    drivers = {"hot": hot, "warm": warm}
+    catalog = Catalog()
+    data = b"123456"
+    hot.put_object("bk", "large.bin", data)
+    catalog.upsert("bk", "large.bin", len(data), tier="hot")
+    context = AuditContext(
+        correlation_id="replayed-policy-31",
+        actor_type="worker",
+        actor_id="00000000-0000-4000-8000-000000000031",
+        job_id="00000000-0000-4000-8000-000000000031",
+    )
+    runner = PolicyRunner(
+        catalog,
+        drivers,
+        Mover(drivers, catalog),
+        SimplePolicy(size_threshold=5),
+        idempotency_namespace=context.job_id,
+        policy_name="simple",
+        policy_version="1",
+        audit_context=context,
+        audit_occurred_at=datetime(2026, 8, 29, tzinfo=timezone.utc),
+    )
+
+    first = runner.plan_once("bk")
+    second = runner.plan_once("bk")
+
+    assert first[0].decision_event_id == second[0].decision_event_id
+    decisions = catalog.list_audit_events(
+        AuditQuery(
+            correlation_id=context.correlation_id,
+            event_types=frozenset({AuditEventType.POLICY_DECISION}),
+        )
+    )
+    assert len(decisions) == 1
 
 
 def test_policy_runner_preflights_entire_batch_before_moving(tmp_path: Path):

@@ -41,6 +41,7 @@ _GLOBAL_KEYS = (
     "dead_letter_stream",
     "dead_letter_subject",
     "dead_letter_max_age",
+    "audit_retention_max_age",
     "json",
     "dry_run",
     "verbose",
@@ -59,7 +60,9 @@ _STRING_KEYS = frozenset(
         "dead_letter_subject",
     }
 )
-_FLOAT_KEYS = frozenset({"ack_wait", "dead_letter_max_age"})
+_FLOAT_KEYS = frozenset(
+    {"ack_wait", "dead_letter_max_age", "audit_retention_max_age"}
+)
 _INTEGER_KEYS = frozenset({"stream_max_messages", "stream_max_bytes"})
 _BOOLEAN_KEYS = frozenset({"json", "dry_run", "verbose"})
 _PROFILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

@@ -11,6 +11,15 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Awaitable, Callable, Mapping, Protocol
 
+from cognistore.core.audit import (
+    AuditContext,
+    AuditEvent,
+    AuditEventType,
+    AuditOutcome,
+    stable_audit_event_id,
+)
+from cognistore.core.catalog import CatalogStore
+
 from .models import (
     ATTEMPT_OFFSET_METADATA,
     REDRIVE_COUNT_METADATA,
@@ -24,7 +33,7 @@ from .models import (
     QueueHealth,
 )
 from .protocols import JobDelivery, JobQueue
-from .retry import RandomSource, RetryPolicy, classify_job_error
+from .retry import ErrorClassification, RandomSource, RetryPolicy, classify_job_error
 
 LOGGER = logging.getLogger(__name__)
 JobHandler = Callable[[JobEnvelope, JobContext], Awaitable[None]]
@@ -196,6 +205,7 @@ class AsyncWorker:
         monotonic: Callable[[], float] | None = None,
         throughput: Any | None = None,
         coordinator: JobCoordinator | None = None,
+        audit_catalog: CatalogStore | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("at least one job handler is required")
@@ -208,6 +218,7 @@ class AsyncWorker:
         self._monotonic = monotonic or time.monotonic
         self._throughput = throughput
         self._coordinator = coordinator
+        self._audit_catalog = audit_catalog
         self.state = WorkerState.STOPPED
         self.accepting_claims = False
         self.last_error: str | None = None
@@ -485,6 +496,221 @@ class AsyncWorker:
             return 0
         return max(0, parsed)
 
+    def _cumulative_attempt(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+    ) -> int:
+        attempt_offset = (
+            self._metadata_integer(job, ATTEMPT_OFFSET_METADATA)
+            if job is not None
+            else 0
+        )
+        return attempt_offset + delivery.attempt
+
+    def _audit_delivery_details(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+        classification: ErrorClassification,
+    ) -> dict[str, Any]:
+        """Return secret-safe structured facts about one failed delivery.
+
+        Exception messages, tracebacks, payloads, raw delivery bytes, and
+        headers are deliberately excluded. Catalog implementations apply their
+        normal recursive redaction to the remaining free-text fields.
+        """
+
+        source_stream = str(
+            getattr(delivery, "source_stream", None)
+            or self._last_health.stream
+            or "unknown"
+        )
+        source_consumer = str(
+            getattr(delivery, "source_consumer", None)
+            or self._last_health.consumer
+            or "worker"
+        )
+        return {
+            "job_type": job.job_type if job is not None else None,
+            "attempt": delivery.attempt,
+            "cumulative_attempt": self._cumulative_attempt(delivery, job),
+            "max_attempts": self._retry_policy.max_attempts,
+            "redelivered": delivery.attempt > 1,
+            "retryable": classification.retryable,
+            "category": classification.category.value,
+            "classification_reason": classification.reason,
+            "source_stream": source_stream,
+            "source_consumer": source_consumer,
+            "stream_sequence": delivery.stream_sequence,
+            "consumer_sequence": delivery.consumer_sequence,
+        }
+
+    async def _append_job_audit_event(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+        *,
+        event_type: AuditEventType,
+        outcome: AuditOutcome,
+        details: Mapping[str, Any],
+        causation_id: str | None = None,
+    ) -> AuditEvent | None:
+        """Persist one worker event before the corresponding settlement."""
+
+        if self._audit_catalog is None:
+            return None
+
+        source_stream = str(
+            getattr(delivery, "source_stream", None)
+            or self._last_health.stream
+            or "unknown"
+        )
+        source_consumer = str(
+            getattr(delivery, "source_consumer", None)
+            or self._last_health.consumer
+            or "worker"
+        )
+        job_identity = job.job_id if job is not None else "malformed"
+        event_id = stable_audit_event_id(
+            "worker-delivery",
+            event_type.value,
+            job_identity,
+            source_stream,
+            str(delivery.stream_sequence),
+            source_consumer,
+            str(delivery.consumer_sequence),
+            str(self._cumulative_attempt(delivery, job)),
+        )
+        correlation_id = (
+            job.correlation_id
+            if job is not None
+            else stable_audit_event_id(
+                "worker-malformed-correlation",
+                source_stream,
+                str(delivery.stream_sequence),
+            )
+        )
+        occurred_at = self._clock()
+        try:
+            event = AuditEvent.create(
+                event_type,
+                outcome,
+                AuditContext(
+                    correlation_id=correlation_id,
+                    causation_id=causation_id,
+                    actor_type="worker",
+                    actor_id=source_consumer,
+                    job_id=job.job_id if job is not None else None,
+                ),
+                event_id=event_id,
+                occurred_at=occurred_at,
+                recorded_at=occurred_at,
+                details=details,
+            )
+            return await asyncio.to_thread(
+                self._audit_catalog.append_audit_event,
+                event,
+            )
+        except BaseException as audit_error:
+            LOGGER.critical(
+                "job audit persistence failed; leaving delivery unsettled",
+                extra={
+                    "job_id": job.job_id if job is not None else None,
+                    "attempt": delivery.attempt,
+                    "event_type": event_type.value,
+                    "stream_sequence": delivery.stream_sequence,
+                },
+                exc_info=(
+                    type(audit_error),
+                    audit_error,
+                    audit_error.__traceback__,
+                ),
+            )
+            self._set_failure(audit_error)
+            raise
+
+    async def _record_failure_audit(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+        exc: Exception,
+        classification: ErrorClassification,
+    ) -> AuditEvent | None:
+        details = self._audit_delivery_details(delivery, job, classification)
+        details["exception_type"] = (
+            f"{type(exc).__module__}.{type(exc).__qualname__}"
+        )
+        return await self._append_job_audit_event(
+            delivery,
+            job,
+            event_type=AuditEventType.JOB_FAILURE,
+            outcome=AuditOutcome.FAILED,
+            details=details,
+        )
+
+    async def _record_retry_audit(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+        classification: ErrorClassification,
+        failure_event: AuditEvent | None,
+        *,
+        delay: float,
+        deferred_without_exhaustion: bool,
+        throughput_saturated: bool,
+    ) -> AuditEvent | None:
+        details = self._audit_delivery_details(delivery, job, classification)
+        details.update(
+            {
+                "next_attempt": details["cumulative_attempt"] + 1,
+                "retry_delay_seconds": delay,
+                "deferred_without_exhaustion": deferred_without_exhaustion,
+                "throughput_saturated": throughput_saturated,
+            }
+        )
+        return await self._append_job_audit_event(
+            delivery,
+            job,
+            event_type=AuditEventType.JOB_RETRY,
+            outcome=AuditOutcome.RETRYING,
+            causation_id=(failure_event.event_id if failure_event is not None else None),
+            details=details,
+        )
+
+    async def _settle_retry(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope | None,
+        classification: ErrorClassification,
+        failure_event: AuditEvent | None,
+        execution: JobExecution | None,
+        heartbeat_stop: asyncio.Event,
+        heartbeat_task: asyncio.Task[None] | None,
+        *,
+        delay: float,
+        deferred_without_exhaustion: bool = False,
+        throughput_saturated: bool = False,
+    ) -> None:
+        try:
+            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+            if execution is not None and execution.execute:
+                await execution.retry()
+            await self._record_retry_audit(
+                delivery,
+                job,
+                classification,
+                failure_event,
+                delay=delay,
+                deferred_without_exhaustion=deferred_without_exhaustion,
+                throughput_saturated=throughput_saturated,
+            )
+            await delivery.nack(delay=delay)
+            self._nacked += 1
+            self._retried += 1
+        except BaseException as settlement_error:
+            self._set_failure(settlement_error)
+
     async def _handle_job_failure(
         self,
         delivery: JobDelivery,
@@ -507,6 +733,34 @@ class AsyncWorker:
             "attempt": delivery.attempt,
             "category": classification.category.value,
         }
+        try:
+            failure_event = await self._record_failure_audit(
+                delivery,
+                job,
+                exc,
+                classification,
+            )
+        except BaseException:
+            await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+            if execution is not None and execution.execute:
+                try:
+                    # The handler is already at a safe side-effect boundary.
+                    # Release its attempt owner while leaving the source delivery
+                    # unsettled so another worker can retry audit persistence.
+                    await execution.retry()
+                except BaseException as release_error:
+                    LOGGER.critical(
+                        "job audit persistence failed and its durable owner could "
+                        "not be released; leaving delivery unsettled",
+                        extra=log_context,
+                        exc_info=(
+                            type(release_error),
+                            release_error,
+                            release_error.__traceback__,
+                        ),
+                    )
+                    self._set_failure(release_error)
+            return
 
         if getattr(exc, "fail_worker", False):
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
@@ -547,15 +801,17 @@ class AsyncWorker:
                 delay,
                 extra={**log_context, "retry_delay": delay},
             )
-            try:
-                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
-                if execution is not None and execution.execute:
-                    await execution.retry()
-                await delivery.nack(delay=delay)
-                self._nacked += 1
-                self._retried += 1
-            except BaseException as settlement_error:
-                self._set_failure(settlement_error)
+            await self._settle_retry(
+                delivery,
+                job,
+                classification,
+                failure_event,
+                execution,
+                heartbeat_stop,
+                heartbeat_task,
+                delay=delay,
+                deferred_without_exhaustion=True,
+            )
             return
 
         if getattr(exc, "throughput_saturated", False):
@@ -571,15 +827,17 @@ class AsyncWorker:
                 delay,
                 extra={**log_context, "retry_delay": delay},
             )
-            try:
-                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
-                if execution is not None and execution.execute:
-                    await execution.retry()
-                await delivery.nack(delay=delay)
-                self._nacked += 1
-                self._retried += 1
-            except BaseException as settlement_error:
-                self._set_failure(settlement_error)
+            await self._settle_retry(
+                delivery,
+                job,
+                classification,
+                failure_event,
+                execution,
+                heartbeat_stop,
+                heartbeat_task,
+                delay=delay,
+                throughput_saturated=True,
+            )
             return
 
         if classification.retryable and delivery.attempt < self._retry_policy.max_attempts:
@@ -594,15 +852,16 @@ class AsyncWorker:
                 extra={**log_context, "retry_delay": delay},
                 exc_info=(type(exc), exc, exc.__traceback__),
             )
-            try:
-                await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
-                if execution is not None and execution.execute:
-                    await execution.retry()
-                await delivery.nack(delay=delay)
-                self._nacked += 1
-                self._retried += 1
-            except BaseException as settlement_error:
-                self._set_failure(settlement_error)
+            await self._settle_retry(
+                delivery,
+                job,
+                classification,
+                failure_event,
+                execution,
+                heartbeat_stop,
+                heartbeat_task,
+                delay=delay,
+            )
             return
 
         disposition = (
@@ -627,6 +886,29 @@ class AsyncWorker:
             )
             receipt = await self.queue.publish_dead_letter(record)
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
+            dead_letter_details = self._audit_delivery_details(
+                delivery,
+                job,
+                classification,
+            )
+            dead_letter_details.update(
+                {
+                    "disposition": disposition.value,
+                    "dead_letter_id": receipt.dead_letter_id,
+                    "dead_letter_stream": receipt.stream,
+                    "dead_letter_sequence": receipt.sequence,
+                }
+            )
+            await self._append_job_audit_event(
+                delivery,
+                job,
+                event_type=AuditEventType.JOB_DEAD_LETTERED,
+                outcome=AuditOutcome.FAILED,
+                causation_id=(
+                    failure_event.event_id if failure_event is not None else None
+                ),
+                details=dead_letter_details,
+            )
             if execution is not None and execution.execute:
                 await execution.dead_letter(disposition)
         except BaseException as dead_letter_error:

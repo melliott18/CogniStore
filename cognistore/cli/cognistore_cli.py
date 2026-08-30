@@ -34,6 +34,14 @@ from cognistore.cli.output import (
 	redact_text,
 	result_payload,
 )
+from cognistore.core.audit import (
+	DEFAULT_AUDIT_RETENTION_MAX_AGE,
+	AuditContext,
+	AuditEvent,
+	AuditEventType,
+	AuditOutcome,
+	AuditRetentionPolicy,
+)
 from cognistore.core.catalog import Catalog, CatalogStore
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
 from cognistore.core.mover import Mover
@@ -139,6 +147,7 @@ _CLI_VALUE_OPTIONS = {
 	"--dead-letter-stream": "dead_letter_stream",
 	"--dead-letter-subject": "dead_letter_subject",
 	"--dead-letter-max-age": "dead_letter_max_age",
+	"--audit-retention-max-age": "audit_retention_max_age",
 	"--json": "json",
 	"--no-json": "json",
 	"--dry-run": "dry_run",
@@ -451,6 +460,46 @@ def _move_job_payload(job: MoveJob) -> dict[str, object]:
 		"created_at": job.created_at,
 		"updated_at": job.updated_at,
 	}
+
+
+def _record_manual_action(
+	catalog: CatalogStore,
+	*,
+	correlation_id: str,
+	operation: str,
+	bucket: str | None = None,
+	object_key: str | None = None,
+	move_id: str | None = None,
+	policy_name: str | None = None,
+	policy_version: str | None = None,
+	details: dict[str, object] | None = None,
+) -> AuditContext:
+	"""Persist an operator request and return the context for its consequences."""
+
+	base_context = AuditContext(
+		correlation_id=correlation_id,
+		actor_type="operator",
+		actor_id="cognistore-cli",
+	)
+	event = catalog.append_audit_event(
+		AuditEvent.create(
+			AuditEventType.MANUAL_ACTION,
+			AuditOutcome.REQUESTED,
+			base_context,
+			bucket=bucket,
+			object_key=object_key,
+			move_id=move_id,
+			policy_name=policy_name,
+			policy_version=policy_version,
+			details={"operation": operation, **(details or {})},
+		)
+	)
+	return AuditContext(
+		correlation_id=base_context.correlation_id,
+		actor_type=base_context.actor_type,
+		actor_id=base_context.actor_id,
+		causation_id=event.event_id,
+	)
 
 
 def _move_transition_payload(transition: MoveJobTransition) -> dict[str, object]:
@@ -812,6 +861,7 @@ async def _serve_worker(
 			max_in_flight=getattr(args, "max_in_flight", 1),
 		),
 		throughput=throughput,
+		audit_catalog=catalog,
 		coordinator=ScheduledRunCoordinator(
 			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
 		),
@@ -1018,7 +1068,11 @@ def _run_cli(
 		*,
 		read_only: bool = False,
 	) -> CatalogStore:
-		opened = open_catalog(locator, read_only=read_only)
+		opened = open_catalog(
+			locator,
+			read_only=read_only,
+			audit_retention=audit_retention,
+		)
 		close = getattr(opened, "close", None)
 		if callable(close):
 			catalog_stack.callback(close)
@@ -1095,6 +1149,12 @@ def _run_cli(
 		default=DEFAULT_DEAD_LETTER_MAX_AGE,
 		help="Seconds to retain immutable dead-letter diagnostics",
 	)
+	parser.add_argument(
+		"--audit-retention-max-age",
+		type=float,
+		default=DEFAULT_AUDIT_RETENTION_MAX_AGE,
+		help="Seconds to retain operational audit events before pruning",
+	)
 	sub = parser.add_subparsers(dest="cmd", required=True)
 
 	def command(name: str, **kwargs: Any) -> argparse.ArgumentParser:
@@ -1145,6 +1205,7 @@ def _run_cli(
 			("--stream-max-messages", "stream_max_messages", int),
 			("--stream-max-bytes", "stream_max_bytes", int),
 			("--dead-letter-max-age", "dead_letter_max_age", float),
+			("--audit-retention-max-age", "audit_retention_max_age", float),
 		):
 			command_parser.add_argument(
 				option,
@@ -1351,6 +1412,10 @@ def _run_cli(
 
 	parser.set_defaults(**resolution.values)
 	args = parser.parse_args(argv)
+	try:
+		audit_retention = AuditRetentionPolicy(args.audit_retention_max_age)
+	except ValueError as exc:
+		parser.error(str(exc))
 	args.cmd = _canonical_command(args.cmd)
 	type(parser).command_hint = args.cmd
 	args.profile = resolution.profile
@@ -1372,6 +1437,7 @@ def _run_cli(
 		"dead_letter_stream",
 		"dead_letter_subject",
 		"dead_letter_max_age",
+		"audit_retention_max_age",
 		"json",
 		"dry_run",
 		"verbose",
@@ -1879,13 +1945,13 @@ def _run_cli(
 			parser.error("--catalog-db must already exist for policy-run --dry-run")
 		catalog = open_sql_catalog(args.catalog_db, read_only=True)
 	elif args.catalog_db and args.cmd in {"move", "move-resume"} and dry_run:
-		catalog = Catalog()
+		catalog = Catalog(audit_retention=audit_retention)
 	elif args.cmd == "catalog-scan" and dry_run:
 		catalog = None
 	elif args.catalog_db:
 		catalog = open_sql_catalog(args.catalog_db)
 	else:
-		catalog = Catalog()
+		catalog = Catalog(audit_retention=audit_retention)
 
 	if args.cmd == "scheduler":
 		if dry_run:
@@ -2047,13 +2113,22 @@ def _run_cli(
 			and existing_move_job.state == MoveJobState.COMPLETED
 		)
 		would_resume = existing_move_job is not None and not already_completed
-		mv = Mover(drivers, catalog)
 		verification = None
 		move_key = args.idempotency_key
 		if dry_run:
 			status: Literal["planned", "completed"] = "planned"
 		else:
 			move_key = move_key or str(uuid4())
+			audit_context = _record_manual_action(
+				catalog,
+				correlation_id=move_key,
+				operation="move",
+				bucket=args.bucket,
+				object_key=args.key,
+				move_id=move_key,
+				details={"source_tier": args.src, "destination_tier": args.dst},
+			)
+			mv = Mover(drivers, catalog, audit_context=audit_context)
 			verification = mv.move(
 				args.src,
 				args.dst,
@@ -2146,6 +2221,18 @@ def _run_cli(
 			)
 			close_catalog(catalog)
 			return 0
+		audit_context = _record_manual_action(
+			catalog,
+			correlation_id=existing_move_job.idempotency_key,
+			operation="move-resume",
+			bucket=existing_move_job.bucket,
+			object_key=existing_move_job.key,
+			move_id=existing_move_job.idempotency_key,
+			details={
+				"source_tier": existing_move_job.src_tier,
+				"destination_tier": existing_move_job.dst_tier,
+			},
+		)
 		if existing_move_job.state == MoveJobState.COMPLETED:
 			_emit_result(
 				"move-resume",
@@ -2159,7 +2246,7 @@ def _run_cli(
 			)
 			close_catalog(catalog)
 			return 0
-		mv = Mover(drivers, catalog)
+		mv = Mover(drivers, catalog, audit_context=audit_context)
 		verification = mv.move(
 			existing_move_job.src_tier,
 			existing_move_job.dst_tier,
@@ -2571,8 +2658,29 @@ def _run_cli(
 			cold_mime_prefixes=args.cold_mime or (),
 		)
 		assert catalog is not None
-		mv = Mover(drivers, catalog)
-		runner = PolicyRunner(catalog, drivers, mv, policy, allowed_tiers=allowed)
+		run_id = str(uuid4())
+		policy_audit_context: AuditContext | None = None
+		if not dry_run:
+			policy_audit_context = _record_manual_action(
+				catalog,
+				correlation_id=run_id,
+				operation="policy-run",
+				policy_name=args.policy,
+				policy_version="1",
+				details={"bucket": args.bucket, "prefix": args.prefix},
+			)
+		mv = Mover(drivers, catalog, audit_context=policy_audit_context)
+		runner = PolicyRunner(
+			catalog,
+			drivers,
+			mv,
+			policy,
+			allowed_tiers=allowed,
+			idempotency_namespace=run_id,
+			policy_name=args.policy,
+			policy_version="1",
+			audit_context=policy_audit_context,
+		)
 		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)
 		_render_actions(
 			actions,

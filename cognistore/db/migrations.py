@@ -10,6 +10,8 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy.engine import Connection, Engine
 
+from cognistore.core.audit import AuditRetentionPolicy
+
 # Alembic installs module-level proxy objects while a command runs, so command
 # environments cannot safely overlap within one Python process even when they
 # target different databases.
@@ -19,13 +21,20 @@ _ALEMBIC_COMMAND_LOCK = threading.RLock()
 class MigrationManager:
     """Run and inspect CogniStore's owned catalog migration chain."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        audit_retention: AuditRetentionPolicy | None = None,
+    ) -> None:
         self.script_location = Path(__file__).with_name("migrations")
+        self.audit_retention = audit_retention
 
     def config(self, connection: Connection | None = None) -> Config:
         config = Config()
         config.set_main_option("script_location", str(self.script_location))
         config.set_main_option("prepend_sys_path", str(self.script_location.parent.parent.parent))
+        if self.audit_retention is not None:
+            config.attributes["audit_retention"] = self.audit_retention
         if connection is not None:
             config.attributes["connection"] = connection
         return config
@@ -106,6 +115,9 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
     return all(
         inspector.has_table(table)
         for table in (
+            "audit_events",
+            "audit_move_heads",
+            "audit_event_tombstones",
             "catalog_schema_features",
             "move_job_claim_fences",
             "move_job_transitions",

@@ -78,6 +78,7 @@ defaults:
   stream_max_messages: 10000
   stream_max_bytes: 1073741824
   dead_letter_max_age: 2592000
+  audit_retention_max_age: 2592000
   json: false
   dry_run: false
   verbose: false
@@ -146,6 +147,7 @@ forms are global options:
 | `dead_letter_stream` | `--dead-letter-stream NAME` | `COGNISTORE_DEAD_LETTER_STREAM` | `<job-stream>_DLQ` |
 | `dead_letter_subject` | `--dead-letter-subject SUBJECT` | `COGNISTORE_DEAD_LETTER_SUBJECT` | `<job-subject>.dead` |
 | `dead_letter_max_age` | `--dead-letter-max-age SECONDS` | `COGNISTORE_DEAD_LETTER_MAX_AGE` | `2592000` (30 days) |
+| `audit_retention_max_age` | `--audit-retention-max-age SECONDS` | `COGNISTORE_AUDIT_RETENTION_MAX_AGE` | `2592000` (30 days) |
 | `json` | `--json` / `--no-json` | `COGNISTORE_JSON` | `false` |
 | `dry_run` | `--dry-run` / `--no-dry-run` | `COGNISTORE_DRY_RUN` | `false` |
 | `verbose` | `-v` / `--verbose` / `--no-verbose` | `COGNISTORE_VERBOSE` | `false` |

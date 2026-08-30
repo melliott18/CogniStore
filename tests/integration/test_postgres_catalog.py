@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 
 from cognistore.cli import cognistore_cli
+from cognistore.core.audit import (
+    AuditContext,
+    AuditEvent,
+    AuditEventType,
+    AuditOutcome,
+    AuditQuery,
+)
 from cognistore.core.catalog import Catalog, CatalogStore, ObjectRecord
 from cognistore.core.move_jobs import (
     MoveJob,
@@ -36,6 +44,9 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
         inspector = sa.inspect(catalog.engine)
         assert {
             "alembic_version",
+            "audit_events",
+            "audit_move_heads",
+            "audit_event_tombstones",
             "catalog_schema_features",
             "move_job_claim_fences",
             "move_job_transitions",
@@ -68,6 +79,36 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
 
         assert vector_version
         assert tuple(feature) == (True, True)
+
+
+def test_postgres_audit_round_trip_query_and_retention(postgres_dsn: str) -> None:
+    occurred_at = datetime(2026, 8, 29, 12, tzinfo=timezone.utc)
+    event = AuditEvent.create(
+        AuditEventType.JOB_RETRY,
+        AuditOutcome.RETRYING,
+        AuditContext(
+            correlation_id="request\0postgres-31",
+            actor_type="worker",
+            actor_id="worker\0postgres",
+            job_id="job\0postgres-31",
+        ),
+        occurred_at=occurred_at,
+        recorded_at=occurred_at,
+        details={"attempt": 2, "category": "transient"},
+    )
+
+    with SQLCatalog(postgres_dsn) as catalog:
+        stored = catalog.append_audit_event(event)
+        assert catalog.get_audit_event(event.event_id) == stored
+        assert catalog.list_audit_events(
+            AuditQuery(
+                correlation_id=event.correlation_id,
+                job_id=event.job_id,
+                event_types=frozenset({AuditEventType.JOB_RETRY}),
+            )
+        ) == [stored]
+        assert catalog.prune_expired_audit_events(datetime(2026, 10, 1, tzinfo=timezone.utc)) == 1
+        assert catalog.get_audit_event(event.event_id) is None
 
 
 def test_postgres_failed_migration_rolls_back_schema_and_extension(

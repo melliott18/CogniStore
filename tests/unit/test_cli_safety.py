@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from cognistore.cli import cognistore_cli
+from cognistore.core.audit import AuditEventType, AuditQuery
 from cognistore.core.catalog import Catalog
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.jobs.models import EnqueueReceipt, QueueSaturatedError
@@ -26,7 +27,7 @@ def _configured_policy_run(
     catalog = Catalog()
     catalog.upsert(BUCKET, KEY, len(DATA), tier="warm")
 
-    monkeypatch.setattr(cognistore_cli, "Catalog", lambda: catalog)
+    monkeypatch.setattr(cognistore_cli, "Catalog", lambda **_kwargs: catalog)
     monkeypatch.setattr(
         cognistore_cli,
         "load_drivers",
@@ -117,11 +118,53 @@ def test_policy_output_distinguishes_planned_from_completed(
         assert warm.get_object(BUCKET, KEY) == DATA
         with pytest.raises(FileNotFoundError):
             hot.get_object(BUCKET, KEY)
+        assert catalog.list_audit_events() == []
     else:
         assert record.tier == "hot"
         assert hot.get_object(BUCKET, KEY) == DATA
         with pytest.raises(FileNotFoundError):
             warm.get_object(BUCKET, KEY)
+        events = catalog.list_audit_events()
+        assert events[0].event_type == AuditEventType.MANUAL_ACTION.value
+        assert any(event.event_type == AuditEventType.POLICY_DECISION.value for event in events)
+        assert events[-1].event_type == AuditEventType.MOVE_COMPLETED.value
+
+
+def test_direct_move_records_manual_and_terminal_move_chain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    catalog, hot, warm = _configured_policy_run(tmp_path, monkeypatch)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--drivers",
+                "ignored.yaml",
+                "move",
+                "warm",
+                "hot",
+                BUCKET,
+                KEY,
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    move_id = payload["idempotency_key"]
+    assert payload["idempotency_key"] == move_id
+    events = catalog.list_audit_events(AuditQuery(correlation_id=move_id))
+    assert events[0].event_type == AuditEventType.MANUAL_ACTION.value
+    assert events[0].actor_type == "operator"
+    move_events = [event for event in events if event.move_id == move_id][1:]
+    assert move_events[0].causation_id == events[0].event_id
+    assert move_events[-1].event_type == AuditEventType.MOVE_COMPLETED.value
+    assert hot.get_object(BUCKET, KEY) == DATA
+    with pytest.raises(FileNotFoundError):
+        warm.get_object(BUCKET, KEY)
 
 
 def test_direct_move_dry_run_is_planned_and_does_not_create_catalog(

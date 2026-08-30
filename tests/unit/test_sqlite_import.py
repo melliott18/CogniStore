@@ -7,9 +7,20 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
+from cognistore.core.audit import (
+    AuditContext,
+    AuditEvent,
+    AuditEventType,
+    AuditOutcome,
+    AuditQuery,
+    AuditRetentionPolicy,
+)
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db.catalog import SQLCatalog
 from cognistore.db.schema import (
+    audit_event_tombstones,
+    audit_events,
+    audit_move_heads,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
@@ -163,7 +174,10 @@ def test_imports_legacy_objects_move_jobs_and_transition_history(tmp_path: Path)
     source = tmp_path / "legacy.db"
     _create_legacy_catalog(source)
     source_bytes = source.read_bytes()
-    destination = SQLCatalog(tmp_path / "destination.db")
+    destination = SQLCatalog(
+        tmp_path / "destination.db",
+        audit_retention=AuditRetentionPolicy(None),
+    )
 
     report = import_sqlite_catalog(source, destination, batch_size=1)
 
@@ -175,6 +189,7 @@ def test_imports_legacy_objects_move_jobs_and_transition_history(tmp_path: Path)
         placements=1,
         move_jobs=1,
         move_job_transitions=2,
+        audit_events=2,
     )
     record = destination.get("bucket", "reports/annual.pdf")
     assert record is not None
@@ -201,10 +216,68 @@ def test_imports_legacy_objects_move_jobs_and_transition_history(tmp_path: Path)
         "move prepared",
         "source cleanup was fenced",
     ]
+    audit_chain = destination.list_audit_events(
+        AuditQuery(move_id="move:annual-report")
+    )
+    assert [event.event_type for event in audit_chain] == [
+        AuditEventType.MOVE_PREPARED.value,
+        AuditEventType.MOVE_FAILED.value,
+    ]
+    assert audit_chain[1].causation_id == audit_chain[0].event_id
+    assert all(event.expires_at is None for event in audit_chain)
 
     assert "scheduled_runs" not in sa.inspect(destination.engine).get_table_names()
     assert source.read_bytes() == source_bytes
     destination.close()
+
+
+def test_import_redacts_legacy_move_diagnostics_before_destination_persistence(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "legacy-secrets.db"
+    _create_legacy_catalog(source)
+    with sqlite3.connect(source) as connection:
+        connection.execute(
+            "UPDATE move_jobs SET verification_details = ?, terminal_reason = ?",
+            (
+                json.dumps(
+                    [
+                        "token=opaque-secret",
+                        "Authorization: Bearer abc.def.ghi",
+                    ]
+                ),
+                "password=hunter2",
+            ),
+        )
+        connection.execute(
+            "UPDATE move_job_transitions SET reason = ? WHERE sequence = 2",
+            ("password=transition-secret",),
+        )
+
+    with SQLCatalog(tmp_path / "redacted-destination.db") as destination:
+        import_sqlite_catalog(source, destination)
+        job = destination.get_move_job("move:annual-report")
+        assert job is not None
+        transitions = destination.list_move_job_transitions("move:annual-report")
+        events = destination.list_audit_events(
+            AuditQuery(move_id="move:annual-report")
+        )
+        persisted = repr(
+            (
+                job.verification_details,
+                job.terminal_reason,
+                [transition.reason for transition in transitions],
+                [event.details for event in events],
+            )
+        )
+
+    for secret in (
+        "opaque-secret",
+        "abc.def.ghi",
+        "hunter2",
+        "transition-secret",
+    ):
+        assert secret not in persisted
 
 
 def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) -> None:
@@ -233,6 +306,7 @@ def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) ->
         now="2026-08-02T00:00:00.000000Z",
         lease_expires_at="2026-08-02T00:01:00.000000Z",
     )
+    source_audit_events = source.list_audit_events()
 
     with source.engine.connect() as connection:
         source_object = connection.execute(sa.select(objects)).mappings().one()
@@ -249,6 +323,7 @@ def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) ->
         placements=1,
         move_jobs=1,
         move_job_transitions=1,
+        audit_events=1,
     )
     with destination.engine.connect() as connection:
         imported_tier = connection.execute(sa.select(tiers)).mappings().one()
@@ -266,9 +341,202 @@ def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) ->
     assert imported_placement["placement_id"] == source_placement["placement_id"]
     assert _table_count(destination, object_mutation_fences) == 1
     assert _table_count(destination, move_job_claim_fences) == 1
+    assert _table_count(destination, audit_move_heads) == 1
+    assert destination.list_audit_events() == source_audit_events
 
     destination.close()
     source.close()
+
+
+def test_import_preserves_a_move_head_after_all_its_events_were_pruned(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "pruned-head-source.db"
+    first = AuditEvent.create(
+        AuditEventType.MANUAL_ACTION,
+        AuditOutcome.REQUESTED,
+        AuditContext(
+            correlation_id="pruned-import-31",
+            actor_type="operator",
+            actor_id="test",
+        ),
+        event_id="00000000-0000-0000-0000-000000000101",
+        occurred_at="2026-08-01T00:00:00.000000Z",
+        recorded_at="2026-08-01T00:00:00.000000Z",
+        retention=AuditRetentionPolicy(None),
+        bucket="bucket",
+        object_key="object",
+        move_id="pruned-import-31",
+    )
+    with SQLCatalog(
+        source_path,
+        audit_retention=AuditRetentionPolicy(None),
+    ) as source:
+        stored_first = source.append_audit_event(first)
+        assert source.prune_audit_events("2026-08-02T00:00:00.000000Z") == 1
+        assert source.list_audit_events() == []
+
+    with SQLCatalog(
+        tmp_path / "pruned-head-destination.db",
+        audit_retention=AuditRetentionPolicy(None),
+    ) as destination:
+        report = import_sqlite_catalog(source_path, destination)
+        assert report.audit_events == 0
+        second = AuditEvent.create(
+            AuditEventType.MOVE_RETRY,
+            AuditOutcome.RETRYING,
+            AuditContext(
+                correlation_id="pruned-import-31",
+                actor_type="worker",
+                actor_id="test",
+            ),
+            event_id="00000000-0000-0000-0000-000000000102",
+            occurred_at="2026-08-03T00:00:00.000000Z",
+            recorded_at="2026-08-03T00:00:00.000000Z",
+            retention=AuditRetentionPolicy(None),
+            bucket="bucket",
+            object_key="object",
+            move_id="pruned-import-31",
+        )
+        stored_second = destination.append_audit_event(second)
+        assert stored_second.causation_id == stored_first.event_id
+        assert destination.append_audit_event(first) == stored_first
+        assert destination.list_audit_events() == [stored_second]
+        with destination.engine.connect() as connection:
+            head = connection.execute(sa.select(audit_move_heads)).mappings().one()
+            tombstones = connection.execute(
+                sa.select(sa.func.count()).select_from(audit_event_tombstones)
+            ).scalar_one()
+        assert head["last_sequence"] == 2
+        assert tombstones == 1
+
+
+def test_import_rejects_a_noncanonical_tombstone_expiry(tmp_path: Path) -> None:
+    source_path = tmp_path / "invalid-tombstone-expiry-source.db"
+    event = AuditEvent.create(
+        AuditEventType.MANUAL_ACTION,
+        AuditOutcome.REQUESTED,
+        AuditContext(
+            correlation_id="invalid-tombstone-expiry-31",
+            actor_type="operator",
+            actor_id="test",
+        ),
+        event_id="00000000-0000-0000-0000-000000000104",
+        occurred_at="2026-08-01T00:00:00.000000Z",
+        recorded_at="2026-08-01T00:00:00.000000Z",
+        retention=AuditRetentionPolicy(None),
+        bucket="bucket",
+        object_key="object",
+        move_id="invalid-tombstone-expiry-31",
+    )
+    with SQLCatalog(
+        source_path,
+        audit_retention=AuditRetentionPolicy(None),
+    ) as source:
+        source.append_audit_event(event)
+        assert source.prune_audit_events("2026-08-02T00:00:00.000000Z") == 1
+    with sqlite3.connect(source_path) as source:
+        source.execute(
+            "UPDATE audit_event_tombstones SET expires_at = ?",
+            ("password=hunter2",),
+        )
+
+    with SQLCatalog(tmp_path / "invalid-tombstone-expiry-destination.db") as destination:
+        with pytest.raises(
+            SQLiteCatalogImportError,
+            match="expires_at must be an ISO-8601 timestamp",
+        ):
+            import_sqlite_catalog(source_path, destination)
+        assert _table_count(destination, audit_event_tombstones) == 0
+
+
+def test_import_accepts_catalog_owned_identifier_pseudonyms(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "pseudonym-source.db"
+    original = AuditEvent.create(
+        AuditEventType.JOB_FAILURE,
+        AuditOutcome.FAILED,
+        AuditContext(
+            correlation_id="password=correlation-secret",
+            actor_type="worker",
+            actor_id="token=actor-secret",
+            job_id="secret=job-secret",
+        ),
+        event_id="00000000-0000-0000-0000-000000000103",
+        occurred_at="2026-08-01T00:00:00.000000Z",
+        recorded_at="2026-08-01T00:00:00.000000Z",
+        retention=AuditRetentionPolicy(None),
+    )
+    with SQLCatalog(
+        source_path,
+        audit_retention=AuditRetentionPolicy(None),
+    ) as source:
+        stored_source = source.append_audit_event(original)
+
+    with SQLCatalog(
+        tmp_path / "pseudonym-destination.db",
+        audit_retention=AuditRetentionPolicy(None),
+    ) as destination:
+        report = import_sqlite_catalog(source_path, destination)
+        imported = destination.list_audit_events(
+            AuditQuery(
+                correlation_id=original.correlation_id,
+                job_id=original.job_id,
+            )
+        )
+
+    assert report.audit_events == 1
+    assert imported == [stored_source]
+
+
+def test_import_rejects_a_partial_current_audit_schema(tmp_path: Path) -> None:
+    source_path = tmp_path / "partial-audit-source.db"
+    with SQLCatalog(source_path):
+        pass
+    with sqlite3.connect(source_path) as source:
+        source.execute("DROP TABLE audit_move_heads")
+
+    with SQLCatalog(tmp_path / "partial-audit-destination.db") as destination:
+        with pytest.raises(
+            SQLiteCatalogImportError,
+            match="audit_events, audit_move_heads, and audit_event_tombstones",
+        ):
+            import_sqlite_catalog(source_path, destination)
+        assert _table_count(destination, audit_event_tombstones) == 0
+        assert _table_count(destination, audit_events) == 0
+        assert _table_count(destination, audit_move_heads) == 0
+
+
+def test_import_rejects_a_current_move_journal_without_its_audit_head(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "missing-current-head-source.db"
+    with SQLCatalog(source_path) as source:
+        source.claim_move_job(
+            "missing-head-31",
+            src_tier="hot",
+            dst_tier="warm",
+            bucket="bucket",
+            key="object",
+            expected_size=1,
+            source_metadata={"generation": "source:v1"},
+            owner_id="worker",
+            now="2026-08-01T00:00:00.000000Z",
+            lease_expires_at="2026-08-01T00:01:00.000000Z",
+        )
+        with source.engine.begin() as connection:
+            connection.execute(sa.delete(audit_events))
+            connection.execute(sa.delete(audit_move_heads))
+
+    with SQLCatalog(tmp_path / "missing-current-head-destination.db") as destination:
+        with pytest.raises(
+            SQLiteCatalogImportError,
+            match="missing its durable audit head",
+        ):
+            import_sqlite_catalog(source_path, destination)
+        assert _table_count(destination, move_jobs) == 0
+        assert _table_count(destination, audit_events) == 0
 
 
 def test_failed_import_rolls_back_every_destination_table(tmp_path: Path) -> None:
@@ -292,6 +560,9 @@ def test_failed_import_rolls_back_every_destination_table(tmp_path: Path) -> Non
         move_job_claim_fences,
         move_jobs,
         move_job_transitions,
+        audit_event_tombstones,
+        audit_events,
+        audit_move_heads,
     ):
         assert _table_count(destination, table) == 0
     destination.close()
