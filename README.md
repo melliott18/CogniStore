@@ -41,6 +41,14 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
+Content-aware MIME detection uses the native libmagic library. The Docker
+images include it; for host development install `libmagic1` on Debian/Ubuntu
+or `file-libs` on Fedora/RHEL, or install `libmagic` with Homebrew. Windows
+host installs need a compatible libmagic DLL visible to `python-magic`;
+without one, and whenever libmagic cannot be loaded on any platform, scans
+continue with filename-based inference and record that fallback in catalog
+provenance.
+
 - Run the same quality gates used by pull requests:
 
 ```bash

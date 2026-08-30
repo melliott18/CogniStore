@@ -123,6 +123,11 @@ def test_catalog_scan_handler_indexes_into_worker_catalog(tmp_path: Path) -> Non
         assert record is not None
         assert record.tier == "hot"
         assert record.metadata["mime"] == "text/plain"
+        assert record.metadata["mime_detection"]["schema_version"] == 1
+        assert record.metadata["mime_detection"]["detector"] in {
+            "libmagic",
+            "filename",
+        }
         assert record.metadata["sample_len"] == len(b"hello worker")
     finally:
         catalog.close()
