@@ -4,9 +4,11 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Platform foundation
 
-- [ ] Persistent control plane
-  - [ ] Migrate catalog to Postgres + pgvector; add migrations and a small DAL
-  - [ ] Event/audit tables for moves, policy decisions, failures, retries
+- [x] Persistent control plane
+  - [x] Migrate catalog to Postgres + pgvector; add migrations and a small DAL
+    ([#30](https://github.com/melliott18/CogniStore/issues/30))
+  - [x] Event/audit tables for moves, policy decisions, failures, retries
+    ([#31](https://github.com/melliott18/CogniStore/issues/31))
 - [ ] Queue + scheduler
   - [x] Message bus (NATS JetStream) and background workers
   - [x] Periodic scheduler for scans and policy passes, with a repair-job extension point
@@ -15,8 +17,10 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 ## Indexing and knowledge layer
 
 - [ ] Rich extraction
-  - [ ] Use libmagic (python-magic) for robust MIME detection
-  - [ ] Document parsing (PDF/DOCX) pipeline (textract or Apache Tika)
+  - [x] Use libmagic (python-magic) for robust MIME detection
+    ([#32](https://github.com/melliott18/CogniStore/issues/32))
+  - [ ] **Active:** document parsing (PDF/DOCX) pipeline
+    ([#33](https://github.com/melliott18/CogniStore/issues/33))
   - [ ] Chunking and checksum/dedup pipeline (CAS keys by sha256)
 - [ ] Embeddings + search
   - [ ] Sentence-transformers or API embeddings → pgvector
@@ -118,6 +122,9 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed and is retained on `main`; #29, #16, and the M1 milestone are closed
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
+  - Progress: the data foundation (#30–#32) is complete;
+    [#33](https://github.com/melliott18/CogniStore/issues/33) is the active
+    delivery ticket
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
 - [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
   - Success: Automated, explainable actions under budget constraints; no tier flapping
