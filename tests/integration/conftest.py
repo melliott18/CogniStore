@@ -56,7 +56,9 @@ def postgres_dsn() -> Iterator[str]:
     created = False
     try:
         with admin_engine.connect() as connection:
-            connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
+            connection.exec_driver_sql(
+                f"CREATE DATABASE {quoted_database} TEMPLATE template0"
+            )
         created = True
         yield _PostgresDsn(test_url.render_as_string(hide_password=False))
     finally:
