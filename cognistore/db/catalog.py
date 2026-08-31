@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator, Mapping
+from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -428,7 +429,7 @@ class SQLCatalog(Catalog):
             key=row["object_key"],
             size=row["size"],
             tier=row["tier_name"],
-            metadata=dict(row["metadata"] or {}),
+            metadata=deepcopy(dict(row["metadata"] or {})),
         )
 
     def get(self, bucket: str, key: str) -> ObjectRecord | None:
@@ -527,16 +528,15 @@ class SQLCatalog(Catalog):
 
     def list(self, bucket: str, prefix: str = "") -> list[ObjectRecord]:
         with self._connection() as connection:
-            statement = (
-                self._object_select()
-                .where(
-                    objects.c.bucket == bucket,
-                    self._literal_prefix(connection, objects.c.object_key, prefix),
-                )
-                .order_by(objects.c.object_key)
+            statement = self._object_select().where(
+                objects.c.bucket == bucket,
+                self._literal_prefix(connection, objects.c.object_key, prefix),
             )
             rows = connection.execute(statement).mappings().all()
-        return [self._record(row) for row in rows]
+        records = [self._record(row) for row in rows]
+        # Normalize after fetching so database collation cannot change the
+        # backend-neutral ordering contract.
+        return sorted(records, key=lambda record: record.key)
 
     def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append one redacted event, idempotently by event UUID."""

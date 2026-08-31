@@ -34,6 +34,14 @@ from .move_jobs import (
 
 @dataclass
 class ObjectRecord:
+	"""A mutable, caller-owned snapshot of one catalog object.
+
+	Catalog stores own their persisted state and recursively copy metadata at
+	write and read boundaries.  Callers may freely mutate a returned record or
+	its nested metadata, but those changes are local to that snapshot; persisting
+	a change requires an explicit :class:`CatalogStore` mutation method.
+	"""
+
 	bucket: str
 	key: str
 	size: int
@@ -78,7 +86,11 @@ def validate_catalog_size(value: object, *, field: str = "size") -> int:
 
 
 class CatalogStore(Protocol):
-	"""Backend-neutral persistence contract for catalog state."""
+	"""Backend-neutral persistence contract for catalog state.
+
+	``get()`` and ``list()`` return detached :class:`ObjectRecord` snapshots.
+	``list()`` returns matching records in ascending key order.
+	"""
 
 	def upsert(
 		self,
@@ -248,7 +260,7 @@ class Catalog(CatalogStore):
 				key=key,
 				size=size,
 				tier=tier,
-				metadata=metadata or {},
+				metadata=deepcopy(metadata) if metadata is not None else {},
 			)
 			self._objects[(bucket, key)] = rec
 
@@ -300,13 +312,14 @@ class Catalog(CatalogStore):
 				key=key,
 				size=size,
 				tier=tier,
-				metadata=metadata or {},
+				metadata=deepcopy(metadata) if metadata is not None else {},
 			)
 			return True
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
 		with self._lock:
-			return self._objects.get((bucket, key))
+			record = self._objects.get((bucket, key))
+			return None if record is None else self._copy_object_record(record)
 
 	def update_placement(self, bucket: str, key: str, tier: str) -> None:
 		with self._lock:
@@ -329,7 +342,7 @@ class Catalog(CatalogStore):
 		validate_catalog_size(size)
 		with self._lock:
 			rec = self._objects.get((bucket, key))
-			metadata = dict(rec.metadata) if rec is not None else {}
+			metadata = deepcopy(rec.metadata) if rec is not None else {}
 			if checksum is not None:
 				metadata["sha256"] = checksum
 			self._objects[(bucket, key)] = ObjectRecord(
@@ -346,13 +359,21 @@ class Catalog(CatalogStore):
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]:
 		with self._lock:
-			out: List[ObjectRecord] = []
-			for (b, k), rec in self._objects.items():
-				if b != bucket:
-					continue
-				if k.startswith(prefix):
-					out.append(rec)
-			return out
+			records = sorted(
+				(
+					record
+					for (record_bucket, key), record in self._objects.items()
+					if record_bucket == bucket and key.startswith(prefix)
+				),
+				key=lambda record: record.key,
+			)
+			return [self._copy_object_record(record) for record in records]
+
+	@staticmethod
+	def _copy_object_record(record: ObjectRecord) -> ObjectRecord:
+		"""Copy one record without preserving aliases to mutable fields."""
+
+		return deepcopy(record)
 
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent:
 		"""Append one redacted event, idempotently by event UUID."""

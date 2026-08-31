@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,8 +30,16 @@ from cognistore.db.engine import normalize_database_url
 from cognistore.db.schema import object_placements, objects, pools, tiers
 from cognistore.db.sqlite_import import import_sqlite_catalog
 from cognistore.drivers.posix_driver import PosixDriver
+from tests.conformance.catalog_store import CatalogStoreConformance
 
 pytestmark = pytest.mark.integration
+
+
+class TestPostgresCatalogConformance(CatalogStoreConformance):
+    @pytest.fixture
+    def catalog(self, postgres_dsn: str) -> Iterator[CatalogStore]:
+        with SQLCatalog(postgres_dsn) as catalog:
+            yield catalog
 
 
 def test_postgres_clean_install_has_normalized_schema_and_pgvector(
