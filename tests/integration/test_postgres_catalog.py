@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import threading
+import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -25,14 +29,58 @@ from cognistore.core.move_jobs import (
     MoveJobState,
     MoveJobTransition,
 )
-from cognistore.db import MigrationManager, SQLCatalog
+from cognistore.db import (
+    CatalogSchemaNotInstalledError,
+    CatalogSchemaOutdatedError,
+    MigrationManager,
+    SQLCatalog,
+)
 from cognistore.db.engine import normalize_database_url
-from cognistore.db.schema import object_placements, objects, pools, tiers
+from cognistore.db.schema import (
+    object_mutation_fences,
+    object_placements,
+    objects,
+    pools,
+    tiers,
+)
 from cognistore.db.sqlite_import import import_sqlite_catalog
 from cognistore.drivers.posix_driver import PosixDriver
+from tests.catalog_fixtures import create_prototype_sqlite_catalog
 from tests.conformance.catalog_store import CatalogStoreConformance
 
 pytestmark = pytest.mark.integration
+
+_CATALOG_TABLES = {
+    "alembic_version",
+    "audit_events",
+    "audit_move_heads",
+    "audit_event_tombstones",
+    "catalog_schema_features",
+    "move_job_claim_fences",
+    "move_job_transitions",
+    "move_jobs",
+    "object_mutation_fences",
+    "object_placements",
+    "objects",
+    "pools",
+    "tiers",
+}
+
+_CONCURRENT_INITIALIZER = """
+import os
+import sys
+from pathlib import Path
+
+from cognistore.db import MigrationManager, SQLCatalog
+
+Path(os.environ["COGNISTORE_TEST_INITIALIZER_READY"]).touch()
+if sys.stdin.buffer.read(1) != b"!":
+    raise RuntimeError("initializer start signal was not received")
+
+with SQLCatalog(os.environ["COGNISTORE_TEST_INITIALIZER_DSN"]) as catalog:
+    if not MigrationManager().is_at_head(catalog.engine):
+        raise RuntimeError("initializer did not observe the migration head")
+"""
 
 
 class TestPostgresCatalogConformance(CatalogStoreConformance):
@@ -51,21 +99,7 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
         assert manager.is_at_head(catalog.engine)
 
         inspector = sa.inspect(catalog.engine)
-        assert {
-            "alembic_version",
-            "audit_events",
-            "audit_move_heads",
-            "audit_event_tombstones",
-            "catalog_schema_features",
-            "move_job_claim_fences",
-            "move_job_transitions",
-            "move_jobs",
-            "object_mutation_fences",
-            "object_placements",
-            "objects",
-            "pools",
-            "tiers",
-        } <= set(inspector.get_table_names())
+        assert _CATALOG_TABLES <= set(inspector.get_table_names())
         assert {"object_id", "bucket", "object_key", "size", "metadata"} <= {
             column["name"] for column in inspector.get_columns("objects")
         }
@@ -88,6 +122,205 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
 
         assert vector_version
         assert tuple(feature) == (True, True)
+
+
+def test_concurrent_postgres_initializers_reach_one_complete_migration_head(
+    postgres_dsn: str,
+    tmp_path: Path,
+) -> None:
+    worker_count = 8
+    worker_environment = os.environ.copy()
+    worker_environment["COGNISTORE_TEST_INITIALIZER_DSN"] = postgres_dsn
+    processes: list[subprocess.Popen[bytes]] = []
+    results: list[tuple[int, bytes, bytes]] = []
+    ready_paths = [tmp_path / f"initializer-{index}.ready" for index in range(worker_count)]
+
+    try:
+        for ready_path in ready_paths:
+            process_environment = worker_environment.copy()
+            process_environment["COGNISTORE_TEST_INITIALIZER_READY"] = str(ready_path)
+            processes.append(
+                subprocess.Popen(
+                    [sys.executable, "-c", _CONCURRENT_INITIALIZER],
+                    env=process_environment,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            )
+
+        ready_deadline = time.monotonic() + 30
+        while not all(path.exists() for path in ready_paths):
+            early_exits = [
+                index
+                for index, process in enumerate(processes)
+                if process.poll() is not None
+            ]
+            if early_exits:
+                raise AssertionError(
+                    f"initializers exited before the start barrier: {early_exits}"
+                )
+            if time.monotonic() >= ready_deadline:
+                raise TimeoutError("initializers did not reach the start barrier")
+            time.sleep(0.01)
+
+        # Every child has imported the application and now blocks on this byte,
+        # so all SQLCatalog constructors contend on the PostgreSQL advisory lock.
+        for process in processes:
+            assert process.stdin is not None
+            process.stdin.write(b"!")
+            process.stdin.flush()
+
+        for process in processes:
+            stdout, stderr = process.communicate(timeout=45)
+            results.append((process.returncode, stdout, stderr))
+    finally:
+        for process in processes:
+            if process.stdin is not None and not process.stdin.closed:
+                process.stdin.close()
+            if process.poll() is None:
+                process.kill()
+        for process in processes:
+            process.wait(timeout=5)
+
+    failures = [
+        f"initializer {index} exited {returncode}:\n"
+        f"stdout:\n{stdout.decode(errors='replace')}\n"
+        f"stderr:\n{stderr.decode(errors='replace')}"
+        for index, (returncode, stdout, stderr) in enumerate(results)
+        if returncode != 0
+    ]
+    assert failures == []
+
+    manager = MigrationManager()
+    with SQLCatalog(postgres_dsn, migrate=False) as catalog:
+        heads = manager.heads()
+        assert len(heads) == 1
+        assert manager.current(catalog.engine) == heads[0]
+        assert set(sa.inspect(catalog.engine).get_table_names()) == _CATALOG_TABLES
+        with catalog.engine.connect() as connection:
+            assert connection.exec_driver_sql(
+                "SELECT version_num FROM alembic_version"
+            ).scalars().all() == [heads[0]]
+            assert connection.exec_driver_sql(
+                "SELECT feature, available, owned "
+                "FROM catalog_schema_features ORDER BY feature"
+            ).all() == [("pgvector", True, True)]
+
+
+def test_postgres_read_only_refuses_an_absent_schema(postgres_dsn: str) -> None:
+    engine = sa.create_engine(normalize_database_url(postgres_dsn))
+    try:
+        with pytest.raises(CatalogSchemaNotInstalledError, match="migration head"):
+            SQLCatalog(postgres_dsn, read_only=True)
+
+        assert MigrationManager().current(engine) is None
+        assert sa.inspect(engine).get_table_names() == []
+    finally:
+        engine.dispose()
+
+
+def test_postgres_read_only_refuses_an_outdated_schema(postgres_dsn: str) -> None:
+    manager = MigrationManager()
+    engine = sa.create_engine(normalize_database_url(postgres_dsn))
+    try:
+        manager.upgrade(engine, "0002_normalized_catalog")
+        tables_before_open = set(sa.inspect(engine).get_table_names())
+
+        with pytest.raises(CatalogSchemaOutdatedError, match="migration head"):
+            SQLCatalog(postgres_dsn, read_only=True)
+
+        assert manager.current(engine) == "0002_normalized_catalog"
+        assert set(sa.inspect(engine).get_table_names()) == tables_before_open
+    finally:
+        engine.dispose()
+
+
+def test_postgres_read_only_reads_at_head_and_rejects_writes(
+    postgres_dsn: str,
+) -> None:
+    with SQLCatalog(postgres_dsn) as writer:
+        writer.upsert(
+            "read-only-bucket",
+            "object",
+            size=7,
+            tier="hot",
+            metadata={"generation": "source:v1"},
+        )
+
+    with SQLCatalog(postgres_dsn, read_only=True) as reader:
+        assert reader.get("read-only-bucket", "object") == ObjectRecord(
+            bucket="read-only-bucket",
+            key="object",
+            size=7,
+            tier="hot",
+            metadata={"generation": "source:v1"},
+        )
+        with reader.engine.connect() as connection:
+            assert connection.exec_driver_sql(
+                "SHOW default_transaction_read_only"
+            ).scalar_one() == "on"
+
+        with pytest.raises(sa.exc.DBAPIError) as write_error:
+            reader.update_placement("read-only-bucket", "object", "warm")
+
+        assert getattr(write_error.value.orig, "sqlstate", None) == "25006"
+        unchanged = reader.get("read-only-bucket", "object")
+        assert unchanged is not None
+        assert unchanged.tier == "hot"
+
+
+def test_cognistore_owned_pgvector_is_removed_on_downgrade(
+    postgres_dsn: str,
+) -> None:
+    manager = MigrationManager()
+    with SQLCatalog(postgres_dsn) as catalog:
+        with catalog.engine.connect() as connection:
+            assert connection.exec_driver_sql(
+                "SELECT available, owned FROM catalog_schema_features "
+                "WHERE feature = 'pgvector'"
+            ).one() == (True, True)
+            assert connection.exec_driver_sql(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+            ).scalar_one()
+
+        manager.downgrade(catalog.engine, "0001_legacy_catalog")
+
+        assert manager.current(catalog.engine) == "0001_legacy_catalog"
+        with catalog.engine.connect() as connection:
+            assert connection.exec_driver_sql(
+                "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
+            ).scalar_one_or_none() is None
+
+
+def test_platform_provided_pgvector_is_not_owned_and_survives_downgrade(
+    postgres_dsn: str,
+) -> None:
+    manager = MigrationManager()
+    engine = sa.create_engine(normalize_database_url(postgres_dsn))
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("CREATE EXTENSION vector")
+            platform_version = connection.exec_driver_sql(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+            ).scalar_one()
+
+        with SQLCatalog(postgres_dsn) as catalog:
+            with catalog.engine.connect() as connection:
+                assert connection.exec_driver_sql(
+                    "SELECT available, owned FROM catalog_schema_features "
+                    "WHERE feature = 'pgvector'"
+                ).one() == (True, False)
+
+            manager.downgrade(catalog.engine, "0001_legacy_catalog")
+
+            assert manager.current(catalog.engine) == "0001_legacy_catalog"
+            with catalog.engine.connect() as connection:
+                assert connection.exec_driver_sql(
+                    "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+                ).scalar_one() == platform_version
+    finally:
+        engine.dispose()
 
 
 def test_postgres_audit_round_trip_query_and_retention(postgres_dsn: str) -> None:
@@ -546,6 +779,97 @@ def test_imports_normalized_sqlite_catalog_into_postgres(
             assert connection.execute(
                 sa.select(pools.c.metadata).where(pools.c.pool_id == "pool-a")
             ).scalar_one() == {"device": "nvme0\0serial"}
+
+
+def test_imports_the_prototype_sqlite_catalog_into_postgres(
+    postgres_dsn: str,
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "prototype-catalog.sqlite3"
+    create_prototype_sqlite_catalog(source_path)
+    source_before_import = source_path.read_bytes()
+
+    with SQLCatalog(postgres_dsn) as destination:
+        report = import_sqlite_catalog(source_path, destination, batch_size=1)
+
+        assert MigrationManager().is_at_head(destination.engine)
+        assert (
+            report.source_layout,
+            report.tiers,
+            report.pools,
+            report.objects,
+            report.placements,
+            report.move_jobs,
+            report.move_job_transitions,
+            report.audit_events,
+        ) == ("legacy", 2, 0, 1, 1, 1, 2, 2)
+        assert destination.get("bucket", "reports/annual.pdf") == ObjectRecord(
+            bucket="bucket",
+            key="reports/annual.pdf",
+            size=41,
+            tier="hot",
+            metadata={"labels": ["finance"], "generation": "source:v1"},
+        )
+
+        assert destination.get_move_job("move:annual-report") == MoveJob(
+            idempotency_key="move:annual-report",
+            src_tier="hot",
+            dst_tier="warm",
+            bucket="bucket",
+            key="reports/annual.pdf",
+            expected_size=41,
+            source_metadata={"generation": "source:v1"},
+            state=MoveJobState.FAILED,
+            owner_id=None,
+            lease_expires_at=None,
+            transferred_size=41,
+            source_size=41,
+            source_checksum="abc123",
+            destination_size=41,
+            destination_checksum="abc123",
+            destination_generation="destination:v1",
+            verification_details=("size matched", "checksum matched"),
+            terminal_reason="source cleanup was fenced",
+            created_at="2026-08-01T00:00:00.000000Z",
+            updated_at="2026-08-01T00:00:01.000000Z",
+        )
+
+        transitions = destination.list_move_job_transitions("move:annual-report")
+        assert [
+            (
+                transition.sequence,
+                transition.from_state,
+                transition.to_state,
+                transition.reason,
+            )
+            for transition in transitions
+        ] == [
+            (1, None, MoveJobState.PREPARED, "move prepared"),
+            (
+                2,
+                MoveJobState.PREPARED,
+                MoveJobState.FAILED,
+                "source cleanup was fenced",
+            ),
+        ]
+
+        with destination.engine.connect() as connection:
+            assert connection.execute(
+                sa.select(
+                    object_placements.c.tier_name,
+                    object_placements.c.pool_id,
+                )
+            ).one() == ("hot", None)
+            assert connection.execute(
+                sa.select(
+                    object_mutation_fences.c.bucket,
+                    object_mutation_fences.c.object_key,
+                    object_mutation_fences.c.generation,
+                )
+            ).one() == ("bucket", "reports/annual.pdf", 0)
+        assert "scheduled_runs" not in sa.inspect(destination.engine).get_table_names()
+
+    assert source_path.read_bytes() == source_before_import
 
 
 def test_keyed_cli_move_bootstraps_a_clean_postgres_catalog(

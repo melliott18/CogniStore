@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -15,6 +16,7 @@ from cognistore.core.audit import (
 )
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db import MigrationManager, SQLCatalog
+from cognistore.db.engine import create_catalog_engine
 from cognistore.db.schema import (
     audit_event_tombstones,
     audit_events,
@@ -24,6 +26,16 @@ from cognistore.db.schema import (
     pools,
     tiers,
 )
+from tests.catalog_fixtures import create_prototype_sqlite_catalog
+
+_SQLiteRows = tuple[tuple[object, ...], ...]
+_SQLiteTableSnapshots = tuple[tuple[str, _SQLiteRows], ...]
+_SQLiteSnapshot = tuple[
+    _SQLiteRows,
+    _SQLiteTableSnapshots,
+    _SQLiteTableSnapshots,
+    _SQLiteTableSnapshots,
+]
 
 
 def test_concurrent_sqlite_initialization_serializes_migrations(
@@ -47,6 +59,112 @@ def test_concurrent_sqlite_initialization_serializes_migrations(
         assert MigrationManager().is_at_head(catalog.engine)
         with catalog.engine.connect() as connection:
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+
+
+def test_failed_sqlite_migration_restores_prototype_schema_and_data(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "prototype.sqlite3"
+    create_prototype_sqlite_catalog(database)
+    source_tables = (
+        "objects",
+        "move_jobs",
+        "move_job_transitions",
+        "scheduled_runs",
+    )
+
+    def snapshot() -> _SQLiteSnapshot:
+        connection = sqlite3.connect(database)
+        try:
+            schema = tuple(
+                tuple(row)
+                for row in connection.execute(
+                    "SELECT type, name, tbl_name, sql FROM sqlite_master "
+                    "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+                ).fetchall()
+            )
+            columns = tuple(
+                (
+                    table,
+                    tuple(
+                        tuple(row)
+                        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+                    ),
+                )
+                for table in source_tables
+            )
+            rows = tuple(
+                (
+                    table,
+                    tuple(tuple(row) for row in connection.execute(f"SELECT * FROM {table}")),
+                )
+                for table in source_tables
+            )
+            source_state = tuple(
+                (
+                    pragma,
+                    tuple(tuple(row) for row in connection.execute(f"PRAGMA {pragma}")),
+                )
+                for pragma in (
+                    "application_id",
+                    "user_version",
+                    "integrity_check",
+                    "foreign_key_check",
+                )
+            )
+            return schema, columns, rows, source_state
+        finally:
+            connection.close()
+
+    before_snapshot = snapshot()
+    before_bytes = database.read_bytes()
+    before_schema, before_columns, _before_rows, _before_source_state = before_snapshot
+    schema_names = {row[1] for row in before_schema}
+    assert {"move_jobs_state_idx", "move_jobs_object_idx"} <= schema_names
+    assert "alembic_version" not in schema_names
+    move_job_columns = dict(before_columns)["move_jobs"]
+    idempotency_column = next(row for row in move_job_columns if row[1] == "idempotency_key")
+    assert (idempotency_column[3], idempotency_column[5]) == (0, 1)
+
+    manager = MigrationManager()
+    engine, compatibility_connection = create_catalog_engine(database)
+    injected = False
+    statements: list[str] = []
+
+    def fail_after_earlier_ddl(
+        _connection: sa.Connection,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        nonlocal injected
+        statements.append(statement)
+        normalized_statement = " ".join(statement.split())
+        if not injected and "CREATE TABLE object_placements" in normalized_statement:
+            injected = True
+            raise RuntimeError("injected SQLite migration failure")
+
+    try:
+        sa.event.listen(engine, "before_cursor_execute", fail_after_earlier_ddl)
+        try:
+            with pytest.raises(RuntimeError, match="injected SQLite migration failure"):
+                manager.upgrade(engine)
+
+            assert injected
+            assert any("move_job_transitions_0002_backup" in sql for sql in statements)
+            assert any("objects_legacy" in sql for sql in statements)
+            assert manager.current(engine) is None
+        finally:
+            sa.event.remove(engine, "before_cursor_execute", fail_after_earlier_ddl)
+    finally:
+        engine.dispose()
+        if compatibility_connection is not None:
+            compatibility_connection.close()
+
+    assert snapshot() == before_snapshot
+    assert database.read_bytes() == before_bytes
 
 
 def test_legacy_sqlite_upgrade_preserves_move_transition_history(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -10,13 +11,11 @@ from cognistore.core.move_jobs import MoveJobState
 from cognistore.core.mover import Mover, MoveVerificationError
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
+from cognistore.db import SQLCatalog
 from cognistore.drivers.posix_driver import PosixDriver
 
-
-def _catalog(kind: str, path: Path) -> Catalog:
-    if kind == "sqlite":
-        return SQLiteCatalog(path)
-    return Catalog()
+_COORDINATION_TIMEOUT = 10.0
+CatalogHandles = tuple[str, Catalog, Catalog]
 
 
 def _close_catalogs(*catalogs: Catalog) -> None:
@@ -25,8 +24,40 @@ def _close_catalogs(*catalogs: Catalog) -> None:
         if id(catalog) in closed:
             continue
         closed.add(id(catalog))
-        if isinstance(catalog, SQLiteCatalog):
+        if isinstance(catalog, SQLCatalog):
             catalog.close()
+
+
+@pytest.fixture(
+    params=[
+        "memory",
+        "sqlite",
+        pytest.param("postgres", marks=pytest.mark.integration),
+    ]
+)
+def catalog_handles(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+) -> Iterator[CatalogHandles]:
+    """Provide independently connected move and scan catalog handles."""
+
+    catalog_kind = str(request.param)
+    if catalog_kind == "memory":
+        move_catalog = Catalog()
+        scan_catalog_store = move_catalog
+    elif catalog_kind == "sqlite":
+        database = tmp_path / "catalog.db"
+        move_catalog = SQLiteCatalog(database)
+        scan_catalog_store = SQLiteCatalog(database)
+    else:
+        postgres_dsn = request.getfixturevalue("postgres_dsn")
+        move_catalog = SQLCatalog(postgres_dsn)
+        scan_catalog_store = SQLCatalog(postgres_dsn, migrate=False)
+
+    try:
+        yield catalog_kind, move_catalog, scan_catalog_store
+    finally:
+        _close_catalogs(scan_catalog_store, move_catalog)
 
 
 def _record_failed_prepared_move(
@@ -62,144 +93,130 @@ def _record_failed_prepared_move(
     )
 
 
-@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
 def test_scans_do_not_change_placement_at_any_active_move_transition(
-    tmp_path: Path, catalog_kind: str
+    tmp_path: Path,
+    catalog_handles: CatalogHandles,
 ) -> None:
+    catalog_kind, move_catalog, scan_catalog_store = catalog_handles
     hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
     warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
-    catalog = _catalog(catalog_kind, tmp_path / "catalog.db")
     data = b"one logical object"
     hot.put_object("bucket", "object", data)
-    catalog.upsert("bucket", "object", len(data), "hot", {"revision": 1})
+    move_catalog.upsert("bucket", "object", len(data), "hot", {"revision": 1})
     observed_states: list[MoveJobState] = []
 
     def scan_at_transition(job) -> None:
         if job.state.terminal:
             return
-        before = catalog.get(job.bucket, job.key)
+        before = scan_catalog_store.get(job.bucket, job.key)
         assert before is not None
         expected = (before.tier, before.size, dict(before.metadata))
 
         # Both physical copies are transient while a move job is live. Scans
         # may observe them, but neither may publish placement.
         assert scan_catalog(
-            tier="hot", bucket=job.bucket, driver=hot, catalog=catalog
+            tier="hot", bucket=job.bucket, driver=hot, catalog=scan_catalog_store
         ) == []
         assert scan_catalog(
-            tier="warm", bucket=job.bucket, driver=warm, catalog=catalog
+            tier="warm", bucket=job.bucket, driver=warm, catalog=scan_catalog_store
         ) == []
 
-        after = catalog.get(job.bucket, job.key)
+        after = scan_catalog_store.get(job.bucket, job.key)
         assert after is not None
         assert (after.tier, after.size, after.metadata) == expected
         observed_states.append(job.state)
 
-    try:
-        result = Mover(
-            {"hot": hot, "warm": warm},
-            catalog,
-            transition_hook=scan_at_transition,
-        ).move(
-            "hot",
-            "warm",
-            "bucket",
-            "object",
-            idempotency_key=f"{catalog_kind}-state-scan",
-        )
+    result = Mover(
+        {"hot": hot, "warm": warm},
+        move_catalog,
+        transition_hook=scan_at_transition,
+    ).move(
+        "hot",
+        "warm",
+        "bucket",
+        "object",
+        idempotency_key=f"{catalog_kind}-state-scan",
+    )
 
-        assert result.verified is True
-        assert observed_states == [
-            MoveJobState.PREPARED,
-            MoveJobState.TRANSFERRED,
-            MoveJobState.VERIFIED,
-            MoveJobState.COMMITTED,
-            MoveJobState.CLEANUP,
-        ]
-        placement = catalog.get("bucket", "object")
-        assert placement is not None
-        assert placement.tier == "warm"
-    finally:
-        _close_catalogs(catalog)
+    assert result.verified is True
+    assert observed_states == [
+        MoveJobState.PREPARED,
+        MoveJobState.TRANSFERRED,
+        MoveJobState.VERIFIED,
+        MoveJobState.COMMITTED,
+        MoveJobState.CLEANUP,
+    ]
+    placement = move_catalog.get("bucket", "object")
+    assert placement is not None
+    assert placement.tier == "warm"
 
 
-@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
 def test_failed_prepared_destination_without_generation_is_not_authoritative(
-    tmp_path: Path, catalog_kind: str
+    tmp_path: Path,
+    catalog_handles: CatalogHandles,
 ) -> None:
+    catalog_kind, move_catalog, scan_catalog_store = catalog_handles
     hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
     warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
-    catalog = _catalog(catalog_kind, tmp_path / "catalog.db")
     source = b"valid source"
     hot.put_object("bucket", "object", source)
     warm.put_object("bucket", "object", b"unverified destination")
-    catalog.upsert("bucket", "object", len(source), "hot")
+    move_catalog.upsert("bucket", "object", len(source), "hot")
     _record_failed_prepared_move(
-        catalog, hot, idempotency_key=f"{catalog_kind}-failed-prepared"
+        move_catalog, hot, idempotency_key=f"{catalog_kind}-failed-prepared"
     )
 
-    try:
-        failed = catalog.get_move_job(f"{catalog_kind}-failed-prepared")
-        assert failed is not None
-        assert failed.state == MoveJobState.FAILED
-        assert failed.destination_generation is None
-        assert scan_catalog(
-            tier="warm", bucket="bucket", driver=warm, catalog=catalog
-        ) == []
-        placement = catalog.get("bucket", "object")
-        assert placement is not None
-        assert placement.tier == "hot"
-    finally:
-        _close_catalogs(catalog)
+    failed = move_catalog.get_move_job(f"{catalog_kind}-failed-prepared")
+    assert failed is not None
+    assert failed.state == MoveJobState.FAILED
+    assert failed.destination_generation is None
+    assert scan_catalog(
+        tier="warm", bucket="bucket", driver=warm, catalog=scan_catalog_store
+    ) == []
+    placement = move_catalog.get("bucket", "object")
+    assert placement is not None
+    assert placement.tier == "hot"
 
 
-@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
 def test_newer_completed_move_supersedes_older_failed_scan_authority(
-    tmp_path: Path, catalog_kind: str
+    tmp_path: Path,
+    catalog_handles: CatalogHandles,
 ) -> None:
+    catalog_kind, move_catalog, scan_catalog_store = catalog_handles
     hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
     warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
-    catalog = _catalog(catalog_kind, tmp_path / "catalog.db")
     source = b"later verified destination"
     hot.put_object("bucket", "object", source)
-    catalog.upsert("bucket", "object", len(source), "hot")
+    move_catalog.upsert("bucket", "object", len(source), "hot")
     _record_failed_prepared_move(
-        catalog, hot, idempotency_key=f"{catalog_kind}-old-failure"
+        move_catalog, hot, idempotency_key=f"{catalog_kind}-old-failure"
     )
 
-    try:
-        Mover({"hot": hot, "warm": warm}, catalog).move(
-            "hot",
-            "warm",
-            "bucket",
-            "object",
-            idempotency_key=f"{catalog_kind}-new-success",
-        )
-        results = scan_catalog(
-            tier="warm", bucket="bucket", driver=warm, catalog=catalog
-        )
+    Mover({"hot": hot, "warm": warm}, move_catalog).move(
+        "hot",
+        "warm",
+        "bucket",
+        "object",
+        idempotency_key=f"{catalog_kind}-new-success",
+    )
+    results = scan_catalog(
+        tier="warm", bucket="bucket", driver=warm, catalog=scan_catalog_store
+    )
 
-        assert [result.key for result in results] == ["object"]
-        placement = catalog.get("bucket", "object")
-        assert placement is not None
-        assert placement.tier == "warm"
-    finally:
-        _close_catalogs(catalog)
+    assert [result.key for result in results] == ["object"]
+    placement = move_catalog.get("bucket", "object")
+    assert placement is not None
+    assert placement.tier == "warm"
 
 
-@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
 def test_source_scan_write_after_completed_cannot_restore_deleted_placement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    catalog_kind: str,
+    catalog_handles: CatalogHandles,
 ) -> None:
+    catalog_kind, move_catalog, scan_catalog_store = catalog_handles
     hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
     warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
-    database = tmp_path / "catalog.db"
-    move_catalog = _catalog(catalog_kind, database)
-    scan_catalog_store = (
-        SQLiteCatalog(database) if catalog_kind == "sqlite" else move_catalog
-    )
     data = b"source bytes observed before cleanup"
     hot.put_object("bucket", "object", data)
     move_catalog.upsert("bucket", "object", len(data), "hot")
@@ -209,7 +226,7 @@ def test_source_scan_write_after_completed_cannot_restore_deleted_placement(
 
     def delayed_scan_write(*args, **kwargs):
         scan_write_ready.set()
-        assert release_scan_write.wait(timeout=2)
+        assert release_scan_write.wait(timeout=_COORDINATION_TIMEOUT)
         return original_upsert(*args, **kwargs)
 
     monkeypatch.setattr(
@@ -234,7 +251,7 @@ def test_source_scan_write_after_completed_cannot_restore_deleted_placement(
     scanner = threading.Thread(target=run_scan)
     scanner.start()
     try:
-        assert scan_write_ready.wait(timeout=1)
+        assert scan_write_ready.wait(timeout=_COORDINATION_TIMEOUT)
 
         Mover({"hot": hot, "warm": warm}, move_catalog).move(
             "hot",
@@ -248,7 +265,7 @@ def test_source_scan_write_after_completed_cannot_restore_deleted_placement(
         assert job.state == MoveJobState.COMPLETED
 
         release_scan_write.set()
-        scanner.join(timeout=2)
+        scanner.join(timeout=_COORDINATION_TIMEOUT)
         assert scanner.is_alive() is False
         assert scan_errors == []
         assert scan_results == [[]]
@@ -259,23 +276,17 @@ def test_source_scan_write_after_completed_cannot_restore_deleted_placement(
             hot.stat_object("bucket", "object")
     finally:
         release_scan_write.set()
-        scanner.join(timeout=2)
-        _close_catalogs(scan_catalog_store, move_catalog)
+        scanner.join(timeout=_COORDINATION_TIMEOUT)
 
 
-@pytest.mark.parametrize("catalog_kind", ["memory", "sqlite"])
 def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    catalog_kind: str,
+    catalog_handles: CatalogHandles,
 ) -> None:
+    catalog_kind, move_catalog, scan_catalog_store = catalog_handles
     hot = PosixDriver(str(tmp_path / f"{catalog_kind}-hot"))
     warm = PosixDriver(str(tmp_path / f"{catalog_kind}-warm"))
-    database = tmp_path / "catalog.db"
-    move_catalog = _catalog(catalog_kind, database)
-    scan_catalog_store = (
-        SQLiteCatalog(database) if catalog_kind == "sqlite" else move_catalog
-    )
     original = b"valid source bytes"
     corrupt = bytes([original[0] ^ 0xFF]) + original[1:]
     hot.put_object("bucket", "object", original)
@@ -287,7 +298,7 @@ def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
         if job.state == MoveJobState.TRANSFERRED:
             warm.put_object("bucket", "object", corrupt)
             destination_corrupted.set()
-            assert release_verification.wait(timeout=2)
+            assert release_verification.wait(timeout=_COORDINATION_TIMEOUT)
 
     move_errors: list[BaseException] = []
     mover = Mover(
@@ -314,12 +325,12 @@ def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
     release_scan_write = threading.Event()
     scanner: threading.Thread | None = None
     try:
-        assert destination_corrupted.wait(timeout=1)
+        assert destination_corrupted.wait(timeout=_COORDINATION_TIMEOUT)
         original_upsert = scan_catalog_store.upsert_scan_observation
 
         def delayed_scan_write(*args, **kwargs):
             scan_write_ready.set()
-            assert release_scan_write.wait(timeout=2)
+            assert release_scan_write.wait(timeout=_COORDINATION_TIMEOUT)
             return original_upsert(*args, **kwargs)
 
         monkeypatch.setattr(
@@ -343,10 +354,10 @@ def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
 
         scanner = threading.Thread(target=run_scan)
         scanner.start()
-        assert scan_write_ready.wait(timeout=1)
+        assert scan_write_ready.wait(timeout=_COORDINATION_TIMEOUT)
 
         release_verification.set()
-        movement.join(timeout=2)
+        movement.join(timeout=_COORDINATION_TIMEOUT)
         assert movement.is_alive() is False
         assert len(move_errors) == 1
         assert isinstance(move_errors[0], MoveVerificationError)
@@ -357,7 +368,7 @@ def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
         assert failed.state == MoveJobState.FAILED
 
         release_scan_write.set()
-        scanner.join(timeout=2)
+        scanner.join(timeout=_COORDINATION_TIMEOUT)
         assert scanner.is_alive() is False
         assert scan_errors == []
         assert scan_results == [[]]
@@ -369,7 +380,6 @@ def test_destination_scan_write_after_failed_cannot_publish_corrupt_bytes(
     finally:
         release_verification.set()
         release_scan_write.set()
-        movement.join(timeout=2)
+        movement.join(timeout=_COORDINATION_TIMEOUT)
         if scanner is not None:
-            scanner.join(timeout=2)
-        _close_catalogs(scan_catalog_store, move_catalog)
+            scanner.join(timeout=_COORDINATION_TIMEOUT)
