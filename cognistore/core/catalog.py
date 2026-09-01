@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -136,6 +136,8 @@ class CatalogStore(Protocol):
 	def delete(self, bucket: str, key: str) -> None: ...
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]: ...
+
+	def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]: ...
 
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent: ...
 
@@ -415,6 +417,21 @@ class Catalog(CatalogStore):
 				key=lambda record: record.key,
 			)
 			return [self._copy_object_record(record) for record in records]
+
+	def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]:
+		"""Yield detached snapshots for every object in bucket/key order."""
+
+		if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+			raise ValueError("batch_size must be a positive integer")
+		with self._lock:
+			records = tuple(
+				self._copy_object_record(record)
+				for record in sorted(
+					self._objects.values(),
+					key=lambda record: (record.bucket, record.key),
+				)
+			)
+		yield from records
 
 	@staticmethod
 	def _copy_object_record(record: ObjectRecord) -> ObjectRecord:

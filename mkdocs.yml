@@ -10,6 +10,7 @@ nav:
       - Background workers: background_workers.md
       - Document extraction: document_extraction.md
       - Content identity and chunking: content_identity.md
+      - Keyword search: keyword_search.md
       - S3 driver: s3_driver.md
       - Tier profiling: tier_profiling.md
       - Raspberry Pi tiers: rpi_three_tier_setup.md
@@ -23,6 +24,7 @@ nav:
       - Design contracts: design.md
       - NATS worker decision: adr/0001-nats-jetstream-workers.md
       - Document parser decision: adr/0002-isolated-document-parser-runtimes.md
+      - Keyword index decision: adr/0003-embedded-tantivy-keyword-index.md
       - Roadmap: roadmap.md
       - Next-ticket execution: next_ticket_roadmap_2026-08-27.md
       - Tickets: tickets.md

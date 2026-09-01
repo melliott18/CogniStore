@@ -1037,6 +1037,27 @@ class SQLCatalog(Catalog):
         # backend-neutral ordering contract.
         return sorted(records, key=lambda record: record.key)
 
+    def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]:
+        """Stream detached snapshots for a bounded full-catalog rebuild."""
+
+        if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer")
+        statement = self._object_select().order_by(
+            objects.c.bucket,
+            objects.c.object_key,
+        )
+        with self._connection() as connection:
+            rows = connection.execution_options(
+                stream_results=True,
+                max_row_buffer=batch_size,
+            ).execute(statement).mappings()
+            try:
+                while batch := rows.fetchmany(batch_size):
+                    for row in batch:
+                        yield self._record(row)
+            finally:
+                rows.close()
+
     def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append one redacted event, idempotently by event UUID."""
 
