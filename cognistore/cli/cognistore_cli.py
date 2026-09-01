@@ -43,6 +43,7 @@ from cognistore.core.audit import (
 	AuditRetentionPolicy,
 )
 from cognistore.core.catalog import Catalog, CatalogStore
+from cognistore.core.content_references import DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
 from cognistore.core.mover import Mover
 from cognistore.core.policy_factory import build_policy
@@ -115,6 +116,7 @@ _COMMAND_NAMES = frozenset(
 		"move-status",
 		"move-list",
 		"move-resume",
+		"content-reference-report",
 		"schedule-run-list",
 		"schedule-run-status",
 		"schedule-run-recover",
@@ -1255,6 +1257,20 @@ def _run_cli(
 	p_move_resume = command("move-resume", help="Resume one durable move job")
 	p_move_resume.add_argument("idempotency_key")
 
+	p_content_reference_report = command(
+		"content-reference-report",
+		help="Report shared-content reference inconsistencies and reclamation eligibility",
+	)
+	p_content_reference_report.add_argument(
+		"--grace-period-seconds",
+		type=float,
+		default=DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS,
+		help=(
+			"Minimum zero-reference age required for reclamation eligibility "
+			f"(default: {DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS})"
+		),
+	)
+
 	p_schedule_run_status = command(
 		"schedule-run-status",
 		help="Inspect one durable scheduled occurrence and its recovery audit",
@@ -1520,6 +1536,48 @@ def _run_cli(
 			_render_redrive_error(exc, json_output=args.json)
 			return 1
 		_render_redrive(receipt, json_output=args.json)
+		return 0
+
+	if args.cmd == "content-reference-report":
+		if not args.catalog_db or not catalog_locator_is_persistent(args.catalog_db):
+			parser.error(
+				"--catalog-db must name an existing persistent catalog for "
+				"content-reference-report"
+			)
+		catalog_path = sqlite_catalog_path(args.catalog_db)
+		if catalog_path is not None and not catalog_path.is_file():
+			parser.error(f"--catalog-db does not exist: {catalog_path}")
+		report_catalog = open_sql_catalog(args.catalog_db, read_only=True)
+		try:
+			report = report_catalog.reconcile_content_references(
+				grace_period_seconds=args.grace_period_seconds,
+			)
+		finally:
+			close_catalog(report_catalog)
+		fields = report.to_dict()
+		report_lines = [
+			(
+				"content references "
+				f"consistent={str(report.consistent).lower()} "
+				f"blobs={report.total_blobs} referenced={report.referenced_blobs} "
+				f"unreferenced={report.unreferenced_blobs} eligible={report.eligible_blobs}"
+			)
+		]
+		for entry in report.entries:
+			report_lines.append(
+				f"{entry.sha256} stored={entry.stored_reference_count} "
+				f"expected={entry.expected_reference_count} "
+				f"eligible={str(entry.reclamation_eligible).lower()} "
+				f"issues={','.join(entry.issues) if entry.issues else 'none'}"
+			)
+		_emit_result(
+			"content-reference-report",
+			"success",
+			json_output=args.json,
+			human=report_lines,
+			dry_run=dry_run,
+			**fields,
+		)
 		return 0
 
 	if args.cmd in {"move-status", "move-list"}:

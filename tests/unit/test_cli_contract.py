@@ -12,6 +12,10 @@ from uuid import uuid4
 import pytest
 
 from cognistore.cli import cognistore_cli
+from cognistore.core.content_references import (
+    ContentReferenceEntry,
+    ContentReferenceReport,
+)
 
 _COGNISTORE_ENVIRONMENT = (
     "COGNISTORE_CONFIG",
@@ -276,6 +280,88 @@ def test_json_success_is_one_versioned_stdout_document(
     assert payload["command"] == "ls"
     assert payload["status"] == "success"
     assert payload["keys"] == ["a", "b"]
+
+
+def test_content_reference_report_is_read_only_and_inconsistency_is_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    catalog_path = tmp_path / "catalog.db"
+    catalog_path.touch()
+    calls: list[tuple[str, object]] = []
+    entry = ContentReferenceEntry(
+        sha256="a" * 64,
+        cas_key="sha256/aa/" + "a" * 62,
+        size=3,
+        stored_reference_count=1,
+        expected_object_reference_count=0,
+        expected_chunk_reference_count=0,
+        expected_reference_count=0,
+        unreferenced_at=None,
+        reclamation_eligible=False,
+        issues=("reference_count_mismatch",),
+    )
+    report = ContentReferenceReport(
+        generated_at="2026-09-01T12:00:00.000000Z",
+        grace_period_seconds=12.5,
+        consistent=False,
+        total_blobs=1,
+        referenced_blobs=0,
+        unreferenced_blobs=1,
+        eligible_blobs=0,
+        entries=(entry,),
+    )
+
+    class ReportingCatalog:
+        def reconcile_content_references(
+            self,
+            *,
+            grace_period_seconds: float,
+        ) -> ContentReferenceReport:
+            calls.append(("reconcile", grace_period_seconds))
+            return report
+
+        def close(self) -> None:
+            calls.append(("close", None))
+
+    def open_read_only_catalog(
+        locator: str | Path,
+        *,
+        read_only: bool,
+        audit_retention: object,
+    ) -> ReportingCatalog:
+        assert locator == str(catalog_path)
+        assert read_only is True
+        calls.append(("open", audit_retention))
+        return ReportingCatalog()
+
+    monkeypatch.setattr(cognistore_cli, "open_catalog", open_read_only_catalog)
+    monkeypatch.setattr(cognistore_cli, "load_drivers", _forbid)
+
+    assert (
+        cognistore_cli.main(
+            [
+                "--catalog-db",
+                str(catalog_path),
+                "content-reference-report",
+                "--grace-period-seconds",
+                "12.5",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload, diagnostics = _json_document(capsys)
+
+    assert diagnostics == ""
+    assert payload["command"] == "content-reference-report"
+    assert payload["status"] == "success"
+    assert payload["consistent"] is False
+    assert payload["entries"] == [entry.to_dict()]
+    assert calls[0][0] == "open"
+    assert calls[1] == ("reconcile", 12.5)
+    assert any(name == "close" for name, _value in calls)
 
 
 def test_json_runtime_error_is_one_versioned_stdout_document_with_nonzero_code(

@@ -58,11 +58,28 @@ reader from silently operating against a partially upgraded catalog.
 ## Migration lifecycle
 
 The migration chain has a legacy baseline, the normalized catalog revision,
-the audit-event revision, and the content-identity revision. The last revision
-adds global content blobs, versioned chunk manifests, ordered manifest chunks,
-and each logical object's active manifest reference. Existing objects are not
-backfilled from legacy `sha256` metadata because that value may cover only a
-sample; the next successful scan creates their canonical identity.
+the audit-event revision, the content-identity revision, and the content-
+reference revision. The content-identity revision adds global content blobs,
+versioned chunk manifests, ordered manifest chunks, and each logical object's
+active manifest reference. Existing objects are not backfilled from legacy
+`sha256` metadata because that value may cover only a sample; the next
+successful scan creates their canonical identity.
+
+The content-reference revision materializes each blob's active reference count
+and records when that count last reached zero. One mapped object contributes a
+reference to its full-content blob and one reference for every chunk occurrence
+in its manifest; repeated chunks retain their multiplicity. Migration derives
+these counts from the existing active mappings and starts a fresh grace period
+for every zero-reference blob instead of using its older creation timestamp.
+
+`SQLCatalog.reconcile_content_references()` compares the stored count with the
+same active mapping graph and returns a deterministic, read-only report. A blob
+is only an advisory reclamation candidate when both counts are zero, its
+zero-reference timestamp is valid, and the requested grace period has elapsed.
+Logical object deletion updates the mapping and counts but never deletes shared
+manifest rows, blob identities, or physical CAS bytes. Physical CAS reclamation
+is outside the catalog transaction boundary and is not implemented by this
+revision.
 
 On PostgreSQL, the normalization revision also:
 

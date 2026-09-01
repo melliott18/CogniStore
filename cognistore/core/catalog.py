@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections import Counter
+from collections.abc import Callable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, Optional, Protocol
 from uuid import UUID
 
@@ -23,6 +24,11 @@ from .audit import (
 	stable_audit_event_id,
 )
 from .content_identity import ObjectContent
+from .content_references import (
+	ContentReferenceReport,
+	ContentReferenceSnapshot,
+	build_content_reference_report,
+)
 from .move_jobs import (
 	MoveJob,
 	MoveJobConflictError,
@@ -69,6 +75,34 @@ class ScanFence:
 	bucket: str
 	key: str
 	move_jobs: tuple[MoveJobScanFingerprint, ...]
+
+
+@dataclass
+class _ContentBlobState:
+	"""In-memory materialization of one global CAS blob's live references."""
+
+	size: int
+	cas_key: str
+	reference_count: int
+	unreferenced_at: str | None
+
+
+def _content_reference_timestamp() -> str:
+	return (
+		datetime.now(timezone.utc)
+		.isoformat(timespec="microseconds")
+		.replace("+00:00", "Z")
+	)
+
+
+def _content_blob_descriptors(
+	content: ObjectContent,
+) -> Iterator[tuple[str, int, str, bool]]:
+	"""Yield the full-object edge followed by every ordered chunk edge."""
+
+	yield content.sha256, content.size, content.cas_key, True
+	for chunk in content.chunks:
+		yield chunk.sha256, chunk.size, chunk.cas_key, False
 
 
 def validate_catalog_size(value: object, *, field: str = "size") -> int:
@@ -120,6 +154,13 @@ class CatalogStore(Protocol):
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]: ...
 
 	def get_object_content(self, bucket: str, key: str) -> ObjectContent | None: ...
+
+	def reconcile_content_references(
+		self,
+		*,
+		grace_period_seconds: float,
+		now: str | datetime | None = None,
+	) -> ContentReferenceReport: ...
 
 	def update_placement(self, bucket: str, key: str, tier: str) -> None: ...
 
@@ -239,6 +280,8 @@ class Catalog(CatalogStore):
 	) -> None:
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
 		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
+		self._content_manifests: Dict[tuple[object, ...], ObjectContent] = {}
+		self._content_blobs: Dict[str, _ContentBlobState] = {}
 		self._move_jobs: Dict[str, MoveJob] = {}
 		self._move_transitions: Dict[str, List[MoveJobTransition]] = {}
 		self._audit_events: Dict[str, AuditEvent] = {}
@@ -249,6 +292,101 @@ class Catalog(CatalogStore):
 		] = {}
 		self.audit_retention = audit_retention or AuditRetentionPolicy()
 		self._lock = threading.RLock()
+
+	@staticmethod
+	def _content_manifest_key(content: ObjectContent) -> tuple[object, ...]:
+		return (
+			content.sha256,
+			content.schema_version,
+			content.representation,
+			content.chunking_algorithm,
+			content.chunking_version,
+			content.chunk_size,
+		)
+
+	def _canonical_content(self, content: ObjectContent, *, now: str) -> ObjectContent:
+		"""Intern one immutable manifest and validate its global blob identities."""
+
+		manifest_key = self._content_manifest_key(content)
+		canonical = self._content_manifests.get(manifest_key)
+		if canonical is not None and canonical != content:
+			raise ValueError("content manifest chunks conflict with the persisted layout")
+
+		descriptors: Dict[str, tuple[int, str]] = {}
+		for sha256, size, cas_key, _is_object in _content_blob_descriptors(content):
+			descriptor = (size, cas_key)
+			previous = descriptors.setdefault(sha256, descriptor)
+			if previous != descriptor:
+				raise ValueError(f"content blob identity collision for sha256 {sha256}")
+			persisted = self._content_blobs.get(sha256)
+			if persisted is not None and (persisted.size, persisted.cas_key) != descriptor:
+				raise ValueError(f"content blob identity collision for sha256 {sha256}")
+
+		if canonical is None:
+			canonical = content
+			self._content_manifests[manifest_key] = canonical
+		for sha256, (size, cas_key) in descriptors.items():
+			self._content_blobs.setdefault(
+				sha256,
+				_ContentBlobState(
+					size=size,
+					cas_key=cas_key,
+					reference_count=0,
+					unreferenced_at=now,
+				),
+			)
+		return canonical
+
+	def _replace_object_content(
+		self,
+		object_key: tuple[str, str],
+		content: ObjectContent | None,
+	) -> None:
+		"""Atomically replace one logical mapping and its global edge counts.
+
+		The in-memory backend owns a single re-entrant lock, so callers invoke this
+		helper only while holding ``self._lock``. Reference multiplicity matches the
+		durable catalog: one full-object edge plus every chunk-position edge.
+		"""
+
+		previous = self._object_contents.get(object_key)
+		now = _content_reference_timestamp()
+		canonical = None if content is None else self._canonical_content(content, now=now)
+		if previous is canonical:
+			return
+
+		deltas: Counter[str] = Counter()
+		if previous is not None:
+			for sha256, _size, _cas_key, _is_object in _content_blob_descriptors(previous):
+				deltas[sha256] -= 1
+		if canonical is not None:
+			for sha256, _size, _cas_key, _is_object in _content_blob_descriptors(canonical):
+				deltas[sha256] += 1
+
+		for sha256, delta in deltas.items():
+			state = self._content_blobs.get(sha256)
+			if state is None or state.reference_count + delta < 0:
+				raise RuntimeError(
+					f"content reference invariant violated for sha256 {sha256}"
+				)
+
+		for sha256 in sorted(deltas):
+			delta = deltas[sha256]
+			if delta == 0:
+				continue
+			state = self._content_blobs[sha256]
+			previous_count = state.reference_count
+			state.reference_count += delta
+			if state.reference_count == 0:
+				if previous_count > 0:
+					state.unreferenced_at = now
+			else:
+				state.unreferenced_at = None
+
+		if canonical is None:
+			self._object_contents.pop(object_key, None)
+		else:
+			self._object_contents[object_key] = canonical
 
 	def upsert(
 		self,
@@ -265,6 +403,8 @@ class Catalog(CatalogStore):
 		# mapping, so it must not be able to leave (or forge) the reserved header.
 		persisted_metadata.pop("content_identity", None)
 		with self._lock:
+			object_key = (bucket, key)
+			self._replace_object_content(object_key, None)
 			rec = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -272,8 +412,7 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=persisted_metadata,
 			)
-			self._objects[(bucket, key)] = rec
-			self._object_contents.pop((bucket, key), None)
+			self._objects[object_key] = rec
 
 	def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
 		"""Capture the move generations that can affect one scan observation."""
@@ -333,6 +472,7 @@ class Catalog(CatalogStore):
 			else:
 				merged_metadata["sha256"] = content.sha256
 				merged_metadata["content_identity"] = content.to_metadata()
+			self._replace_object_content(object_key, content)
 			self._objects[object_key] = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -340,10 +480,6 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=merged_metadata,
 			)
-			if content is None:
-				self._object_contents.pop(object_key, None)
-			else:
-				self._object_contents[object_key] = deepcopy(content)
 			return True
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
@@ -355,6 +491,39 @@ class Catalog(CatalogStore):
 		with self._lock:
 			content = self._object_contents.get((bucket, key))
 			return None if content is None else deepcopy(content)
+
+	def reconcile_content_references(
+		self,
+		*,
+		grace_period_seconds: float,
+		now: str | datetime | None = None,
+	) -> ContentReferenceReport:
+		"""Return a stable, non-mutating snapshot of CAS reference invariants."""
+
+		with self._lock:
+			object_references: Counter[str] = Counter()
+			chunk_references: Counter[str] = Counter()
+			for content in self._object_contents.values():
+				object_references[content.sha256] += 1
+				for chunk in content.chunks:
+					chunk_references[chunk.sha256] += 1
+			snapshots = tuple(
+				ContentReferenceSnapshot(
+					sha256=sha256,
+					cas_key=state.cas_key,
+					size=state.size,
+					stored_reference_count=state.reference_count,
+					expected_object_reference_count=object_references[sha256],
+					expected_chunk_reference_count=chunk_references[sha256],
+					unreferenced_at=state.unreferenced_at,
+				)
+				for sha256, state in sorted(self._content_blobs.items())
+			)
+		return build_content_reference_report(
+			snapshots,
+			grace_period_seconds=grace_period_seconds,
+			now=now,
+		)
 
 	def update_placement(self, bucket: str, key: str, tier: str) -> None:
 		with self._lock:
@@ -389,6 +558,7 @@ class Catalog(CatalogStore):
 				metadata.pop("content_identity", None)
 				if checksum is None:
 					metadata.pop("sha256", None)
+				self._replace_object_content((bucket, key), None)
 			self._objects[(bucket, key)] = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -396,13 +566,12 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=metadata,
 			)
-			if content_mismatch:
-				self._object_contents.pop((bucket, key), None)
 
 	def delete(self, bucket: str, key: str) -> None:
 		with self._lock:
-			self._objects.pop((bucket, key), None)
-			self._object_contents.pop((bucket, key), None)
+			object_key = (bucket, key)
+			self._replace_object_content(object_key, None)
+			self._objects.pop(object_key, None)
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]:
 		with self._lock:
@@ -844,10 +1013,7 @@ class Catalog(CatalogStore):
 					self._objects.pop(object_key, None)
 				else:
 					self._objects[object_key] = previous_object
-				if previous_content is None:
-					self._object_contents.pop(object_key, None)
-				else:
-					self._object_contents[object_key] = previous_content
+				self._replace_object_content(object_key, previous_content)
 				raise
 			return updated
 

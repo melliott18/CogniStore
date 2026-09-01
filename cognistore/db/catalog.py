@@ -41,6 +41,11 @@ from cognistore.core.content_identity import (
     ContentChunkSequence,
     ObjectContent,
 )
+from cognistore.core.content_references import (
+    ContentReferenceReport,
+    ContentReferenceSnapshot,
+    build_content_reference_report,
+)
 from cognistore.core.move_jobs import (
     MoveJob,
     MoveJobLeaseError,
@@ -398,7 +403,12 @@ class SQLCatalog(Catalog):
         SQLCatalog._do_nothing_insert(
             connection,
             content_blobs,
-            {**expected, "created_at": now},
+            {
+                **expected,
+                "created_at": now,
+                "reference_count": 0,
+                "unreferenced_at": now,
+            },
         )
         row = (
             connection.execute(
@@ -525,7 +535,203 @@ class SQLCatalog(Catalog):
             "byte_length": chunk.size,
         }
 
-    def _replace_object_content(
+    @staticmethod
+    def _content_reference_delta_statement(
+        old_manifest_id: UUID | None,
+        new_manifest_id: UUID | None,
+    ) -> sa.Select[Any]:
+        """Return sorted net blob-edge deltas for one mapping transition.
+
+        A logical object owns one root edge plus every ordered chunk occurrence
+        in its active manifest. ``UNION ALL`` deliberately preserves repeated
+        chunks and the one-chunk case where the root and chunk digests match.
+        """
+
+        edge_statements: list[sa.Select[Any]] = []
+        for manifest_id, direction in (
+            (old_manifest_id, -1),
+            (new_manifest_id, 1),
+        ):
+            if manifest_id is None:
+                continue
+            edge_statements.extend(
+                (
+                    sa.select(
+                        content_manifests.c.content_sha256.label("sha256"),
+                        sa.literal(direction, type_=sa.BigInteger()).label("delta"),
+                    ).where(content_manifests.c.manifest_id == manifest_id),
+                    sa.select(
+                        content_manifest_chunks.c.chunk_sha256.label("sha256"),
+                        sa.literal(direction, type_=sa.BigInteger()).label("delta"),
+                    ).where(content_manifest_chunks.c.manifest_id == manifest_id),
+                )
+            )
+        if not edge_statements:
+            raise ValueError("a content-reference transition requires an old or new manifest")
+
+        edges = sa.union_all(*edge_statements).subquery("content_reference_edge_deltas")
+        delta = sa.func.sum(edges.c.delta).label("delta")
+        return (
+            sa.select(edges.c.sha256, delta)
+            .group_by(edges.c.sha256)
+            .having(sa.func.sum(edges.c.delta) != 0)
+            .order_by(edges.c.sha256)
+        )
+
+    @staticmethod
+    def _stream_content_reference_deltas(
+        connection: Connection,
+        old_manifest_id: UUID | None,
+        new_manifest_id: UUID | None,
+    ) -> Iterator[RowMapping]:
+        rows = connection.execute(
+            SQLCatalog._content_reference_delta_statement(
+                old_manifest_id,
+                new_manifest_id,
+            ).execution_options(
+                stream_results=True,
+                max_row_buffer=MAX_IN_MEMORY_CONTENT_CHUNKS,
+            )
+        ).mappings()
+        try:
+            yield from rows
+        finally:
+            rows.close()
+
+    @staticmethod
+    def _lock_content_reference_deltas(
+        connection: Connection,
+        old_manifest_id: UUID | None,
+        new_manifest_id: UUID | None,
+    ) -> None:
+        """Lock every affected digest in the shared global acquisition order."""
+
+        for row in SQLCatalog._stream_content_reference_deltas(
+            connection,
+            old_manifest_id,
+            new_manifest_id,
+        ):
+            statement = sa.select(content_blobs.c.reference_count).where(
+                content_blobs.c.sha256 == row["sha256"]
+            )
+            if connection.dialect.name == "postgresql":
+                # Manifest/chunk foreign-key checks retain KEY SHARE locks on
+                # their referenced blobs.  NO KEY UPDATE still serializes these
+                # count changes while remaining compatible with those locks, so
+                # two different manifests that share a chunk do not deadlock
+                # while upgrading their own FK locks.
+                statement = statement.with_for_update(key_share=True)
+                persisted = connection.execute(statement).scalar_one_or_none()
+            else:
+                # SQLite has no row-level FOR UPDATE. A no-op UPDATE takes its
+                # database writer lock before the reclamation clock is sampled.
+                persisted = connection.execute(statement).scalar_one_or_none()
+                if persisted is not None:
+                    connection.execute(
+                        sa.update(content_blobs)
+                        .where(content_blobs.c.sha256 == row["sha256"])
+                        .values(reference_count=content_blobs.c.reference_count)
+                    )
+            if persisted is None:
+                raise RuntimeError(
+                    f"content reference points to missing blob {row['sha256']}"
+                )
+
+    @staticmethod
+    def _apply_content_reference_deltas(
+        connection: Connection,
+        old_manifest_id: UUID | None,
+        new_manifest_id: UUID | None,
+        *,
+        changed_at: str,
+    ) -> None:
+        for row in SQLCatalog._stream_content_reference_deltas(
+            connection,
+            old_manifest_id,
+            new_manifest_id,
+        ):
+            delta = int(row["delta"])
+            resulting_count = content_blobs.c.reference_count + delta
+            updated = connection.execute(
+                sa.update(content_blobs)
+                .where(
+                    content_blobs.c.sha256 == row["sha256"],
+                    resulting_count >= 0,
+                )
+                .values(
+                    reference_count=resulting_count,
+                    unreferenced_at=sa.case(
+                        (resulting_count == 0, changed_at),
+                        else_=None,
+                    ),
+                )
+            )
+            if updated.rowcount != 1:
+                raise RuntimeError(
+                    f"content reference count underflow for blob {row['sha256']}"
+                )
+
+    def _set_object_content_manifest(
+        self,
+        connection: Connection,
+        object_id: UUID,
+        manifest_id: UUID | None,
+        *,
+        now: str,
+    ) -> None:
+        """Atomically replace one ownership edge and its transitive blob counts."""
+
+        old_manifest_id = connection.execute(
+            sa.select(object_contents.c.manifest_id).where(
+                object_contents.c.object_id == object_id
+            )
+        ).scalar_one_or_none()
+        if old_manifest_id == manifest_id:
+            if manifest_id is not None:
+                connection.execute(
+                    sa.update(object_contents)
+                    .where(object_contents.c.object_id == object_id)
+                    .values(updated_at=now)
+                )
+            return
+
+        self._lock_content_reference_deltas(
+            connection,
+            old_manifest_id,
+            manifest_id,
+        )
+        # Sample the clock only after every shared digest lock is held. A writer
+        # that waited behind another reference transition must receive a fresh
+        # zero-reference grace boundary, not its pre-wait transaction time.
+        reference_changed_at = _timestamp()
+        self._apply_content_reference_deltas(
+            connection,
+            old_manifest_id,
+            manifest_id,
+            changed_at=reference_changed_at,
+        )
+
+        if manifest_id is None:
+            connection.execute(
+                sa.delete(object_contents).where(object_contents.c.object_id == object_id)
+            )
+        elif old_manifest_id is None:
+            connection.execute(
+                sa.insert(object_contents).values(
+                    object_id=object_id,
+                    manifest_id=manifest_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        else:
+            connection.execute(
+                sa.update(object_contents)
+                .where(object_contents.c.object_id == object_id)
+                .values(manifest_id=manifest_id, updated_at=now)
+            )
+
+    def _persist_object_content(
         self,
         connection: Connection,
         object_id: UUID,
@@ -627,29 +833,15 @@ class SQLCatalog(Catalog):
         finally:
             persisted_chunks.close()
 
-        mapping = connection.execute(
-            sa.select(object_contents.c.object_id).where(
-                object_contents.c.object_id == object_id
-            )
-        ).scalar_one_or_none()
-        if mapping is None:
-            connection.execute(
-                sa.insert(object_contents).values(
-                    object_id=object_id,
-                    manifest_id=manifest_id,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-        else:
-            connection.execute(
-                sa.update(object_contents)
-                .where(object_contents.c.object_id == object_id)
-                .values(manifest_id=manifest_id, updated_at=now)
-            )
+        self._set_object_content_manifest(
+            connection,
+            object_id,
+            manifest_id,
+            now=now,
+        )
 
-    @staticmethod
     def _invalidate_object_content_if_mismatched(
+        self,
         connection: Connection,
         object_id: UUID,
         *,
@@ -680,8 +872,11 @@ class SQLCatalog(Catalog):
             row["size"] != size
             or (checksum is not None and row["content_sha256"] != checksum)
         ):
-            connection.execute(
-                sa.delete(object_contents).where(object_contents.c.object_id == object_id)
+            self._set_object_content_manifest(
+                connection,
+                object_id,
+                None,
+                now=_timestamp(),
             )
             return True
         return False
@@ -712,8 +907,11 @@ class SQLCatalog(Catalog):
                 metadata=persisted_metadata,
                 now=now,
             )
-            connection.execute(
-                sa.delete(object_contents).where(object_contents.c.object_id == object_id)
+            self._set_object_content_manifest(
+                connection,
+                object_id,
+                None,
+                now=now,
             )
 
     def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
@@ -779,13 +977,14 @@ class SQLCatalog(Catalog):
                 now=now,
             )
             if content is None:
-                connection.execute(
-                    sa.delete(object_contents).where(
-                        object_contents.c.object_id == object_id
-                    )
+                self._set_object_content_manifest(
+                    connection,
+                    object_id,
+                    None,
+                    now=now,
                 )
             else:
-                self._replace_object_content(
+                self._persist_object_content(
                     connection,
                     object_id,
                     content,
@@ -925,6 +1124,100 @@ class SQLCatalog(Catalog):
             chunks=chunks,
         )
 
+    def reconcile_content_references(
+        self,
+        *,
+        grace_period_seconds: float,
+        now: str | datetime | None = None,
+    ) -> ContentReferenceReport:
+        """Report stored counts against the active ownership graph without writes."""
+
+        object_counts = (
+            sa.select(
+                content_manifests.c.content_sha256.label("sha256"),
+                sa.func.count(object_contents.c.object_id).label("object_count"),
+            )
+            .select_from(
+                object_contents.join(
+                    content_manifests,
+                    content_manifests.c.manifest_id == object_contents.c.manifest_id,
+                )
+            )
+            .group_by(content_manifests.c.content_sha256)
+            .subquery("expected_content_object_references")
+        )
+        chunk_counts = (
+            sa.select(
+                content_manifest_chunks.c.chunk_sha256.label("sha256"),
+                sa.func.count().label("chunk_count"),
+            )
+            .select_from(
+                object_contents.join(
+                    content_manifest_chunks,
+                    content_manifest_chunks.c.manifest_id
+                    == object_contents.c.manifest_id,
+                )
+            )
+            .group_by(content_manifest_chunks.c.chunk_sha256)
+            .subquery("expected_content_chunk_references")
+        )
+        statement = (
+            sa.select(
+                content_blobs.c.sha256,
+                content_blobs.c.cas_key,
+                content_blobs.c.size,
+                content_blobs.c.reference_count,
+                content_blobs.c.unreferenced_at,
+                sa.func.coalesce(object_counts.c.object_count, 0).label(
+                    "expected_object_reference_count"
+                ),
+                sa.func.coalesce(chunk_counts.c.chunk_count, 0).label(
+                    "expected_chunk_reference_count"
+                ),
+            )
+            .select_from(
+                content_blobs.outerjoin(
+                    object_counts,
+                    object_counts.c.sha256 == content_blobs.c.sha256,
+                ).outerjoin(
+                    chunk_counts,
+                    chunk_counts.c.sha256 == content_blobs.c.sha256,
+                )
+            )
+            .order_by(content_blobs.c.sha256)
+            .execution_options(
+                stream_results=True,
+                max_row_buffer=MAX_IN_MEMORY_CONTENT_CHUNKS,
+            )
+        )
+        with self._connection() as connection:
+            rows = connection.execute(statement).mappings()
+            try:
+
+                def snapshots() -> Iterator[ContentReferenceSnapshot]:
+                    for row in rows:
+                        yield ContentReferenceSnapshot(
+                            sha256=row["sha256"],
+                            cas_key=row["cas_key"],
+                            size=int(row["size"]),
+                            stored_reference_count=int(row["reference_count"]),
+                            expected_object_reference_count=int(
+                                row["expected_object_reference_count"]
+                            ),
+                            expected_chunk_reference_count=int(
+                                row["expected_chunk_reference_count"]
+                            ),
+                            unreferenced_at=row["unreferenced_at"],
+                        )
+
+                return build_content_reference_report(
+                    snapshots(),
+                    grace_period_seconds=grace_period_seconds,
+                    now=now,
+                )
+            finally:
+                rows.close()
+
     def update_placement(self, bucket: str, key: str, tier: str) -> None:
         now = _timestamp()
         with self._transaction() as connection:
@@ -1007,6 +1300,19 @@ class SQLCatalog(Catalog):
     def delete(self, bucket: str, key: str) -> None:
         with self._transaction() as connection:
             self._lock_object(connection, bucket, key)
+            object_id = connection.execute(
+                sa.select(objects.c.object_id).where(
+                    objects.c.bucket == bucket,
+                    objects.c.object_key == key,
+                )
+            ).scalar_one_or_none()
+            if object_id is not None:
+                self._set_object_content_manifest(
+                    connection,
+                    object_id,
+                    None,
+                    now=_timestamp(),
+                )
             connection.execute(
                 sa.delete(objects).where(
                     objects.c.bucket == bucket,
@@ -1016,7 +1322,11 @@ class SQLCatalog(Catalog):
 
     @staticmethod
     def _literal_prefix(connection: Connection, column: Any, value: str) -> Any:
-        parameter = sa.bindparam("literal_prefix", value, type_=column.type)
+        parameter: sa.BindParameter[Any] = sa.bindparam(
+            "literal_prefix",
+            value,
+            type_=column.type,
+        )
         if connection.dialect.name == "postgresql":
             return sa.func.substr(column, 1, sa.func.octet_length(parameter)) == parameter
         binary_column = sa.cast(column, sa.LargeBinary())
