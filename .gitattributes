@@ -1,0 +1,2 @@
+# Generated document fixtures are binary even when a PDF contains no NUL byte.
+tests/fixtures/documents/*.pdf binary
