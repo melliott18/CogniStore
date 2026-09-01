@@ -17,6 +17,7 @@ from .storage_driver import (
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    validate_object_generation,
 )
 
 _NOT_FOUND_CODES = frozenset({"404", "NoSuchBucket", "NoSuchKey", "NotFound"})
@@ -290,9 +291,55 @@ class S3Driver(StorageDriver):
         if range is not None:
             request["Range"] = range
 
+        with self._open_requested_reader(bucket, key, request) as body:
+            yield body
+
+    @contextmanager
+    def open_object_reader_if_generation(
+        self,
+        bucket: str,
+        key: str,
+        generation: str,
+        range: Optional[str] = None,
+    ) -> Iterator[ReadableStream]:
+        """Open one S3 generation using an atomic GET precondition."""
+
+        generation = validate_object_generation(generation)
+        current = self.stat_object(bucket, key)
+        if current["generation"] != generation:
+            raise ObjectGenerationMismatchError(
+                f"Object generation changed: {bucket}/{key}"
+            )
+        request: Dict[str, Any] = {
+            "Bucket": bucket,
+            "Key": key,
+            "IfMatch": current["etag"],
+        }
+        version_id = current.get("version_id")
+        if isinstance(version_id, str) and version_id and version_id != "null":
+            request["VersionId"] = version_id
+        if range is not None:
+            request["Range"] = range
+
+        with self._open_requested_reader(bucket, key, request) as body:
+            yield body
+
+    @contextmanager
+    def _open_requested_reader(
+        self,
+        bucket: str,
+        key: str,
+        request: Dict[str, Any],
+    ) -> Iterator[ReadableStream]:
+        """Issue one prepared GET and contain its response-body lifecycle."""
+
         try:
             response = self._client.get_object(**request)
         except ClientError as error:
+            if _is_precondition_failed(error):
+                raise ObjectGenerationMismatchError(
+                    f"Object generation changed: {bucket}/{key}"
+                ) from error
             if _is_not_found(error):
                 raise FileNotFoundError(f"Object not found: {bucket}/{key}") from error
             raise

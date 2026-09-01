@@ -431,6 +431,21 @@ class _FaultInjectingDriver(StorageDriver):
         self.controller.before(self.tier, "open_object_reader", bucket, key)
         return self.delegate.open_object_reader(bucket, key, range=range)
 
+    def open_object_reader_if_generation(
+        self,
+        bucket: str,
+        key: str,
+        generation: str,
+        range: str | None = None,
+    ) -> AbstractContextManager[ReadableStream]:
+        self.controller.before(self.tier, "open_object_reader", bucket, key)
+        return self.delegate.open_object_reader_if_generation(
+            bucket,
+            key,
+            generation,
+            range=range,
+        )
+
     def put_object_stream(
         self,
         bucket: str,

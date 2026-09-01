@@ -138,11 +138,12 @@ artifact.
 
 ## Current boundaries
 
-- PostgreSQL catalog persistence and pgvector extension setup are present;
-  extraction, embeddings, vector/keyword indexing, Ask, REST, SDK, and UI are
-  not current components.
-- The catalog scanner's canonical checksum/metadata model is incomplete and
-  tracked by BUG-2026-004 / #34.
+- PostgreSQL catalog persistence, pgvector extension setup, and bounded
+  PDF/DOCX extraction are present; embeddings, vector/keyword indexing, Ask,
+  REST, SDK, and UI are not current components.
+- Catalog scans persist a full-source SHA-256 plus transactional, versioned
+  source-byte chunk/CAS mappings. Normalized passage chunking, embeddings, and
+  search indexes remain M2 work.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,

@@ -8,6 +8,7 @@ import pytest
 
 from cognistore.drivers import posix_driver
 from cognistore.drivers.posix_driver import PosixDriver
+from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 
 
 class _TrackingStream(BytesIO):
@@ -632,6 +633,38 @@ def test_object_reader_context_closes_the_underlying_file(tmp_path: Path) -> Non
 		assert source.closed is False  # type: ignore[attr-defined]
 
 	assert source.closed is True  # type: ignore[attr-defined]
+
+
+def test_generation_bound_reader_rejects_a_stale_descriptor(tmp_path: Path) -> None:
+	d = PosixDriver(str(tmp_path / "tier"))
+	d.put_object("bucket", "key", b"original")
+	generation = d.object_generation("bucket", "key")
+	d.put_object("bucket", "key", b"replacement")
+
+	with pytest.raises(ObjectGenerationMismatchError):
+		with d.open_object_reader_if_generation(
+			"bucket",
+			"key",
+			generation,
+		):
+			pytest.fail("a stale descriptor was yielded")
+
+
+def test_generation_bound_reader_detects_in_place_range_mutation(
+	tmp_path: Path,
+) -> None:
+	d = PosixDriver(str(tmp_path / "tier"))
+	d.put_object("bucket", "key", b"original")
+	generation = d.object_generation("bucket", "key")
+
+	with pytest.raises(ObjectGenerationMismatchError):
+		with d.open_object_reader_if_generation(
+			"bucket",
+			"key",
+			generation,
+		) as source:
+			d.put_object("bucket", "key", b"REPL", range="bytes=0-3")
+			source.read()
 
 
 @pytest.mark.parametrize("operation", ["put", "get", "stat", "delete"])

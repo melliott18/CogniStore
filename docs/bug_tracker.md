@@ -54,15 +54,15 @@ Copy/paste and fill for each new bug:
 
 <!-- Validated bugs pending assignment or ready to pick up. -->
 
-- [ ] BUG-2026-004: Catalog scan stores a sample digest as full SHA-256 and replaces metadata
-  - Status: open
+- [x] BUG-2026-004: Catalog scan stores a sample digest as full SHA-256 and replaces metadata
+  - Status: fixed by #34
   - Severity: S1 (High)
   - Affects: `993fbb8`; components: scanner, indexer, catalogs
   - Environment: reproduced with a POSIX object larger than 1 MiB
   - Reporter: M1 implementation audit
   - Owner: unassigned
   - Created: 2026-08-20
-  - Updated: 2026-08-20
+  - Updated: 2026-09-01
   - Repro steps:
     1. Store an object larger than 1 MiB with existing catalog metadata.
     2. Run `scan_catalog` for its tier.
@@ -73,8 +73,9 @@ Copy/paste and fill for each new bug:
     existing metadata.
   - Minimal test case: add large-object and metadata-merge coverage for both
     in-memory and SQLite catalogs.
-  - Notes/Workaround: do not treat scan `sha256` as canonical for objects above
-    1 MiB; verified move checksums are full-object digests.
+  - Resolution: scans stream the complete source into a canonical digest and
+    versioned chunk manifest, overwrite the compatibility `sha256` field with
+    that digest, and merge unrelated metadata in the fenced catalog write.
   - Links: `cognistore/core/scanner.py`, `cognistore/core/indexer.py`; ticket #34
 
 - [ ] BUG-2026-012: POSIX containment is vulnerable to concurrent symlink swaps

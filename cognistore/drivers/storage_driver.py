@@ -8,6 +8,14 @@ from typing import Any, Dict, Generator, Mapping, Optional, Protocol
 DEFAULT_STREAM_CHUNK_SIZE = 8 * 1024 * 1024
 
 
+def validate_object_generation(generation: object) -> str:
+	"""Return one valid opaque generation token."""
+
+	if not isinstance(generation, str) or not generation:
+		raise ValueError("generation must be a non-empty string")
+	return generation
+
+
 class ReadableStream(Protocol):
 	"""Minimal binary stream interface consumed by storage drivers."""
 
@@ -83,6 +91,31 @@ class StorageDriver(ABC):
 		The returned context manager owns any backend resources associated with
 		the stream and must release them on both normal and exceptional exits.
 		"""
+
+	def open_object_reader_if_generation(
+		self,
+		bucket: str,
+		key: str,
+		generation: str,
+		range: Optional[str] = None,
+	) -> AbstractContextManager[ReadableStream]:
+		"""Open bytes belonging to exactly ``generation``.
+
+		Concrete backends should bind validation to opening the stream, such as
+		by checking the opened POSIX descriptor or issuing a conditional object-
+		store GET. A different generation must raise
+		:class:`ObjectGenerationMismatchError` without being accepted as the
+		requested object.
+
+		The base implementation fails closed. Existing unbound reader callers
+		remain compatible, while generation-sensitive callers cannot silently
+		fall back to a check/read/check sequence that admits ABA replacements.
+		"""
+
+		validate_object_generation(generation)
+		raise NotImplementedError(
+			"Storage driver does not support generation-bound object reads"
+		)
 
 	@abstractmethod
 	def put_object_stream(

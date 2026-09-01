@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from cognistore.core.audit import (
     AuditQuery,
     AuditRetentionPolicy,
 )
+from cognistore.core.content_identity import ContentIdentityBuilder
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db import MigrationManager, SQLCatalog
 from cognistore.db.engine import create_catalog_engine
@@ -21,6 +23,10 @@ from cognistore.db.schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
+    object_contents,
     object_placements,
     objects,
     pools,
@@ -297,7 +303,7 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
     database = tmp_path / "audit-migration.sqlite3"
     with SQLCatalog(database) as catalog:
         catalog.upsert("bucket", "object", size=7, tier="hot")
-        assert manager.current(catalog.engine) == "0003_audit_events"
+        assert manager.current(catalog.engine) == "0004_content_identity"
         assert sa.inspect(catalog.engine).has_table(audit_events.name)
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
@@ -315,6 +321,154 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
         assert catalog.get("bucket", "object") is not None
+
+
+def test_content_identity_migration_is_reversible_without_unsafe_backfill(
+    tmp_path: Path,
+) -> None:
+    manager = MigrationManager()
+    database = tmp_path / "content-identity-migration.sqlite3"
+    content_tables = (
+        content_blobs,
+        content_manifests,
+        content_manifest_chunks,
+        object_contents,
+    )
+
+    with SQLCatalog(database) as catalog:
+        catalog.upsert(
+            "bucket",
+            "legacy-scan",
+            size=2 * 1024 * 1024,
+            tier="hot",
+            metadata={"sha256": "untrusted-first-mebibyte-sample"},
+        )
+        assert manager.current(catalog.engine) == "0004_content_identity"
+        assert all(
+            sa.inspect(catalog.engine).has_table(table.name)
+            for table in content_tables
+        )
+        assert catalog.get_object_content("bucket", "legacy-scan") is None
+
+        manager.downgrade(catalog.engine, "0003_audit_events")
+        assert manager.current(catalog.engine) == "0003_audit_events"
+        assert all(
+            not sa.inspect(catalog.engine).has_table(table.name)
+            for table in content_tables
+        )
+        legacy = catalog.get("bucket", "legacy-scan")
+        assert legacy is not None
+        assert legacy.metadata == {"sha256": "untrusted-first-mebibyte-sample"}
+
+        manager.upgrade(catalog.engine)
+        assert manager.current(catalog.engine) == "0004_content_identity"
+        assert all(
+            sa.inspect(catalog.engine).has_table(table.name)
+            for table in content_tables
+        )
+        assert catalog.get_object_content("bucket", "legacy-scan") is None
+
+
+def test_content_identity_migration_strips_unbacked_reserved_metadata(
+    tmp_path: Path,
+) -> None:
+    manager = MigrationManager()
+    with SQLCatalog(tmp_path / "unbacked-content-identity.sqlite3") as catalog:
+        catalog.upsert(
+            "bucket",
+            "legacy-object",
+            size=7,
+            tier="hot",
+            metadata={"classification": "retain", "sha256": "legacy-sample"},
+        )
+        manager.downgrade(catalog.engine, "0003_audit_events")
+        with catalog.engine.begin() as connection:
+            connection.execute(
+                sa.update(objects)
+                .where(
+                    objects.c.bucket == "bucket",
+                    objects.c.object_key == "legacy-object",
+                )
+                .values(
+                    metadata={
+                        "classification": "retain",
+                        "sha256": "legacy-sample",
+                        "content_identity": {"forged": True},
+                    }
+                )
+            )
+
+        manager.upgrade(catalog.engine)
+
+        record = catalog.get("bucket", "legacy-object")
+        assert record is not None
+        assert record.metadata == {
+            "classification": "retain",
+            "sha256": "legacy-sample",
+        }
+        assert catalog.get_object_content("bucket", "legacy-object") is None
+
+
+def test_content_identity_downgrade_removes_the_mapping_projection(
+    tmp_path: Path,
+) -> None:
+    manager = MigrationManager()
+    payload = b"abcdefghij"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(payload),
+        expected_size=len(payload),
+    )
+    with SQLCatalog(tmp_path / "content-identity-downgrade.sqlite3") as catalog:
+        fence = catalog.capture_scan_fence("bucket", "object")
+        assert catalog.upsert_scan_observation(
+            "bucket",
+            "object",
+            size=len(payload),
+            tier="hot",
+            generation="hot:v1",
+            metadata={"classification": "retain"},
+            fence=fence,
+            content=content,
+        )
+        before = catalog.get("bucket", "object")
+        assert before is not None
+        assert before.metadata["content_identity"] == content.to_metadata()
+
+        manager.downgrade(catalog.engine, "0003_audit_events")
+        downgraded = catalog.get("bucket", "object")
+        assert downgraded is not None
+        assert downgraded.metadata == {
+            "classification": "retain",
+            "sha256": content.sha256,
+        }
+
+        manager.upgrade(catalog.engine)
+        reupgraded = catalog.get("bucket", "object")
+        assert reupgraded is not None
+        assert reupgraded.metadata == downgraded.metadata
+        assert catalog.get_object_content("bucket", "object") is None
+
+
+def test_content_identity_migration_uses_declared_check_constraint_names(
+    tmp_path: Path,
+) -> None:
+    with SQLCatalog(tmp_path / "content-constraint-names.sqlite3") as catalog:
+        inspector = sa.inspect(catalog.engine)
+        for table in (
+            content_blobs,
+            content_manifests,
+            content_manifest_chunks,
+        ):
+            expected = {
+                constraint.name
+                for constraint in table.constraints
+                if isinstance(constraint, sa.CheckConstraint)
+            }
+            observed = {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(table.name)
+            }
+            assert observed == expected
 
 
 def test_audit_migration_backfill_uses_configured_retention(tmp_path: Path) -> None:

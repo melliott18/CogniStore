@@ -56,6 +56,126 @@ objects = sa.Table(
     sa.UniqueConstraint("bucket", "object_key", name="uq_objects_bucket_key"),
 )
 
+content_blobs = sa.Table(
+    "content_blobs",
+    metadata,
+    sa.Column("sha256", sa.Text(), primary_key=True),
+    sa.Column("digest_algorithm", sa.Text(), nullable=False),
+    sa.Column("size", sa.BigInteger(), nullable=False),
+    sa.Column("cas_key", sa.Text(), nullable=False, unique=True),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "length(sha256) = 64 AND sha256 = lower(sha256)",
+        name="content_blob_sha256_canonical",
+    ),
+    sa.CheckConstraint("size >= 0", name="content_blob_size_nonnegative"),
+)
+
+content_manifests = sa.Table(
+    "content_manifests",
+    metadata,
+    sa.Column("manifest_id", uuid_type, primary_key=True),
+    sa.Column(
+        "content_sha256",
+        sa.Text(),
+        sa.ForeignKey("content_blobs.sha256", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("schema_version", sa.Integer(), nullable=False),
+    sa.Column("representation", sa.Text(), nullable=False),
+    sa.Column("chunking_algorithm", sa.Text(), nullable=False),
+    sa.Column("chunking_version", sa.Integer(), nullable=False),
+    sa.Column("chunk_size", sa.BigInteger(), nullable=False),
+    sa.Column("chunk_count", sa.BigInteger(), nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "schema_version > 0",
+        name="content_manifest_schema_version_positive",
+    ),
+    sa.CheckConstraint(
+        "chunking_version > 0",
+        name="content_manifest_chunking_version_positive",
+    ),
+    sa.CheckConstraint(
+        "chunk_size > 0",
+        name="content_manifest_chunk_size_positive",
+    ),
+    sa.CheckConstraint(
+        "chunk_count >= 0",
+        name="content_manifest_chunk_count_nonnegative",
+    ),
+    sa.UniqueConstraint(
+        "content_sha256",
+        "schema_version",
+        "representation",
+        "chunking_algorithm",
+        "chunking_version",
+        "chunk_size",
+        name="uq_content_manifests_layout",
+    ),
+)
+
+content_manifest_chunks = sa.Table(
+    "content_manifest_chunks",
+    metadata,
+    sa.Column(
+        "manifest_id",
+        uuid_type,
+        sa.ForeignKey("content_manifests.manifest_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("chunk_index", sa.BigInteger(), primary_key=True),
+    sa.Column(
+        "chunk_sha256",
+        sa.Text(),
+        sa.ForeignKey("content_blobs.sha256", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("byte_offset", sa.BigInteger(), nullable=False),
+    sa.Column("byte_length", sa.BigInteger(), nullable=False),
+    sa.CheckConstraint(
+        "chunk_index >= 0",
+        name="content_manifest_chunk_index_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "byte_offset >= 0",
+        name="content_manifest_chunk_offset_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "byte_length > 0",
+        name="content_manifest_chunk_length_positive",
+    ),
+    sa.UniqueConstraint(
+        "manifest_id",
+        "byte_offset",
+        name="uq_content_manifest_chunks_offset",
+    ),
+)
+sa.Index(
+    "content_manifest_chunks_blob_idx",
+    content_manifest_chunks.c.chunk_sha256,
+)
+
+object_contents = sa.Table(
+    "object_contents",
+    metadata,
+    sa.Column(
+        "object_id",
+        uuid_type,
+        sa.ForeignKey("objects.object_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column(
+        "manifest_id",
+        uuid_type,
+        sa.ForeignKey("content_manifests.manifest_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("updated_at", sa.Text(), nullable=False),
+)
+sa.Index("object_contents_manifest_idx", object_contents.c.manifest_id)
+
 object_placements = sa.Table(
     "object_placements",
     metadata,

@@ -5,10 +5,10 @@ import secrets
 import stat
 import sys
 import threading
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from io import BytesIO
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Generator, Mapping, Optional
+from typing import Any, BinaryIO, Callable, Dict, Generator, Mapping, Optional
 
 try:
     import fcntl as _fcntl
@@ -21,6 +21,7 @@ from .storage_driver import (
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    validate_object_generation,
 )
 
 _STAGING_DIRECTORY = ".cognistore-staging"
@@ -61,6 +62,24 @@ class _RangedReader:
             size = self._remaining
         data = self._stream.read(size)
         self._remaining -= len(data)
+        return data
+
+
+class _GenerationBoundReader:
+    """Reject a descriptor mutation before exposing bytes from a read."""
+
+    def __init__(
+        self,
+        reader: ReadableStream,
+        validate_generation: Callable[[], None],
+    ) -> None:
+        self._reader = reader
+        self._validate_generation = validate_generation
+
+    def read(self, size: int = -1) -> bytes:
+        self._validate_generation()
+        data = self._reader.read(size)
+        self._validate_generation()
         return data
 
 
@@ -369,17 +388,106 @@ class PosixDriver(StorageDriver):
         key: str,
         range: Optional[str] = None,
     ) -> AbstractContextManager[ReadableStream]:
+        return self._open_object_reader(
+            bucket,
+            key,
+            range=range,
+            generation=None,
+        )
+
+    def open_object_reader_if_generation(
+        self,
+        bucket: str,
+        key: str,
+        generation: str,
+        range: Optional[str] = None,
+    ) -> AbstractContextManager[ReadableStream]:
+        generation = validate_object_generation(generation)
+        return self._open_object_reader(
+            bucket,
+            key,
+            range=range,
+            generation=generation,
+        )
+
+    def _open_object_reader(
+        self,
+        bucket: str,
+        key: str,
+        *,
+        range: Optional[str],
+        generation: str | None,
+    ) -> AbstractContextManager[ReadableStream]:
         path = self._path(bucket, key)
 
         @contextmanager
         def reader() -> Generator[ReadableStream, None, None]:
-            with open(path, "rb") as stream:
-                if not range:
-                    yield stream
-                    return
-                start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
-                stream.seek(start)
-                yield _RangedReader(stream, end - start + 1)
+            object_lock = (
+                self._object_lock(bucket, key)
+                if generation is not None
+                else nullcontext()
+            )
+            with object_lock:
+                with open(path, "rb") as stream:
+                    opened_stat = os.fstat(stream.fileno())
+                    if (
+                        generation is not None
+                        and self._generation(opened_stat) != generation
+                    ):
+                        raise ObjectGenerationMismatchError(
+                            f"Object generation changed: {bucket}/{key}"
+                        )
+
+                    def validate_generation() -> None:
+                        if generation is None:
+                            return
+                        current = os.fstat(stream.fileno())
+                        if self._generation(current) == generation:
+                            return
+
+                        # Replacing a pathname unlinks the descriptor's inode
+                        # and changes only its ctime/link count. The open file
+                        # still exposes the accepted immutable bytes, so keep
+                        # serving it while all content-relevant fields remain
+                        # unchanged. An in-place write changes size or mtime
+                        # (and keeps the inode linked) and is rejected before
+                        # any bytes can escape.
+                        detached_unchanged_generation = (
+                            current.st_nlink < opened_stat.st_nlink
+                            and (
+                                current.st_dev,
+                                current.st_ino,
+                                current.st_size,
+                                current.st_mtime_ns,
+                            )
+                            == (
+                                opened_stat.st_dev,
+                                opened_stat.st_ino,
+                                opened_stat.st_size,
+                                opened_stat.st_mtime_ns,
+                            )
+                        )
+                        if not detached_unchanged_generation:
+                            raise ObjectGenerationMismatchError(
+                                f"Object generation changed: {bucket}/{key}"
+                            )
+
+                    if not range:
+                        source: ReadableStream = stream
+                    else:
+                        start, end = [
+                            int(x)
+                            for x in range.replace("bytes=", "").split("-")
+                        ]
+                        stream.seek(start)
+                        source = _RangedReader(stream, end - start + 1)
+                    if generation is not None:
+                        source = _GenerationBoundReader(
+                            source,
+                            validate_generation,
+                        )
+                    yield source
+                    validate_generation()
 
         return reader()
 

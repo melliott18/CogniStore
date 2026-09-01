@@ -22,6 +22,7 @@ from .audit import (
 	redact_audit_event,
 	stable_audit_event_id,
 )
+from .content_identity import ObjectContent
 from .move_jobs import (
 	MoveJob,
 	MoveJobConflictError,
@@ -113,9 +114,12 @@ class CatalogStore(Protocol):
 		generation: str,
 		metadata: Optional[Dict[str, object]],
 		fence: ScanFence,
+		content: ObjectContent | None = None,
 	) -> bool: ...
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]: ...
+
+	def get_object_content(self, bucket: str, key: str) -> ObjectContent | None: ...
 
 	def update_placement(self, bucket: str, key: str, tier: str) -> None: ...
 
@@ -234,6 +238,7 @@ class Catalog(CatalogStore):
 		audit_retention: AuditRetentionPolicy | None = None,
 	) -> None:
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
+		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
 		self._move_jobs: Dict[str, MoveJob] = {}
 		self._move_transitions: Dict[str, List[MoveJobTransition]] = {}
 		self._audit_events: Dict[str, AuditEvent] = {}
@@ -254,15 +259,21 @@ class Catalog(CatalogStore):
 		metadata: Optional[Dict[str, object]] = None,
 	) -> None:
 		validate_catalog_size(size)
+		persisted_metadata = deepcopy(metadata) if metadata is not None else {}
+		# ``content_identity`` is a catalog-owned projection of the normalized
+		# object-to-manifest mapping. A generic object write invalidates that
+		# mapping, so it must not be able to leave (or forge) the reserved header.
+		persisted_metadata.pop("content_identity", None)
 		with self._lock:
 			rec = ObjectRecord(
 				bucket=bucket,
 				key=key,
 				size=size,
 				tier=tier,
-				metadata=deepcopy(metadata) if metadata is not None else {},
+				metadata=persisted_metadata,
 			)
 			self._objects[(bucket, key)] = rec
+			self._object_contents.pop((bucket, key), None)
 
 	def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
 		"""Capture the move generations that can affect one scan observation."""
@@ -285,6 +296,7 @@ class Catalog(CatalogStore):
 		generation: str,
 		metadata: Optional[Dict[str, object]],
 		fence: ScanFence,
+		content: ObjectContent | None = None,
 	) -> bool:
 		"""Publish a stable scan observation unless a move makes it stale.
 
@@ -298,6 +310,8 @@ class Catalog(CatalogStore):
 		if not isinstance(generation, str) or not generation:
 			raise ValueError("scan observation requires a non-empty generation")
 		validate_catalog_size(size)
+		if content is not None and content.size != size:
+			raise ValueError("content size must match the scan observation size")
 
 		with self._lock:
 			jobs = self._scan_move_jobs(bucket, key)
@@ -307,19 +321,40 @@ class Catalog(CatalogStore):
 				jobs, tier=tier, generation=generation
 			):
 				return False
-			self._objects[(bucket, key)] = ObjectRecord(
+			object_key = (bucket, key)
+			existing = self._objects.get(object_key)
+			merged_metadata = (
+				deepcopy(existing.metadata) if existing is not None else {}
+			)
+			if metadata is not None:
+				merged_metadata.update(deepcopy(metadata))
+			if content is None:
+				merged_metadata.pop("content_identity", None)
+			else:
+				merged_metadata["sha256"] = content.sha256
+				merged_metadata["content_identity"] = content.to_metadata()
+			self._objects[object_key] = ObjectRecord(
 				bucket=bucket,
 				key=key,
 				size=size,
 				tier=tier,
-				metadata=deepcopy(metadata) if metadata is not None else {},
+				metadata=merged_metadata,
 			)
+			if content is None:
+				self._object_contents.pop(object_key, None)
+			else:
+				self._object_contents[object_key] = deepcopy(content)
 			return True
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
 		with self._lock:
 			record = self._objects.get((bucket, key))
 			return None if record is None else self._copy_object_record(record)
+
+	def get_object_content(self, bucket: str, key: str) -> ObjectContent | None:
+		with self._lock:
+			content = self._object_contents.get((bucket, key))
+			return None if content is None else deepcopy(content)
 
 	def update_placement(self, bucket: str, key: str, tier: str) -> None:
 		with self._lock:
@@ -345,6 +380,15 @@ class Catalog(CatalogStore):
 			metadata = deepcopy(rec.metadata) if rec is not None else {}
 			if checksum is not None:
 				metadata["sha256"] = checksum
+			content = self._object_contents.get((bucket, key))
+			content_mismatch = content is not None and (
+				content.size != size
+				or (checksum is not None and content.sha256 != checksum)
+			)
+			if content_mismatch:
+				metadata.pop("content_identity", None)
+				if checksum is None:
+					metadata.pop("sha256", None)
 			self._objects[(bucket, key)] = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -352,10 +396,13 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=metadata,
 			)
+			if content_mismatch:
+				self._object_contents.pop((bucket, key), None)
 
 	def delete(self, bucket: str, key: str) -> None:
 		with self._lock:
 			self._objects.pop((bucket, key), None)
+			self._object_contents.pop((bucket, key), None)
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]:
 		with self._lock:
@@ -765,6 +812,7 @@ class Catalog(CatalogStore):
 			)
 			object_key = (job.bucket, job.key)
 			previous_object = self._objects.get(object_key)
+			previous_content = self._object_contents.get(object_key)
 			self.upsert_placement(
 				job.bucket, job.key, size=size, tier=tier, checksum=checksum
 			)
@@ -796,6 +844,10 @@ class Catalog(CatalogStore):
 					self._objects.pop(object_key, None)
 				else:
 					self._objects[object_key] = previous_object
+				if previous_content is None:
+					self._object_contents.pop(object_key, None)
+				else:
+					self._object_contents[object_key] = previous_content
 				raise
 			return updated
 

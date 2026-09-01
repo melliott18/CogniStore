@@ -208,6 +208,13 @@ class _InitiallyMissingBucketClient(_FakeS3Client):
         return {"UploadId": "upload-1"}
 
 
+class _VersionedFakeS3Client(_FakeS3Client):
+    def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        response = super().head_object(**kwargs)
+        response["VersionId"] = "version-1"
+        return response
+
+
 def test_s3_capabilities_match_supported_protocol_operations() -> None:
     driver = S3Driver(client=_FakeS3Client())
 
@@ -230,6 +237,79 @@ def test_ranged_get_forwards_http_range_and_reads_stream() -> None:
     assert client.get_calls[0]["Range"] == "bytes=2-6"
     assert client.last_body is not None
     assert client.last_body.closed_by_driver is True
+
+
+def test_generation_bound_get_uses_atomic_etag_precondition() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+
+    with driver.open_object_reader_if_generation(
+        "bucket",
+        "key",
+        generation,
+    ) as source:
+        assert source.read() == b"payload"
+
+    assert client.get_calls == [
+        {"Bucket": "bucket", "Key": "key", "IfMatch": '"etag"'}
+    ]
+    assert client.last_body is not None
+    assert client.last_body.closed_by_driver is True
+
+
+def test_generation_bound_get_pins_a_versioned_object() -> None:
+    client = _VersionedFakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+
+    with driver.open_object_reader_if_generation(
+        "bucket",
+        "key",
+        generation,
+        range="bytes=1-3",
+    ) as source:
+        assert source.read() == b"payload"
+
+    assert client.get_calls == [
+        {
+            "Bucket": "bucket",
+            "Key": "key",
+            "IfMatch": '"etag"',
+            "VersionId": "version-1",
+            "Range": "bytes=1-3",
+        }
+    ]
+
+
+def test_generation_bound_get_rejects_stale_preflight_generation() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(client=client)
+
+    with pytest.raises(ObjectGenerationMismatchError):
+        with driver.open_object_reader_if_generation(
+            "bucket",
+            "key",
+            "stale-generation",
+        ):
+            pytest.fail("a stale response body was yielded")
+
+    assert client.get_calls == []
+
+
+def test_generation_bound_get_maps_precondition_failure_to_mismatch() -> None:
+    client = _FakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+    client.get_error = _client_error("PreconditionFailed", 412, "GetObject")
+
+    with pytest.raises(ObjectGenerationMismatchError):
+        with driver.open_object_reader_if_generation(
+            "bucket",
+            "key",
+            generation,
+        ):
+            pytest.fail("a failed conditional GET yielded a response body")
 
 
 def test_range_write_is_rejected_before_sending_a_request() -> None:

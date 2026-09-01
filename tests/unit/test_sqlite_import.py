@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -15,15 +16,20 @@ from cognistore.core.audit import (
     AuditQuery,
     AuditRetentionPolicy,
 )
+from cognistore.core.content_identity import ContentIdentityBuilder
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db.catalog import SQLCatalog
 from cognistore.db.schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
+    object_contents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -42,6 +48,26 @@ from tests.catalog_fixtures import create_prototype_sqlite_catalog
 def _table_count(catalog: SQLCatalog, table: sa.Table) -> int:
     with catalog.engine.connect() as connection:
         return connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+
+
+def _create_content_identity_source(path: Path) -> None:
+    payload = b"abcdefghij"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(payload),
+        expected_size=len(payload),
+    )
+    with SQLCatalog(path) as source:
+        fence = source.capture_scan_fence("bucket", "object.bin")
+        assert source.upsert_scan_observation(
+            "bucket",
+            "object.bin",
+            size=len(payload),
+            tier="hot",
+            generation="hot:v1",
+            metadata={},
+            fence=fence,
+            content=content,
+        )
 
 
 def test_imports_legacy_objects_move_jobs_and_transition_history(tmp_path: Path) -> None:
@@ -222,6 +248,186 @@ def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) ->
     source.close()
 
 
+def test_imports_normalized_content_identity_and_object_mapping(tmp_path: Path) -> None:
+    source_path = tmp_path / "content-source.db"
+    payload = b"abcdefghij"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(payload),
+        expected_size=len(payload),
+    )
+    source = SQLCatalog(source_path)
+    fence = source.capture_scan_fence("bucket", "object.bin")
+    assert source.upsert_scan_observation(
+        "bucket",
+        "object.bin",
+        size=len(payload),
+        tier="hot",
+        generation="hot:v1",
+        metadata={"content_identity": content.to_metadata()},
+        fence=fence,
+        content=content,
+    )
+    identity_tables = (
+        content_blobs,
+        content_manifests,
+        content_manifest_chunks,
+        object_contents,
+    )
+    with source.engine.connect() as connection:
+        source_identity_rows = {
+            table.name: [
+                dict(row)
+                for row in connection.execute(sa.select(table).order_by(*table.primary_key.columns))
+                .mappings()
+                .all()
+            ]
+            for table in identity_tables
+        }
+    source.close()
+
+    with SQLCatalog(tmp_path / "content-destination.db") as destination:
+        report = import_sqlite_catalog(source_path, destination, batch_size=1)
+
+        assert report == SQLiteCatalogImportReport(
+            source_layout="normalized",
+            tiers=1,
+            pools=0,
+            objects=1,
+            placements=1,
+            move_jobs=0,
+            move_job_transitions=0,
+            audit_events=0,
+            content_blobs=4,
+            content_manifests=1,
+            content_manifest_chunks=3,
+            object_contents=1,
+        )
+        assert destination.get_object_content("bucket", "object.bin") == content
+        with destination.engine.connect() as connection:
+            imported_identity_rows = {
+                table.name: [
+                    dict(row)
+                    for row in connection.execute(
+                        sa.select(table).order_by(*table.primary_key.columns)
+                    )
+                    .mappings()
+                    .all()
+                ]
+                for table in identity_tables
+            }
+        assert imported_identity_rows == source_identity_rows
+
+
+@pytest.mark.parametrize(
+    ("case", "corruption", "expected_error"),
+    [
+        (
+            "chunk-count",
+            "UPDATE content_manifests SET chunk_count = 99",
+            "declares 99 chunks but contains 3",
+        ),
+        (
+            "cas-key",
+            "UPDATE content_blobs SET cas_key = 'not-a-canonical-cas-key' "
+            "WHERE sha256 = (SELECT content_sha256 FROM content_manifests LIMIT 1)",
+            "does not use its canonical CAS key",
+        ),
+        (
+            "chunk-offset",
+            "UPDATE content_manifest_chunks SET byte_offset = 1 WHERE chunk_index = 0",
+            "chunk offsets must be contiguous from zero",
+        ),
+        (
+            "object-size",
+            "UPDATE objects SET size = size + 1",
+            "size does not match its content manifest",
+        ),
+        (
+            "mapped-header",
+            "UPDATE objects SET metadata = json_remove(metadata, '$.content_identity')",
+            "content_identity metadata does not match its manifest",
+        ),
+    ],
+)
+def test_import_rejects_noncanonical_content_topology_and_rolls_back(
+    tmp_path: Path,
+    case: str,
+    corruption: str,
+    expected_error: str,
+) -> None:
+    source_path = tmp_path / f"{case}-content-source.db"
+    _create_content_identity_source(source_path)
+    with sqlite3.connect(source_path) as connection:
+        connection.execute(corruption)
+
+    with SQLCatalog(tmp_path / f"{case}-content-destination.db") as destination:
+        with pytest.raises(SQLiteCatalogImportError, match=expected_error):
+            import_sqlite_catalog(source_path, destination, batch_size=1)
+
+        for table in (
+            tiers,
+            objects,
+            object_placements,
+            content_blobs,
+            content_manifests,
+            content_manifest_chunks,
+            object_contents,
+        ):
+            assert _table_count(destination, table) == 0
+
+
+@pytest.mark.parametrize(
+    "content_topology",
+    ("pre-0004", "current-unmapped"),
+)
+def test_import_strips_reserved_content_identity_from_unmapped_objects(
+    tmp_path: Path,
+    content_topology: str,
+) -> None:
+    source_path = tmp_path / f"{content_topology}-reserved-header-source.db"
+    with SQLCatalog(source_path) as source:
+        source.upsert(
+            "bucket",
+            "legacy-object",
+            size=7,
+            tier="hot",
+            metadata={"independent": "retained"},
+        )
+    forged_metadata = {
+        "independent": "retained",
+        "content_identity": {"forged": True},
+    }
+    with sqlite3.connect(source_path) as connection:
+        connection.execute(
+            "UPDATE objects SET metadata = ?",
+            (json.dumps(forged_metadata),),
+        )
+        if content_topology == "pre-0004":
+            for table in (
+                "object_contents",
+                "content_manifest_chunks",
+                "content_manifests",
+                "content_blobs",
+            ):
+                connection.execute(f"DROP TABLE {table}")
+            connection.execute(
+                "UPDATE alembic_version SET version_num = '0003_audit_events'"
+            )
+
+    with SQLCatalog(
+        tmp_path / f"{content_topology}-reserved-header-destination.db"
+    ) as destination:
+        report = import_sqlite_catalog(source_path, destination)
+        record = destination.get("bucket", "legacy-object")
+
+        assert report.content_blobs == 0
+        assert report.content_manifests == 0
+        assert report.content_manifest_chunks == 0
+        assert report.object_contents == 0
+        assert record is not None
+        assert record.metadata == {"independent": "retained"}
+
+
 def test_import_preserves_a_move_head_after_all_its_events_were_pruned(
     tmp_path: Path,
 ) -> None:
@@ -380,6 +586,34 @@ def test_import_rejects_a_partial_current_audit_schema(tmp_path: Path) -> None:
         assert _table_count(destination, audit_event_tombstones) == 0
         assert _table_count(destination, audit_events) == 0
         assert _table_count(destination, audit_move_heads) == 0
+
+
+def test_import_rejects_partial_content_topology_and_rolls_back(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "partial-content-source.db"
+    with SQLCatalog(source_path) as source:
+        source.upsert("bucket", "object", size=1, tier="hot")
+    with sqlite3.connect(source_path) as connection:
+        connection.execute("DROP TABLE object_contents")
+
+    with SQLCatalog(tmp_path / "partial-content-destination.db") as destination:
+        with pytest.raises(
+            SQLiteCatalogImportError,
+            match="content_blobs, content_manifests, content_manifest_chunks, and object_contents",
+        ):
+            import_sqlite_catalog(source_path, destination)
+
+        for table in (
+            tiers,
+            objects,
+            object_placements,
+            content_blobs,
+            content_manifests,
+            content_manifest_chunks,
+            object_contents,
+        ):
+            assert _table_count(destination, table) == 0
 
 
 def test_import_rejects_a_current_move_journal_without_its_audit_head(

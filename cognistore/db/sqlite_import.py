@@ -25,6 +25,14 @@ from cognistore.core.audit import (
     redact_audit_event,
     stable_audit_event_id,
 )
+from cognistore.core.content_identity import (
+    CHUNKING_ALGORITHM,
+    CHUNKING_VERSION,
+    CONTENT_IDENTITY_SCHEMA_VERSION,
+    CONTENT_REPRESENTATION,
+    DIGEST_ALGORITHM,
+    cas_key_for_sha256,
+)
 from cognistore.utils.redaction import redact, redact_text
 
 from .catalog import SQLCatalog
@@ -32,9 +40,13 @@ from .schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
+    object_contents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -50,6 +62,10 @@ _DESTINATION_DATA_TABLES = (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    content_manifest_chunks,
+    object_contents,
+    content_manifests,
+    content_blobs,
     tiers,
     pools,
     objects,
@@ -81,6 +97,10 @@ class SQLiteCatalogImportReport:
     move_jobs: int
     move_job_transitions: int
     audit_events: int = 0
+    content_blobs: int = 0
+    content_manifests: int = 0
+    content_manifest_chunks: int = 0
+    object_contents: int = 0
 
 
 def import_sqlite_catalog(
@@ -135,6 +155,16 @@ def import_sqlite_catalog(
                     batch_size=batch_size,
                 )
 
+            content_counts = _copy_content_identity(
+                source_connection,
+                target_connection,
+                batch_size=batch_size,
+            )
+            _strip_unmapped_content_identity_metadata(
+                target_connection,
+                batch_size=batch_size,
+            )
+
             move_count, transition_count = _copy_move_history(
                 source_connection,
                 target_connection,
@@ -184,6 +214,10 @@ def import_sqlite_catalog(
                 move_jobs=move_count,
                 move_job_transitions=transition_count,
                 audit_events=audit_count,
+                content_blobs=content_counts[0],
+                content_manifests=content_counts[1],
+                content_manifest_chunks=content_counts[2],
+                object_contents=content_counts[3],
             )
 
         source_connection.rollback()
@@ -599,6 +633,498 @@ def _copy_normalized_catalog(
         move_jobs=0,
         move_job_transitions=0,
     )
+
+
+def _copy_content_identity(
+    source: sqlite3.Connection,
+    destination: Connection,
+    *,
+    batch_size: int,
+) -> tuple[int, int, int, int]:
+    """Copy the optional revision-0004 identity topology in FK order."""
+
+    table_names = {
+        "content_blobs",
+        "content_manifests",
+        "content_manifest_chunks",
+        "object_contents",
+    }
+    present = _source_tables(source).intersection(table_names)
+    if not present:
+        return 0, 0, 0, 0
+    if present != table_names:
+        raise SQLiteCatalogImportError(
+            "SQLite source must contain content_blobs, content_manifests, "
+            "content_manifest_chunks, and object_contents together, or none of them"
+        )
+
+    _require_columns(
+        source,
+        "content_blobs",
+        {"sha256", "digest_algorithm", "size", "cas_key", "created_at"},
+    )
+    blob_count = _copy_rows(
+        source,
+        destination,
+        content_blobs,
+        "SELECT sha256, digest_algorithm, size, cas_key, created_at "
+        "FROM content_blobs ORDER BY sha256",
+        lambda row: {
+            "sha256": row["sha256"],
+            "digest_algorithm": row["digest_algorithm"],
+            "size": row["size"],
+            "cas_key": row["cas_key"],
+            "created_at": row["created_at"],
+        },
+        batch_size=batch_size,
+    )
+
+    _require_columns(
+        source,
+        "content_manifests",
+        {
+            "manifest_id",
+            "content_sha256",
+            "schema_version",
+            "representation",
+            "chunking_algorithm",
+            "chunking_version",
+            "chunk_size",
+            "chunk_count",
+            "created_at",
+        },
+    )
+    manifest_count = _copy_rows(
+        source,
+        destination,
+        content_manifests,
+        "SELECT manifest_id, content_sha256, schema_version, representation, "
+        "chunking_algorithm, chunking_version, chunk_size, chunk_count, created_at "
+        "FROM content_manifests ORDER BY manifest_id",
+        lambda row: {
+            "manifest_id": _uuid(row["manifest_id"], "content_manifests.manifest_id"),
+            "content_sha256": row["content_sha256"],
+            "schema_version": row["schema_version"],
+            "representation": row["representation"],
+            "chunking_algorithm": row["chunking_algorithm"],
+            "chunking_version": row["chunking_version"],
+            "chunk_size": row["chunk_size"],
+            "chunk_count": row["chunk_count"],
+            "created_at": row["created_at"],
+        },
+        batch_size=batch_size,
+    )
+
+    _require_columns(
+        source,
+        "content_manifest_chunks",
+        {
+            "manifest_id",
+            "chunk_index",
+            "chunk_sha256",
+            "byte_offset",
+            "byte_length",
+        },
+    )
+    chunk_count = _copy_rows(
+        source,
+        destination,
+        content_manifest_chunks,
+        "SELECT manifest_id, chunk_index, chunk_sha256, byte_offset, byte_length "
+        "FROM content_manifest_chunks ORDER BY manifest_id, chunk_index",
+        lambda row: {
+            "manifest_id": _uuid(
+                row["manifest_id"],
+                "content_manifest_chunks.manifest_id",
+            ),
+            "chunk_index": row["chunk_index"],
+            "chunk_sha256": row["chunk_sha256"],
+            "byte_offset": row["byte_offset"],
+            "byte_length": row["byte_length"],
+        },
+        batch_size=batch_size,
+    )
+
+    _require_columns(
+        source,
+        "object_contents",
+        {"object_id", "manifest_id", "created_at", "updated_at"},
+    )
+    object_content_count = _copy_rows(
+        source,
+        destination,
+        object_contents,
+        "SELECT object_id, manifest_id, created_at, updated_at "
+        "FROM object_contents ORDER BY object_id",
+        lambda row: {
+            "object_id": _uuid(row["object_id"], "object_contents.object_id"),
+            "manifest_id": _uuid(row["manifest_id"], "object_contents.manifest_id"),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        },
+        batch_size=batch_size,
+    )
+    _validate_imported_content_identity(destination)
+    return blob_count, manifest_count, chunk_count, object_content_count
+
+
+def _content_integer(raw: object, field: str, *, minimum: int) -> int:
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or raw < minimum
+        or raw > 2**63 - 1
+    ):
+        qualifier = "positive" if minimum == 1 else "non-negative"
+        raise SQLiteCatalogImportError(
+            f"{field} must be a {qualifier} integer no greater than {2**63 - 1}"
+        )
+    return raw
+
+
+def _validate_imported_content_blob(row: Any) -> None:
+    digest = row["sha256"]
+    try:
+        expected_cas_key = cas_key_for_sha256(digest)
+    except ValueError as exc:
+        raise SQLiteCatalogImportError(
+            "content_blobs.sha256 must be lowercase SHA-256 hex"
+        ) from exc
+    if row["digest_algorithm"] != DIGEST_ALGORITHM:
+        raise SQLiteCatalogImportError(
+            f"content blob {digest!r} uses unsupported digest algorithm "
+            f"{row['digest_algorithm']!r}"
+        )
+    _content_integer(row["size"], f"content blob {digest!r} size", minimum=0)
+    if row["cas_key"] != expected_cas_key:
+        raise SQLiteCatalogImportError(
+            f"content blob {digest!r} does not use its canonical CAS key"
+        )
+
+
+def _validate_imported_manifest_header(row: Any) -> tuple[int, int, int]:
+    manifest_id = row["manifest_id"]
+    schema_version = _content_integer(
+        row["schema_version"],
+        f"content manifest {manifest_id} schema_version",
+        minimum=1,
+    )
+    if schema_version != CONTENT_IDENTITY_SCHEMA_VERSION:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} uses unsupported schema version "
+            f"{schema_version}"
+        )
+    if row["representation"] != CONTENT_REPRESENTATION:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} uses unsupported representation "
+            f"{row['representation']!r}"
+        )
+    if row["chunking_algorithm"] != CHUNKING_ALGORITHM:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} uses unsupported chunking algorithm "
+            f"{row['chunking_algorithm']!r}"
+        )
+    chunking_version = _content_integer(
+        row["chunking_version"],
+        f"content manifest {manifest_id} chunking_version",
+        minimum=1,
+    )
+    if chunking_version != CHUNKING_VERSION:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} uses unsupported chunking version "
+            f"{chunking_version}"
+        )
+    chunk_size = _content_integer(
+        row["chunk_size"],
+        f"content manifest {manifest_id} chunk_size",
+        minimum=1,
+    )
+    chunk_count = _content_integer(
+        row["chunk_count"],
+        f"content manifest {manifest_id} chunk_count",
+        minimum=0,
+    )
+    content_size = _content_integer(
+        row["content_size"],
+        f"content manifest {manifest_id} content size",
+        minimum=0,
+    )
+    return chunk_size, chunk_count, content_size
+
+
+def _validate_imported_manifest_extent(
+    manifest_id: object,
+    *,
+    declared_chunk_count: int,
+    observed_chunk_count: int,
+    content_size: int,
+    observed_size: int,
+) -> None:
+    if observed_chunk_count != declared_chunk_count:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} declares {declared_chunk_count} chunks "
+            f"but contains {observed_chunk_count}"
+        )
+    if observed_size != content_size:
+        raise SQLiteCatalogImportError(
+            f"content manifest {manifest_id} chunks cover {observed_size} bytes "
+            f"but its content blob has size {content_size}"
+        )
+
+
+def _validate_imported_content_manifests(destination: Connection) -> None:
+    full_blobs = content_blobs.alias("import_manifest_full_blobs")
+    chunk_blobs = content_blobs.alias("import_manifest_chunk_blobs")
+    rows = destination.execute(
+        sa.select(
+            content_manifests.c.manifest_id,
+            content_manifests.c.schema_version,
+            content_manifests.c.representation,
+            content_manifests.c.chunking_algorithm,
+            content_manifests.c.chunking_version,
+            content_manifests.c.chunk_size,
+            content_manifests.c.chunk_count,
+            full_blobs.c.size.label("content_size"),
+            content_manifest_chunks.c.chunk_index,
+            content_manifest_chunks.c.chunk_sha256,
+            content_manifest_chunks.c.byte_offset,
+            content_manifest_chunks.c.byte_length,
+            chunk_blobs.c.size.label("chunk_blob_size"),
+        )
+        .select_from(
+            content_manifests.join(
+                full_blobs,
+                full_blobs.c.sha256 == content_manifests.c.content_sha256,
+            )
+            .outerjoin(
+                content_manifest_chunks,
+                content_manifest_chunks.c.manifest_id == content_manifests.c.manifest_id,
+            )
+            .outerjoin(
+                chunk_blobs,
+                chunk_blobs.c.sha256 == content_manifest_chunks.c.chunk_sha256,
+            )
+        )
+        .order_by(
+            content_manifests.c.manifest_id,
+            content_manifest_chunks.c.chunk_index,
+        )
+    ).mappings()
+
+    current_manifest_id: object | None = None
+    manifest_chunk_size = 0
+    declared_chunk_count = 0
+    content_size = 0
+    observed_chunk_count = 0
+    observed_size = 0
+    previous_chunk_length: int | None = None
+    for row in rows:
+        manifest_id = row["manifest_id"]
+        if manifest_id != current_manifest_id:
+            if current_manifest_id is not None:
+                _validate_imported_manifest_extent(
+                    current_manifest_id,
+                    declared_chunk_count=declared_chunk_count,
+                    observed_chunk_count=observed_chunk_count,
+                    content_size=content_size,
+                    observed_size=observed_size,
+                )
+            current_manifest_id = manifest_id
+            (
+                manifest_chunk_size,
+                declared_chunk_count,
+                content_size,
+            ) = _validate_imported_manifest_header(row)
+            observed_chunk_count = 0
+            observed_size = 0
+            previous_chunk_length = None
+
+        if row["chunk_index"] is None:
+            continue
+        chunk_index = _content_integer(
+            row["chunk_index"],
+            f"content manifest {manifest_id} chunk index",
+            minimum=0,
+        )
+        if chunk_index != observed_chunk_count:
+            raise SQLiteCatalogImportError(
+                f"content manifest {manifest_id} chunk indexes must be contiguous "
+                "from zero"
+            )
+        byte_offset = _content_integer(
+            row["byte_offset"],
+            f"content manifest {manifest_id} chunk {chunk_index} byte_offset",
+            minimum=0,
+        )
+        if byte_offset != observed_size:
+            raise SQLiteCatalogImportError(
+                f"content manifest {manifest_id} chunk offsets must be contiguous "
+                "from zero"
+            )
+        byte_length = _content_integer(
+            row["byte_length"],
+            f"content manifest {manifest_id} chunk {chunk_index} byte_length",
+            minimum=1,
+        )
+        if byte_length > manifest_chunk_size:
+            raise SQLiteCatalogImportError(
+                f"content manifest {manifest_id} chunk {chunk_index} exceeds "
+                "the canonical chunk size"
+            )
+        if previous_chunk_length is not None and previous_chunk_length != manifest_chunk_size:
+            raise SQLiteCatalogImportError(
+                f"content manifest {manifest_id} has a short non-final chunk"
+            )
+        chunk_blob_size = _content_integer(
+            row["chunk_blob_size"],
+            f"content blob {row['chunk_sha256']!r} size",
+            minimum=0,
+        )
+        if chunk_blob_size != byte_length:
+            raise SQLiteCatalogImportError(
+                f"content manifest {manifest_id} chunk {chunk_index} length does not "
+                "match its content blob"
+            )
+        observed_chunk_count += 1
+        observed_size += byte_length
+        previous_chunk_length = byte_length
+
+    if current_manifest_id is not None:
+        _validate_imported_manifest_extent(
+            current_manifest_id,
+            declared_chunk_count=declared_chunk_count,
+            observed_chunk_count=observed_chunk_count,
+            content_size=content_size,
+            observed_size=observed_size,
+        )
+
+
+def _validate_imported_object_contents(destination: Connection) -> None:
+    full_blobs = content_blobs.alias("import_object_content_blobs")
+    rows = destination.execute(
+        sa.select(
+            objects.c.bucket,
+            objects.c.object_key,
+            objects.c.size.label("object_size"),
+            objects.c.metadata,
+            content_manifests.c.schema_version,
+            content_manifests.c.representation,
+            content_manifests.c.chunking_algorithm,
+            content_manifests.c.chunking_version,
+            content_manifests.c.chunk_size,
+            content_manifests.c.chunk_count,
+            full_blobs.c.digest_algorithm,
+            full_blobs.c.sha256,
+            full_blobs.c.size.label("content_size"),
+            full_blobs.c.cas_key,
+        )
+        .select_from(
+            object_contents.join(
+                objects,
+                objects.c.object_id == object_contents.c.object_id,
+            )
+            .join(
+                content_manifests,
+                content_manifests.c.manifest_id == object_contents.c.manifest_id,
+            )
+            .join(
+                full_blobs,
+                full_blobs.c.sha256 == content_manifests.c.content_sha256,
+            )
+        )
+        .order_by(objects.c.bucket, objects.c.object_key)
+    ).mappings()
+    for row in rows:
+        coordinates = f"{row['bucket']!r}/{row['object_key']!r}"
+        object_size = _content_integer(
+            row["object_size"],
+            f"object {coordinates} size",
+            minimum=0,
+        )
+        content_size = _content_integer(
+            row["content_size"],
+            f"object {coordinates} content size",
+            minimum=0,
+        )
+        if object_size != content_size:
+            raise SQLiteCatalogImportError(
+                f"object {coordinates} size does not match its content manifest"
+            )
+        expected_summary = {
+            "schema_version": row["schema_version"],
+            "representation": row["representation"],
+            "digest_algorithm": row["digest_algorithm"],
+            "sha256": row["sha256"],
+            "size": content_size,
+            "cas_key": row["cas_key"],
+            "chunking_algorithm": row["chunking_algorithm"],
+            "chunking_version": row["chunking_version"],
+            "chunk_size": row["chunk_size"],
+            "chunk_count": row["chunk_count"],
+        }
+        metadata = dict(row["metadata"] or {})
+        if metadata.get("sha256") != row["sha256"]:
+            raise SQLiteCatalogImportError(
+                f"object {coordinates} SHA-256 metadata does not match its content manifest"
+            )
+        if metadata.get("content_identity") != expected_summary:
+            raise SQLiteCatalogImportError(
+                f"object {coordinates} content_identity metadata does not match its manifest"
+            )
+
+
+def _validate_imported_content_identity(destination: Connection) -> None:
+    for row in destination.execute(
+        sa.select(
+            content_blobs.c.sha256,
+            content_blobs.c.digest_algorithm,
+            content_blobs.c.size,
+            content_blobs.c.cas_key,
+        ).order_by(content_blobs.c.sha256)
+    ).mappings():
+        _validate_imported_content_blob(row)
+    _validate_imported_content_manifests(destination)
+    _validate_imported_object_contents(destination)
+
+
+def _strip_unmapped_content_identity_metadata(
+    destination: Connection,
+    *,
+    batch_size: int,
+) -> None:
+    """Remove the reserved projection from objects without a manifest mapping."""
+
+    rows = destination.execute(
+        sa.select(objects.c.object_id, objects.c.metadata)
+        .select_from(
+            objects.outerjoin(
+                object_contents,
+                object_contents.c.object_id == objects.c.object_id,
+            )
+        )
+        .where(object_contents.c.object_id.is_(None))
+        .order_by(objects.c.object_id)
+    ).mappings()
+    update_statement = (
+        sa.update(objects)
+        .where(objects.c.object_id == sa.bindparam("import_object_id"))
+        .values(metadata=sa.bindparam("import_object_metadata"))
+    )
+    while batch := rows.fetchmany(batch_size):
+        updates = []
+        for row in batch:
+            metadata = dict(row["metadata"] or {})
+            if "content_identity" not in metadata:
+                continue
+            metadata.pop("content_identity")
+            updates.append(
+                {
+                    "import_object_id": row["object_id"],
+                    "import_object_metadata": metadata,
+                }
+            )
+        if updates:
+            destination.execute(update_statement, updates)
 
 
 def _copy_move_history(

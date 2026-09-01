@@ -57,8 +57,14 @@ reader from silently operating against a partially upgraded catalog.
 
 ## Migration lifecycle
 
-The migration chain has a legacy baseline, the normalized catalog revision, and
-the audit-event revision. On PostgreSQL, the normalization revision also:
+The migration chain has a legacy baseline, the normalized catalog revision,
+the audit-event revision, and the content-identity revision. The last revision
+adds global content blobs, versioned chunk manifests, ordered manifest chunks,
+and each logical object's active manifest reference. Existing objects are not
+backfilled from legacy `sha256` metadata because that value may cover only a
+sample; the next successful scan creates their canonical identity.
+
+On PostgreSQL, the normalization revision also:
 
 - converts move-job JSON fields to PostgreSQL `json` while preserving metadata
   strings that contain embedded NUL characters;
@@ -106,6 +112,12 @@ legacy schema cannot represent that state. It also refuses noncanonical
 imported object or placement UUIDs because the legacy layout has nowhere to
 retain them. Remove or export those normalized-only records deliberately
 before a downgrade; CogniStore will not discard or rewrite them silently.
+Downgrading from `0004_content_identity` drops active logical-object content
+references and global manifests/blob identities; export those mappings first
+when they must survive the rollback. Independent logical-object and placement
+metadata remains intact, as does the compatibility `sha256` value, but the
+catalog-owned `content_identity` summary is removed because its normalized
+mapping no longer exists.
 Downgrading from `0003_audit_events` to an older revision drops the audit-event
 table, durable per-move heads, and replay tombstones; export that history first
 when it must survive the rollback.
@@ -120,8 +132,8 @@ destination. It accepts either of these source layouts:
 
 Object metadata and placement, normalized tier and pool metadata, move-job
 checkpoints, verification evidence, leases, terminal reasons, every move
-transition, and any versioned audit events are copied. Normalized UUIDs and
-timestamps are retained. Legacy
+transition, versioned audit events, and canonical content manifests are copied.
+Normalized UUIDs and timestamps are retained. Legacy
 objects receive deterministic UUIDs and the migration timestamp
 `1970-01-01T00:00:00.000000Z`, matching the in-place normalization migration.
 Sources that predate the audit table receive a deterministic event chain built
@@ -129,6 +141,13 @@ from their move-transition journal during import.
 Current normalized sources must contain `audit_events`, `audit_move_heads`, and
 `audit_event_tombstones`; durable heads and compact replay tombstones are copied
 even when retention already pruned every full event for a move.
+The four content-identity tables are likewise an all-or-none topology. Sources
+from before revision `0004_content_identity` import with no canonical mapping;
+current sources retain global blobs, manifests, ordered chunks, and active
+object references. The importer removes an unbacked `content_identity` summary
+from pre-`0004` or otherwise unmapped objects. Mapped identities are validated
+as a complete canonical graph before commit, including digests, CAS keys,
+versions, chunk extents, object size, and their metadata projection.
 
 ### 1. Quiesce and back up
 

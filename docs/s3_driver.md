@@ -108,6 +108,11 @@ The driver advertises `range_reads=True`, `range_writes=False`, and
   bytes. Ranged writes are not supported and raise `NotImplementedError`.
 - `get_object` and `stat_object` raise `FileNotFoundError` when the object does
   not exist. They do not silently return empty content or metadata.
+- Generation-bound reads use `If-Match` with the observed ETag. When S3
+  versioning supplies a version ID, CogniStore also pins the GET to that exact
+  `VersionId`; the caller's IAM identity therefore needs
+  `s3:GetObjectVersion` in addition to the usual `s3:GetObject` permission.
+  Unversioned buckets remain protected by the ETag precondition.
 - `delete_object` is idempotent: deleting a missing object or an object in a
   missing bucket succeeds without an error.
 - `list_objects` uses paginated `ListObjectsV2` requests and yields all keys
