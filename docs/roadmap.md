@@ -21,9 +21,11 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
     ([#32](https://github.com/melliott18/CogniStore/issues/32))
   - [ ] **Active:** document parsing (PDF/DOCX) pipeline
     ([#33](https://github.com/melliott18/CogniStore/issues/33))
-  - [ ] Chunking and checksum/dedup pipeline (CAS keys by sha256)
+  - [x] Chunking and checksum/dedup pipeline (CAS keys by sha256)
+    ([#34](https://github.com/melliott18/CogniStore/issues/34))
 - [ ] Embeddings + search
-  - [ ] Sentence-transformers or API embeddings → pgvector
+  - [x] Sentence-transformers or API embeddings → pgvector
+    ([#36](https://github.com/melliott18/CogniStore/issues/36))
   - [ ] Keyword index (OpenSearch/Elasticsearch or Tantivy-based library)
   - [ ] "Ask" service that blends metadata + vector + keyword
 

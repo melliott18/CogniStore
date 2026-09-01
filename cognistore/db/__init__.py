@@ -6,6 +6,7 @@ from .catalog import (
     CatalogSchemaOutdatedError,
     SQLCatalog,
 )
+from .embeddings import PgVectorEmbeddingStore
 from .factory import (
     catalog_locator_is_persistent,
     catalog_locator_is_postgres,
@@ -20,6 +21,7 @@ __all__ = [
     "CatalogSchemaNotInstalledError",
     "CatalogSchemaOutdatedError",
     "MigrationManager",
+    "PgVectorEmbeddingStore",
     "SQLCatalog",
     "catalog_locator_is_persistent",
     "catalog_locator_is_postgres",

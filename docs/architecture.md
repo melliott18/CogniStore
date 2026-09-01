@@ -76,8 +76,11 @@ head.
 The normalized catalog schema separates objects, their single current
 placement, tiers, and pools. Durable object and move-claim fence rows serialize
 concurrent mutations. PostgreSQL additionally provisions the `vector`
-extension and records whether CogniStore created it. Scheduler state intentionally remains
-outside the catalog DAL in a persistent SQLite file. See the
+extension, records whether CogniStore created it, and stores versioned
+normalized-text passages in model-specific embedding spaces. Each compatible
+space can own a partial expression HNSW index without mixing dimensions or
+model revisions. Scheduler state intentionally remains outside the catalog DAL
+in a persistent SQLite file. See the
 [PostgreSQL catalog operations guide](postgres_catalog.md) for migrations,
 cutover, and that compatibility boundary.
 
@@ -146,16 +149,18 @@ artifact.
 
 ## Current boundaries
 
-- PostgreSQL catalog persistence, pgvector extension setup, and bounded
-  PDF/DOCX extraction plus embedded keyword indexing are present; embeddings,
-  vector retrieval, Ask, REST, SDK, and UI are not current components.
+- PostgreSQL catalog persistence, pgvector-backed versioned embeddings,
+  metadata-filtered similarity search, bounded PDF/DOCX extraction, and
+  embedded keyword indexing are present; Ask, REST, SDK, and UI are not current
+  components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves
   global content intact, and read-only reconciliation reports conservative
   grace-period reclamation eligibility. Physical CAS deletion is not a current
-  component. Keyword passages are a separately versioned normalized-text
-  projection; embeddings remain M2 work.
+  component. Deterministic normalized-text passage identities feed embedding
+  providers without treating source-byte CAS chunks as text; keyword passages
+  are a separately versioned normalized-text projection.
 - The Tantivy adapter is single-writer and host-local. Catalog-to-index writes
   do not yet have a durable outbox, so failed updates are repaired by retry or
   full rebuild and rebuilds require a quiesced/replayed mutation window.

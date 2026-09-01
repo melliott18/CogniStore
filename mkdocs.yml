@@ -11,6 +11,7 @@ nav:
       - Document extraction: document_extraction.md
       - Content identity and chunking: content_identity.md
       - Keyword search: keyword_search.md
+      - Embedding search: embedding_search.md
       - S3 driver: s3_driver.md
       - Tier profiling: tier_profiling.md
       - Raspberry Pi tiers: rpi_three_tier_setup.md

@@ -44,10 +44,16 @@ from .schema import (
     content_blobs,
     content_manifest_chunks,
     content_manifests,
+    embedding_document_spaces,
+    embedding_documents,
+    embedding_passages,
+    embedding_spaces,
+    embedding_vectors,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
     object_contents,
+    object_embedding_documents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -68,6 +74,12 @@ def _content_reference_timestamp() -> str:
     )
 
 _DESTINATION_DATA_TABLES = (
+    embedding_vectors,
+    embedding_document_spaces,
+    object_embedding_documents,
+    embedding_passages,
+    embedding_documents,
+    embedding_spaces,
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
@@ -148,6 +160,7 @@ def import_sqlite_catalog(
         source_connection.execute("PRAGMA busy_timeout = 5000")
         source_connection.execute("BEGIN")
         layout = _detect_layout(source_connection)
+        _reject_source_embedding_state(source_connection)
 
         with destination.engine.begin() as target_connection:
             _lock_and_require_empty_destination(target_connection)
@@ -249,6 +262,34 @@ def _source_tables(connection: sqlite3.Connection) -> set[str]:
         str(row[0])
         for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
     }
+
+
+def _reject_source_embedding_state(connection: sqlite3.Connection) -> None:
+    """Do not silently discard derived vectors from a manually edited source.
+
+    Similarity search is PostgreSQL-only, so ordinary SQLite catalogs never
+    contain embedding rows.  If a source was populated outside the supported
+    API, require an explicit rebuild on the PostgreSQL destination instead of
+    making the one-shot importer appear to preserve that unsupported state.
+    """
+
+    embedding_table_probes = {
+        "embedding_spaces": "SELECT 1 FROM embedding_spaces LIMIT 1",
+        "embedding_documents": "SELECT 1 FROM embedding_documents LIMIT 1",
+        "embedding_passages": "SELECT 1 FROM embedding_passages LIMIT 1",
+        "embedding_vectors": "SELECT 1 FROM embedding_vectors LIMIT 1",
+        "embedding_document_spaces": "SELECT 1 FROM embedding_document_spaces LIMIT 1",
+        "object_embedding_documents": "SELECT 1 FROM object_embedding_documents LIMIT 1",
+    }
+    source_tables = _source_tables(connection)
+    for table_name, probe in embedding_table_probes.items():
+        if table_name not in source_tables:
+            continue
+        if connection.execute(probe).fetchone() is not None:
+            raise SQLiteCatalogImportError(
+                "SQLite embedding state cannot be imported; rebuild embeddings "
+                "from canonical extraction text after the catalog import"
+            )
 
 
 def _source_columns(connection: sqlite3.Connection, table: str) -> set[str]:

@@ -68,6 +68,7 @@ from .schema import (
     move_job_transitions,
     move_jobs,
     object_contents,
+    object_embedding_documents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -872,6 +873,11 @@ class SQLCatalog(Catalog):
             row["size"] != size
             or (checksum is not None and row["content_sha256"] != checksum)
         ):
+            connection.execute(
+                sa.delete(object_embedding_documents).where(
+                    object_embedding_documents.c.object_id == object_id
+                )
+            )
             self._set_object_content_manifest(
                 connection,
                 object_id,
@@ -906,6 +912,11 @@ class SQLCatalog(Catalog):
                 tier=tier,
                 metadata=persisted_metadata,
                 now=now,
+            )
+            connection.execute(
+                sa.delete(object_embedding_documents).where(
+                    object_embedding_documents.c.object_id == object_id
+                )
             )
             self._set_object_content_manifest(
                 connection,
@@ -954,14 +965,37 @@ class SQLCatalog(Catalog):
                 jobs, tier=tier, generation=generation
             ):
                 return False
-            existing_metadata = connection.execute(
-                sa.select(objects.c.metadata).where(
-                    objects.c.bucket == bucket,
-                    objects.c.object_key == key,
+            existing = (
+                connection.execute(
+                    sa.select(
+                        objects.c.metadata,
+                        object_contents.c.manifest_id,
+                    )
+                    .select_from(
+                        objects.outerjoin(
+                            object_contents,
+                            object_contents.c.object_id == objects.c.object_id,
+                        )
+                    )
+                    .where(
+                        objects.c.bucket == bucket,
+                        objects.c.object_key == key,
+                    )
                 )
-            ).scalar_one_or_none()
-            merged_metadata = dict(existing_metadata or {})
+                .mappings()
+                .first()
+            )
+            existing_metadata = dict(existing["metadata"] or {}) if existing else {}
+            existing_manifest_id = existing["manifest_id"] if existing else None
+            proposed_manifest_id = self._manifest_id(content) if content is not None else None
+            content_changed = existing_manifest_id != proposed_manifest_id
+            merged_metadata = dict(existing_metadata)
             merged_metadata.update(metadata or {})
+            if content_changed and "document_extraction" not in (metadata or {}):
+                # Extraction text is an observation of exact source bytes. A
+                # partial-metadata caller cannot carry it across a replacement
+                # manifest and thereby bind stale text to a new source digest.
+                merged_metadata.pop("document_extraction", None)
             if content is None:
                 merged_metadata.pop("content_identity", None)
             else:
@@ -976,6 +1010,15 @@ class SQLCatalog(Catalog):
                 metadata=merged_metadata,
                 now=now,
             )
+            extraction_changed = existing_metadata.get(
+                "document_extraction"
+            ) != merged_metadata.get("document_extraction")
+            if extraction_changed or content_changed:
+                connection.execute(
+                    sa.delete(object_embedding_documents).where(
+                        object_embedding_documents.c.object_id == object_id
+                    )
+                )
             if content is None:
                 self._set_object_content_manifest(
                     connection,

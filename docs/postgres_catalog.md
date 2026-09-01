@@ -59,11 +59,11 @@ reader from silently operating against a partially upgraded catalog.
 
 The migration chain has a legacy baseline, the normalized catalog revision,
 the audit-event revision, the content-identity revision, and the content-
-reference revision. The content-identity revision adds global content blobs,
-versioned chunk manifests, ordered manifest chunks, and each logical object's
-active manifest reference. Existing objects are not backfilled from legacy
-`sha256` metadata because that value may cover only a sample; the next
-successful scan creates their canonical identity.
+reference and embedding revisions. The content-identity revision adds global
+content blobs, versioned chunk manifests, ordered manifest chunks, and each
+logical object's active manifest reference. Existing objects are not backfilled
+from legacy `sha256` metadata because that value may cover only a sample; the
+next successful scan creates their canonical identity.
 
 The content-reference revision materializes each blob's active reference count
 and records when that count last reached zero. One mapped object contributes a
@@ -81,6 +81,11 @@ manifest rows, blob identities, or physical CAS bytes. Physical CAS reclamation
 is outside the catalog transaction boundary and is not implemented by this
 revision.
 
+The embedding revision adds immutable model spaces, normalized text documents
+and passages, vectors, completion gates, and active object-to-passage layouts.
+Existing objects are not backfilled: a successful extraction must be indexed
+through an explicitly configured provider.
+
 On PostgreSQL, the normalization revision also:
 
 - converts move-job JSON fields to PostgreSQL `json` while preserving metadata
@@ -88,10 +93,18 @@ On PostgreSQL, the normalization revision also:
 - enables the `vector` extension when it is absent; and
 - records whether CogniStore created the extension.
 
-The extension is schema readiness only. This revision does not create
-embeddings, vector indexes, or search APIs. A downgrade removes `vector` only
-when the migration itself created it; a platform-managed extension is left in
-place.
+The normalization revision treats the extension as schema readiness only; the
+later embedding revision creates the embedding tables. Space-specific HNSW
+indexes are created by the embedding DAL after a concrete vector dimension and
+immutable model identity are registered. A downgrade removes `vector` only
+when the normalization migration itself created it; a platform-managed
+extension is left in place.
+
+Revision `0006_embeddings` requires pgvector 0.8.0 or newer, including when the
+extension is platform-managed. The migration rejects an older version before
+creating embedding tables so iterative filtered HNSW behavior cannot silently
+degrade. Upgrade the extension deliberately before retrying the catalog
+migration.
 
 Writable `SQLCatalog` construction is the normal upgrade entry point. For a
 controlled deployment or rollback, use the same packaged chain through
@@ -129,6 +142,9 @@ legacy schema cannot represent that state. It also refuses noncanonical
 imported object or placement UUIDs because the legacy layout has nowhere to
 retain them. Remove or export those normalized-only records deliberately
 before a downgrade; CogniStore will not discard or rewrite them silently.
+Downgrading from `0006_embeddings` drops all normalized passage layouts,
+vectors, compatibility spaces, HNSW indexes, and active embedding mappings;
+retain or rebuild them deliberately before rollback.
 Downgrading from `0004_content_identity` drops active logical-object content
 references and global manifests/blob identities; export those mappings first
 when they must survive the rollback. Independent logical-object and placement
@@ -165,6 +181,12 @@ object references. The importer removes an unbacked `content_identity` summary
 from pre-`0004` or otherwise unmapped objects. Mapped identities are validated
 as a complete canonical graph before commit, including digests, CAS keys,
 versions, chunk extents, object size, and their metadata projection.
+
+SQLite embedding tables are migration-compatible placeholders, not a supported
+vector store. An otherwise valid SQLite source must have no rows in those six
+tables. The importer rejects non-empty embedding state instead of silently
+dropping it; import the catalog and rebuild embeddings in PostgreSQL through
+the pinned provider identity.
 
 ### 1. Quiesce and back up
 
