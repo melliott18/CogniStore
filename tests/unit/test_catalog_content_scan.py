@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import sqlalchemy as sa
 
 from cognistore.core.catalog import Catalog, CatalogStore
 from cognistore.core.content_identity import (
@@ -25,6 +26,12 @@ from cognistore.core.mime_detection import MimeDetectionAdapter
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.db.catalog import SQLCatalog
+from cognistore.db.schema import (
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
+    object_contents,
+)
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.storage_driver import (
     ObjectGenerationMismatchError,
@@ -77,6 +84,48 @@ def _indexer(*, chunk_size: int = _TEST_CHUNK_SIZE) -> Indexer:
     )
 
 
+def _publish_content(
+    catalog: CatalogStore,
+    key: str,
+    content: ObjectContent,
+) -> None:
+    fence = catalog.capture_scan_fence("bucket", key)
+    assert catalog.upsert_scan_observation(
+        "bucket",
+        key,
+        size=content.size,
+        tier="hot",
+        generation=f"hot:{key}",
+        metadata={},
+        fence=fence,
+        content=content,
+    )
+
+
+def _content_topology_counts(catalog: SQLCatalog) -> tuple[int, int, int, int]:
+    with catalog.engine.connect() as connection:
+        counts = tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (
+                content_blobs,
+                content_manifests,
+                content_manifest_chunks,
+                object_contents,
+            )
+        )
+    return counts[0], counts[1], counts[2], counts[3]
+
+
+def _content_blob_rows(catalog: SQLCatalog) -> tuple[dict[str, object], ...]:
+    with catalog.engine.connect() as connection:
+        return tuple(
+            dict(row)
+            for row in connection.execute(
+                sa.select(content_blobs).order_by(content_blobs.c.sha256)
+            ).mappings()
+        )
+
+
 def test_sql_catalog_inserts_unique_content_blobs_in_global_digest_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -113,6 +162,86 @@ def test_sql_catalog_inserts_unique_content_blobs_in_global_digest_order(
 
     expected = sorted({content.sha256, *(chunk.sha256 for chunk in content.chunks)})
     assert inserted == expected
+
+
+def test_sql_catalog_stores_duplicate_content_once_and_deletes_independently(
+    tmp_path: Path,
+) -> None:
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcdefghijkl"),
+        expected_size=12,
+    )
+    unique_digests = {content.sha256, *(chunk.sha256 for chunk in content.chunks)}
+
+    with SQLiteCatalog(tmp_path / "shared-content.db") as catalog:
+        _publish_content(catalog, "first", content)
+        _publish_content(catalog, "second", content)
+
+        assert _content_topology_counts(catalog) == (
+            len(unique_digests),
+            1,
+            len(content.chunks),
+            2,
+        )
+        catalog.delete("bucket", "first")
+
+        assert _content_topology_counts(catalog) == (
+            len(unique_digests),
+            1,
+            len(content.chunks),
+            1,
+        )
+        assert catalog.get_object_content("bucket", "first") is None
+        assert catalog.get_object_content("bucket", "second") == content
+        report = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+
+    assert report.consistent
+    assert report.referenced_blobs == len(unique_digests)
+    assert report.unreferenced_blobs == 0
+    assert all(entry.stored_reference_count == 1 for entry in report.entries)
+    assert all(entry.expected_reference_count == 1 for entry in report.entries)
+
+
+def test_sql_reconciliation_reports_count_mismatch_without_modifying_state(
+    tmp_path: Path,
+) -> None:
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcdefgh"),
+        expected_size=8,
+    )
+    with SQLiteCatalog(tmp_path / "corrupt-content-references.db") as catalog:
+        _publish_content(catalog, "object", content)
+        with catalog.engine.begin() as connection:
+            connection.execute(
+                sa.update(content_blobs)
+                .where(content_blobs.c.sha256 == content.sha256)
+                .values(reference_count=content_blobs.c.reference_count + 7)
+            )
+        corrupted = _content_blob_rows(catalog)
+
+        first = catalog.reconcile_content_references(
+            grace_period_seconds=60,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        second = catalog.reconcile_content_references(
+            grace_period_seconds=60,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        after = _content_blob_rows(catalog)
+
+    assert first == second
+    assert not first.consistent
+    entry = next(entry for entry in first.entries if entry.sha256 == content.sha256)
+    assert entry.expected_object_reference_count == 1
+    assert entry.expected_chunk_reference_count == 0
+    assert entry.expected_reference_count == 1
+    assert entry.stored_reference_count == 8
+    assert entry.issues == ("reference_count_mismatch",)
+    assert not entry.reclamation_eligible
+    assert after == corrupted
 
 
 def test_sql_catalog_external_blob_order_stays_bounded_above_spill_limit() -> None:

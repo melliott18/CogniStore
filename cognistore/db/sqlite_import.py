@@ -7,6 +7,7 @@ import json
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -57,6 +58,14 @@ from .schema import (
 _MIGRATED_AT = "1970-01-01T00:00:00.000000Z"
 _DEFAULT_BATCH_SIZE = 1000
 _SOURCE_LAYOUT = Literal["legacy", "normalized"]
+
+
+def _content_reference_timestamp() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
 
 _DESTINATION_DATA_TABLES = (
     audit_event_tombstones,
@@ -159,6 +168,7 @@ def import_sqlite_catalog(
                 source_connection,
                 target_connection,
                 batch_size=batch_size,
+                imported_at=_content_reference_timestamp(),
             )
             _strip_unmapped_content_identity_metadata(
                 target_connection,
@@ -640,6 +650,7 @@ def _copy_content_identity(
     destination: Connection,
     *,
     batch_size: int,
+    imported_at: str,
 ) -> tuple[int, int, int, int]:
     """Copy the optional revision-0004 identity topology in FK order."""
 
@@ -658,23 +669,44 @@ def _copy_content_identity(
             "content_manifest_chunks, and object_contents together, or none of them"
         )
 
+    blob_columns = _source_columns(source, "content_blobs")
     _require_columns(
         source,
         "content_blobs",
         {"sha256", "digest_algorithm", "size", "cas_key", "created_at"},
     )
+    reference_columns = {"reference_count", "unreferenced_at"}
+    present_reference_columns = blob_columns.intersection(reference_columns)
+    if present_reference_columns and present_reference_columns != reference_columns:
+        raise SQLiteCatalogImportError(
+            "SQLite source content_blobs must contain reference_count and "
+            "unreferenced_at together, or neither"
+        )
+    source_has_references = present_reference_columns == reference_columns
+    blob_select = (
+        "SELECT sha256, digest_algorithm, size, cas_key, created_at, "
+        "reference_count, unreferenced_at FROM content_blobs ORDER BY sha256"
+        if source_has_references
+        else "SELECT sha256, digest_algorithm, size, cas_key, created_at "
+        "FROM content_blobs ORDER BY sha256"
+    )
     blob_count = _copy_rows(
         source,
         destination,
         content_blobs,
-        "SELECT sha256, digest_algorithm, size, cas_key, created_at "
-        "FROM content_blobs ORDER BY sha256",
+        blob_select,
         lambda row: {
             "sha256": row["sha256"],
             "digest_algorithm": row["digest_algorithm"],
             "size": row["size"],
             "cas_key": row["cas_key"],
             "created_at": row["created_at"],
+            "reference_count": (
+                row["reference_count"] if source_has_references else 0
+            ),
+            "unreferenced_at": (
+                row["unreferenced_at"] if source_has_references else imported_at
+            ),
         },
         batch_size=batch_size,
     )
@@ -764,6 +796,11 @@ def _copy_content_identity(
         },
         batch_size=batch_size,
     )
+    if not source_has_references:
+        _backfill_imported_content_references(
+            destination,
+            unreferenced_at=imported_at,
+        )
     _validate_imported_content_identity(destination)
     return blob_count, manifest_count, chunk_count, object_content_count
 
@@ -1073,6 +1110,124 @@ def _validate_imported_object_contents(destination: Connection) -> None:
             )
 
 
+def _content_reference_aggregate() -> Any:
+    object_edges = (
+        sa.select(
+            content_manifests.c.content_sha256.label("sha256"),
+            sa.literal(1).label("object_references"),
+            sa.literal(0).label("chunk_references"),
+        )
+        .select_from(
+            object_contents.join(
+                content_manifests,
+                content_manifests.c.manifest_id == object_contents.c.manifest_id,
+            )
+        )
+    )
+    chunk_edges = (
+        sa.select(
+            content_manifest_chunks.c.chunk_sha256.label("sha256"),
+            sa.literal(0).label("object_references"),
+            sa.literal(1).label("chunk_references"),
+        )
+        .select_from(
+            object_contents.join(
+                content_manifest_chunks,
+                content_manifest_chunks.c.manifest_id == object_contents.c.manifest_id,
+            )
+        )
+    )
+    edges = sa.union_all(object_edges, chunk_edges).subquery(
+        "import_content_reference_edges"
+    )
+    return (
+        sa.select(
+            edges.c.sha256,
+            sa.func.sum(edges.c.object_references).label("object_references"),
+            sa.func.sum(edges.c.chunk_references).label("chunk_references"),
+            sa.func.count().label("reference_count"),
+        )
+        .group_by(edges.c.sha256)
+        .subquery("import_content_reference_counts")
+    )
+
+
+def _backfill_imported_content_references(
+    destination: Connection,
+    *,
+    unreferenced_at: str,
+) -> None:
+    """Initialize ticket-35 state when importing a revision-0004 source."""
+
+    destination.execute(
+        sa.update(content_blobs).values(
+            reference_count=0,
+            unreferenced_at=unreferenced_at,
+        )
+    )
+    counts = _content_reference_aggregate()
+    for row in destination.execute(
+        sa.select(counts.c.sha256, counts.c.reference_count).order_by(counts.c.sha256)
+    ).mappings():
+        destination.execute(
+            sa.update(content_blobs)
+            .where(content_blobs.c.sha256 == row["sha256"])
+            .values(reference_count=row["reference_count"], unreferenced_at=None)
+        )
+
+
+def _validate_imported_content_references(destination: Connection) -> None:
+    counts = _content_reference_aggregate()
+    rows = destination.execute(
+        sa.select(
+            content_blobs.c.sha256,
+            content_blobs.c.reference_count,
+            content_blobs.c.unreferenced_at,
+            sa.func.coalesce(counts.c.reference_count, 0).label(
+                "expected_reference_count"
+            ),
+        )
+        .select_from(
+            content_blobs.outerjoin(
+                counts,
+                counts.c.sha256 == content_blobs.c.sha256,
+            )
+        )
+        .order_by(content_blobs.c.sha256)
+    ).mappings()
+    for row in rows:
+        sha256 = row["sha256"]
+        reference_count = _content_integer(
+            row["reference_count"],
+            f"content blob {sha256!r} reference_count",
+            minimum=0,
+        )
+        expected = int(row["expected_reference_count"])
+        if reference_count != expected:
+            raise SQLiteCatalogImportError(
+                f"content blob {sha256!r} reference_count {reference_count} "
+                f"does not match its {expected} active reference edges"
+            )
+        unreferenced_at = row["unreferenced_at"]
+        if reference_count == 0:
+            if unreferenced_at is None:
+                raise SQLiteCatalogImportError(
+                    f"content blob {sha256!r} has zero references without "
+                    "unreferenced_at"
+                )
+            try:
+                canonical_audit_timestamp(
+                    unreferenced_at,
+                    "content_blobs.unreferenced_at",
+                )
+            except ValueError as exc:
+                raise SQLiteCatalogImportError(str(exc)) from exc
+        elif unreferenced_at is not None:
+            raise SQLiteCatalogImportError(
+                f"content blob {sha256!r} is referenced but has unreferenced_at"
+            )
+
+
 def _validate_imported_content_identity(destination: Connection) -> None:
     for row in destination.execute(
         sa.select(
@@ -1085,6 +1240,7 @@ def _validate_imported_content_identity(destination: Connection) -> None:
         _validate_imported_content_blob(row)
     _validate_imported_content_manifests(destination)
     _validate_imported_object_contents(destination)
+    _validate_imported_content_references(destination)
 
 
 def _strip_unmapped_content_identity_metadata(

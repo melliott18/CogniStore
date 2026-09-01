@@ -64,11 +64,27 @@ content_blobs = sa.Table(
     sa.Column("size", sa.BigInteger(), nullable=False),
     sa.Column("cas_key", sa.Text(), nullable=False, unique=True),
     sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column(
+        "reference_count",
+        sa.BigInteger(),
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
+    sa.Column("unreferenced_at", sa.Text(), nullable=True),
     sa.CheckConstraint(
         "length(sha256) = 64 AND sha256 = lower(sha256)",
         name="content_blob_sha256_canonical",
     ),
     sa.CheckConstraint("size >= 0", name="content_blob_size_nonnegative"),
+    sa.CheckConstraint(
+        "reference_count >= 0",
+        name="content_blob_reference_count_nonnegative",
+    ),
+)
+sa.Index(
+    "content_blobs_reclamation_idx",
+    content_blobs.c.reference_count,
+    content_blobs.c.unreferenced_at,
 )
 
 content_manifests = sa.Table(

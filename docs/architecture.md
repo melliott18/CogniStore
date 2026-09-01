@@ -142,8 +142,12 @@ artifact.
   PDF/DOCX extraction are present; embeddings, vector/keyword indexing, Ask,
   REST, SDK, and UI are not current components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
-  source-byte chunk/CAS mappings. Normalized passage chunking, embeddings, and
-  search indexes remain M2 work.
+  source-byte chunk/CAS mappings. Active logical mappings maintain shared
+  full-object and chunk-edge counts transactionally; logical deletion leaves
+  global content intact, and read-only reconciliation reports conservative
+  grace-period reclamation eligibility. Physical CAS deletion is not a current
+  component. Normalized passage chunking, embeddings, and search indexes remain
+  M2 work.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,

@@ -53,6 +53,27 @@ manifest, and its ordered mappings publish atomically under the existing move
 fence; unrelated metadata is merged rather than replaced. The full contract is
 documented in [Content identity and source-byte chunking](content_identity.md).
 
+## Shared-content deletion and reclamation invariants
+
+The active object-to-manifest topology owns global content blobs. Reference
+counts use edge multiplicity: each active logical object contributes one
+full-object edge and one edge per chunk position, including repeated chunks and
+digests that occupy both roles. Mapping creation, replacement, invalidation,
+and logical deletion update these counts transactionally; shared digest rows
+are acquired in deterministic order.
+
+Logical deletion removes only the addressed object and its active mapping. It
+is idempotent and never deletes global content metadata or physical bytes, so a
+duplicate mapping remains readable. Re-adding the same coordinates after the
+delete is a new creation.
+
+The transition to zero references records when the grace period began, and a
+new reference clears that timestamp. Physical reclamation is merely advisory
+at this layer: eligibility requires matching stored and independently derived
+zero counts, consistent lifecycle state, and a caller-selected elapsed grace
+period. The reconciliation operation reports mismatches and candidates without
+repairing the catalog or touching storage.
+
 MIME detection is content-first. The indexing adapter asks libmagic to inspect
 the sampled bytes and uses Python's filename inference only when libmagic is
 unavailable, fails for that object, or returns no usable type. A libmagic

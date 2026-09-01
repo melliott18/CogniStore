@@ -15,7 +15,7 @@ from cognistore.core.audit import (
     AuditQuery,
     AuditRetentionPolicy,
 )
-from cognistore.core.content_identity import ContentIdentityBuilder
+from cognistore.core.content_identity import ContentIdentityBuilder, cas_key_for_sha256
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db import MigrationManager, SQLCatalog
 from cognistore.db.engine import create_catalog_engine
@@ -303,7 +303,7 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
     database = tmp_path / "audit-migration.sqlite3"
     with SQLCatalog(database) as catalog:
         catalog.upsert("bucket", "object", size=7, tier="hot")
-        assert manager.current(catalog.engine) == "0004_content_identity"
+        assert manager.current(catalog.engine) == "0005_content_references"
         assert sa.inspect(catalog.engine).has_table(audit_events.name)
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
@@ -343,7 +343,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
             tier="hot",
             metadata={"sha256": "untrusted-first-mebibyte-sample"},
         )
-        assert manager.current(catalog.engine) == "0004_content_identity"
+        assert manager.current(catalog.engine) == "0005_content_references"
         assert all(
             sa.inspect(catalog.engine).has_table(table.name)
             for table in content_tables
@@ -361,7 +361,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
         assert legacy.metadata == {"sha256": "untrusted-first-mebibyte-sample"}
 
         manager.upgrade(catalog.engine)
-        assert manager.current(catalog.engine) == "0004_content_identity"
+        assert manager.current(catalog.engine) == "0005_content_references"
         assert all(
             sa.inspect(catalog.engine).has_table(table.name)
             for table in content_tables
@@ -469,6 +469,91 @@ def test_content_identity_migration_uses_declared_check_constraint_names(
                 for constraint in inspector.get_check_constraints(table.name)
             }
             assert observed == expected
+
+
+def test_content_reference_migration_backfills_active_edges_and_fresh_orphans(
+    tmp_path: Path,
+) -> None:
+    manager = MigrationManager()
+    payload = b"abcdabcd"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(payload),
+        expected_size=len(payload),
+    )
+    orphan_digest = "f" * 64
+
+    with SQLCatalog(tmp_path / "content-reference-backfill.sqlite3") as catalog:
+        for key in ("first", "second"):
+            fence = catalog.capture_scan_fence("bucket", key)
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                key,
+                size=len(payload),
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={},
+                fence=fence,
+                content=content,
+            )
+
+        manager.downgrade(catalog.engine, "0004_content_identity")
+        assert {
+            column["name"] for column in sa.inspect(catalog.engine).get_columns("content_blobs")
+        }.isdisjoint({"reference_count", "unreferenced_at"})
+        with catalog.engine.begin() as connection:
+            connection.execute(
+                sa.text(
+                    "INSERT INTO content_blobs "
+                    "(sha256, digest_algorithm, size, cas_key, created_at) "
+                    "VALUES (:sha256, 'sha256', 7, :cas_key, :created_at)"
+                ),
+                {
+                    "sha256": orphan_digest,
+                    "cas_key": cas_key_for_sha256(orphan_digest),
+                    "created_at": "2000-01-01T00:00:00.000000Z",
+                },
+            )
+
+        manager.upgrade(catalog.engine)
+
+        with catalog.engine.connect() as connection:
+            rows = {
+                row["sha256"]: row
+                for row in connection.execute(
+                    sa.select(
+                        content_blobs.c.sha256,
+                        content_blobs.c.reference_count,
+                        content_blobs.c.unreferenced_at,
+                    )
+                ).mappings()
+            }
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+
+        repeated_chunk_digest = content.chunks[0].sha256
+        assert rows[content.sha256]["reference_count"] == 2
+        assert rows[content.sha256]["unreferenced_at"] is None
+        assert rows[repeated_chunk_digest]["reference_count"] == 4
+        assert rows[repeated_chunk_digest]["unreferenced_at"] is None
+        assert rows[orphan_digest]["reference_count"] == 0
+        assert rows[orphan_digest]["unreferenced_at"] > "2000-01-01T00:00:00.000000Z"
+
+        inspector = sa.inspect(catalog.engine)
+        assert {
+            constraint["name"]
+            for constraint in inspector.get_check_constraints(content_blobs.name)
+        } >= {
+            "ck_content_blobs_content_blob_reference_count_nonnegative",
+        }
+        assert any(
+            index["name"] == "content_blobs_reclamation_idx"
+            and index["column_names"] == ["reference_count", "unreferenced_at"]
+            for index in inspector.get_indexes(content_blobs.name)
+        )
+
+        manager.downgrade(catalog.engine, "0004_content_identity")
+        assert catalog.get_object_content("bucket", "first") == content
+        with catalog.engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
 
 
 def test_audit_migration_backfill_uses_configured_retention(tmp_path: Path) -> None:

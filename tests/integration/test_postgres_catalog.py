@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ from cognistore.core.audit import (
     AuditQuery,
 )
 from cognistore.core.catalog import Catalog, CatalogStore, ObjectRecord
+from cognistore.core.content_identity import ContentIdentityBuilder
 from cognistore.core.move_jobs import (
     MoveJob,
     MoveJobConflictError,
@@ -37,6 +39,10 @@ from cognistore.db import (
 )
 from cognistore.db.engine import normalize_database_url
 from cognistore.db.schema import (
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
+    object_contents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -979,6 +985,195 @@ def test_concurrent_postgres_placement_updates_preserve_uniqueness(
 
         assert len(object_ids) == 1
         assert placement_count == 1
+
+
+def test_concurrent_postgres_shared_content_create_delete_preserves_invariants(
+    postgres_dsn: str,
+) -> None:
+    reference_count = 8
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcdefgh"),
+        expected_size=8,
+    )
+    barrier = threading.Barrier(reference_count * 2)
+
+    with SQLCatalog(postgres_dsn) as catalog:
+        for index in range(reference_count):
+            key = f"old-{index}"
+            fence = catalog.capture_scan_fence("bucket", key)
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                key,
+                size=content.size,
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={},
+                fence=fence,
+                content=content,
+            )
+        new_fences = {
+            f"new-{index}": catalog.capture_scan_fence("bucket", f"new-{index}")
+            for index in range(reference_count)
+        }
+
+        def delete_old(index: int) -> None:
+            barrier.wait(timeout=10)
+            catalog.delete("bucket", f"old-{index}")
+
+        def create_new(index: int) -> None:
+            key = f"new-{index}"
+            barrier.wait(timeout=10)
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                key,
+                size=content.size,
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={},
+                fence=new_fences[key],
+                content=content,
+            )
+
+        with ThreadPoolExecutor(max_workers=reference_count * 2) as executor:
+            futures = [
+                executor.submit(operation, index)
+                for index in range(reference_count)
+                for operation in (delete_old, create_new)
+            ]
+            for future in futures:
+                future.result(timeout=30)
+
+        for index in range(reference_count):
+            assert catalog.get("bucket", f"old-{index}") is None
+            assert catalog.get_object_content("bucket", f"new-{index}") == content
+
+        report = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        with catalog.engine.connect() as connection:
+            topology_counts = tuple(
+                connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+                for table in (
+                    content_blobs,
+                    content_manifests,
+                    content_manifest_chunks,
+                    object_contents,
+                )
+            )
+
+    unique_digests = {content.sha256, *(chunk.sha256 for chunk in content.chunks)}
+    assert topology_counts == (
+        len(unique_digests),
+        1,
+        len(content.chunks),
+        reference_count,
+    )
+    assert report.consistent
+    assert report.total_blobs == len(unique_digests)
+    assert report.referenced_blobs == len(unique_digests)
+    assert report.unreferenced_blobs == 0
+    assert report.eligible_blobs == 0
+    assert all(entry.stored_reference_count == reference_count for entry in report.entries)
+    assert all(entry.expected_reference_count == reference_count for entry in report.entries)
+    assert all(entry.unreferenced_at is None for entry in report.entries)
+    assert all(not entry.reclamation_eligible for entry in report.entries)
+
+
+def test_concurrent_postgres_distinct_manifests_sharing_a_chunk_do_not_deadlock(
+    postgres_dsn: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcd0000"),
+        expected_size=8,
+    )
+    left = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcd1111"),
+        expected_size=8,
+    )
+    right = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"abcd2222"),
+        expected_size=8,
+    )
+    shared_digest = seed.chunks[0].sha256
+    assert left.chunks[0].sha256 == shared_digest
+    assert right.chunks[0].sha256 == shared_digest
+
+    with SQLCatalog(postgres_dsn) as catalog:
+        seed_fence = catalog.capture_scan_fence("bucket", "seed")
+        assert catalog.upsert_scan_observation(
+            "bucket",
+            "seed",
+            size=seed.size,
+            tier="hot",
+            generation="hot:seed",
+            metadata={},
+            fence=seed_fence,
+            content=seed,
+        )
+        catalog.delete("bucket", "seed")
+
+        # Both distinct manifest transactions must reach the blob-lock phase
+        # after inserting their chunk foreign keys. This reproduces the lock
+        # upgrade that deadlocks with FOR UPDATE but serializes safely with
+        # FOR NO KEY UPDATE.
+        lock_barrier = threading.Barrier(2)
+        original_lock = SQLCatalog._lock_content_reference_deltas
+
+        def synchronized_lock(connection, old_manifest_id, new_manifest_id) -> None:
+            lock_barrier.wait(timeout=10)
+            original_lock(connection, old_manifest_id, new_manifest_id)
+
+        monkeypatch.setattr(
+            SQLCatalog,
+            "_lock_content_reference_deltas",
+            staticmethod(synchronized_lock),
+        )
+        contents = {"left": left, "right": right}
+        fences = {
+            key: catalog.capture_scan_fence("bucket", key)
+            for key in contents
+        }
+
+        def publish(key: str) -> None:
+            content = contents[key]
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                key,
+                size=content.size,
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={},
+                fence=fences[key],
+                content=content,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(publish, key) for key in contents]
+            for future in futures:
+                future.result(timeout=30)
+
+        report = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        entries = {entry.sha256: entry for entry in report.entries}
+
+        assert catalog.get_object_content("bucket", "left") == left
+        assert catalog.get_object_content("bucket", "right") == right
+
+    assert report.consistent
+    assert entries[shared_digest].stored_reference_count == 2
+    assert entries[shared_digest].expected_chunk_reference_count == 2
+    active_unique_digests = {
+        left.sha256,
+        left.chunks[1].sha256,
+        right.sha256,
+        right.chunks[1].sha256,
+    }
+    assert all(entries[digest].stored_reference_count == 1 for digest in active_unique_digests)
+    assert all(entries[digest].expected_reference_count == 1 for digest in active_unique_digests)
 
 
 def test_concurrent_postgres_pool_registration_is_atomic(postgres_dsn: str) -> None:
