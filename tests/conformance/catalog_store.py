@@ -176,6 +176,101 @@ class CatalogStoreConformance:
         assert catalog.list("bucket") == expected
         assert catalog.list("bucket", prefix="m-") == [expected[1]]
 
+    def test_iter_objects_returns_global_bucket_key_order(
+        self, catalog: CatalogStore
+    ) -> None:
+        insertion_order = [
+            ("z-bucket", "a-first"),
+            ("a-bucket", "z-last"),
+            ("middle-bucket", "m-middle"),
+            ("a-bucket", "a-first"),
+            ("z-bucket", "0-before-letters"),
+        ]
+        for bucket, key in insertion_order:
+            catalog.upsert(
+                bucket,
+                key,
+                size=len(bucket) + len(key),
+                tier="hot",
+            )
+
+        records = list(catalog.iter_objects(batch_size=2))
+
+        assert [(record.bucket, record.key) for record in records] == sorted(
+            insertion_order
+        )
+
+    def test_iter_objects_returns_detached_nested_metadata_snapshots(
+        self, catalog: CatalogStore
+    ) -> None:
+        metadata = {
+            "nested": {
+                "labels": ["original"],
+                "attributes": {"retained": True},
+            }
+        }
+        for key in ("first", "second"):
+            catalog.upsert(
+                "bucket",
+                key,
+                size=len(key),
+                tier="hot",
+                metadata=metadata,
+            )
+
+        expected_metadata = {
+            "nested": {
+                "labels": ["original"],
+                "attributes": {"retained": True},
+            }
+        }
+        first = list(catalog.iter_objects(batch_size=1))
+        second = list(catalog.iter_objects(batch_size=2))
+
+        first[0].metadata["nested"]["labels"].append("snapshot-mutated")  # type: ignore[index,union-attr]
+        first[0].metadata["nested"]["attributes"]["retained"] = False  # type: ignore[index,union-attr]
+
+        assert first[1].metadata == expected_metadata
+        assert [record.metadata for record in second] == [
+            expected_metadata,
+            expected_metadata,
+        ]
+        assert all(left is not right for left, right in zip(first, second))
+        assert [record.metadata for record in catalog.iter_objects(batch_size=1)] == [
+            expected_metadata,
+            expected_metadata,
+        ]
+
+    def test_iter_objects_rejects_invalid_batch_sizes(
+        self, catalog: CatalogStore
+    ) -> None:
+        for invalid_batch_size in (0, -1, True, False, 1.5, "1", None):
+            with pytest.raises(
+                ValueError,
+                match="^batch_size must be a positive integer$",
+            ):
+                list(catalog.iter_objects(batch_size=invalid_batch_size))  # type: ignore[arg-type]
+
+    def test_iter_objects_can_be_closed_early(self, catalog: CatalogStore) -> None:
+        for key in ("first", "second", "third"):
+            catalog.upsert("bucket", key, size=len(key), tier="hot")
+
+        iterator = catalog.iter_objects(batch_size=1)
+        assert next(iterator).key == "first"
+
+        close = getattr(iterator, "close", None)
+        assert callable(close)
+        close()
+        close()
+
+        catalog.upsert("bucket", "after-close", size=11, tier="warm")
+        assert [record.key for record in catalog.iter_objects(batch_size=2)] == [
+            "after-close",
+            "first",
+            "second",
+            "third",
+        ]
+
     def test_missing_object_behavior_is_backend_neutral(
         self, catalog: CatalogStore
     ) -> None:
