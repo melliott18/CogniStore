@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 
-from .types import NulSafeText
+from .types import NulSafeText, PortableVector
 
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_name)s",
@@ -191,6 +191,320 @@ object_contents = sa.Table(
     sa.Column("updated_at", sa.Text(), nullable=False),
 )
 sa.Index("object_contents_manifest_idx", object_contents.c.manifest_id)
+
+embedding_spaces = sa.Table(
+    "embedding_spaces",
+    metadata,
+    sa.Column("space_id", uuid_type, primary_key=True),
+    sa.Column("provider_implementation", sa.Text(), nullable=False),
+    sa.Column("provider_implementation_version", sa.Text(), nullable=False),
+    sa.Column("model", sa.Text(), nullable=False),
+    sa.Column("model_revision", sa.Text(), nullable=False),
+    sa.Column("dimensions", sa.Integer(), nullable=False),
+    sa.Column("distance_metric", sa.Text(), nullable=False),
+    sa.Column("normalization", sa.Text(), nullable=False),
+    sa.Column("normalization_version", sa.Integer(), nullable=False),
+    sa.Column("preprocessing", sa.Text(), nullable=False),
+    sa.Column("preprocessing_version", sa.Integer(), nullable=False),
+    sa.Column("fingerprint", sa.Text(), nullable=False, unique=True),
+    sa.Column(
+        "hnsw_enabled",
+        sa.Boolean(),
+        nullable=False,
+        server_default=sa.false(),
+    ),
+    sa.Column("hnsw_m", sa.Integer(), nullable=False, server_default="16"),
+    sa.Column(
+        "hnsw_ef_construction",
+        sa.Integer(),
+        nullable=False,
+        server_default="64",
+    ),
+    sa.Column("hnsw_ef_search", sa.Integer(), nullable=False, server_default="40"),
+    sa.Column(
+        "hnsw_iterative_scan",
+        sa.Text(),
+        nullable=False,
+        server_default="off",
+    ),
+    sa.Column("hnsw_index_name", sa.Text()),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("updated_at", sa.Text(), nullable=False),
+    sa.CheckConstraint("dimensions > 0", name="embedding_space_dimensions_positive"),
+    sa.CheckConstraint(
+        "normalization_version > 0",
+        name="embedding_space_normalization_version_positive",
+    ),
+    sa.CheckConstraint(
+        "preprocessing_version > 0",
+        name="embedding_space_preprocessing_version_positive",
+    ),
+    sa.CheckConstraint(
+        "length(fingerprint) = 64 AND fingerprint = lower(fingerprint)",
+        name="embedding_space_fingerprint_canonical",
+    ),
+    sa.CheckConstraint("hnsw_m > 0", name="embedding_space_hnsw_m_positive"),
+    sa.CheckConstraint(
+        "hnsw_ef_construction > 0",
+        name="embedding_space_hnsw_ef_construction_positive",
+    ),
+    sa.CheckConstraint(
+        "hnsw_ef_search > 0",
+        name="embedding_space_hnsw_ef_search_positive",
+    ),
+    sa.CheckConstraint(
+        "hnsw_iterative_scan IN ('off', 'relaxed_order', 'strict_order')",
+        name="embedding_space_hnsw_iterative_scan_valid",
+    ),
+    sa.CheckConstraint(
+        "NOT hnsw_enabled OR hnsw_index_name IS NOT NULL",
+        name="embedding_space_hnsw_index_named_when_enabled",
+    ),
+    sa.UniqueConstraint(
+        "space_id",
+        "dimensions",
+        name="uq_embedding_spaces_id_dimensions",
+    ),
+)
+
+embedding_documents = sa.Table(
+    "embedding_documents",
+    metadata,
+    sa.Column("document_id", uuid_type, primary_key=True),
+    sa.Column("source_document_id", uuid_type, nullable=False),
+    sa.Column("source_fingerprint", sa.Text(), nullable=False),
+    sa.Column("fingerprint", sa.Text(), nullable=False, unique=True),
+    sa.Column(
+        "manifest_id",
+        uuid_type,
+        sa.ForeignKey("content_manifests.manifest_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "source_sha256",
+        sa.Text(),
+        sa.ForeignKey("content_blobs.sha256", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("extraction_schema_version", sa.Integer(), nullable=False),
+    sa.Column("source_mime", sa.Text(), nullable=False),
+    sa.Column("parser_name", sa.Text(), nullable=False),
+    sa.Column("parser_implementation_version", sa.Text(), nullable=False),
+    sa.Column("parser_runtime_version", sa.Text(), nullable=False),
+    sa.Column("normalization_name", sa.Text(), nullable=False),
+    sa.Column("normalization_version", sa.Integer(), nullable=False),
+    sa.Column("normalized_text", NulSafeText(), nullable=False),
+    sa.Column("text_sha256", sa.Text(), nullable=False),
+    sa.Column("chunker_algorithm", sa.Text(), nullable=False),
+    sa.Column("chunker_version", sa.Integer(), nullable=False),
+    sa.Column("max_codepoints", sa.BigInteger(), nullable=False),
+    sa.Column("overlap_codepoints", sa.BigInteger(), nullable=False),
+    sa.Column("passage_count", sa.BigInteger(), nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("updated_at", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "length(source_fingerprint) = 64 AND source_fingerprint = lower(source_fingerprint)",
+        name="embedding_document_source_fingerprint_canonical",
+    ),
+    sa.CheckConstraint(
+        "length(fingerprint) = 64 AND fingerprint = lower(fingerprint)",
+        name="embedding_document_fingerprint_canonical",
+    ),
+    sa.CheckConstraint(
+        "length(source_sha256) = 64 AND source_sha256 = lower(source_sha256)",
+        name="embedding_document_source_sha256_canonical",
+    ),
+    sa.CheckConstraint(
+        "length(text_sha256) = 64 AND text_sha256 = lower(text_sha256)",
+        name="embedding_document_text_sha256_canonical",
+    ),
+    sa.CheckConstraint(
+        "extraction_schema_version > 0",
+        name="embedding_document_extraction_version_positive",
+    ),
+    sa.CheckConstraint(
+        "normalization_version > 0",
+        name="embedding_document_normalization_version_positive",
+    ),
+    sa.CheckConstraint(
+        "chunker_version > 0",
+        name="embedding_document_chunker_version_positive",
+    ),
+    sa.CheckConstraint(
+        "max_codepoints > 0",
+        name="embedding_document_max_codepoints_positive",
+    ),
+    sa.CheckConstraint(
+        "overlap_codepoints >= 0 AND overlap_codepoints < max_codepoints",
+        name="embedding_document_overlap_valid",
+    ),
+    sa.CheckConstraint(
+        "passage_count >= 0",
+        name="embedding_document_passage_count_nonnegative",
+    ),
+    sa.UniqueConstraint(
+        "source_document_id",
+        "chunker_algorithm",
+        "chunker_version",
+        "max_codepoints",
+        "overlap_codepoints",
+        "text_sha256",
+        name="uq_embedding_documents_passage_layout",
+    ),
+)
+sa.Index("embedding_documents_manifest_idx", embedding_documents.c.manifest_id)
+sa.Index(
+    "embedding_documents_source_idx",
+    embedding_documents.c.source_document_id,
+)
+
+object_embedding_documents = sa.Table(
+    "object_embedding_documents",
+    metadata,
+    sa.Column(
+        "object_id",
+        uuid_type,
+        sa.ForeignKey("objects.object_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column(
+        "space_id",
+        uuid_type,
+        sa.ForeignKey("embedding_spaces.space_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column(
+        "document_id",
+        uuid_type,
+        sa.ForeignKey("embedding_documents.document_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("updated_at", sa.Text(), nullable=False),
+)
+sa.Index(
+    "object_embedding_documents_document_idx",
+    object_embedding_documents.c.document_id,
+    object_embedding_documents.c.space_id,
+)
+
+embedding_passages = sa.Table(
+    "embedding_passages",
+    metadata,
+    sa.Column("passage_id", uuid_type, primary_key=True),
+    sa.Column(
+        "document_id",
+        uuid_type,
+        sa.ForeignKey("embedding_documents.document_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("passage_index", sa.BigInteger(), nullable=False),
+    sa.Column("start_codepoint", sa.BigInteger(), nullable=False),
+    sa.Column("end_codepoint", sa.BigInteger(), nullable=False),
+    sa.Column("text", NulSafeText(), nullable=False),
+    sa.Column("text_sha256", sa.Text(), nullable=False),
+    sa.Column("fingerprint", sa.Text(), nullable=False, unique=True),
+    sa.CheckConstraint(
+        "passage_index >= 0",
+        name="embedding_passage_index_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "start_codepoint >= 0",
+        name="embedding_passage_start_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "end_codepoint > start_codepoint",
+        name="embedding_passage_end_after_start",
+    ),
+    sa.CheckConstraint(
+        "length(text_sha256) = 64 AND text_sha256 = lower(text_sha256)",
+        name="embedding_passage_text_sha256_canonical",
+    ),
+    sa.CheckConstraint(
+        "length(fingerprint) = 64 AND fingerprint = lower(fingerprint)",
+        name="embedding_passage_fingerprint_canonical",
+    ),
+    sa.UniqueConstraint(
+        "document_id",
+        "passage_index",
+        name="uq_embedding_passages_document_index",
+    ),
+    sa.UniqueConstraint(
+        "document_id",
+        "start_codepoint",
+        "end_codepoint",
+        name="uq_embedding_passages_document_offsets",
+    ),
+    sa.UniqueConstraint(
+        "passage_id",
+        "text_sha256",
+        name="uq_embedding_passages_id_text_sha256",
+    ),
+)
+sa.Index("embedding_passages_document_idx", embedding_passages.c.document_id)
+
+embedding_vectors = sa.Table(
+    "embedding_vectors",
+    metadata,
+    sa.Column("space_id", uuid_type, primary_key=True),
+    sa.Column("passage_id", uuid_type, primary_key=True),
+    sa.Column("dimensions", sa.Integer(), nullable=False),
+    sa.Column("input_text_sha256", sa.Text(), nullable=False),
+    sa.Column("embedding", PortableVector(), nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("updated_at", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "dimensions > 0",
+        name="embedding_vector_dimensions_positive",
+    ),
+    sa.CheckConstraint(
+        "length(input_text_sha256) = 64 AND input_text_sha256 = lower(input_text_sha256)",
+        name="embedding_vector_input_sha256_canonical",
+    ),
+    sa.CheckConstraint(
+        "vector_dims(embedding) = dimensions",
+        name="embedding_vector_dimensions_match",
+    ).ddl_if(dialect="postgresql"),
+    sa.ForeignKeyConstraint(
+        ["space_id", "dimensions"],
+        ["embedding_spaces.space_id", "embedding_spaces.dimensions"],
+        name="fk_embedding_vectors_space_dimensions",
+        ondelete="CASCADE",
+    ),
+    sa.ForeignKeyConstraint(
+        ["passage_id", "input_text_sha256"],
+        ["embedding_passages.passage_id", "embedding_passages.text_sha256"],
+        name="fk_embedding_vectors_passage_text",
+        ondelete="CASCADE",
+    ),
+)
+sa.Index(
+    "embedding_vectors_passage_idx",
+    embedding_vectors.c.passage_id,
+    embedding_vectors.c.input_text_sha256,
+)
+
+embedding_document_spaces = sa.Table(
+    "embedding_document_spaces",
+    metadata,
+    sa.Column(
+        "document_id",
+        uuid_type,
+        sa.ForeignKey("embedding_documents.document_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column(
+        "space_id",
+        uuid_type,
+        sa.ForeignKey("embedding_spaces.space_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("completed_at", sa.Text(), nullable=False),
+)
+sa.Index(
+    "embedding_document_spaces_space_idx",
+    embedding_document_spaces.c.space_id,
+)
 
 object_placements = sa.Table(
     "object_placements",

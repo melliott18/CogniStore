@@ -65,10 +65,16 @@ _CATALOG_TABLES = {
     "content_blobs",
     "content_manifest_chunks",
     "content_manifests",
+    "embedding_document_spaces",
+    "embedding_documents",
+    "embedding_passages",
+    "embedding_spaces",
+    "embedding_vectors",
     "move_job_claim_fences",
     "move_job_transitions",
     "move_jobs",
     "object_contents",
+    "object_embedding_documents",
     "object_mutation_fences",
     "object_placements",
     "objects",
@@ -123,6 +129,18 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
             vector_version = connection.execute(
                 sa.text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
             ).scalar_one()
+            vector_storage_type = connection.exec_driver_sql(
+                "SELECT format_type(atttypid, atttypmod) "
+                "FROM pg_attribute "
+                "WHERE attrelid = 'embedding_vectors'::regclass "
+                "AND attname = 'embedding' AND NOT attisdropped"
+            ).scalar_one()
+            vector_constraints = set(
+                connection.exec_driver_sql(
+                    "SELECT conname FROM pg_constraint "
+                    "WHERE conrelid = 'embedding_vectors'::regclass"
+                ).scalars()
+            )
             feature = connection.execute(
                 sa.text(
                     "SELECT available, owned FROM catalog_schema_features "
@@ -131,6 +149,13 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
             ).one()
 
         assert vector_version
+        assert vector_storage_type == "vector"
+        assert (
+            "ck_embedding_vectors_embedding_vector_dimensions_match"
+            in vector_constraints
+        )
+        assert "fk_embedding_vectors_space_dimensions" in vector_constraints
+        assert "fk_embedding_vectors_passage_text" in vector_constraints
         assert tuple(feature) == (True, True)
 
 
