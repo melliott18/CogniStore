@@ -7,6 +7,8 @@ from cognistore.drivers.storage_driver import StorageDriver
 from .catalog import CatalogStore
 from .indexer import Indexer
 
+_DOCUMENT_READ_CHUNK_SIZE = 1024 * 1024
+
 
 @dataclass(frozen=True)
 class ScanResult:
@@ -60,7 +62,36 @@ def scan_catalog(
                 )
             else:
                 data = b""
-            indexed = active_indexer.index_bytes(data, filename=key)
+
+            def load_document() -> bytes:
+                if len(data) == size:
+                    return data
+                # Read one byte beyond the cap so an object that grew after
+                # stat is rejected. Using the stream contract keeps the read
+                # bounded even for backends without native range support.
+                remaining = active_indexer.max_document_file_bytes + 1
+                chunks: list[bytes] = []
+                with driver.open_object_reader(bucket, key) as reader:
+                    while remaining:
+                        chunk = reader.read(min(_DOCUMENT_READ_CHUNK_SIZE, remaining))
+                        if not isinstance(chunk, bytes):
+                            raise TypeError("Object stream read() must return bytes")
+                        if not chunk:
+                            break
+                        if len(chunk) > remaining:
+                            raise RuntimeError(
+                                "Object stream returned more bytes than requested"
+                            )
+                        chunks.append(chunk)
+                        remaining -= len(chunk)
+                return b"".join(chunks)
+
+            indexed = active_indexer.index_bytes(
+                data,
+                filename=key,
+                source_size=size,
+                document_loader=load_document,
+            )
             # Do not combine bytes and metadata from different physical
             # generations. The catalog fence below separately protects this
             # stable storage observation from concurrent move transitions.
@@ -88,6 +119,7 @@ def scan_catalog(
                 "sha256": indexed.sha256,
                 "mime": indexed.mime,
                 "mime_detection": indexed.mime_detection.to_metadata(),
+                "document_extraction": indexed.document_extraction.to_metadata(),
                 "sample_len": len(indexed.sample),
             },
             fence=fence,
