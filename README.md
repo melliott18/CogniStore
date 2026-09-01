@@ -300,7 +300,10 @@ Notes:
   `--catalog-url` is an equivalent CLI spelling. Writable SQL catalogs apply
   the packaged migrations automatically.
 - Writable `catalog-scan` and `policy-run` commands enqueue durable background jobs by default; run a worker with a persistent `--catalog-db`. Dry-runs stay synchronous, and `--sync` is available for explicit development-only inline execution.
-- `catalog-scan` captures metadata including sha256, mime, and a small sample length.
+- `catalog-scan` streams the complete object into a canonical SHA-256 and
+  versioned source-byte chunk manifest while retaining bounded MIME-sample and
+  document-extraction metadata. See the
+  [content identity contract](docs/content_identity.md).
 - `policy-run` supports:
 	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions

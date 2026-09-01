@@ -90,6 +90,77 @@ class StorageDriverConformance:
             assert source.read(1) == b""
         assert driver.stat_object(bucket, key)["size"] == 0
 
+    def test_generation_bound_reader_never_returns_a_replacement(
+        self, driver: StorageDriver, bucket: str
+    ) -> None:
+        key = "generation-bound-reader.bin"
+        original = b"original generation"
+        replacement = b"replacement generation"
+        driver.put_object(bucket, key, original)
+        original_generation = driver.object_generation(bucket, key)
+
+        with driver.open_object_reader_if_generation(
+            bucket,
+            key,
+            original_generation,
+        ) as source:
+            # Once opened, the reader stays bound to the accepted generation.
+            # A replacement may become current, but its bytes must never leak
+            # through the already-open stream.
+            driver.put_object(bucket, key, replacement)
+            assert source.read() == original
+
+        with pytest.raises(ObjectGenerationMismatchError):
+            with driver.open_object_reader_if_generation(
+                bucket,
+                key,
+                original_generation,
+            ):
+                pytest.fail("a stale generation-bound reader was yielded")
+
+        replacement_generation = driver.object_generation(bucket, key)
+        with driver.open_object_reader_if_generation(
+            bucket,
+            key,
+            replacement_generation,
+        ) as source:
+            assert source.read() == replacement
+
+    def test_generation_bound_reader_supports_ranges(
+        self, driver: StorageDriver, bucket: str
+    ) -> None:
+        if not driver.capabilities.range_reads:
+            pytest.skip("backend does not advertise range reads")
+
+        key = "generation-bound-range.bin"
+        driver.put_object(bucket, key, b"0123456789")
+        generation = driver.object_generation(bucket, key)
+
+        with driver.open_object_reader_if_generation(
+            bucket,
+            key,
+            generation,
+            range="bytes=2-6",
+        ) as source:
+            assert source.read() == b"23456"
+
+    @pytest.mark.parametrize("generation", ["", None, 1, True])
+    def test_generation_bound_reader_rejects_invalid_generation_tokens(
+        self,
+        driver: StorageDriver,
+        bucket: str,
+        generation: object,
+    ) -> None:
+        driver.put_object(bucket, "invalid-generation.bin", b"payload")
+
+        with pytest.raises(ValueError, match="generation.*non-empty string"):
+            with driver.open_object_reader_if_generation(
+                bucket,
+                "invalid-generation.bin",
+                generation,  # type: ignore[arg-type]
+            ):
+                pytest.fail("an invalid generation token opened a reader")
+
     @pytest.mark.parametrize(
         ("payload", "declared_size"),
         [(b"short", 6), (b"too-long", 7)],

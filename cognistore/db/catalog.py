@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import sqlite3
+import tempfile
 import threading
 from collections.abc import Iterator, Mapping
 from copy import deepcopy
@@ -34,6 +35,12 @@ from cognistore.core.catalog import (
     ScanFence,
     validate_catalog_size,
 )
+from cognistore.core.content_identity import (
+    MAX_IN_MEMORY_CONTENT_CHUNKS,
+    ContentChunk,
+    ContentChunkSequence,
+    ObjectContent,
+)
 from cognistore.core.move_jobs import (
     MoveJob,
     MoveJobLeaseError,
@@ -49,9 +56,13 @@ from .schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    content_blobs,
+    content_manifest_chunks,
+    content_manifests,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
+    object_contents,
     object_mutation_fences,
     object_placements,
     objects,
@@ -280,7 +291,7 @@ class SQLCatalog(Catalog):
         tier: str,
         metadata: Mapping[str, object],
         now: str,
-    ) -> None:
+    ) -> UUID:
         self._ensure_tier(connection, tier, now)
         object_id = self._object_id(bucket, key)
         current = connection.execute(
@@ -338,6 +349,342 @@ class SQLCatalog(Catalog):
                 .where(object_placements.c.object_id == object_id)
                 .values(tier_name=tier, pool_id=pool_id, updated_at=now)
             )
+        return object_id
+
+    @staticmethod
+    def _manifest_id(content: ObjectContent) -> UUID:
+        return _stable_uuid(
+            "content-manifest",
+            content.sha256,
+            str(content.schema_version),
+            content.representation,
+            content.chunking_algorithm,
+            str(content.chunking_version),
+            str(content.chunk_size),
+        )
+
+    @staticmethod
+    def _validate_object_content(content: ObjectContent) -> None:
+        if not isinstance(content, ObjectContent):
+            raise ValueError("content must be an ObjectContent")
+        expected_offset = 0
+        for expected_index, chunk in enumerate(content.chunks):
+            if chunk.index != expected_index:
+                raise ValueError("content chunk indexes must be contiguous from zero")
+            if chunk.offset != expected_offset:
+                raise ValueError("content chunk offsets must be contiguous from zero")
+            if chunk.size <= 0:
+                raise ValueError("content chunks must be non-empty")
+            expected_offset += chunk.size
+        if expected_offset != content.size:
+            raise ValueError("content chunk sizes must equal the full content size")
+
+    @staticmethod
+    def _insert_content_blob(
+        connection: Connection,
+        *,
+        sha256: str,
+        digest_algorithm: str,
+        size: int,
+        cas_key: str,
+        now: str,
+    ) -> None:
+        expected = {
+            "sha256": sha256,
+            "digest_algorithm": digest_algorithm,
+            "size": size,
+            "cas_key": cas_key,
+        }
+        SQLCatalog._do_nothing_insert(
+            connection,
+            content_blobs,
+            {**expected, "created_at": now},
+        )
+        row = (
+            connection.execute(
+                sa.select(
+                    content_blobs.c.sha256,
+                    content_blobs.c.digest_algorithm,
+                    content_blobs.c.size,
+                    content_blobs.c.cas_key,
+                ).where(content_blobs.c.sha256 == sha256)
+            )
+            .mappings()
+            .first()
+        )
+        if row is None or dict(row) != expected:
+            raise ValueError(f"content blob identity collision for sha256 {sha256}")
+
+    @staticmethod
+    def _manifest_layout_predicate(content: ObjectContent) -> Any:
+        return sa.and_(
+            content_manifests.c.content_sha256 == content.sha256,
+            content_manifests.c.schema_version == content.schema_version,
+            content_manifests.c.representation == content.representation,
+            content_manifests.c.chunking_algorithm == content.chunking_algorithm,
+            content_manifests.c.chunking_version == content.chunking_version,
+            content_manifests.c.chunk_size == content.chunk_size,
+        )
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _ordered_content_blob_descriptors(
+        content: ObjectContent,
+    ) -> Iterator[Iterator[tuple[str, str, int, str]]]:
+        """Spool unique blob writes in one bounded global acquisition order."""
+
+        with tempfile.TemporaryDirectory(
+            prefix="cognistore-content-blobs-"
+        ) as spool_directory:
+            spool = sqlite3.connect(Path(spool_directory) / "descriptors.db")
+            try:
+                # This database is disposable, private to one transaction, and
+                # ordered by its WITHOUT ROWID primary key. Keep SQLite's page
+                # cache fixed and force any auxiliary storage onto disk.
+                spool.execute("PRAGMA journal_mode = OFF")
+                spool.execute("PRAGMA synchronous = OFF")
+                spool.execute("PRAGMA temp_store = FILE")
+                spool.execute("PRAGMA cache_size = -256")
+                spool.execute(
+                    """
+                    CREATE TABLE descriptors (
+                        sha256 TEXT PRIMARY KEY COLLATE BINARY,
+                        digest_algorithm TEXT NOT NULL,
+                        size INTEGER NOT NULL,
+                        cas_key TEXT NOT NULL
+                    ) WITHOUT ROWID
+                    """
+                )
+
+                def register(
+                    sha256: str,
+                    digest_algorithm: str,
+                    size: int,
+                    cas_key: str,
+                ) -> None:
+                    descriptor = (sha256, digest_algorithm, size, cas_key)
+                    inserted = spool.execute(
+                        "INSERT OR IGNORE INTO descriptors VALUES (?, ?, ?, ?)",
+                        descriptor,
+                    )
+                    if inserted.rowcount == 1:
+                        return
+                    existing = spool.execute(
+                        """
+                        SELECT sha256, digest_algorithm, size, cas_key
+                        FROM descriptors
+                        WHERE sha256 = ?
+                        """,
+                        (sha256,),
+                    ).fetchone()
+                    if existing != descriptor:
+                        raise ValueError(
+                            f"content blob identity collision for sha256 {sha256}"
+                        )
+
+                register(
+                    content.sha256,
+                    content.digest_algorithm,
+                    content.size,
+                    content.cas_key,
+                )
+                for chunk in content.chunks:
+                    register(
+                        chunk.sha256,
+                        content.digest_algorithm,
+                        chunk.size,
+                        chunk.cas_key,
+                    )
+
+                rows = spool.execute(
+                    """
+                    SELECT sha256, digest_algorithm, size, cas_key
+                    FROM descriptors
+                    ORDER BY sha256
+                    """
+                )
+
+                def ordered() -> Iterator[tuple[str, str, int, str]]:
+                    for sha256, digest_algorithm, size, cas_key in rows:
+                        yield sha256, digest_algorithm, size, cas_key
+
+                yield ordered()
+            finally:
+                spool.close()
+
+    @staticmethod
+    def _manifest_chunk_values(
+        manifest_id: UUID,
+        chunk: ContentChunk,
+    ) -> dict[str, object]:
+        return {
+            "manifest_id": manifest_id,
+            "chunk_index": chunk.index,
+            "chunk_sha256": chunk.sha256,
+            "byte_offset": chunk.offset,
+            "byte_length": chunk.size,
+        }
+
+    def _replace_object_content(
+        self,
+        connection: Connection,
+        object_id: UUID,
+        content: ObjectContent,
+        *,
+        now: str,
+    ) -> None:
+        self._validate_object_content(content)
+        # Global blobs are shared by unrelated logical objects. PostgreSQL's
+        # unique-index conflict checks wait on uncommitted inserts, so taking
+        # these keys in manifest order could deadlock two scans whose shared
+        # chunks appear in opposite order. The file-backed primary-key spool
+        # deduplicates and establishes one lock-acquisition order without an
+        # object-size-dependent Python collection.
+        with self._ordered_content_blob_descriptors(content) as descriptors:
+            for sha256, digest_algorithm, size, cas_key in descriptors:
+                self._insert_content_blob(
+                    connection,
+                    sha256=sha256,
+                    digest_algorithm=digest_algorithm,
+                    size=size,
+                    cas_key=cas_key,
+                    now=now,
+                )
+
+        proposed_manifest_id = self._manifest_id(content)
+        manifest_values = {
+            "manifest_id": proposed_manifest_id,
+            "content_sha256": content.sha256,
+            "schema_version": content.schema_version,
+            "representation": content.representation,
+            "chunking_algorithm": content.chunking_algorithm,
+            "chunking_version": content.chunking_version,
+            "chunk_size": content.chunk_size,
+            "chunk_count": len(content.chunks),
+        }
+        self._do_nothing_insert(
+            connection,
+            content_manifests,
+            {**manifest_values, "created_at": now},
+        )
+        manifest_row = (
+            connection.execute(
+                sa.select(
+                    content_manifests.c.manifest_id,
+                    content_manifests.c.content_sha256,
+                    content_manifests.c.schema_version,
+                    content_manifests.c.representation,
+                    content_manifests.c.chunking_algorithm,
+                    content_manifests.c.chunking_version,
+                    content_manifests.c.chunk_size,
+                    content_manifests.c.chunk_count,
+                ).where(self._manifest_layout_predicate(content))
+            )
+            .mappings()
+            .first()
+        )
+        if manifest_row is None:
+            raise ValueError("content manifest identity collision")
+        manifest_id = manifest_row["manifest_id"]
+        expected_manifest = {**manifest_values, "manifest_id": manifest_id}
+        if dict(manifest_row) != expected_manifest:
+            raise ValueError("content manifest layout collision")
+
+        for chunk in content.chunks:
+            self._do_nothing_insert(
+                connection,
+                content_manifest_chunks,
+                self._manifest_chunk_values(manifest_id, chunk),
+            )
+
+        persisted_chunks = connection.execute(
+            sa.select(
+                content_manifest_chunks.c.manifest_id,
+                content_manifest_chunks.c.chunk_index,
+                content_manifest_chunks.c.chunk_sha256,
+                content_manifest_chunks.c.byte_offset,
+                content_manifest_chunks.c.byte_length,
+            )
+            .where(content_manifest_chunks.c.manifest_id == manifest_id)
+            .order_by(content_manifest_chunks.c.chunk_index)
+            .execution_options(
+                stream_results=True,
+                max_row_buffer=MAX_IN_MEMORY_CONTENT_CHUNKS,
+            )
+        ).mappings()
+        try:
+            for chunk in content.chunks:
+                persisted = persisted_chunks.fetchone()
+                expected = self._manifest_chunk_values(manifest_id, chunk)
+                if persisted is None or dict(persisted) != expected:
+                    raise ValueError(
+                        "content manifest chunks conflict with the persisted layout"
+                    )
+            if persisted_chunks.fetchone() is not None:
+                raise ValueError(
+                    "content manifest chunks conflict with the persisted layout"
+                )
+        finally:
+            persisted_chunks.close()
+
+        mapping = connection.execute(
+            sa.select(object_contents.c.object_id).where(
+                object_contents.c.object_id == object_id
+            )
+        ).scalar_one_or_none()
+        if mapping is None:
+            connection.execute(
+                sa.insert(object_contents).values(
+                    object_id=object_id,
+                    manifest_id=manifest_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        else:
+            connection.execute(
+                sa.update(object_contents)
+                .where(object_contents.c.object_id == object_id)
+                .values(manifest_id=manifest_id, updated_at=now)
+            )
+
+    @staticmethod
+    def _invalidate_object_content_if_mismatched(
+        connection: Connection,
+        object_id: UUID,
+        *,
+        size: int,
+        checksum: str | None,
+    ) -> bool:
+        row = (
+            connection.execute(
+                sa.select(
+                    content_manifests.c.content_sha256,
+                    content_blobs.c.size,
+                )
+                .select_from(
+                    object_contents.join(
+                        content_manifests,
+                        content_manifests.c.manifest_id == object_contents.c.manifest_id,
+                    ).join(
+                        content_blobs,
+                        content_blobs.c.sha256 == content_manifests.c.content_sha256,
+                    )
+                )
+                .where(object_contents.c.object_id == object_id)
+            )
+            .mappings()
+            .first()
+        )
+        if row is not None and (
+            row["size"] != size
+            or (checksum is not None and row["content_sha256"] != checksum)
+        ):
+            connection.execute(
+                sa.delete(object_contents).where(object_contents.c.object_id == object_id)
+            )
+            return True
+        return False
 
     def upsert(
         self,
@@ -348,17 +695,25 @@ class SQLCatalog(Catalog):
         metadata: dict[str, object] | None = None,
     ) -> None:
         validate_catalog_size(size)
+        persisted_metadata = deepcopy(metadata) if metadata is not None else {}
+        # This summary is a catalog-owned projection of ``object_contents``.
+        # A generic write invalidates that mapping and therefore cannot retain
+        # or accept a caller-forged reserved header.
+        persisted_metadata.pop("content_identity", None)
         now = _timestamp()
         with self._transaction() as connection:
             self._lock_object(connection, bucket, key)
-            self._write_object(
+            object_id = self._write_object(
                 connection,
                 bucket,
                 key,
                 size=size,
                 tier=tier,
-                metadata=metadata or {},
+                metadata=persisted_metadata,
                 now=now,
+            )
+            connection.execute(
+                sa.delete(object_contents).where(object_contents.c.object_id == object_id)
             )
 
     def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
@@ -380,12 +735,17 @@ class SQLCatalog(Catalog):
         generation: str,
         metadata: dict[str, object] | None,
         fence: ScanFence,
+        content: ObjectContent | None = None,
     ) -> bool:
         if (fence.bucket, fence.key) != (bucket, key):
             raise ValueError("scan fence does not identify the observed object")
         if not isinstance(generation, str) or not generation:
             raise ValueError("scan observation requires a non-empty generation")
         validate_catalog_size(size)
+        if content is not None:
+            self._validate_object_content(content)
+            if content.size != size:
+                raise ValueError("content size must match the scan observation size")
         now = _timestamp()
         with self._transaction() as connection:
             self._lock_object(connection, bucket, key)
@@ -396,15 +756,41 @@ class SQLCatalog(Catalog):
                 jobs, tier=tier, generation=generation
             ):
                 return False
-            self._write_object(
+            existing_metadata = connection.execute(
+                sa.select(objects.c.metadata).where(
+                    objects.c.bucket == bucket,
+                    objects.c.object_key == key,
+                )
+            ).scalar_one_or_none()
+            merged_metadata = dict(existing_metadata or {})
+            merged_metadata.update(metadata or {})
+            if content is None:
+                merged_metadata.pop("content_identity", None)
+            else:
+                merged_metadata["sha256"] = content.sha256
+                merged_metadata["content_identity"] = content.to_metadata()
+            object_id = self._write_object(
                 connection,
                 bucket,
                 key,
                 size=size,
                 tier=tier,
-                metadata=metadata or {},
+                metadata=merged_metadata,
                 now=now,
             )
+            if content is None:
+                connection.execute(
+                    sa.delete(object_contents).where(
+                        object_contents.c.object_id == object_id
+                    )
+                )
+            else:
+                self._replace_object_content(
+                    connection,
+                    object_id,
+                    content,
+                    now=now,
+                )
             return True
 
     @staticmethod
@@ -440,6 +826,104 @@ class SQLCatalog(Catalog):
         with self._connection() as connection:
             row = connection.execute(statement).mappings().first()
         return None if row is None else self._record(row)
+
+    def get_object_content(self, bucket: str, key: str) -> ObjectContent | None:
+        statement = (
+            sa.select(
+                content_manifests.c.manifest_id,
+                content_manifests.c.schema_version,
+                content_manifests.c.representation,
+                content_manifests.c.chunking_algorithm,
+                content_manifests.c.chunking_version,
+                content_manifests.c.chunk_size,
+                content_manifests.c.chunk_count,
+                content_blobs.c.digest_algorithm,
+                content_blobs.c.sha256,
+                content_blobs.c.size,
+                content_blobs.c.cas_key,
+            )
+            .select_from(
+                objects.join(
+                    object_contents,
+                    object_contents.c.object_id == objects.c.object_id,
+                )
+                .join(
+                    content_manifests,
+                    content_manifests.c.manifest_id == object_contents.c.manifest_id,
+                )
+                .join(
+                    content_blobs,
+                    content_blobs.c.sha256 == content_manifests.c.content_sha256,
+                )
+            )
+            .where(
+                objects.c.bucket == bucket,
+                objects.c.object_key == key,
+            )
+        )
+        with self._connection() as connection:
+            row = connection.execute(statement).mappings().first()
+            if row is None:
+                return None
+            chunk_rows = connection.execute(
+                sa.select(
+                    content_manifest_chunks.c.chunk_index,
+                    content_manifest_chunks.c.byte_offset,
+                    content_manifest_chunks.c.byte_length,
+                    content_manifest_chunks.c.chunk_sha256,
+                    content_blobs.c.size.label("blob_size"),
+                    content_blobs.c.cas_key,
+                )
+                .select_from(
+                    content_manifest_chunks.join(
+                        content_blobs,
+                        content_blobs.c.sha256
+                        == content_manifest_chunks.c.chunk_sha256,
+                    )
+                )
+                .where(content_manifest_chunks.c.manifest_id == row["manifest_id"])
+                .order_by(content_manifest_chunks.c.chunk_index)
+                # psycopg's ordinary cursor buffers the complete result in
+                # libpq. Request server-side streaming so PostgreSQL retrieval
+                # has the same fixed descriptor bound as SQLite iteration.
+                .execution_options(
+                    stream_results=True,
+                    max_row_buffer=MAX_IN_MEMORY_CONTENT_CHUNKS,
+                )
+            ).mappings()
+            try:
+
+                def iter_chunks() -> Iterator[ContentChunk]:
+                    for chunk_row in chunk_rows:
+                        if chunk_row["byte_length"] != chunk_row["blob_size"]:
+                            raise RuntimeError(
+                                "persisted content chunk length does not match its blob"
+                            )
+                        yield ContentChunk(
+                            index=chunk_row["chunk_index"],
+                            offset=chunk_row["byte_offset"],
+                            size=chunk_row["byte_length"],
+                            sha256=chunk_row["chunk_sha256"],
+                            cas_key=chunk_row["cas_key"],
+                        )
+
+                chunks = ContentChunkSequence.from_iterable(iter_chunks())
+            finally:
+                chunk_rows.close()
+        if len(chunks) != row["chunk_count"]:
+            raise RuntimeError("persisted content manifest has an invalid chunk count")
+        return ObjectContent(
+            schema_version=row["schema_version"],
+            representation=row["representation"],
+            digest_algorithm=row["digest_algorithm"],
+            sha256=row["sha256"],
+            size=row["size"],
+            cas_key=row["cas_key"],
+            chunking_algorithm=row["chunking_algorithm"],
+            chunking_version=row["chunking_version"],
+            chunk_size=row["chunk_size"],
+            chunks=chunks,
+        )
 
     def update_placement(self, bucket: str, key: str, tier: str) -> None:
         now = _timestamp()
@@ -495,7 +979,7 @@ class SQLCatalog(Catalog):
             metadata = dict(existing or {})
             if checksum is not None:
                 metadata["sha256"] = checksum
-            self._write_object(
+            object_id = self._write_object(
                 connection,
                 bucket,
                 key,
@@ -504,6 +988,21 @@ class SQLCatalog(Catalog):
                 metadata=metadata,
                 now=now,
             )
+            invalidated = self._invalidate_object_content_if_mismatched(
+                connection,
+                object_id,
+                size=size,
+                checksum=checksum,
+            )
+            if invalidated:
+                metadata.pop("content_identity", None)
+                if checksum is None:
+                    metadata.pop("sha256", None)
+                connection.execute(
+                    sa.update(objects)
+                    .where(objects.c.object_id == object_id)
+                    .values(metadata=metadata, updated_at=now)
+                )
 
     def delete(self, bucket: str, key: str) -> None:
         with self._transaction() as connection:
@@ -1166,7 +1665,7 @@ class SQLCatalog(Catalog):
             ).scalar_one_or_none()
             metadata = dict(existing or {})
             metadata["sha256"] = checksum
-            self._write_object(
+            object_id = self._write_object(
                 connection,
                 job.bucket,
                 job.key,
@@ -1175,6 +1674,19 @@ class SQLCatalog(Catalog):
                 metadata=metadata,
                 now=now,
             )
+            invalidated = self._invalidate_object_content_if_mismatched(
+                connection,
+                object_id,
+                size=size,
+                checksum=checksum,
+            )
+            if invalidated:
+                metadata.pop("content_identity", None)
+                connection.execute(
+                    sa.update(objects)
+                    .where(objects.c.object_id == object_id)
+                    .values(metadata=metadata, updated_at=now)
+                )
             connection.execute(
                 sa.update(move_jobs)
                 .where(move_jobs.c.idempotency_key == idempotency_key)

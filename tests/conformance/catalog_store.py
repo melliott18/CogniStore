@@ -7,9 +7,19 @@ snapshot contract for the in-memory, SQLite, and PostgreSQL backends.
 
 from __future__ import annotations
 
+from io import BytesIO
+
 import pytest
 
 from cognistore.core.catalog import CatalogStore, ObjectRecord
+from cognistore.core.content_identity import ContentIdentityBuilder, ObjectContent
+
+
+def _content(data: bytes, *, chunk_size: int = 4) -> ObjectContent:
+    return ContentIdentityBuilder(chunk_size=chunk_size).build(
+        BytesIO(data),
+        expected_size=len(data),
+    )
 
 
 class CatalogStoreConformance:
@@ -158,3 +168,157 @@ class CatalogStoreConformance:
                     size=invalid_size,
                     tier="hot",
                 )
+
+        assert catalog.get_object_content("bucket", "missing") is None
+
+    def test_scan_content_is_atomic_and_preserves_independent_metadata(
+        self, catalog: CatalogStore
+    ) -> None:
+        data = b"abcdefghij"
+        content = _content(data)
+        catalog.upsert(
+            "bucket",
+            "object",
+            size=len(data),
+            tier="hot",
+            metadata={
+                "classification": "retain",
+                "nested": {"labels": ["independent"]},
+                "sha256": "legacy-sample",
+                "content_identity": {"forged": "old"},
+            },
+        )
+        fence = catalog.capture_scan_fence("bucket", "object")
+
+        assert catalog.upsert_scan_observation(
+            "bucket",
+            "object",
+            size=len(data),
+            tier="hot",
+            generation="hot:v1",
+            metadata={
+                "path": "/observed",
+                "sha256": "caller-mismatch",
+                "content_identity": {"forged": "caller"},
+            },
+            fence=fence,
+            content=content,
+        )
+
+        record = catalog.get("bucket", "object")
+        first = catalog.get_object_content("bucket", "object")
+        second = catalog.get_object_content("bucket", "object")
+        assert record is not None
+        assert record.metadata == {
+            "classification": "retain",
+            "nested": {"labels": ["independent"]},
+            "sha256": content.sha256,
+            "path": "/observed",
+            "content_identity": content.to_metadata(),
+        }
+        assert first == content
+        assert second == content
+
+        # A scan without full content identity atomically clears both the
+        # normalized mapping and its reserved metadata projection.
+        fence = catalog.capture_scan_fence("bucket", "object")
+        assert catalog.upsert_scan_observation(
+            "bucket",
+            "object",
+            size=len(data),
+            tier="hot",
+            generation="hot:v2",
+            metadata={"content_identity": {"forged": "replacement"}},
+            fence=fence,
+        )
+        rescanned = catalog.get("bucket", "object")
+        assert rescanned is not None
+        assert "content_identity" not in rescanned.metadata
+        assert catalog.get_object_content("bucket", "object") is None
+
+    def test_manifest_replacement_never_exposes_mixed_layouts(
+        self, catalog: CatalogStore
+    ) -> None:
+        data = b"abcdefghij"
+        first = _content(data, chunk_size=4)
+        second = _content(data, chunk_size=3)
+
+        for generation, content in (("hot:v1", first), ("hot:v2", second)):
+            fence = catalog.capture_scan_fence("bucket", "object")
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                "object",
+                size=len(data),
+                tier="hot",
+                generation=generation,
+                metadata={},
+                fence=fence,
+                content=content,
+            )
+
+        persisted = catalog.get_object_content("bucket", "object")
+        assert persisted == second
+        assert persisted is not None
+        assert [chunk.index for chunk in persisted.chunks] == [0, 1, 2, 3]
+        assert [chunk.offset for chunk in persisted.chunks] == [0, 3, 6, 9]
+
+    def test_content_mapping_lifecycle_is_backend_neutral(
+        self, catalog: CatalogStore
+    ) -> None:
+        data = b"shared bytes"
+        content = _content(data)
+        for key in ("first", "second"):
+            fence = catalog.capture_scan_fence("bucket", key)
+            assert catalog.upsert_scan_observation(
+                "bucket",
+                key,
+                size=len(data),
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={"content_identity": content.to_metadata()},
+                fence=fence,
+                content=content,
+            )
+
+        catalog.update_placement("bucket", "first", "warm")
+        catalog.upsert_placement(
+            "bucket",
+            "first",
+            size=len(data),
+            tier="cold",
+            checksum=content.sha256,
+        )
+        assert catalog.get_object_content("bucket", "first") == content
+
+        replacement_checksum = "0" * 64
+        catalog.upsert_placement(
+            "bucket",
+            "first",
+            size=len(data),
+            tier="archive",
+            checksum=replacement_checksum,
+        )
+        replaced = catalog.get("bucket", "first")
+        assert replaced is not None
+        assert replaced.metadata["sha256"] == replacement_checksum
+        assert "content_identity" not in replaced.metadata
+        assert catalog.get_object_content("bucket", "first") is None
+
+        catalog.delete("bucket", "first")
+        assert catalog.get_object_content("bucket", "first") is None
+        assert catalog.get_object_content("bucket", "second") == content
+
+        catalog.upsert(
+            "bucket",
+            "second",
+            size=len(data) + 1,
+            tier="hot",
+            metadata={
+                "content_identity": {"forged": True},
+                "independent": "retained",
+            },
+        )
+        assert catalog.get_object_content("bucket", "second") is None
+        rewritten = catalog.get("bucket", "second")
+        assert rewritten is not None
+        assert rewritten.metadata == {"independent": "retained"}

@@ -1,13 +1,85 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
-from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.drivers.storage_driver import (
+    ObjectGenerationMismatchError,
+    ReadableStream,
+    StorageDriver,
+)
 
 from .catalog import CatalogStore
+from .content_identity import ContentSizeMismatchError
 from .indexer import Indexer
 
-_DOCUMENT_READ_CHUNK_SIZE = 1024 * 1024
+_MAX_MIME_SAMPLE_BYTES = 1024 * 1024
+
+
+def _read_stream_part(reader: ReadableStream, requested: int) -> bytes:
+    part = reader.read(requested)
+    if not isinstance(part, bytes):
+        raise TypeError("content stream read() must return bytes")
+    if len(part) > requested:
+        raise ValueError("content stream returned more bytes than requested")
+    return part
+
+
+def _read_prefix(reader: ReadableStream, size: int) -> bytes:
+    prefix = bytearray()
+    while len(prefix) < size:
+        part = _read_stream_part(reader, size - len(prefix))
+        if not part:
+            break
+        prefix.extend(part)
+    return bytes(prefix)
+
+
+class _PrefixReplayReader:
+    """Replay an already-read prefix before continuing one source stream."""
+
+    def __init__(self, prefix: bytes, reader: ReadableStream) -> None:
+        self._prefix = prefix
+        self._reader = reader
+        self._offset = 0
+
+    def read(self, size: int = -1) -> bytes:
+        if size == 0:
+            return b""
+        if self._offset == len(self._prefix):
+            return self._reader.read(size)
+
+        if size < 0:
+            remaining = self._prefix[self._offset :]
+            self._offset = len(self._prefix)
+            suffix = self._reader.read()
+            if not isinstance(suffix, bytes):
+                raise TypeError("content stream read() must return bytes")
+            return remaining + suffix
+
+        prefix_size = min(size, len(self._prefix) - self._offset)
+        first = self._prefix[self._offset : self._offset + prefix_size]
+        self._offset += prefix_size
+        if prefix_size == size:
+            return first
+        suffix = _read_stream_part(self._reader, size - prefix_size)
+        return first + suffix
+
+
+def _open_generation_bound_reader(
+    driver: StorageDriver,
+    bucket: str,
+    key: str,
+    generation: str,
+) -> AbstractContextManager[ReadableStream]:
+    # Fail closed for legacy duck-typed drivers. A before/read/after fallback
+    # admits A -> B -> A replacement races and would defeat this contract.
+    opener = getattr(driver, "open_object_reader_if_generation", None)
+    if opener is None:
+        raise NotImplementedError(
+            "Storage driver does not support generation-bound object reads"
+        )
+    return opener(bucket, key, generation)
 
 
 @dataclass(frozen=True)
@@ -55,51 +127,43 @@ def scan_catalog(
                     f"Storage driver returned no generation for {bucket}/{key}"
                 )
             size = int(stat.get("size", 0))
-            if size:
-                sample_end = min(size, 1024 * 1024) - 1
-                data = driver.get_object(
-                    bucket, key, range=f"bytes=0-{sample_end}"
-                )
-            else:
-                data = b""
-
-            def load_document() -> bytes:
-                if len(data) == size:
-                    return data
-                # Read one byte beyond the cap so an object that grew after
-                # stat is rejected. Using the stream contract keeps the read
-                # bounded even for backends without native range support.
-                remaining = active_indexer.max_document_file_bytes + 1
-                chunks: list[bytes] = []
-                with driver.open_object_reader(bucket, key) as reader:
-                    while remaining:
-                        chunk = reader.read(min(_DOCUMENT_READ_CHUNK_SIZE, remaining))
-                        if not isinstance(chunk, bytes):
-                            raise TypeError("Object stream read() must return bytes")
-                        if not chunk:
-                            break
-                        if len(chunk) > remaining:
-                            raise RuntimeError(
-                                "Object stream returned more bytes than requested"
-                            )
-                        chunks.append(chunk)
-                        remaining -= len(chunk)
-                return b"".join(chunks)
-
-            indexed = active_indexer.index_bytes(
-                data,
-                filename=key,
-                source_size=size,
-                document_loader=load_document,
-            )
+            try:
+                with _open_generation_bound_reader(
+                    driver,
+                    bucket,
+                    key,
+                    generation,
+                ) as reader:
+                    sample = _read_prefix(
+                        reader,
+                        min(size, _MAX_MIME_SAMPLE_BYTES) if size > 0 else 0,
+                    )
+                    indexed = active_indexer.index_stream(
+                        _PrefixReplayReader(sample, reader),
+                        sample=sample,
+                        filename=key,
+                        source_size=size,
+                    )
+            except ContentSizeMismatchError:
+                # A concurrent replacement can invalidate the stat size while
+                # the full stream is being consumed. Treat that like the
+                # generation race below, but surface a mismatch from an
+                # otherwise unchanged backend as a storage contract failure.
+                if driver.object_generation(bucket, key) != generation:
+                    continue
+                raise
+            content = indexed.content
+            if content is None:
+                raise RuntimeError("Stream indexing returned no content identity")
             # Do not combine bytes and metadata from different physical
             # generations. The catalog fence below separately protects this
             # stable storage observation from concurrent move transitions.
             if driver.object_generation(bucket, key) != generation:
                 continue
-        except FileNotFoundError:
+        except (FileNotFoundError, ObjectGenerationMismatchError):
             # Listings are snapshots. A concurrent move or external deletion
-            # may retire an entry before it can be observed consistently.
+            # or replacement may retire an entry before it can be observed
+            # consistently.
             continue
 
         if dry_run:
@@ -117,12 +181,14 @@ def scan_catalog(
             metadata={
                 "path": stat.get("path"),
                 "sha256": indexed.sha256,
+                "content_identity": content.to_metadata(),
                 "mime": indexed.mime,
                 "mime_detection": indexed.mime_detection.to_metadata(),
                 "document_extraction": indexed.document_extraction.to_metadata(),
                 "sample_len": len(indexed.sample),
             },
             fence=fence,
+            content=content,
         )
         if not published:
             continue

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterator
@@ -930,6 +931,32 @@ def test_catalog_scan_dry_run_does_not_enqueue_or_write_storage_or_catalog(
         def object_generation(self, bucket: str, key: str) -> str:
             assert (bucket, key) == ("bucket", "reports/one.txt")
             return "generation-1"
+
+        @contextmanager
+        def open_object_reader(
+            self,
+            bucket: str,
+            key: str,
+            range: str | None = None,
+        ) -> Iterator[BytesIO]:
+            assert (bucket, key, range) == ("bucket", "reports/one.txt", None)
+            yield BytesIO(b"one")
+
+        @contextmanager
+        def open_object_reader_if_generation(
+            self,
+            bucket: str,
+            key: str,
+            generation: str,
+            range: str | None = None,
+        ) -> Iterator[BytesIO]:
+            assert (bucket, key, generation, range) == (
+                "bucket",
+                "reports/one.txt",
+                "generation-1",
+                None,
+            )
+            yield BytesIO(b"one")
 
         put_object = _forbid
         delete_object = _forbid

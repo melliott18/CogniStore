@@ -46,10 +46,12 @@ catalog compares that fence atomically with publication, so an active or newer
 move prevents a stale scan observation from overwriting authoritative
 placement.
 
-Scan metadata is not yet canonical content identity. BUG-2026-004 records that
-large-object scans store a first-megabyte sample under an ambiguous `sha256`
-name and can replace metadata. M2 #34 must introduce full-object, streaming,
-versioned checksums/chunks/CAS mappings without weakening scan fences.
+Scan publication includes canonical content identity. The scanner hashes the
+complete stable source stream, creates a deterministic versioned source-byte
+chunk manifest, and derives byte-addressed CAS keys. Object metadata, the
+manifest, and its ordered mappings publish atomically under the existing move
+fence; unrelated metadata is merged rather than replaced. The full contract is
+documented in [Content identity and source-byte chunking](content_identity.md).
 
 MIME detection is content-first. The indexing adapter asks libmagic to inspect
 the sampled bytes and uses Python's filename inference only when libmagic is
