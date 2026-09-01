@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "name": "cognistore-semantic-search-v1",
+  "license": "MIT",
+  "description": "Project-authored normalized passages and queries for filtered similarity and HNSW recall measurements.",
+  "passages": [
+    {
+      "passage_id": "retention-policy-0",
+      "document_id": "retention-policy",
+      "bucket": "semantic-fixtures",
+      "object_key": "operations/records-retention.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "operations",
+        "topic": "retention"
+      },
+      "text": "Active customer agreements remain in warm storage for two years after the most recent signed amendment."
+    },
+    {
+      "passage_id": "retention-policy-1",
+      "document_id": "retention-policy",
+      "bucket": "semantic-fixtures",
+      "object_key": "operations/records-retention.txt",
+      "tier": "cold",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "operations",
+        "topic": "retention"
+      },
+      "text": "Completed contracts move to cold storage after seven years. A legal hold pauses archival deletion until counsel releases the hold."
+    },
+    {
+      "passage_id": "backup-runbook-0",
+      "document_id": "backup-runbook",
+      "bucket": "semantic-fixtures",
+      "object_key": "platform/database-backups.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "platform",
+        "topic": "recovery"
+      },
+      "text": "The catalog receives one encrypted full backup each night and incremental backups every four hours."
+    },
+    {
+      "passage_id": "backup-runbook-1",
+      "document_id": "backup-runbook",
+      "bucket": "semantic-fixtures",
+      "object_key": "platform/database-backups.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "platform",
+        "topic": "recovery"
+      },
+      "text": "A quarterly restore drill loads the newest backup into an isolated database, verifies checksums, and records recovery time."
+    },
+    {
+      "passage_id": "invoice-guide-0",
+      "document_id": "invoice-guide",
+      "bucket": "semantic-fixtures",
+      "object_key": "finance/vendor-invoices.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "finance",
+        "topic": "payables"
+      },
+      "text": "Approved vendor invoices are scheduled against their payment terms, normally thirty days after the invoice date."
+    },
+    {
+      "passage_id": "invoice-guide-1",
+      "document_id": "invoice-guide",
+      "bucket": "semantic-fixtures",
+      "object_key": "finance/vendor-invoices.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "finance",
+        "topic": "payables"
+      },
+      "text": "Possible duplicate invoices are held for review and matched by vendor, amount, invoice number, and purchase order."
+    },
+    {
+      "passage_id": "solar-notes-0",
+      "document_id": "solar-notes",
+      "bucket": "semantic-fixtures",
+      "object_key": "research/rooftop-solar.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "research",
+        "topic": "energy"
+      },
+      "text": "Rooftop solar output depends on panel angle, seasonal daylight, cloud cover, and shade from nearby structures."
+    },
+    {
+      "passage_id": "solar-notes-1",
+      "document_id": "solar-notes",
+      "bucket": "semantic-fixtures",
+      "object_key": "research/rooftop-solar.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "research",
+        "topic": "energy"
+      },
+      "text": "A home battery stores excess midday generation and can supply evening demand when the panels no longer produce power."
+    },
+    {
+      "passage_id": "trail-checklist-0",
+      "document_id": "trail-checklist",
+      "bucket": "semantic-fixtures",
+      "object_key": "field-guides/day-hike.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "field-team",
+        "topic": "safety"
+      },
+      "text": "Before a day hike, check the weather, carry sufficient water, and tell a contact the route and expected return time."
+    },
+    {
+      "passage_id": "trail-checklist-1",
+      "document_id": "trail-checklist",
+      "bucket": "semantic-fixtures",
+      "object_key": "field-guides/day-hike.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "field-team",
+        "topic": "safety"
+      },
+      "text": "A paper map and compass remain useful when a phone battery fails or the trail has no network coverage."
+    },
+    {
+      "passage_id": "sourdough-guide-0",
+      "document_id": "sourdough-guide",
+      "bucket": "semantic-fixtures",
+      "object_key": "kitchen/sourdough-starter.txt",
+      "tier": "cold",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "kitchen",
+        "topic": "baking"
+      },
+      "text": "Feed a sourdough starter with equal weights of starter, water, and flour when maintaining it at room temperature."
+    },
+    {
+      "passage_id": "sourdough-guide-1",
+      "document_id": "sourdough-guide",
+      "bucket": "semantic-fixtures",
+      "object_key": "kitchen/sourdough-starter.txt",
+      "tier": "cold",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "kitchen",
+        "topic": "baking"
+      },
+      "text": "A healthy starter expands after feeding and smells mildly fermented; a sluggish starter may need warmer conditions and regular feedings."
+    },
+    {
+      "passage_id": "incident-runbook-0",
+      "document_id": "incident-runbook",
+      "bucket": "semantic-fixtures",
+      "object_key": "security/incident-response.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "security",
+        "topic": "incident-response"
+      },
+      "text": "During an incident, preserve relevant logs, record a timestamped timeline, and assign one coordinator for operational decisions."
+    },
+    {
+      "passage_id": "incident-runbook-1",
+      "document_id": "incident-runbook",
+      "bucket": "semantic-fixtures",
+      "object_key": "security/incident-response.txt",
+      "tier": "hot",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "security",
+        "topic": "incident-response"
+      },
+      "text": "After containment, rotate exposed credentials, verify that unauthorized access has stopped, and document follow-up actions."
+    },
+    {
+      "passage_id": "embedding-design-0",
+      "document_id": "embedding-design",
+      "bucket": "semantic-fixtures",
+      "object_key": "engineering/embedding-index.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "engineering",
+        "topic": "search"
+      },
+      "text": "Normalized text passages use stable source checksums, ordered offsets, and a versioned chunking identity."
+    },
+    {
+      "passage_id": "embedding-design-1",
+      "document_id": "embedding-design",
+      "bucket": "semantic-fixtures",
+      "object_key": "engineering/embedding-index.txt",
+      "tier": "warm",
+      "mime": "text/plain",
+      "metadata": {
+        "department": "engineering",
+        "topic": "search"
+      },
+      "text": "Every embedding model revision has its own pgvector search space so incompatible vector dimensions and model versions never mix."
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "legal-hold",
+      "text": "What stops old contracts from being deleted during litigation?",
+      "relevant_passage_ids": [
+        "retention-policy-1"
+      ],
+      "filters": {
+        "department": "operations"
+      }
+    },
+    {
+      "query_id": "restore-test",
+      "text": "How does the platform prove that a database backup can be recovered?",
+      "relevant_passage_ids": [
+        "backup-runbook-1"
+      ],
+      "filters": {
+        "department": "platform"
+      }
+    },
+    {
+      "query_id": "duplicate-bill",
+      "text": "Which fields are compared when a supplier sends the same bill twice?",
+      "relevant_passage_ids": [
+        "invoice-guide-1"
+      ],
+      "filters": {
+        "department": "finance"
+      }
+    },
+    {
+      "query_id": "evening-solar",
+      "text": "What can provide household electricity after sunset?",
+      "relevant_passage_ids": [
+        "solar-notes-1"
+      ],
+      "filters": {
+        "topic": "energy"
+      }
+    },
+    {
+      "query_id": "offline-navigation",
+      "text": "How can a hiker navigate when a phone has no power or signal?",
+      "relevant_passage_ids": [
+        "trail-checklist-1"
+      ],
+      "filters": {
+        "topic": "safety"
+      }
+    },
+    {
+      "query_id": "starter-feeding",
+      "text": "What proportions should be used to refresh a sourdough culture?",
+      "relevant_passage_ids": [
+        "sourdough-guide-0"
+      ],
+      "filters": {
+        "topic": "baking"
+      }
+    },
+    {
+      "query_id": "credential-containment",
+      "text": "What should happen to secrets that may have been exposed in an incident?",
+      "relevant_passage_ids": [
+        "incident-runbook-1"
+      ],
+      "filters": {
+        "department": "security"
+      }
+    },
+    {
+      "query_id": "model-isolation",
+      "text": "How does vector search prevent embeddings from incompatible model releases from mixing?",
+      "relevant_passage_ids": [
+        "embedding-design-1"
+      ],
+      "filters": {
+        "topic": "search"
+      }
+    }
+  ]
+}

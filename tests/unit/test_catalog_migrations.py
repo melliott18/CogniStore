@@ -26,7 +26,13 @@ from cognistore.db.schema import (
     content_blobs,
     content_manifest_chunks,
     content_manifests,
+    embedding_document_spaces,
+    embedding_documents,
+    embedding_passages,
+    embedding_spaces,
+    embedding_vectors,
     object_contents,
+    object_embedding_documents,
     object_placements,
     objects,
     pools,
@@ -251,12 +257,8 @@ def test_legacy_sqlite_upgrade_preserves_move_transition_history(
         assert "opaque-secret" not in persisted_diagnostics
         assert "hunter2" not in persisted_diagnostics
         assert "abc.def.ghi" not in persisted_diagnostics
-        audit_chain = upgraded.list_audit_events(
-            AuditQuery(move_id="legacy:move")
-        )
-        assert [event.event_type for event in audit_chain] == [
-            AuditEventType.MOVE_PREPARED.value
-        ]
+        audit_chain = upgraded.list_audit_events(AuditQuery(move_id="legacy:move"))
+        assert [event.event_type for event in audit_chain] == [AuditEventType.MOVE_PREPARED.value]
         assert audit_chain[0].details["backfilled"] is True
         with upgraded.engine.connect() as connection:
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
@@ -283,9 +285,7 @@ def test_legacy_sqlite_upgrade_preserves_move_transition_history(
             lease_expires_at="2001-01-01T00:01:01.000000Z",
             updates={"terminal_reason": "recovery failed"},
         )
-        completed_chain = upgraded.list_audit_events(
-            AuditQuery(move_id="legacy:move")
-        )
+        completed_chain = upgraded.list_audit_events(AuditQuery(move_id="legacy:move"))
         assert [event.event_type for event in completed_chain] == [
             AuditEventType.MOVE_PREPARED.value,
             AuditEventType.MOVE_RETRY.value,
@@ -303,7 +303,7 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
     database = tmp_path / "audit-migration.sqlite3"
     with SQLCatalog(database) as catalog:
         catalog.upsert("bucket", "object", size=7, tier="hot")
-        assert manager.current(catalog.engine) == "0005_content_references"
+        assert manager.current(catalog.engine) == "0006_embeddings"
         assert sa.inspect(catalog.engine).has_table(audit_events.name)
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
@@ -343,7 +343,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
             tier="hot",
             metadata={"sha256": "untrusted-first-mebibyte-sample"},
         )
-        assert manager.current(catalog.engine) == "0005_content_references"
+        assert manager.current(catalog.engine) == "0006_embeddings"
         assert all(
             sa.inspect(catalog.engine).has_table(table.name)
             for table in content_tables
@@ -352,21 +352,61 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
 
         manager.downgrade(catalog.engine, "0003_audit_events")
         assert manager.current(catalog.engine) == "0003_audit_events"
-        assert all(
-            not sa.inspect(catalog.engine).has_table(table.name)
-            for table in content_tables
-        )
+        assert all(not sa.inspect(catalog.engine).has_table(table.name) for table in content_tables)
         legacy = catalog.get("bucket", "legacy-scan")
         assert legacy is not None
         assert legacy.metadata == {"sha256": "untrusted-first-mebibyte-sample"}
 
         manager.upgrade(catalog.engine)
+        assert manager.current(catalog.engine) == "0006_embeddings"
+        assert all(sa.inspect(catalog.engine).has_table(table.name) for table in content_tables)
+        assert catalog.get_object_content("bucket", "legacy-scan") is None
+
+
+def test_embedding_migration_is_reversible_and_uses_portable_vector_storage(
+    tmp_path: Path,
+) -> None:
+    manager = MigrationManager()
+    embedding_tables = (
+        embedding_spaces,
+        embedding_documents,
+        object_embedding_documents,
+        embedding_passages,
+        embedding_vectors,
+        embedding_document_spaces,
+    )
+
+    with SQLCatalog(tmp_path / "embedding-migration.sqlite3") as catalog:
+        inspector = sa.inspect(catalog.engine)
+        assert manager.current(catalog.engine) == "0006_embeddings"
+        assert all(inspector.has_table(table.name) for table in embedding_tables)
+        mapping_primary_key = inspector.get_pk_constraint(object_embedding_documents.name)[
+            "constrained_columns"
+        ]
+        assert mapping_primary_key == ["object_id", "space_id"]
+        vector_column = next(
+            column
+            for column in inspector.get_columns(embedding_vectors.name)
+            if column["name"] == "embedding"
+        )
+        assert isinstance(vector_column["type"], sa.Text)
+
+        manager.downgrade(catalog.engine, "0005_content_references")
         assert manager.current(catalog.engine) == "0005_content_references"
         assert all(
-            sa.inspect(catalog.engine).has_table(table.name)
-            for table in content_tables
+            not sa.inspect(catalog.engine).has_table(table.name) for table in embedding_tables
         )
-        assert catalog.get_object_content("bucket", "legacy-scan") is None
+
+        manager.upgrade(catalog.engine)
+        inspector = sa.inspect(catalog.engine)
+        assert manager.current(catalog.engine) == "0006_embeddings"
+        assert all(inspector.has_table(table.name) for table in embedding_tables)
+        vector_column = next(
+            column
+            for column in inspector.get_columns(embedding_vectors.name)
+            if column["name"] == "embedding"
+        )
+        assert isinstance(vector_column["type"], sa.Text)
 
 
 def test_content_identity_migration_strips_unbacked_reserved_metadata(
@@ -465,8 +505,7 @@ def test_content_identity_migration_uses_declared_check_constraint_names(
                 if isinstance(constraint, sa.CheckConstraint)
             }
             observed = {
-                constraint["name"]
-                for constraint in inspector.get_check_constraints(table.name)
+                constraint["name"] for constraint in inspector.get_check_constraints(table.name)
             }
             assert observed == expected
 
@@ -578,9 +617,7 @@ def test_audit_migration_backfill_uses_configured_retention(tmp_path: Path) -> N
         database,
         audit_retention=AuditRetentionPolicy(None),
     ) as upgraded:
-        events = upgraded.list_audit_events(
-            AuditQuery(move_id="retention:move")
-        )
+        events = upgraded.list_audit_events(AuditQuery(move_id="retention:move"))
         assert len(events) == 1
         assert events[0].expires_at is None
 

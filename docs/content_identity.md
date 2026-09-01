@@ -126,6 +126,7 @@ is zero. Operators can obtain the same report with the read-only
 
 Source-byte chunks are suitable for byte deduplication and exact object
 identity. They are not normalized passages and must not be sent directly to a
-text embedding or keyword index. Extracted document text carries parser,
-runtime, and normalization versions; any future passage chunker must use a
-separate representation and versioned identity domain.
+text embedding or keyword index. The embedding pipeline therefore chunks the
+normalized extraction in a separate identity domain that includes parser,
+runtime, normalization, passage-chunker, source-text, and model-space
+provenance. See [versioned embedding search](embedding_search.md).

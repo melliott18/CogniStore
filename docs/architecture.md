@@ -67,9 +67,11 @@ head.
 The normalized catalog schema separates objects, their single current
 placement, tiers, and pools. Durable object and move-claim fence rows serialize
 concurrent mutations. PostgreSQL additionally provisions the `vector`
-extension and records whether CogniStore created it, but embedding and search
-indexes are not part of this milestone. Scheduler state intentionally remains
-outside the catalog DAL in a persistent SQLite file. See the
+extension, records whether CogniStore created it, and stores versioned
+normalized-text passages in model-specific embedding spaces. Each compatible
+space can own a partial expression HNSW index without mixing dimensions or
+model revisions. Scheduler state intentionally remains outside the catalog DAL
+in a persistent SQLite file. See the
 [PostgreSQL catalog operations guide](postgres_catalog.md) for migrations,
 cutover, and that compatibility boundary.
 
@@ -138,16 +140,17 @@ artifact.
 
 ## Current boundaries
 
-- PostgreSQL catalog persistence, pgvector extension setup, and bounded
-  PDF/DOCX extraction are present; embeddings, vector/keyword indexing, Ask,
-  REST, SDK, and UI are not current components.
+- PostgreSQL catalog persistence, pgvector-backed versioned embeddings,
+  metadata-filtered similarity search, and bounded PDF/DOCX extraction are
+  present; keyword indexing, Ask, REST, SDK, and UI are not current components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves
   global content intact, and read-only reconciliation reports conservative
   grace-period reclamation eligibility. Physical CAS deletion is not a current
-  component. Normalized passage chunking, embeddings, and search indexes remain
-  M2 work.
+  component. A separate deterministic normalized-passage identity is the only
+  input to embedding providers; source-byte CAS chunks are never treated as
+  text.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,
