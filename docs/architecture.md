@@ -150,8 +150,12 @@ artifact.
   PDF/DOCX extraction plus embedded keyword indexing are present; embeddings,
   vector retrieval, Ask, REST, SDK, and UI are not current components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
-  source-byte chunk/CAS mappings. Keyword passages are a separately versioned
-  normalized-text projection; embeddings remain M2 work.
+  source-byte chunk/CAS mappings. Active logical mappings maintain shared
+  full-object and chunk-edge counts transactionally; logical deletion leaves
+  global content intact, and read-only reconciliation reports conservative
+  grace-period reclamation eligibility. Physical CAS deletion is not a current
+  component. Keyword passages are a separately versioned normalized-text
+  projection; embeddings remain M2 work.
 - The Tantivy adapter is single-writer and host-local. Catalog-to-index writes
   do not yet have a durable outbox, so failed updates are repaired by retry or
   full rebuild and rebuilds require a quiesced/replayed mutation window.

@@ -46,8 +46,9 @@ cas/v1/sha256/<first-two-digest-characters>/<remaining-digest-characters>
 
 Keys contain no bucket, logical object key, tier, generation, chunk position,
 or chunker version. Equal bytes therefore have equal CAS keys wherever they
-occur. Ticket #34 derives and persists these keys; physically reclaiming
-unreferenced CAS data remains outside this contract.
+occur. The catalog stores one global blob row per digest even when that digest
+is used by multiple logical objects, by multiple chunk positions, or in both
+the full-object and chunk roles.
 
 ## Catalog publication
 
@@ -70,6 +71,56 @@ objects acquire canonical identities on their next successful scan. Revision
 `0004_content_identity` also removes any preexisting `content_identity`
 metadata member because that name becomes a catalog-owned projection and no
 safe normalized mapping can be inferred for an older row.
+
+## Shared references and logical deletion
+
+Revision `0005_content_references` materializes the number of active reference
+edges for every global blob. Each active logical object contributes one edge
+for its full-object digest and one edge for every position in its ordered chunk
+manifest. These are deliberately edge counts rather than distinct-owner
+counts:
+
+- a digest used for both a one-chunk object's full identity and its chunk has
+  two edges;
+- two equal chunk positions in one manifest contribute two chunk edges; and
+- two logical objects sharing one manifest each contribute the manifest's
+  complete set of edges.
+
+Creating, replacing, invalidating, or deleting a logical mapping updates its
+edge counts in the same catalog transaction. Shared blob rows are updated in
+digest order, so concurrent changes to different logical objects cannot expose
+partial counts or acquire shared rows in conflicting orders.
+
+Catalog `delete` is logical and idempotent. It removes the addressed live
+object and its active manifest mapping; it does not remove global manifests,
+blob records, source storage, or any future physical CAS bytes. A later scan or
+upsert of the same coordinates is a new logical creation. Deleting one of two
+objects with equal content therefore releases only that object's edges and
+leaves the other mapping readable.
+
+When a blob's last edge is released, the catalog records `unreferenced_at`.
+Adding any edge clears that timestamp. A blob is only an advisory physical
+reclamation candidate when both its stored and topology-derived counts are
+zero, its lifecycle state is internally consistent, and its zero-reference age
+is at least the caller-selected grace period. No current command deletes a
+candidate or its bytes.
+
+## Non-destructive reconciliation
+
+`CatalogStore.reconcile_content_references()` independently derives full-object
+and chunk edge counts from the active topology, compares their total with the
+materialized count, and evaluates grace-period eligibility. It never repairs
+rows or touches storage. Entries are ordered by digest and use these stable
+issue codes:
+
+- `reference_count_mismatch`;
+- `referenced_blob_marked_unreferenced`;
+- `unreferenced_blob_missing_timestamp`; and
+- `invalid_unreferenced_timestamp`.
+
+An inconsistent entry is never reclamation-eligible, even if one of its counts
+is zero. Operators can obtain the same report with the read-only
+`content-reference-report` CLI command.
 
 ## Relationship to document extraction
 

@@ -168,12 +168,14 @@ catalog that has not already reached the current migration head. The
 ownership and SQLite cutover.
 
 Some commands impose stronger requirements than the global default. Workers,
-move inspection, and move recovery require a persistent SQL catalog. Scheduler
-state is always SQLite: a PostgreSQL worker requires an explicit persistent
-`schedule_db`, while a SQLite worker may reuse its catalog file when
-`schedule_db` is omitted. A non-preview scheduler requires a persistent
-`schedule_db` or a SQLite `catalog_db` fallback. Tier operations require
-`--drivers`; only `put`, `get`, and `ls` can instead use the single POSIX
+move inspection, move recovery, and `content-reference-report` require a
+persistent SQL catalog. The reference report also requires the catalog to
+already exist and opens it read-only; it requires neither `--drivers` nor
+`--base`. Scheduler state is always SQLite: a PostgreSQL worker requires an
+explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
+file when `schedule_db` is omitted. A non-preview scheduler requires a
+persistent `schedule_db` or a SQLite `catalog_db` fallback. Tier operations
+require `--drivers`; only `put`, `get`, and `ls` can instead use the single POSIX
 `--base` driver.
 
 ## JSON v1 and stream contracts
@@ -273,6 +275,7 @@ their query. The complete command matrix is:
 | `move-status` | Read-only. Returns the same stored job and transition history. |
 | `move-list` | Read-only. Returns the same deterministic, optionally filtered job list. |
 | `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `resume_preconditions` records the checked journal state and driver pair, reports that no ownership claim was attempted, and names every phase-specific storage condition left unchecked. A non-terminal preview therefore reports `readiness: "not_confirmed"`; the writable resume may still fail. |
+| `content-reference-report` | Read-only in every mode. Returns the same deterministic comparison of stored and topology-derived reference counts plus grace-period reclamation eligibility. It never repairs catalog state or deletes content. |
 | `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
 | `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
 | `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the SQLite scheduler store read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
@@ -294,6 +297,43 @@ worker uses its own persistent catalog. Passing `--catalog-db` or
 `--catalog-url` explicitly to a background submission is a usage error so an
 operator cannot accidentally target the wrong journal. Other commands that do
 not consume a catalog likewise do not open or create the configured database.
+
+## Shared-content reference report
+
+`content-reference-report` inspects an existing SQLite or PostgreSQL catalog
+without loading storage drivers:
+
+```bash
+cognistore --catalog-db catalog.db content-reference-report --json
+
+cognistore --catalog-db catalog.db content-reference-report \
+  --grace-period-seconds 86400 --json
+```
+
+The default grace period is `604800` seconds (seven days). The option accepts a
+finite, non-negative number; zero makes an otherwise consistent zero-reference
+blob eligible immediately. `--dry-run` is accepted for scripting consistency
+but does not change the query or output status because the command is always
+read-only.
+
+Reference counts preserve edge multiplicity. Each active logical object
+contributes one full-object edge and one edge per chunk position. A digest used
+as both the full object and its only chunk therefore contributes two edges, and
+repeated equal chunks each contribute an edge. JSON reports the two derived
+role counts, their total, the stored materialized count, `unreferenced_at`,
+stable issue codes, and `reclamation_eligible` for every digest.
+
+The top-level result includes `consistent`, `total_blobs`, `referenced_blobs`,
+`unreferenced_blobs`, `eligible_blobs`, `generated_at`,
+`grace_period_seconds`, and the ordered `entries` array. Finding an
+inconsistency is a successful report: the command returns exit code `0` and
+`status: "success"` with `consistent: false`. Every inconsistent entry is
+ineligible. The stable initial issue codes are `reference_count_mismatch`,
+`referenced_blob_marked_unreferenced`,
+`unreferenced_blob_missing_timestamp`, and `invalid_unreferenced_timestamp`.
+
+This command does not establish that physical bytes exist and does not delete
+anything. Automated orphan reclamation remains a separate, later workflow.
 
 ## Durable manual-move recovery
 

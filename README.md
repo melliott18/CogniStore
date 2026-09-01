@@ -102,7 +102,8 @@ cognistore --profile local move hot warm demo-bucket path/to/key.txt \
 ```
 
 The reference also defines configuration precedence, the JSON/stdout contract,
-the command-by-command dry-run matrix, and durable manual-move recovery.
+the command-by-command dry-run matrix, durable manual-move recovery, and the
+read-only shared-content reference report.
 
 ### Driver configuration (optional)
 
@@ -291,6 +292,10 @@ python -m cognistore.cli --drivers drivers.yaml --catalog-db "$CAT_DB" \
 # Inspect tiers after moves
 python -m cognistore.cli --drivers drivers.yaml ls-tier hot demo-bucket --prefix path/
 python -m cognistore.cli --drivers drivers.yaml ls-tier warm demo-bucket --prefix path/
+
+# Reconcile shared CAS references without loading drivers or changing state
+python -m cognistore.cli --catalog-db "$CAT_DB" \
+	content-reference-report --grace-period-seconds 604800 --json
 ```
 
 Notes:
@@ -304,6 +309,11 @@ Notes:
   versioned source-byte chunk manifest while retaining bounded MIME-sample and
   document-extraction metadata. See the
   [content identity contract](docs/content_identity.md).
+- `content-reference-report` opens an existing persistent catalog read-only,
+  compares materialized and topology-derived full-object/chunk edge counts, and
+  reports conservative reclamation eligibility after a configurable grace
+  period. It never repairs rows or deletes content; the default grace period is
+  seven days.
 - `policy-run` supports:
 	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions

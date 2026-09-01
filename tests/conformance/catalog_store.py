@@ -13,6 +13,7 @@ import pytest
 
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.content_identity import ContentIdentityBuilder, ObjectContent
+from cognistore.core.content_references import ContentReferenceEntry
 
 
 def _content(data: bytes, *, chunk_size: int = 4) -> ObjectContent:
@@ -20,6 +21,34 @@ def _content(data: bytes, *, chunk_size: int = 4) -> ObjectContent:
         BytesIO(data),
         expected_size=len(data),
     )
+
+
+def _publish_content(
+    catalog: CatalogStore,
+    key: str,
+    content: ObjectContent,
+    *,
+    bucket: str = "bucket",
+) -> None:
+    fence = catalog.capture_scan_fence(bucket, key)
+    assert catalog.upsert_scan_observation(
+        bucket,
+        key,
+        size=content.size,
+        tier="hot",
+        generation=f"hot:{key}",
+        metadata={},
+        fence=fence,
+        content=content,
+    )
+
+
+def _reference_entries(catalog: CatalogStore) -> dict[str, ContentReferenceEntry]:
+    report = catalog.reconcile_content_references(
+        grace_period_seconds=0,
+        now="2100-01-01T00:00:00.000000Z",
+    )
+    return {entry.sha256: entry for entry in report.entries}
 
 
 class CatalogStoreConformance:
@@ -417,3 +446,163 @@ class CatalogStoreConformance:
         rewritten = catalog.get("bucket", "second")
         assert rewritten is not None
         assert rewritten.metadata == {"independent": "retained"}
+
+    def test_deleting_one_live_duplicate_preserves_the_other_reference(
+        self,
+        catalog: CatalogStore,
+    ) -> None:
+        content = _content(b"abcdefgh")
+        _publish_content(catalog, "first", content)
+        _publish_content(catalog, "second", content)
+
+        before = _reference_entries(catalog)
+        assert before[content.sha256].stored_reference_count == 2
+        assert before[content.sha256].expected_object_reference_count == 2
+        assert before[content.sha256].expected_chunk_reference_count == 0
+        for chunk in content.chunks:
+            assert before[chunk.sha256].stored_reference_count == 2
+            assert before[chunk.sha256].expected_object_reference_count == 0
+            assert before[chunk.sha256].expected_chunk_reference_count == 2
+
+        catalog.delete("bucket", "first")
+
+        assert catalog.get("bucket", "first") is None
+        assert catalog.get_object_content("bucket", "first") is None
+        assert catalog.get_object_content("bucket", "second") == content
+        after = _reference_entries(catalog)
+        assert all(entry.stored_reference_count == 1 for entry in after.values())
+        assert all(entry.expected_reference_count == 1 for entry in after.values())
+        assert all(entry.unreferenced_at is None for entry in after.values())
+        assert all(not entry.reclamation_eligible for entry in after.values())
+
+    def test_logical_deletion_is_idempotent_for_content_references(
+        self,
+        catalog: CatalogStore,
+    ) -> None:
+        content = _content(b"abcdefgh")
+        _publish_content(catalog, "retained", content)
+        _publish_content(catalog, "deleted", content)
+        catalog.delete("bucket", "deleted")
+        expected = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+
+        catalog.delete("bucket", "deleted")
+        catalog.delete("bucket", "missing")
+
+        assert catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        ) == expected
+        assert catalog.get_object_content("bucket", "retained") == content
+
+    def test_reference_edges_preserve_root_and_chunk_position_multiplicity(
+        self,
+        catalog: CatalogStore,
+    ) -> None:
+        one_chunk = _content(b"same")
+        repeated_chunk = _content(b"abcdabcd")
+        _publish_content(catalog, "one-chunk", one_chunk)
+        _publish_content(catalog, "repeated-chunk", repeated_chunk)
+
+        report = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        entries = {entry.sha256: entry for entry in report.entries}
+
+        # A one-chunk object has two independent edges to one digest: the
+        # full-object root and chunk position zero.
+        same = entries[one_chunk.sha256]
+        assert one_chunk.sha256 == one_chunk.chunks[0].sha256
+        assert same.expected_object_reference_count == 1
+        assert same.expected_chunk_reference_count == 1
+        assert same.expected_reference_count == 2
+        assert same.stored_reference_count == 2
+
+        # Repeated equal chunks retain both positional edges even though their
+        # CAS identity is represented by one report entry.
+        repeated = entries[repeated_chunk.chunks[0].sha256]
+        assert repeated_chunk.chunks[0].sha256 == repeated_chunk.chunks[1].sha256
+        assert repeated.expected_object_reference_count == 0
+        assert repeated.expected_chunk_reference_count == 2
+        assert repeated.expected_reference_count == 2
+        assert repeated.stored_reference_count == 2
+        assert report.consistent
+
+    def test_shared_chunk_reclamation_requires_zero_references_and_grace(
+        self,
+        catalog: CatalogStore,
+    ) -> None:
+        first = _content(b"abcd1111")
+        second = _content(b"abcd2222")
+        assert first.chunks[0].sha256 == second.chunks[0].sha256
+        shared_digest = first.chunks[0].sha256
+        first_only_digests = {first.sha256, first.chunks[1].sha256}
+        _publish_content(catalog, "first", first)
+        _publish_content(catalog, "second", second)
+
+        catalog.delete("bucket", "first")
+
+        waiting = catalog.reconcile_content_references(
+            grace_period_seconds=10**10,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        waiting_entries = {entry.sha256: entry for entry in waiting.entries}
+        assert all(
+            waiting_entries[digest].expected_reference_count == 0
+            for digest in first_only_digests
+        )
+        assert all(
+            not waiting_entries[digest].reclamation_eligible
+            for digest in first_only_digests
+        )
+        assert waiting_entries[shared_digest].expected_chunk_reference_count == 1
+        assert waiting_entries[shared_digest].unreferenced_at is None
+
+        eligible = catalog.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        eligible_entries = {entry.sha256: entry for entry in eligible.entries}
+        assert {
+            entry.sha256 for entry in eligible.entries if entry.reclamation_eligible
+        } == first_only_digests
+        assert not eligible_entries[shared_digest].reclamation_eligible
+        assert catalog.get_object_content("bucket", "second") == second
+
+    def test_reconciliation_is_deterministic_and_non_destructive(
+        self,
+        catalog: CatalogStore,
+    ) -> None:
+        content = _content(b"abcdefgh")
+        _publish_content(catalog, "object", content)
+        record_before = catalog.get("bucket", "object")
+        content_before = catalog.get_object_content("bucket", "object")
+
+        first = catalog.reconcile_content_references(
+            grace_period_seconds=60,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+        second = catalog.reconcile_content_references(
+            grace_period_seconds=60,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+
+        assert first == second
+        assert first.generated_at == "2100-01-01T00:00:00.000000Z"
+        assert first.grace_period_seconds == 60.0
+        assert first.consistent
+        assert first.total_blobs == len(
+            {content.sha256, *(chunk.sha256 for chunk in content.chunks)}
+        )
+        assert first.referenced_blobs == first.total_blobs
+        assert first.unreferenced_blobs == 0
+        assert first.eligible_blobs == 0
+        assert [entry.sha256 for entry in first.entries] == sorted(
+            entry.sha256 for entry in first.entries
+        )
+        assert all(entry.issues == () for entry in first.entries)
+        assert catalog.get("bucket", "object") == record_before
+        assert catalog.get_object_content("bucket", "object") == content_before

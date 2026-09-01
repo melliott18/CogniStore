@@ -19,6 +19,7 @@ from cognistore.core.audit import (
 from cognistore.core.content_identity import ContentIdentityBuilder
 from cognistore.core.move_jobs import MoveJobState
 from cognistore.db.catalog import SQLCatalog
+from cognistore.db.migrations import MigrationManager
 from cognistore.db.schema import (
     audit_event_tombstones,
     audit_events,
@@ -318,6 +319,58 @@ def test_imports_normalized_content_identity_and_object_mapping(tmp_path: Path) 
         assert imported_identity_rows == source_identity_rows
 
 
+def test_import_backfills_reference_state_from_revision_0004_source(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "revision-0004-content-source.db"
+    live = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"live-content"),
+        expected_size=len(b"live-content"),
+    )
+    orphan = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(b"orphaned"),
+        expected_size=len(b"orphaned"),
+    )
+    with SQLCatalog(source_path) as source:
+        for key, content in (("live", live), ("orphan", orphan)):
+            fence = source.capture_scan_fence("bucket", key)
+            assert source.upsert_scan_observation(
+                "bucket",
+                key,
+                size=content.size,
+                tier="hot",
+                generation=f"hot:{key}",
+                metadata={},
+                fence=fence,
+                content=content,
+            )
+        source.delete("bucket", "orphan")
+        MigrationManager().downgrade(source.engine, "0004_content_identity")
+
+    with SQLCatalog(tmp_path / "revision-0004-content-destination.db") as destination:
+        report = import_sqlite_catalog(source_path, destination, batch_size=1)
+        references = destination.reconcile_content_references(
+            grace_period_seconds=0,
+            now="2100-01-01T00:00:00.000000Z",
+        )
+
+    assert report.content_blobs == len(
+        {
+            live.sha256,
+            orphan.sha256,
+            *(chunk.sha256 for chunk in live.chunks),
+            *(chunk.sha256 for chunk in orphan.chunks),
+        }
+    )
+    assert references.consistent
+    entries = {entry.sha256: entry for entry in references.entries}
+    assert entries[live.sha256].expected_object_reference_count == 1
+    assert entries[live.sha256].unreferenced_at is None
+    assert entries[orphan.sha256].expected_reference_count == 0
+    assert entries[orphan.sha256].unreferenced_at is not None
+    assert entries[orphan.sha256].reclamation_eligible
+
+
 @pytest.mark.parametrize(
     ("case", "corruption", "expected_error"),
     [
@@ -346,6 +399,12 @@ def test_imports_normalized_content_identity_and_object_mapping(tmp_path: Path) 
             "mapped-header",
             "UPDATE objects SET metadata = json_remove(metadata, '$.content_identity')",
             "content_identity metadata does not match its manifest",
+        ),
+        (
+            "reference-count",
+            "UPDATE content_blobs SET reference_count = reference_count + 1 "
+            "WHERE sha256 = (SELECT content_sha256 FROM content_manifests LIMIT 1)",
+            "does not match its",
         ),
     ],
 )
