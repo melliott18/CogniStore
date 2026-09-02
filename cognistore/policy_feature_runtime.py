@@ -95,7 +95,11 @@ _UniqueKeyLoader.add_constructor(
 def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
     try:
         with open(config_path, encoding="utf-8") as stream:
-            raw = yaml.load(stream, Loader=_UniqueKeyLoader)
+            loader = _UniqueKeyLoader(stream)
+            try:
+                raw = loader.get_single_data()
+            finally:
+                loader.dispose()
     except FileNotFoundError:
         return None
     except yaml.YAMLError as exc:
