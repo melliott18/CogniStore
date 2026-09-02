@@ -54,7 +54,6 @@ from .models import (
     PolicyEvaluationResponse,
     PolicyRunRequest,
     ProviderDiagnosticResponse,
-    RetrievalModeValue,
     RetrievalResultResponse,
     RetrievalSignalValue,
     RetrievedPassageResponse,
@@ -529,7 +528,7 @@ class CogniStoreGateway:
         domain_response = self.ask_service.ask(query)
         return AskResponse(
             schema_version=1,
-            mode=cast(RetrievalModeValue, domain_response.mode.value),
+            mode=domain_response.mode.value,
             active_signals=cast(
                 list[RetrievalSignalValue],
                 [signal.value for signal in domain_response.active_signals],
@@ -561,7 +560,7 @@ class CogniStoreGateway:
                     score=result.score,
                     score_components=[
                         ScoreComponentResponse(
-                            signal=cast(RetrievalSignalValue, component.signal.value),
+                            signal=component.signal.value,
                             rank=component.rank,
                             raw_score=component.raw_score,
                             weight=component.weight,
@@ -611,30 +610,12 @@ class CogniStoreGateway:
                         Literal["metadata", "keyword", "vector", "generation"],
                         provider.component,
                     ),
-                    state=cast(
-                        Literal[
-                            "succeeded",
-                            "missing",
-                            "unavailable",
-                            "not_requested",
-                            "no_context",
-                        ],
-                        provider.state.value,
-                    ),
+                    state=provider.state.value,
                     error_type=provider.error_type,
                 )
                 for provider in domain_response.providers
             ],
-            generation_status=cast(
-                Literal[
-                    "not_requested",
-                    "provider_missing",
-                    "no_context",
-                    "succeeded",
-                    "provider_unavailable",
-                ],
-                domain_response.generation_status.value,
-            ),
+            generation_status=domain_response.generation_status.value,
             answer=(
                 None
                 if domain_response.answer is None
