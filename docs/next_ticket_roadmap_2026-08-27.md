@@ -1,12 +1,14 @@
 # Next-ticket execution roadmap — 2026-08-27
 
-> **Progress update (2026-08-31):** Group 1 and Group 2 are complete. The M2
-> foundation landed through [PR #97](https://github.com/melliott18/CogniStore/pull/97)
-> (#30), [PR #98](https://github.com/melliott18/CogniStore/pull/98) (#31), and
-> [PR #99](https://github.com/melliott18/CogniStore/pull/99) (#32), with their
-> passing CI evidence recorded in the live issues. Group 3 is active, and
-> [#33](https://github.com/melliott18/CogniStore/issues/33) is the active
-> delivery ticket.
+> **Progress update (2026-09-01):** Groups 1 through 4 are complete. The M2
+> canonical-content and search-index foundation landed through
+> [PR #107](https://github.com/melliott18/CogniStore/pull/107) (#33),
+> [PR #108](https://github.com/melliott18/CogniStore/pull/108) (#34),
+> [PR #111](https://github.com/melliott18/CogniStore/pull/111) (#35),
+> [PR #109](https://github.com/melliott18/CogniStore/pull/109) (#36), and
+> [PR #110](https://github.com/melliott18/CogniStore/pull/110) (#37). Group 5
+> is active, and [#38](https://github.com/melliott18/CogniStore/issues/38) is
+> the active delivery ticket.
 
 This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. Group 1
@@ -61,23 +63,25 @@ After #30, these two lanes completed in parallel:
 #31 was not a dependency of the retrieval path, so it completed in its own lane
 without delaying #32. Its completion remains part of the M2 exit criteria.
 
-## Group 3 — build canonical content (active)
+## Group 3 — build canonical content (complete)
 
 ### Wave 3: extraction
 
-**Active delivery ticket:** implement
-[#33](https://github.com/melliott18/CogniStore/issues/33) after the completed
-#32 dependency. Choose and document the PDF/DOCX parser runtime, enforce
-file/time/output limits, and make per-object failures isolated and versioned.
+[#33](https://github.com/melliott18/CogniStore/issues/33) completed the bounded,
+versioned PDF/DOCX extraction pipeline through
+[PR #107](https://github.com/melliott18/CogniStore/pull/107). Its documented
+parser adapters enforce file, execution-time, and output limits while isolating
+per-object failures.
 
 ### Wave 4: identity, chunks, and CAS
 
-Implement [#34](https://github.com/melliott18/CogniStore/issues/34) after #30
-and #33. This is the canonical content-identity boundary and must resolve
-BUG-2026-004: scans may no longer publish a first-megabyte sample under the
+[#34](https://github.com/melliott18/CogniStore/issues/34) completed the
+canonical content-identity boundary through
+[PR #108](https://github.com/melliott18/CogniStore/pull/108), resolving
+BUG-2026-004: scans no longer publish a first-megabyte sample under the
 unqualified `sha256` name or replace unrelated metadata.
 
-Required gate:
+Completed gate:
 
 - full-object SHA-256 is streamed with bounded memory;
 - chunk boundaries and metadata are deterministic and versioned;
@@ -85,28 +89,33 @@ Required gate:
 - empty, one-byte, multi-chunk, large-object, and metadata-merge regressions
   pass on every supported catalog backend.
 
-## Group 4 — fan out the search indexes
+## Group 4 — fan out the search indexes (complete)
 
-After #34, implement three independent lanes in parallel:
+After #34, three independent lanes completed in parallel:
 
 - [#35](https://github.com/melliott18/CogniStore/issues/35) — safe
-  deduplication references and deletion semantics;
+  deduplication references and deletion semantics, delivered by
+  [PR #111](https://github.com/melliott18/CogniStore/pull/111);
 - [#36](https://github.com/melliott18/CogniStore/issues/36) — embeddings and
-  pgvector query support;
+  pgvector query support, delivered by
+  [PR #109](https://github.com/melliott18/CogniStore/pull/109);
 - [#37](https://github.com/melliott18/CogniStore/issues/37) — a rebuildable
-  keyword index.
+  keyword index, delivered by
+  [PR #110](https://github.com/melliott18/CogniStore/pull/110).
 
-Do not let deduplication delete canonical bytes until reference updates,
-placement changes, and rollback behavior are proven atomic. Embedding and
-keyword indexes must record their model/index versions and be rebuildable from
+Deduplication now maintains transactional shared-reference state and reports
+grace-qualified reclamation candidates without deleting bytes. The embedding
+and keyword indexes record their model/index versions and are rebuildable from
 canonical catalog content.
 
-## Group 5 — compose retrieval and public contracts
+## Group 5 — compose retrieval and public contracts (active)
 
 The remaining dependency chain is sequential at its core:
 
-1. [#38](https://github.com/melliott18/CogniStore/issues/38) after #36 and #37:
-   blend metadata, vector, and keyword retrieval with source-backed results.
+1. **Active delivery ticket:**
+   [#38](https://github.com/melliott18/CogniStore/issues/38), now that #36 and
+   #37 are complete, blends metadata, vector, and keyword retrieval with
+   source-backed results.
 2. [#39](https://github.com/melliott18/CogniStore/issues/39) after #30 and #38:
    expose the versioned REST/OpenAPI contract.
 3. After #39, run
@@ -124,10 +133,10 @@ M1:  #90 ─┐
       #89 ─┘
 
 M2:  [done] #30 ─┬─> [done] #31
-                 └─> [done] #32 ─> [active] #33 ─> #34 ─┬─> #35
-                           #30 ──────────────────────────┼─> #36 ─┐
-                                                       └─> #37 ─┴─> #38 ─> #39 ─┬─> #40 ─> #41
-                                                                                └─> #42
+                 └─> [done] #32 ─> [done] #33 ─> [done] #34 ─┬─> [done] #35
+                           #30 ──────────────────────────┼─> [done] #36 ─┐
+                                                       └─> [done] #37 ─┴─> [active] #38 ─> #39 ─┬─> #40 ─> #41
+                                                                                          └─> #42
 ```
 
 The M1 arrows show the completed final closure order, not formal dependency
@@ -155,19 +164,17 @@ Every ticket should preserve these gates:
 - Security-sensitive details are redacted before logs, CLI output, audit
   persistence, reports, or API responses.
 
-## Risks to resolve early
+## Resolved risks and remaining constraint
 
 - #30 fixed migration tooling, connection/transaction ownership, and the
-  SQLite compatibility contract.
-  [#101](https://github.com/melliott18/CogniStore/issues/101) tracks additional
-  lifecycle and concurrency regression coverage without blocking the active
-  #33 extraction wave.
-- #33 must choose the initial parser runtime and licensed deterministic
-  fixtures before implementation fans out.
-- #36 and #37 must choose model and keyword-index adapters that can be rebuilt
-  and tested without coupling core domain code to one provider.
-- #35 must define reference-count and deletion ordering before any storage
-  reclamation is enabled.
+  SQLite compatibility contract; completed follow-up
+  [#101](https://github.com/melliott18/CogniStore/issues/101) made the remaining
+  lifecycle and concurrency guarantees required regressions.
+- #33 selected documented parser adapters and licensed deterministic fixtures.
+- #36 and #37 selected rebuildable, provider-isolated embedding and keyword
+  adapters with versioned index state.
+- #35 defined transactional reference-count and deletion ordering. Physical
+  reclamation remains disabled; the current interface only reports candidates.
 - [#91](https://github.com/melliott18/CogniStore/issues/91) tracks production
   hardening for POSIX containment under concurrent symlink swaps; M2 code must
   not expand the current trust assumption.

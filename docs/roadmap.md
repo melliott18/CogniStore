@@ -16,18 +16,22 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Indexing and knowledge layer
 
-- [ ] Rich extraction
+- [x] Rich extraction
   - [x] Use libmagic (python-magic) for robust MIME detection
     ([#32](https://github.com/melliott18/CogniStore/issues/32))
-  - [ ] **Active:** document parsing (PDF/DOCX) pipeline
+  - [x] Document parsing (PDF/DOCX) pipeline
     ([#33](https://github.com/melliott18/CogniStore/issues/33))
-  - [x] Chunking and checksum/dedup pipeline (CAS keys by sha256)
+  - [x] Chunking, checksums, and CAS identities
     ([#34](https://github.com/melliott18/CogniStore/issues/34))
+  - [x] Safe deduplication references and deletion semantics
+    ([#35](https://github.com/melliott18/CogniStore/issues/35))
 - [ ] Embeddings + search
   - [x] Sentence-transformers or API embeddings → pgvector
     ([#36](https://github.com/melliott18/CogniStore/issues/36))
-  - [ ] Keyword index (OpenSearch/Elasticsearch or Tantivy-based library)
-  - [ ] "Ask" service that blends metadata + vector + keyword
+  - [x] Rebuildable keyword index through a Tantivy-based adapter
+    ([#37](https://github.com/melliott18/CogniStore/issues/37))
+  - [ ] **Active:** "Ask" service that blends metadata + vector + keyword
+    ([#38](https://github.com/melliott18/CogniStore/issues/38))
 
 ## Policy engine v2
 
@@ -124,9 +128,9 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed and is retained on `main`; #29, #16, and the M1 milestone are closed
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
-  - Progress: the data foundation (#30–#32) is complete;
-    [#33](https://github.com/melliott18/CogniStore/issues/33) is the active
-    delivery ticket
+  - Progress: the data and indexing foundation (#30–#37) is complete;
+    [#38](https://github.com/melliott18/CogniStore/issues/38) is the active
+    hybrid-retrieval delivery ticket
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
 - [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
   - Success: Automated, explainable actions under budget constraints; no tier flapping

@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-08-31T23:41:43Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-02T00:12:37Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 47 open, 21 closed
+- **Snapshot:** 68 issues; 41 open, 27 closed
 
 ## How to use this mirror
 
@@ -34,7 +34,7 @@ git diff --check
 | Milestone | Epic | Original | Follow-ups | Other | Open / total | GitHub |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | 2 | 0 | 0 / 16 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
-| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 2 | 1 | 12 / 17 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
+| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 2 | 1 | 6 / 17 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 22 / 22 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
 
@@ -758,7 +758,7 @@ which is not the same as:
 - **Original delivery tickets:** 13
 - **Verification follow-ups:** 2
 - **Other tracking issues:** 1
-- **Status:** 12 open, 5 closed (17 including the epic)
+- **Status:** 6 open, 11 closed (17 including the epic)
 
 ### Epic
 
@@ -768,7 +768,7 @@ which is not the same as:
 - **Status:** Open
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:epic`
-- **Last updated:** 2026-08-31
+- **Last updated:** 2026-09-02
 
 <p>Parent roadmap: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
 <h5 id="issue-13-outcome">Outcome</h5>
@@ -786,11 +786,11 @@ which is not the same as:
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/30">#30</a> — Migrate the catalog to Postgres and pgvector through a DAL</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/31">#31</a> — Persist move, policy, failure, and retry audit events</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/32">#32</a> — Detect MIME types using libmagic with safe fallback</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/33">#33</a> — Extract normalized text and metadata from PDF and DOCX</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/34">#34</a> — Add canonical checksums, deterministic chunking, and CAS keys</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/35">#35</a> — Implement safe deduplication reference and deletion semantics</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/36">#36</a> — Generate embeddings and query them through pgvector</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/37">#37</a> — Build a rebuildable keyword search index</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/33">#33</a> — Extract normalized text and metadata from PDF and DOCX</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/34">#34</a> — Add canonical checksums, deterministic chunking, and CAS keys</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/35">#35</a> — Implement safe deduplication reference and deletion semantics</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/36">#36</a> — Generate embeddings and query them through pgvector</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/37">#37</a> — Build a rebuildable keyword search index</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/38">#38</a> — Implement hybrid metadata, vector, and keyword Ask retrieval</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/39">#39</a> — Expose a versioned REST API and OpenAPI contract</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/40">#40</a> — Publish a typed Python SDK for the public API</li>
@@ -803,7 +803,7 @@ which is not the same as:
 <h5 id="issue-13-verification-follow-ups">Verification follow-ups</h5>
 <ul class="contains-task-list">
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/100">#100</a> — Make CatalogStore read snapshots mutation-safe across backends</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/101">#101</a> — Close PostgreSQL catalog lifecycle and race regression gaps</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/101">#101</a> — Close PostgreSQL catalog lifecycle and race regression gaps</li>
 </ul>
 
 ### Original delivery tickets
@@ -937,10 +937,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#33 — \[M2\] Extract normalized text and metadata from PDF and DOCX](https://github.com/melliott18/CogniStore/issues/33)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -959,10 +959,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-33-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Licensed fixtures yield deterministic normalized text and metadata.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Corrupt, encrypted, and unsupported files fail without stopping unrelated indexing.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Reprocessing is idempotent and versioned by parser implementation.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Timeout and size-limit behavior is covered by tests.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Licensed fixtures yield deterministic normalized text and metadata.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Corrupt, encrypted, and unsupported files fail without stopping unrelated indexing.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Reprocessing is idempotent and versioned by parser implementation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Timeout and size-limit behavior is covered by tests.</li>
 </ul>
 <h5 id="issue-33-dependencies">Dependencies</h5>
 <ul>
@@ -970,14 +970,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-33-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → PDF/DOCX parsing pipeline.</p>
+<h5 id="issue-33-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/107">PR #107</a>, merged 2026-09-01.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33457940050">run 33457940050</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#34 — \[M2\] Add canonical checksums, deterministic chunking, and CAS keys](https://github.com/melliott18/CogniStore/issues/34)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -996,10 +1001,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-34-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The same bytes always produce the same object digest, chunks, and CAS keys.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Large objects are processed with bounded memory.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Chunking version changes cannot silently mix incompatible layouts.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Catalog scan regression tests cover one-byte, empty, and multi-chunk objects.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The same bytes always produce the same object digest, chunks, and CAS keys.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Large objects are processed with bounded memory.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Chunking version changes cannot silently mix incompatible layouts.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Catalog scan regression tests cover one-byte, empty, and multi-chunk objects.</li>
 </ul>
 <h5 id="issue-34-dependencies">Dependencies</h5>
 <ul>
@@ -1008,14 +1013,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-34-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → chunking, checksums, and CAS keys.</p>
+<h5 id="issue-34-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/108">PR #108</a>, merged 2026-09-01.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33536330098">run 33536330098</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#35 — \[M2\] Implement safe deduplication reference and deletion semantics](https://github.com/melliott18/CogniStore/issues/35)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1034,10 +1044,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-35-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Identical content is stored once while each logical object remains independently addressable.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Deleting one duplicate leaves all other references readable.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Concurrent create/delete tests preserve reference invariants.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Physical reclamation requires zero references and a configurable grace period.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Identical content maps to one canonical catalog blob identity and manifest while each logical object remains independently addressable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Deleting one duplicate leaves all other references readable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Concurrent create/delete tests preserve reference invariants.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Physical reclamation requires zero references and a configurable grace period.</li>
 </ul>
 <h5 id="issue-35-dependencies">Dependencies</h5>
 <ul>
@@ -1045,14 +1055,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-35-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → checksum/dedup pipeline.</p>
+<h5 id="issue-35-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/111">PR #111</a>, merged 2026-09-01.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33551954785">run 33551954785</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#36 — \[M2\] Generate embeddings and query them through pgvector](https://github.com/melliott18/CogniStore/issues/36)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1071,10 +1086,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-36-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Chunks can be embedded, queried, and re-embedded reproducibly.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Incompatible model versions are never mixed in one search space.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Provider failures are retryable without duplicating vectors.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Similarity query latency and index configuration are measured on the sample corpus.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Chunks can be embedded, queried, and re-embedded reproducibly.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Incompatible model versions are never mixed in one search space.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Provider failures are retryable without duplicating vectors.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Similarity query latency and index configuration are measured on the sample corpus.</li>
 </ul>
 <h5 id="issue-36-dependencies">Dependencies</h5>
 <ul>
@@ -1083,14 +1098,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-36-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → embeddings into pgvector.</p>
+<h5 id="issue-36-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/109">PR #109</a>, merged 2026-09-01.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33552829832">run 33552829832</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#37 — \[M2\] Build a rebuildable keyword search index](https://github.com/melliott18/CogniStore/issues/37)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1109,10 +1129,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-37-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Fixture queries return expected ranked results and metadata filters.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Updates and deletes become visible within documented consistency bounds.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The entire index can be reconstructed from the catalog.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Backend-specific failures do not corrupt catalog state.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Fixture queries return expected ranked results and metadata filters.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Updates and deletes become visible within documented consistency bounds.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The entire index can be reconstructed from the catalog.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Backend-specific failures do not corrupt catalog state.</li>
 </ul>
 <h5 id="issue-37-dependencies">Dependencies</h5>
 <ul>
@@ -1121,6 +1141,11 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-37-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → keyword index.</p>
+<h5 id="issue-37-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/110">PR #110</a>, merged 2026-09-01.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33554303945">run 33554303945</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#38 — \[M2\] Implement hybrid metadata, vector, and keyword Ask retrieval](https://github.com/melliott18/CogniStore/issues/38)
 
@@ -1367,10 +1392,10 @@ Follow-up to: <a href="https://github.com/melliott18/CogniStore/issues/30">#30</
 #### [#101 — \[M2\] Close PostgreSQL catalog lifecycle and race regression gaps](https://github.com/melliott18/CogniStore/issues/101)
 
 - **Kind:** Verification follow-up
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:control-plane`, `area:delivery`, `roadmap`, `type:chore`
-- **Last updated:** 2026-08-31
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a>
@@ -1394,13 +1419,13 @@ Follow-up to: <a href="https://github.com/melliott18/CogniStore/issues/30">#30</
 </ul>
 <h5 id="issue-101-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Live PostgreSQL passes the scanner/move fencing race suite with independent connections.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A multi-process clean start reaches one valid migration head without partial schemas or startup races.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> PostgreSQL read-only tests prove reads at head, write rejection, and absent/outdated-schema refusal.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A preinstalled <code>vector</code> extension records <code>owned=false</code> and survives downgrade; a CogniStore-owned extension follows the documented cleanup behavior.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A prototype SQLite catalog imports into fresh PostgreSQL with objects, placements, move jobs, ordered transitions, metadata, generations, migration head, and source immutability verified.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> An injected SQLite mid-migration failure leaves the prior schema and data intact.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> These tests use isolated databases and run as required live-PostgreSQL CI coverage.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Live PostgreSQL passes the scanner/move fencing race suite with independent connections.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A multi-process clean start reaches one valid migration head without partial schemas or startup races.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> PostgreSQL read-only tests prove reads at head, write rejection, and absent/outdated-schema refusal.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A preinstalled <code>vector</code> extension records <code>owned=false</code> and survives downgrade; a CogniStore-owned extension follows the documented cleanup behavior.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A prototype SQLite catalog imports into fresh PostgreSQL with objects, placements, move jobs, ordered transitions, metadata, generations, migration head, and source immutability verified.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> An injected SQLite mid-migration failure leaves the prior schema and data intact.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> These tests use isolated databases and run as required live-PostgreSQL CI coverage.</li>
 </ul>
 <h5 id="issue-101-dependencies">Dependencies</h5>
 <ul>
@@ -1410,6 +1435,11 @@ Follow-up to: <a href="https://github.com/melliott18/CogniStore/issues/30">#30</
 <p>The 2026-08-31 audit passed concurrent PostgreSQL initialization, read-only enforcement, pre-owned pgvector downgrade, and prototype SQLite import as ad-hoc checks. This ticket makes those guarantees durable and adds the unexecuted race/failure cases.</p>
 <h5 id="issue-101-roadmap-coverage">Roadmap coverage</h5>
 <p>Platform foundation → migration-managed PostgreSQL catalog reliability.</p>
+<h5 id="issue-101-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/105">PR #105</a>, merged 2026-08-31.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33452279320">run 33452279320</a> (11/11 jobs successful).</li>
+</ul>
 
 ### Other tracking issues
 
