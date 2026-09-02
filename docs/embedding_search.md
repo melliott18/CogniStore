@@ -117,6 +117,9 @@ true. For bounded records, the internal `document_extraction` and
 `content_identity` envelopes are removed before the result is exposed. This
 two-stage projection preserves catalog JSON containing escaped NUL values
 without allowing multi-megabyte extraction text to be duplicated across hits.
+Each result also carries the source-content SHA-256 and full normalized-text
+SHA-256 so higher-level retrieval can reject a hit if catalog content or its
+current extraction changes between similarity search and citation hydration.
 Metadata predicates still evaluate against the full catalog JSON. Use
 `SQLCatalog.get()` when the complete catalog metadata record is required.
 PostgreSQL cannot materialize fields from a legacy JSON object containing an

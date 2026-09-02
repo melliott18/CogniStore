@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "name": "cognistore-ask-golden-v1",
+  "description": "Project-authored catalog objects, provider rankings, and expected hybrid Ask citations.",
+  "objects": [
+    {
+      "id": "retention",
+      "bucket": "documents",
+      "key": "policies/retention.pdf",
+      "tier": "warm",
+      "size": 128,
+      "mime": "application/pdf",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "object_metadata": {
+        "department": "legal",
+        "retention_years": 7
+      },
+      "document_metadata": {
+        "title": "Records Retention and Legal Holds",
+        "author": "Policy Team",
+        "language": "en"
+      },
+      "source_text": "Legal holds suspend scheduled records deletion. Counsel releases the hold before disposal resumes. A signed legal hold blocks deletion until counsel releases it."
+    },
+    {
+      "id": "litigation",
+      "bucket": "archive",
+      "key": "litigation/legacy-contracts.pdf",
+      "tier": "cold",
+      "size": 96,
+      "mime": "application/pdf",
+      "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "object_metadata": {
+        "department": "legal",
+        "retention_years": 7
+      },
+      "document_metadata": {
+        "title": "Legacy Contract Litigation",
+        "author": "Records Team",
+        "language": "en"
+      },
+      "source_text": "A legal hold pauses archival deletion. Litigation records remain preserved while a hold is active."
+    },
+    {
+      "id": "backup",
+      "bucket": "documents",
+      "key": "runbooks/backups.pdf",
+      "tier": "warm",
+      "size": 160,
+      "mime": "application/pdf",
+      "content_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "object_metadata": {
+        "department": "platform",
+        "retention_years": 30
+      },
+      "document_metadata": {
+        "title": "Backup Recovery Proof and Restore Drill",
+        "author": "Platform Team",
+        "language": "en"
+      },
+      "source_text": "A quarterly restore drill verifies checksums and recovery time. The newest backup is restored in isolation and its checksums are verified. Backups are unrelated to legal preservation."
+    }
+  ],
+  "queries": [
+    {
+      "id": "legal-hold",
+      "text": "What prevents contract deletion during a legal hold?",
+      "filters": {
+        "object_metadata": {
+          "department": "legal"
+        }
+      },
+      "limit": 2,
+      "candidate_limit": 10,
+      "passages_per_result": 3,
+      "metadata_hits": [
+        {
+          "object": "litigation",
+          "score": 0.375
+        },
+        {
+          "object": "retention",
+          "score": 0.375
+        },
+        {
+          "object": "backup",
+          "score": 7.0
+        }
+      ],
+      "keyword_hits": [
+        {
+          "object": "litigation",
+          "passage_id": "1111111111111111111111111111111111111111111111111111111111111111",
+          "passage_index": 0,
+          "start_codepoint": 0,
+          "text": "A legal hold pauses archival deletion.",
+          "score": 8.0
+        },
+        {
+          "object": "retention",
+          "passage_id": "2222222222222222222222222222222222222222222222222222222222222222",
+          "passage_index": 0,
+          "start_codepoint": 0,
+          "text": "Legal holds suspend scheduled records deletion.",
+          "score": 7.0
+        },
+        {
+          "object": "retention",
+          "passage_id": "3333333333333333333333333333333333333333333333333333333333333333",
+          "passage_index": 1,
+          "start_codepoint": 48,
+          "text": "Counsel releases the hold before disposal resumes.",
+          "score": 6.0
+        },
+        {
+          "object": "backup",
+          "passage_id": "4444444444444444444444444444444444444444444444444444444444444444",
+          "passage_index": 0,
+          "start_codepoint": 139,
+          "text": "Backups are unrelated to legal preservation.",
+          "score": 1.0
+        }
+      ],
+      "vector_hits": [
+        {
+          "object": "retention",
+          "passage_id": "00000000-0000-0000-0000-000000000101",
+          "document_id": "10000000-0000-0000-0000-000000000101",
+          "space_id": "20000000-0000-0000-0000-000000000001",
+          "passage_index": 0,
+          "start_codepoint": 99,
+          "text": "A signed legal hold blocks deletion until counsel releases it.",
+          "cosine_distance": 0.05
+        },
+        {
+          "object": "litigation",
+          "passage_id": "00000000-0000-0000-0000-000000000102",
+          "document_id": "10000000-0000-0000-0000-000000000102",
+          "space_id": "20000000-0000-0000-0000-000000000001",
+          "passage_index": 0,
+          "start_codepoint": 39,
+          "text": "Litigation records remain preserved while a hold is active.",
+          "cosine_distance": 0.1
+        },
+        {
+          "object": "backup",
+          "passage_id": "00000000-0000-0000-0000-000000000103",
+          "document_id": "10000000-0000-0000-0000-000000000103",
+          "space_id": "20000000-0000-0000-0000-000000000001",
+          "passage_index": 0,
+          "start_codepoint": 64,
+          "text": "The newest backup is restored in isolation and its checksums are verified.",
+          "cosine_distance": 0.8
+        }
+      ],
+      "expected": {
+        "mode": "metadata+keyword+vector",
+        "order": [
+          "litigation",
+          "retention"
+        ],
+        "passages": {
+          "retention": [
+            {
+              "source": "vector",
+              "passage_id": "00000000-0000-0000-0000-000000000101"
+            },
+            {
+              "source": "keyword",
+              "passage_id": "2222222222222222222222222222222222222222222222222222222222222222"
+            },
+            {
+              "source": "keyword",
+              "passage_id": "3333333333333333333333333333333333333333333333333333333333333333"
+            }
+          ],
+          "litigation": [
+            {
+              "source": "keyword",
+              "passage_id": "1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            {
+              "source": "vector",
+              "passage_id": "00000000-0000-0000-0000-000000000102"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "restore-proof",
+      "text": "How is a backup recovery proven?",
+      "filters": {
+        "bucket": "documents",
+        "key_prefix": "runbooks/",
+        "tier": "warm",
+        "mime": "application/pdf",
+        "object_metadata": {
+          "department": "platform"
+        },
+        "document_metadata": {
+          "language": "en"
+        }
+      },
+      "limit": 1,
+      "candidate_limit": 10,
+      "passages_per_result": 2,
+      "metadata_hits": [
+        {
+          "object": "backup",
+          "score": 10.0
+        },
+        {
+          "object": "retention",
+          "score": 9.0
+        }
+      ],
+      "keyword_hits": [
+        {
+          "object": "retention",
+          "passage_id": "5555555555555555555555555555555555555555555555555555555555555555",
+          "passage_index": 0,
+          "start_codepoint": 0,
+          "text": "Legal holds suspend scheduled records deletion.",
+          "score": 9.0
+        },
+        {
+          "object": "backup",
+          "passage_id": "6666666666666666666666666666666666666666666666666666666666666666",
+          "passage_index": 0,
+          "start_codepoint": 0,
+          "text": "A quarterly restore drill verifies checksums and recovery time.",
+          "score": 8.0
+        }
+      ],
+      "vector_hits": [
+        {
+          "object": "retention",
+          "passage_id": "00000000-0000-0000-0000-000000000104",
+          "document_id": "10000000-0000-0000-0000-000000000104",
+          "space_id": "20000000-0000-0000-0000-000000000001",
+          "passage_index": 0,
+          "start_codepoint": 99,
+          "text": "A signed legal hold blocks deletion until counsel releases it.",
+          "cosine_distance": 0.08
+        },
+        {
+          "object": "backup",
+          "passage_id": "00000000-0000-0000-0000-000000000105",
+          "document_id": "10000000-0000-0000-0000-000000000105",
+          "space_id": "20000000-0000-0000-0000-000000000001",
+          "passage_index": 0,
+          "start_codepoint": 64,
+          "text": "The newest backup is restored in isolation and its checksums are verified.",
+          "cosine_distance": 0.12
+        }
+      ],
+      "expected": {
+        "mode": "metadata+keyword+vector",
+        "order": [
+          "backup"
+        ],
+        "passages": {
+          "backup": [
+            {
+              "source": "keyword",
+              "passage_id": "6666666666666666666666666666666666666666666666666666666666666666"
+            },
+            {
+              "source": "vector",
+              "passage_id": "00000000-0000-0000-0000-000000000105"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
