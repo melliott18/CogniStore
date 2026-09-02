@@ -11,6 +11,7 @@ import uvicorn
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
+from cognistore.policy_feature_runtime import load_policy_feature_loader
 
 from .app import create_app
 from .gateway import CogniStoreGateway
@@ -64,24 +65,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     drivers = load_drivers(args.drivers)
     catalog = open_catalog(args.catalog_db)
-    queue = NatsJetStreamQueue(
-        NatsJetStreamConfig(
-            servers=_nats_servers(args.nats_url),
-            stream=os.environ.get("COGNISTORE_JOB_STREAM", "COGNISTORE_JOBS"),
-            subject=os.environ.get("COGNISTORE_JOB_SUBJECT", "cognistore.jobs"),
-            consumer=os.environ.get("COGNISTORE_JOB_CONSUMER", "cognistore-workers"),
-            client_name="cognistore-api",
-        ),
-        consume=False,
-    )
-    gateway = CogniStoreGateway(
-        catalog,
-        drivers,
-        queue=queue,
-        manage_queue=True,
-    )
-    app = create_app(gateway)
     try:
+        feature_loader = load_policy_feature_loader(args.drivers, catalog)
+        queue = NatsJetStreamQueue(
+            NatsJetStreamConfig(
+                servers=_nats_servers(args.nats_url),
+                stream=os.environ.get("COGNISTORE_JOB_STREAM", "COGNISTORE_JOBS"),
+                subject=os.environ.get("COGNISTORE_JOB_SUBJECT", "cognistore.jobs"),
+                consumer=os.environ.get("COGNISTORE_JOB_CONSUMER", "cognistore-workers"),
+                client_name="cognistore-api",
+            ),
+            consume=False,
+        )
+        gateway = CogniStoreGateway(
+            catalog,
+            drivers,
+            queue=queue,
+            manage_queue=True,
+            feature_loader=feature_loader,
+        )
+        app = create_app(gateway)
         uvicorn.run(
             app,
             host=args.host,

@@ -33,10 +33,13 @@ from cognistore.sdk import (
     CogniStoreClient,
     ConflictError,
     DeleteObjectResponse,
+    EmbeddingPolicyFeature,
+    EmbeddingPolicyRuleConfig,
     HeadObjectResponse,
     HealthResponse,
     JobFailedError,
     JobStatus,
+    MimePolicyFeature,
     NotFoundError,
     ObjectDownload,
     ObjectResource,
@@ -45,6 +48,8 @@ from cognistore.sdk import (
     PolicyConfig,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
+    PolicyFeatureProvenance,
+    PolicyFeatures,
     PolicyRunRequest,
     PollingTimeoutError,
     RangeNotSatisfiableError,
@@ -78,8 +83,13 @@ _MODEL_SCHEMA_PAIRS = {
     "ProviderDiagnosticResponse": "ProviderDiagnostic",
     "GeneratedAnswerResponse": "GeneratedAnswer",
     "AskResponse": "AskResponse",
+    "EmbeddingPolicyRuleConfig": "EmbeddingPolicyRuleConfig",
     "PolicyConfig": "PolicyConfig",
     "PolicyEvaluationRequest": "PolicyEvaluationRequest",
+    "PolicyFeatureProvenanceResponse": "PolicyFeatureProvenance",
+    "MimePolicyFeatureResponse": "MimePolicyFeature",
+    "EmbeddingPolicyFeatureResponse": "EmbeddingPolicyFeature",
+    "PolicyFeaturesResponse": "PolicyFeatures",
     "PolicyEvaluationResponse": "PolicyEvaluationResponse",
     "CatalogScanRequest": "CatalogScanRequest",
     "PolicyRunRequest": "PolicyRunRequest",
@@ -181,6 +191,129 @@ def test_default_ask_mode_is_omitted_for_older_strict_v1_servers() -> None:
 
     assert b'"retrieval_mode"' not in request_bodies[0]
     assert b'"retrieval_mode":"metadata+keyword+vector"' in request_bodies[1]
+
+
+def test_empty_embedding_rules_are_omitted_for_older_strict_v1_servers() -> None:
+    request_bodies: dict[str, list[bytes]] = {
+        "/v1/policies/evaluate": [],
+        "/v1/actions/policy-runs": [],
+    }
+
+    def policy_handler(request: httpx.Request) -> httpx.Response:
+        request_bodies[request.url.path].append(request.content)
+        if request.url.path == "/v1/policies/evaluate":
+            return httpx.Response(
+                200,
+                request=request,
+                headers={"X-Request-ID": "policy-feature-compatibility"},
+                json={
+                    "schema_version": 1,
+                    "bucket": "documents",
+                    "key": "report.txt",
+                    "current_tier": "warm",
+                    "size": 10,
+                    "action": "stay",
+                    "destination_tier": None,
+                    "reason": "compatibility fixture",
+                    "features": {
+                        "schema_version": 1,
+                        "mime": {
+                            "state": "missing",
+                            "value": None,
+                            "provenance": {
+                                "source": "catalog_metadata",
+                                "source_version": 1,
+                                "content_sha256": None,
+                                "details": {"reason": "mime_missing"},
+                            },
+                        },
+                        "embeddings": [],
+                    },
+                },
+            )
+        return httpx.Response(
+            202,
+            request=request,
+            headers={"X-Request-ID": "policy-feature-compatibility"},
+            json={
+                "schema_version": 1,
+                "job_id": str(_POLICY_JOB_ID),
+                "correlation_id": str(_CORRELATION_ID),
+                "job_type": "policy.run",
+                "status": "queued",
+                "created_at": _NOW.isoformat().replace("+00:00", "Z"),
+                "updated_at": _NOW.isoformat().replace("+00:00", "Z"),
+                "status_url": f"/v1/jobs/{_POLICY_JOB_ID}",
+                "attempt": 0,
+                "retryable": None,
+                "error_type": None,
+            },
+        )
+
+    configured_rule = EmbeddingPolicyRuleConfig(
+        name="active-report",
+        query="frequently used project report",
+        minimum_similarity=0.8,
+        destination_tier="hot",
+    )
+    with httpx.Client(transport=httpx.MockTransport(policy_handler)) as http_client:
+        with CogniStoreClient("https://sdk.test", http_client=http_client) as sdk:
+            sdk.evaluate_policy(
+                PolicyEvaluationRequest(bucket="documents", key="report.txt")
+            )
+            sdk.evaluate_policy(
+                PolicyEvaluationRequest(
+                    bucket="documents",
+                    key="report.txt",
+                    config=PolicyConfig(
+                        policy="content",
+                        embedding_rules=[configured_rule],
+                    ),
+                )
+            )
+            sdk.submit_policy_run(PolicyRunRequest(bucket="documents"))
+            sdk.submit_policy_run(
+                PolicyRunRequest(
+                    bucket="documents",
+                    config=PolicyConfig(
+                        policy="content",
+                        embedding_rules=[configured_rule],
+                    ),
+                )
+            )
+
+    for bodies in request_bodies.values():
+        assert b'"embedding_rules"' not in bodies[0]
+        assert b'"embedding_rules":[{' in bodies[1]
+        assert b'"name":"active-report"' in bodies[1]
+
+
+def test_policy_evaluation_accepts_an_older_v1_response_without_features() -> None:
+    def policy_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=request,
+            headers={"X-Request-ID": "old-policy-response"},
+            json={
+                "schema_version": 1,
+                "bucket": "documents",
+                "key": "report.txt",
+                "current_tier": "warm",
+                "size": 10,
+                "action": "stay",
+                "destination_tier": None,
+                "reason": "legacy policy response",
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(policy_handler)) as http_client:
+        with CogniStoreClient("https://sdk.test", http_client=http_client) as sdk:
+            evaluation = sdk.evaluate_policy(
+                PolicyEvaluationRequest(bucket="documents", key="report.txt")
+            )
+
+    assert evaluation.reason == "legacy policy response"
+    assert evaluation.features is None
 
 
 class _ContractGateway:
@@ -438,6 +571,34 @@ class _ContractGateway:
             action="move" if should_move else "stay",
             destination_tier="warm" if should_move else None,
             reason="contract fixture decision",
+            features=api_models.PolicyFeaturesResponse(
+                schema_version=1,
+                mime=api_models.MimePolicyFeatureResponse(
+                    state="missing",
+                    value=None,
+                    provenance=api_models.PolicyFeatureProvenanceResponse(
+                        source="catalog_metadata",
+                        source_version=1,
+                        content_sha256=None,
+                        details={"reason": "mime_missing"},
+                    ),
+                ),
+                embeddings=[
+                    api_models.EmbeddingPolicyFeatureResponse(
+                        name=rule.name,
+                        query=rule.query,
+                        state="missing",
+                        similarity=None,
+                        provenance=api_models.PolicyFeatureProvenanceResponse(
+                            source="embedding_similarity",
+                            source_version=1,
+                            content_sha256=None,
+                            details={"reason": "provider_missing"},
+                        ),
+                    )
+                    for rule in request.config.embedding_rules
+                ],
+            ),
         )
 
     async def submit_catalog_scan(
@@ -503,7 +664,19 @@ def test_all_public_api_operations_round_trip_as_typed_models(
         PolicyEvaluationRequest(
             bucket="documents",
             key="reports/example.txt",
-            config=PolicyConfig(threshold=5, allowed_tiers=["hot", "warm"]),
+            config=PolicyConfig(
+                policy="content",
+                threshold=5,
+                allowed_tiers=["hot", "warm"],
+                embedding_rules=[
+                    EmbeddingPolicyRuleConfig(
+                        name="active-report",
+                        query="frequently used project report",
+                        minimum_similarity=0.8,
+                        destination_tier="hot",
+                    )
+                ],
+            ),
         )
     )
     scan = sdk.submit_catalog_scan(
@@ -538,7 +711,18 @@ def test_all_public_api_operations_round_trip_as_typed_models(
     assert gateway.ask_requests[0].retrieval_mode == "metadata+vector"
     assert isinstance(evaluation, PolicyEvaluationResponse)
     assert (evaluation.action, evaluation.destination_tier) == ("move", "warm")
+    assert isinstance(evaluation.features, PolicyFeatures)
+    assert isinstance(evaluation.features.mime, MimePolicyFeature)
+    assert isinstance(
+        evaluation.features.mime.provenance,
+        PolicyFeatureProvenance,
+    )
+    assert len(evaluation.features.embeddings) == 1
+    assert isinstance(evaluation.features.embeddings[0], EmbeddingPolicyFeature)
+    assert evaluation.features.embeddings[0].name == "active-report"
+    assert evaluation.features.embeddings[0].state == "missing"
     assert len(gateway.policy_requests) == 1
+    assert gateway.policy_requests[0].config.embedding_rules[0].name == "active-report"
     assert isinstance(scan, JobStatus) and scan.job_type == "catalog.scan"
     assert isinstance(policy_run, JobStatus) and policy_run.job_type == "policy.run"
     assert isinstance(fetched_job, JobStatus) and fetched_job.job_id == scan.job_id
@@ -975,6 +1159,44 @@ def test_request_models_are_strict_and_forbid_unknown_fields() -> None:
         AskRequest.model_validate({"text": "query", "future_option": True})
     with pytest.raises(PydanticValidationError):
         AskRequest.model_validate({"text": "query", "retrieval_mode": "keyword"})
+
+
+def test_sdk_embedding_policy_rules_enforce_the_api_request_constraints() -> None:
+    rule = EmbeddingPolicyRuleConfig(
+        name="active-report",
+        query="frequently used project report",
+        minimum_similarity=0.8,
+        destination_tier="hot",
+    )
+
+    config = PolicyConfig(
+        policy="content",
+        allowed_tiers=["hot", "warm"],
+        embedding_rules=[rule],
+    )
+
+    assert config.embedding_rules == [rule]
+    with pytest.raises(PydanticValidationError, match="require the content policy"):
+        PolicyConfig(embedding_rules=[rule])
+    with pytest.raises(PydanticValidationError, match="names must be unique"):
+        PolicyConfig(
+            policy="content",
+            allowed_tiers=["hot", "warm"],
+            embedding_rules=[rule, rule],
+        )
+    with pytest.raises(PydanticValidationError, match="must be allowed"):
+        PolicyConfig(
+            policy="content",
+            allowed_tiers=["warm"],
+            embedding_rules=[rule],
+        )
+    with pytest.raises(PydanticValidationError, match="outer whitespace"):
+        EmbeddingPolicyRuleConfig(
+            name=" active-report",
+            query="frequently used project report",
+            minimum_similarity=0.8,
+            destination_tier="hot",
+        )
 
 
 def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> None:

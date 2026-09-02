@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import math
 import os
@@ -46,8 +47,13 @@ from cognistore.core.catalog import Catalog, CatalogStore
 from cognistore.core.content_references import DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
 from cognistore.core.mover import Mover
+from cognistore.core.policy import (
+	MAX_EMBEDDING_RULES,
+	EmbeddingPolicyRule,
+	validate_policy_config_size,
+)
 from cognistore.core.policy_factory import build_policy
-from cognistore.core.policy_runner import ActionResult, PolicyRunner
+from cognistore.core.policy_runner import ActionResult, PolicyEvaluationResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.sqlite_catalog import SQLiteCatalog as SQLiteCatalog
 from cognistore.core.throughput import (
@@ -72,6 +78,7 @@ from cognistore.jobs.handlers import (
 	POLICY_RUN_JOB,
 	build_handlers,
 	policy_job_payload,
+	policy_job_schema_version,
 )
 from cognistore.jobs.health import HealthServer
 from cognistore.jobs.models import JobEnvelope
@@ -93,6 +100,7 @@ from cognistore.jobs.scheduler import (
 	SQLiteScheduleStore,
 	load_schedule_config,
 )
+from cognistore.policy_feature_runtime import load_policy_feature_loader
 from cognistore.utils.device_info import (
 	discover_device_for_tier,
 	load_hardware_json,
@@ -824,6 +832,7 @@ def _render_redrive_error(exc: Exception, *, json_output: bool) -> None:
 async def _serve_worker(
 	args: argparse.Namespace, drivers, catalog: CatalogStore
 ) -> int:
+	policy_feature_loader = load_policy_feature_loader(args.drivers, catalog)
 	throughput = (
 		ThroughputController(
 			getattr(args, "_throughput_config", None)
@@ -849,7 +858,12 @@ async def _serve_worker(
 	schedule_store = SQLiteScheduleStore(schedule_path)
 	worker = AsyncWorker(
 		queue,
-		build_handlers(drivers, catalog, throughput=throughput),
+		build_handlers(
+			drivers,
+			catalog,
+			throughput=throughput,
+			policy_feature_loader=policy_feature_loader,
+		),
 		config=WorkerConfig(
 			fetch_timeout=args.fetch_timeout,
 			heartbeat_interval=args.heartbeat_interval,
@@ -1025,10 +1039,12 @@ def _render_actions(
 	command: str,
 	dry_run: bool,
 	json_output: bool,
+	evaluations: Sequence[PolicyEvaluationResult] | None = None,
 	extra: dict[str, object] | None = None,
 ) -> None:
-	action_payloads = [
-		{
+	action_payloads = []
+	for action in actions:
+		payload: dict[str, object] = {
 			"status": action.status,
 			"bucket": action.bucket,
 			"key": action.key,
@@ -1036,8 +1052,9 @@ def _render_actions(
 			"to_tier": action.to_tier,
 			"reason": redact_text(action.reason),
 		}
-		for action in actions
-	]
+		if dry_run and action.features is not None:
+			payload["features"] = action.features.to_dict()
+		action_payloads.append(payload)
 	human = [
 		(
 			f"{'planned' if action.status == 'planned' else 'moved'} "
@@ -1046,8 +1063,32 @@ def _render_actions(
 		)
 		for action in actions
 	]
+	evaluation_payloads = (
+		None
+		if evaluations is None
+		else [evaluation.to_mapping() for evaluation in evaluations]
+	)
+	if evaluations is not None:
+		for evaluation in evaluations:
+			feature_json = json.dumps(
+				evaluation.features.to_dict(),
+				ensure_ascii=True,
+				allow_nan=False,
+				sort_keys=True,
+				separators=(",", ":"),
+			)
+			destination = evaluation.destination_tier or "-"
+			human.append(
+				f"evaluated {evaluation.bucket}/{evaluation.key} "
+				f"{evaluation.current_tier} action={evaluation.action} "
+				f"destination={destination} : {evaluation.reason} "
+				f"features={feature_json}"
+			)
 	summary = "planned_actions" if dry_run else "completed_actions"
 	human.append(f"{summary}={len(actions)}")
+	result_extra = dict(extra or {})
+	if evaluation_payloads is not None:
+		result_extra["evaluations"] = evaluation_payloads
 	_emit_result(
 		command,
 		"planned" if dry_run else "completed",
@@ -1056,7 +1097,7 @@ def _render_actions(
 		dry_run=dry_run,
 		count=len(actions),
 		actions=action_payloads,
-		**(extra or {}),
+		**result_extra,
 	)
 
 
@@ -1364,6 +1405,16 @@ def _run_cli(
 	p_policy.add_argument("--warm-mime", action="append", help="MIME prefix(es) that should go to warm, e.g. application/zip")
 	p_policy.add_argument("--cold-name", action="append", help="Glob pattern(s) for keys that should go to cold")
 	p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
+	p_policy.add_argument(
+		"--embedding-rule",
+		action="append",
+		nargs=4,
+		metavar=("NAME", "QUERY", "MIN_SIMILARITY", "DESTINATION_TIER"),
+		help=(
+			"Named embedding classification rule; repeat for deterministic first-match "
+			"ordering (quote QUERY when it contains spaces)"
+		),
+	)
 	p_policy.add_argument("--sync", action="store_true", help="Run writable work inline instead of enqueueing (development only)")
 	p_policy.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
 	p_policy.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
@@ -1916,6 +1967,55 @@ def _run_cli(
 		unknown_allowed = sorted(set(policy_allowed).difference(drivers))
 		if unknown_allowed:
 			parser.error(f"unknown allowed tier(s): {', '.join(unknown_allowed)}")
+		raw_embedding_rules = args.embedding_rule or ()
+		if len(raw_embedding_rules) > MAX_EMBEDDING_RULES:
+			parser.error(
+				f"--embedding-rule may be repeated at most {MAX_EMBEDDING_RULES} times"
+			)
+		embedding_rules: list[EmbeddingPolicyRule] = []
+		for index, raw_rule in enumerate(raw_embedding_rules, start=1):
+			name, query, threshold_text, destination_tier = raw_rule
+			try:
+				threshold = float(threshold_text)
+				rule = EmbeddingPolicyRule(
+					name=name,
+					query=query,
+					minimum_similarity=threshold,
+					destination_tier=destination_tier,
+				)
+			except (TypeError, ValueError) as exc:
+				parser.error(f"invalid --embedding-rule #{index}: {exc}")
+			embedding_rules.append(rule)
+		if len({rule.name for rule in embedding_rules}) != len(embedding_rules):
+			parser.error("--embedding-rule names must be unique")
+		if embedding_rules and args.policy != "content":
+			parser.error("--embedding-rule requires --policy content")
+		unknown_rule_tiers = sorted(
+			{
+				rule.destination_tier
+				for rule in embedding_rules
+				if rule.destination_tier not in policy_allowed
+			}
+		)
+		if unknown_rule_tiers:
+			parser.error(
+				"--embedding-rule contains disallowed destination tier(s): "
+				+ ", ".join(unknown_rule_tiers)
+			)
+		try:
+			validate_policy_config_size(
+				allowed_tiers=policy_allowed,
+				hot_name_patterns=args.hot_name or (),
+				warm_name_patterns=args.warm_name or (),
+				cold_name_patterns=args.cold_name or (),
+				hot_mime_prefixes=args.hot_mime or (),
+				warm_mime_prefixes=args.warm_mime or (),
+				cold_mime_prefixes=args.cold_mime or (),
+				embedding_rules=embedding_rules,
+			)
+		except ValueError as exc:
+			parser.error(str(exc))
+		args._embedding_rules = tuple(embedding_rules)
 	elif args.cmd == "move":
 		assert drivers is not None
 		if args.idempotency_key is not None:
@@ -2682,24 +2782,27 @@ def _run_cli(
 			args.threshold if args.policy == "llm" else effective_threshold
 		)
 		if background_submission:
+			enqueue_payload = policy_job_payload(
+				bucket=args.bucket,
+				prefix=args.prefix,
+				policy=args.policy,
+				threshold=policy_threshold,
+				llm_threshold=args.llm_threshold,
+				allowed_tiers=allowed,
+				hot_name_patterns=args.hot_name or (),
+				warm_name_patterns=args.warm_name or (),
+				cold_name_patterns=args.cold_name or (),
+				hot_mime_prefixes=args.hot_mime or (),
+				warm_mime_prefixes=args.warm_mime or (),
+				cold_mime_prefixes=args.cold_mime or (),
+				embedding_rules=args._embedding_rules,
+			)
 			enqueue_job = JobEnvelope.create(
 				POLICY_RUN_JOB,
-				policy_job_payload(
-					bucket=args.bucket,
-					prefix=args.prefix,
-					policy=args.policy,
-					threshold=policy_threshold,
-					llm_threshold=args.llm_threshold,
-					allowed_tiers=allowed,
-					hot_name_patterns=args.hot_name or (),
-					warm_name_patterns=args.warm_name or (),
-					cold_name_patterns=args.cold_name or (),
-					hot_mime_prefixes=args.hot_mime or (),
-					warm_mime_prefixes=args.warm_mime or (),
-					cold_mime_prefixes=args.cold_mime or (),
-				),
+				enqueue_payload,
 				job_id=args.job_id,
 				correlation_id=args.correlation_id,
+				schema_version=policy_job_schema_version(enqueue_payload),
 			)
 			return _submit_job(args, enqueue_job)
 
@@ -2714,6 +2817,7 @@ def _run_cli(
 			hot_mime_prefixes=args.hot_mime or (),
 			warm_mime_prefixes=args.warm_mime or (),
 			cold_mime_prefixes=args.cold_mime or (),
+			embedding_rules=args._embedding_rules,
 		)
 		assert catalog is not None
 		run_id = str(uuid4())
@@ -2738,13 +2842,35 @@ def _run_cli(
 			policy_name=args.policy,
 			policy_version="1",
 			audit_context=policy_audit_context,
+			feature_loader=load_policy_feature_loader(args.drivers, catalog),
 		)
-		actions = runner.run_once(args.bucket, prefix=args.prefix, dry_run=args.dry_run)
+		evaluations: list[PolicyEvaluationResult] | None = None
+		if args.dry_run:
+			evaluations = runner.preview_once(args.bucket, prefix=args.prefix)
+			actions = [
+				ActionResult(
+					bucket=evaluation.bucket,
+					key=evaluation.key,
+					from_tier=evaluation.current_tier,
+					to_tier=evaluation.destination_tier,
+					reason=evaluation.reason,
+					status="planned",
+					features=evaluation.features,
+				)
+				for evaluation in evaluations
+				if evaluation.action == "move"
+				and evaluation.destination_tier is not None
+				and evaluation.destination_tier != evaluation.current_tier
+				and evaluation.destination_tier in allowed
+			]
+		else:
+			actions = runner.run_once(args.bucket, prefix=args.prefix)
 		_render_actions(
 			actions,
 			command="policy-run",
 			dry_run=dry_run,
 			json_output=args.json,
+			evaluations=evaluations,
 		)
 		close_catalog(catalog)
 		return 0

@@ -179,6 +179,37 @@ tiers:
     chunk_size: 8388608
 ```
 
+The same file can opt policy evaluation into the PostgreSQL/pgvector embedding
+index. Without this block, embedding rules remain safely `missing` and cannot
+trigger a move:
+
+```yaml
+embedding:
+  provider: openai-compatible
+  base_url: https://embeddings.example.com
+  api_key_env: COGNISTORE_EMBEDDING_API_KEY
+  model: text-embedding-model
+  deployment_version: release-2026-09-01
+  dimensions: 1536
+  request_dimensions: false
+```
+
+For locally executed sentence-transformers inference, install
+`cognistore[embeddings]` and use an immutable Hub commit:
+
+```yaml
+embedding:
+  provider: sentence-transformers
+  model: sentence-transformers/all-MiniLM-L6-v2
+  revision: 0123456789abcdef0123456789abcdef01234567
+  dimensions: 384
+```
+
+Configured embedding policy features require a PostgreSQL catalog with the
+supported pgvector extension. The API, synchronous `policy-run`, and workers
+all compose the same provider from this block. OpenAI-compatible API keys are
+read only through `api_key_env`; they should not be stored in YAML.
+
 Then in Python:
 
 ```python
@@ -385,6 +416,9 @@ Notes:
 		- `--warm-name PATTERN` (repeatable) → glob patterns for warm (e.g., `*.zip`)
 		- `--hot-mime PREFIX` (repeatable) → MIME prefix for hot (e.g., `text/`, `image/`)
 		- `--warm-mime PREFIX` (repeatable) → MIME prefix for warm (e.g., `application/zip`)
+		- `--embedding-rule NAME QUERY MIN_SIMILARITY DESTINATION_TIER` (repeatable) → named max-passage semantic classification; missing/stale providers fail closed
+	  Feature states, provenance, rule ordering, and reindex behavior are defined
+	  in [the policy feature projection contract](docs/policy_features.md).
 	The LLM mode currently uses a threshold-based mock provider; you can swap in a real provider later.
 
 ### Durable background workers

@@ -32,6 +32,8 @@ Tier = Annotated[str, Field(min_length=1, max_length=256)]
 PageLimit = Annotated[int, Field(ge=1, le=200)]
 PolicyPattern = Annotated[str, Field(min_length=1, max_length=1024)]
 MimePrefix = Annotated[str, Field(min_length=1, max_length=255)]
+EmbeddingRuleName = Annotated[str, Field(min_length=1, max_length=256)]
+EmbeddingRuleQuery = Annotated[str, Field(min_length=1, max_length=16_384)]
 MAX_POLICY_CONFIG_BYTES = 64 * 1024
 
 
@@ -191,6 +193,47 @@ class AskResponse(APIModel):
     answer: GeneratedAnswerResponse | None = None
 
 
+class EmbeddingPolicyRuleConfig(APIModel):
+    """One named semantic classification rule for content placement."""
+
+    name: EmbeddingRuleName
+    query: EmbeddingRuleQuery
+    minimum_similarity: Annotated[
+        float,
+        Field(ge=-1.0, le=1.0, allow_inf_nan=False),
+    ]
+    destination_tier: Tier
+
+    @model_validator(mode="after")
+    def _validate_text_identity(self) -> EmbeddingPolicyRuleConfig:
+        for field_name, byte_limit in (
+            ("name", 256),
+            ("query", 16_384),
+            ("destination_tier", 256),
+        ):
+            value = getattr(self, field_name)
+            if value != value.strip():
+                raise ValueError(
+                    f"embedding rule {field_name} must not have outer whitespace"
+                )
+            if "\0" in value or any(ord(character) < 32 for character in value):
+                raise ValueError(
+                    f"embedding rule {field_name} must not contain control characters"
+                )
+            try:
+                encoded = value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ValueError(
+                    f"embedding rule {field_name} must be valid UTF-8"
+                ) from exc
+            if len(encoded) > byte_limit:
+                raise ValueError(
+                    f"embedding rule {field_name} must be at most "
+                    f"{byte_limit} UTF-8 bytes"
+                )
+        return self
+
+
 class PolicyConfig(APIModel):
     policy: Literal["simple", "content", "llm"] = "simple"
     threshold: Annotated[int, Field(ge=0, le=2**63 - 1)] = 1_048_576
@@ -216,9 +259,37 @@ class PolicyConfig(APIModel):
     cold_mime_prefixes: Annotated[list[MimePrefix], Field(max_length=100)] = Field(
         default_factory=list
     )
+    embedding_rules: Annotated[
+        list[EmbeddingPolicyRuleConfig],
+        Field(max_length=100),
+    ] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _bound_aggregate_payload(self) -> PolicyConfig:
+        if self.embedding_rules and self.policy != "content":
+            raise ValueError("embedding rules require the content policy")
+        duplicate_names = sorted(
+            name
+            for name in {rule.name for rule in self.embedding_rules}
+            if sum(rule.name == name for rule in self.embedding_rules) > 1
+        )
+        if duplicate_names:
+            raise ValueError(
+                "embedding rule names must be unique: "
+                + ", ".join(duplicate_names)
+            )
+        unknown_destinations = sorted(
+            {
+                rule.destination_tier
+                for rule in self.embedding_rules
+                if rule.destination_tier not in self.allowed_tiers
+            }
+        )
+        if unknown_destinations:
+            raise ValueError(
+                "embedding rule destination tier(s) must be allowed: "
+                + ", ".join(unknown_destinations)
+            )
         values = [
             *self.allowed_tiers,
             *self.hot_name_patterns,
@@ -227,6 +298,11 @@ class PolicyConfig(APIModel):
             *self.hot_mime_prefixes,
             *self.warm_mime_prefixes,
             *self.cold_mime_prefixes,
+            *(
+                value
+                for rule in self.embedding_rules
+                for value in (rule.name, rule.query, rule.destination_tier)
+            ),
         ]
         try:
             payload_bytes = sum(len(value.encode("utf-8")) for value in values)
@@ -245,6 +321,44 @@ class PolicyEvaluationRequest(APIModel):
     config: PolicyConfig = Field(default_factory=PolicyConfig)
 
 
+PolicyFeatureStateValue: TypeAlias = Literal[
+    "fresh",
+    "missing",
+    "stale",
+    "unavailable",
+]
+
+
+class PolicyFeatureProvenanceResponse(APIModel):
+    source: str
+    source_version: Annotated[int, Field(ge=1)]
+    content_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None
+    details: dict[str, JSONScalar]
+
+
+class MimePolicyFeatureResponse(APIModel):
+    state: PolicyFeatureStateValue
+    value: str | None
+    provenance: PolicyFeatureProvenanceResponse
+
+
+class EmbeddingPolicyFeatureResponse(APIModel):
+    name: EmbeddingRuleName
+    query: EmbeddingRuleQuery
+    state: PolicyFeatureStateValue
+    similarity: Annotated[
+        float,
+        Field(ge=-1.0, le=1.0, allow_inf_nan=False),
+    ] | None
+    provenance: PolicyFeatureProvenanceResponse
+
+
+class PolicyFeaturesResponse(APIModel):
+    schema_version: Literal[1]
+    mime: MimePolicyFeatureResponse
+    embeddings: Annotated[list[EmbeddingPolicyFeatureResponse], Field(max_length=100)]
+
+
 class PolicyEvaluationResponse(APIModel):
     schema_version: Literal[1] = 1
     bucket: Bucket
@@ -254,6 +368,7 @@ class PolicyEvaluationResponse(APIModel):
     action: Literal["move", "stay"]
     destination_tier: Tier | None = None
     reason: str
+    features: PolicyFeaturesResponse | None = None
 
 
 class CatalogScanRequest(APIModel):

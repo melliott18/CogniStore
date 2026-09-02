@@ -357,6 +357,7 @@ def test_transient_query_is_retried_and_filters_are_forwarded() -> None:
     "field_name,value",
     [
         ("buckets", "documents"),
+        ("object_keys", "sample.pdf"),
         ("tiers", b"warm"),
         ("mime_types", 1),
         ("buckets", {"documents": True}),
@@ -385,6 +386,23 @@ def test_similarity_filters_bound_collection_counts_and_text_lengths() -> None:
         SimilaritySearchFilters(key_prefix="x" * (MAX_SIMILARITY_KEY_PREFIX_BYTES + 1))
 
 
+def test_similarity_filters_preserve_existing_positional_constructor_order() -> None:
+    filters = SimilaritySearchFilters(
+        frozenset({"documents"}),
+        "reports/",
+        frozenset({"warm"}),
+        frozenset({"application/pdf"}),
+        {"department": "legal"},
+    )
+
+    assert filters.buckets == frozenset({"documents"})
+    assert filters.key_prefix == "reports/"
+    assert filters.tiers == frozenset({"warm"})
+    assert filters.mime_types == frozenset({"application/pdf"})
+    assert filters.metadata == {"department": "legal"}
+    assert filters.object_keys == frozenset()
+
+
 def test_similarity_filters_bound_lazy_iterables_without_hanging() -> None:
     def values() -> Iterator[str]:
         while True:
@@ -397,11 +415,13 @@ def test_similarity_filters_bound_lazy_iterables_without_hanging() -> None:
 def test_similarity_filters_preserve_nul_safe_catalog_identities() -> None:
     filters = SimilaritySearchFilters(
         buckets=(value for value in ("bucket\0name",)),
+        object_keys=(value for value in ("object\0key",)),
         key_prefix="prefix\0",
         tiers=("hot\0tier",),
     )
 
     assert filters.buckets == frozenset({"bucket\0name"})
+    assert filters.object_keys == frozenset({"object\0key"})
     assert filters.key_prefix == "prefix\0"
     assert filters.tiers == frozenset({"hot\0tier"})
 

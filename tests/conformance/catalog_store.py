@@ -14,6 +14,11 @@ import pytest
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.content_identity import ContentIdentityBuilder, ObjectContent
 from cognistore.core.content_references import ContentReferenceEntry
+from cognistore.core.move_jobs import (
+    EXPECTED_SOURCE_SHA256_METADATA_KEY,
+    MoveJobConflictError,
+    MoveJobState,
+)
 
 
 def _content(data: bytes, *, chunk_size: int = 4) -> ObjectContent:
@@ -43,6 +48,45 @@ def _publish_content(
     )
 
 
+def _publish_scan(
+    catalog: CatalogStore,
+    key: str,
+    content: ObjectContent,
+    *,
+    generation: str,
+    metadata: dict[str, object],
+    tier: str = "hot",
+    bucket: str = "bucket",
+) -> None:
+    fence = catalog.capture_scan_fence(bucket, key)
+    assert catalog.upsert_scan_observation(
+        bucket,
+        key,
+        size=content.size,
+        tier=tier,
+        generation=generation,
+        metadata=metadata,
+        fence=fence,
+        content=content,
+    )
+
+
+def _source_derived_metadata(*, extraction_version: int = 1) -> dict[str, object]:
+    return {
+        "mime": "text/plain",
+        "mime_detection": {
+            "schema_version": 1,
+            "mime": "text/plain",
+            "provenance": "content",
+        },
+        "document_extraction": {
+            "schema_version": extraction_version,
+            "status": "succeeded",
+            "text": f"extraction-v{extraction_version}",
+        },
+    }
+
+
 def _reference_entries(catalog: CatalogStore) -> dict[str, ContentReferenceEntry]:
     report = catalog.reconcile_content_references(
         grace_period_seconds=0,
@@ -57,6 +101,60 @@ class CatalogStoreConformance:
     @pytest.fixture
     def catalog(self) -> CatalogStore:
         raise NotImplementedError("concrete conformance tests must provide a catalog")
+
+    @pytest.mark.parametrize("terminal", [False, True])
+    def test_fenced_claim_conflicts_with_unfenced_contract_atomically(
+        self,
+        catalog: CatalogStore,
+        terminal: bool,
+    ) -> None:
+        move_key = f"source-contract-atomic-{terminal}"
+        source_metadata = {"generation": "source-v1", "size": 7}
+        original = catalog.claim_move_job(
+            move_key,
+            src_tier="hot",
+            dst_tier="warm",
+            bucket="bucket",
+            key="object",
+            expected_size=7,
+            source_metadata=source_metadata,
+            owner_id="owner-a",
+            now="2026-01-01T00:00:00.000000Z",
+            lease_expires_at="2026-01-01T00:01:00.000000Z",
+        )
+        if terminal:
+            original = catalog.transition_move_job(
+                move_key,
+                owner_id="owner-a",
+                expected_state=MoveJobState.PREPARED,
+                to_state=MoveJobState.FAILED,
+                reason="test terminal contract",
+                now="2026-01-01T00:00:01.000000Z",
+                lease_expires_at="2026-01-01T00:01:01.000000Z",
+                updates={"terminal_reason": "test terminal contract"},
+            )
+
+        with pytest.raises(
+            MoveJobConflictError,
+            match="different expected source digest",
+        ):
+            catalog.claim_move_job(
+                move_key,
+                src_tier="hot",
+                dst_tier="warm",
+                bucket="bucket",
+                key="object",
+                expected_size=7,
+                source_metadata={
+                    **source_metadata,
+                    EXPECTED_SOURCE_SHA256_METADATA_KEY: "a" * 64,
+                },
+                owner_id="owner-b",
+                now="2026-01-01T00:00:02.000000Z",
+                lease_expires_at="2026-01-01T00:01:02.000000Z",
+            )
+
+        assert catalog.get_move_job(move_key) == original
 
     def test_get_returns_a_detached_snapshot(self, catalog: CatalogStore) -> None:
         metadata = {
@@ -359,6 +457,99 @@ class CatalogStoreConformance:
         assert rescanned is not None
         assert "content_identity" not in rescanned.metadata
         assert catalog.get_object_content("bucket", "object") is None
+
+    def test_content_replacement_invalidates_omitted_source_derived_metadata(
+        self, catalog: CatalogStore
+    ) -> None:
+        original = _content(b"original bytes")
+        replacement = _content(b"replacement bytes")
+        initial_metadata = {
+            **_source_derived_metadata(),
+            "classification": "retain",
+        }
+        _publish_scan(
+            catalog,
+            "object",
+            original,
+            generation="hot:v1",
+            metadata=initial_metadata,
+        )
+
+        _publish_scan(
+            catalog,
+            "object",
+            replacement,
+            generation="hot:v2",
+            metadata={"path": "/replacement"},
+        )
+
+        record = catalog.get("bucket", "object")
+        assert record is not None
+        assert record.metadata["classification"] == "retain"
+        assert record.metadata["path"] == "/replacement"
+        assert record.metadata["sha256"] == replacement.sha256
+        assert "mime" not in record.metadata
+        assert "mime_detection" not in record.metadata
+        assert "document_extraction" not in record.metadata
+
+    def test_same_content_scan_preserves_omitted_source_derived_metadata(
+        self, catalog: CatalogStore
+    ) -> None:
+        content = _content(b"stable bytes")
+        source_metadata = _source_derived_metadata()
+        _publish_scan(
+            catalog,
+            "object",
+            content,
+            generation="hot:v1",
+            metadata=source_metadata,
+        )
+
+        _publish_scan(
+            catalog,
+            "object",
+            content,
+            tier="warm",
+            generation="warm:v1",
+            metadata={"path": "/same-content"},
+        )
+
+        record = catalog.get("bucket", "object")
+        assert record is not None
+        assert record.tier == "warm"
+        assert record.metadata["mime"] == source_metadata["mime"]
+        assert record.metadata["mime_detection"] == source_metadata["mime_detection"]
+        assert record.metadata["document_extraction"] == source_metadata["document_extraction"]
+        assert record.metadata["path"] == "/same-content"
+
+    def test_extraction_change_invalidates_omitted_mime_evidence(
+        self, catalog: CatalogStore
+    ) -> None:
+        content = _content(b"stable bytes")
+        _publish_scan(
+            catalog,
+            "object",
+            content,
+            generation="hot:v1",
+            metadata=_source_derived_metadata(),
+        )
+        changed_extraction = _source_derived_metadata(extraction_version=2)[
+            "document_extraction"
+        ]
+
+        _publish_scan(
+            catalog,
+            "object",
+            content,
+            generation="hot:v2",
+            metadata={"document_extraction": changed_extraction},
+        )
+
+        record = catalog.get("bucket", "object")
+        assert record is not None
+        assert record.metadata["document_extraction"] == changed_extraction
+        assert "mime" not in record.metadata
+        assert "mime_detection" not in record.metadata
 
     def test_manifest_replacement_never_exposes_mixed_layouts(
         self, catalog: CatalogStore

@@ -9,12 +9,32 @@ import pytest
 from cognistore.jobs.models import (
     ATTEMPT_OFFSET_METADATA,
     DEAD_LETTER_CHAIN_METADATA,
+    JOB_SCHEMA_VERSION_V1,
+    JOB_SCHEMA_VERSION_V2,
     REDRIVE_COUNT_METADATA,
     DeadLetterDisposition,
     DeadLetterRecord,
     JobEnvelope,
     JobEnvelopeError,
 )
+
+
+@pytest.mark.parametrize(
+    "schema_version", (JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2)
+)
+def test_job_envelope_round_trips_supported_schema_versions(
+    schema_version: int,
+) -> None:
+    envelope = JobEnvelope.create(
+        "test.echo",
+        {"message": "hello"},
+        schema_version=schema_version,
+    )
+
+    restored = JobEnvelope.from_bytes(envelope.to_bytes())
+
+    assert restored == envelope
+    assert restored.schema_version == schema_version
 
 
 def test_job_envelope_round_trip_preserves_correlation_metadata() -> None:

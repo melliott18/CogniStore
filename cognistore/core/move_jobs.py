@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
+EXPECTED_SOURCE_SHA256_METADATA_KEY = "cognistore_policy_expected_source_sha256"
+
 
 class MoveJobState(str, Enum):
     """Durable checkpoints in the object movement state machine."""
