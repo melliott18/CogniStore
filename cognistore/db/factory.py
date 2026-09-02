@@ -19,7 +19,7 @@ def catalog_locator_is_persistent(locator: str | Path | None) -> bool:
         return True
     parsed = sa.engine.make_url(url)
     database = parsed.database
-    if database in (None, "", ":memory:"):
+    if database is None or database in ("", ":memory:"):
         return False
     lowered_database = database.lower()
     return not (

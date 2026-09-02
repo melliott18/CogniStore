@@ -37,6 +37,7 @@ also publishes durable envelopes; it never runs scan or policy logic inline.
 | Area | Implementation | Responsibility |
 | --- | --- | --- |
 | CLI | `cognistore/cli/` | Strict configuration/profile resolution, human or JSON output, previews, storage commands, worker/scheduler lifecycle, move recovery, and DLQ redrive |
+| REST API | `cognistore/api/` | Versioned FastAPI transport, explicit public schemas, bounded cursor pages, stable errors, service injection, and deterministic OpenAPI generation |
 | Storage | `cognistore/drivers/` | Common object contract plus POSIX and S3-compatible drivers, streaming I/O, capability flags, generations, conditional deletion, and durability hooks |
 | Catalog | `cognistore/core/catalog.py`, `cognistore/db/` | Backend-neutral `CatalogStore` contract plus the in-memory `Catalog` and transactional `SQLCatalog`; normalized objects, placements, tiers, pools, scan fences, durable move journals, leases, and transition history on SQLite or PostgreSQL |
 | Movement | `cognistore/core/mover.py`, `move_jobs.py` | Bounded transfer, full SHA-256 verification, generation fencing, resumable phases, and catalog placement commit |
@@ -169,7 +170,9 @@ artifact.
   embedded keyword indexing are present. The versioned Ask Python service blends
   bounded catalog metadata with optional vector and keyword providers, using
   object-level weighted reciprocal-rank fusion and authoritative catalog
-  post-filtering. REST, SDK, and UI are not current components.
+  post-filtering. A versioned REST API exposes object, catalog, Ask, policy,
+  and asynchronous action contracts; SDK and UI clients are not current
+  components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves
@@ -185,8 +188,9 @@ artifact.
   providers as optional capabilities. Its response reports the active retrieval
   mode and provider statuses; missing providers degrade to the supported
   remaining signals, and missing answer generation does not suppress ranked
-  citations. Ask is a Python service only; external API exposure belongs to the
-  later REST contract.
+  citations. The REST API exposes that same service response without bypassing
+  its authoritative catalog checks; provider composition remains an injected
+  runtime concern.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,

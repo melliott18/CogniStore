@@ -251,7 +251,7 @@ def _reject_same_sqlite_catalog(source: Path, destination: SQLCatalog) -> None:
     if destination.backend != "sqlite":
         return
     database = destination.engine.url.database
-    if database in (None, "", ":memory:"):
+    if database is None or database in ("", ":memory:"):
         return
     if Path(database).expanduser().resolve() == source:
         raise SQLiteCatalogImportError("source and destination must be different catalogs")

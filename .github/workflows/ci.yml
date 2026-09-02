@@ -43,6 +43,9 @@ jobs:
       - name: Run mypy
         run: python -m mypy
 
+      - name: Verify deterministic OpenAPI contract
+        run: python -m cognistore.api.openapi --check docs/openapi/v1.json
+
   tests:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04

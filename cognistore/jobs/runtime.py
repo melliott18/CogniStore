@@ -23,6 +23,7 @@ from cognistore.core.catalog import CatalogStore
 from .models import (
     ATTEMPT_OFFSET_METADATA,
     REDRIVE_COUNT_METADATA,
+    STATUS_TRACKING_METADATA,
     BusState,
     DeadLetterDisposition,
     DeadLetterRecord,
@@ -428,6 +429,12 @@ class AsyncWorker:
             if self._coordinator is not None:
                 execution = await self._coordinator.begin(job, context)
             if execution is None or execution.execute:
+                await self._record_status_audit(
+                    delivery,
+                    job,
+                    event_type=AuditEventType.JOB_STARTED,
+                    outcome=AuditOutcome.STARTED,
+                )
                 heartbeat_interval = self._execution_heartbeat_interval(execution)
                 if heartbeat_interval is not None:
                     heartbeat_task = asyncio.create_task(
@@ -457,6 +464,13 @@ class AsyncWorker:
                     # outcome is unknown, a redelivery observes the terminal run and
                     # skips already-completed side effects.
                     await execution.succeed()
+                    execution = None
+            await self._record_status_audit(
+                delivery,
+                job,
+                event_type=AuditEventType.JOB_SUCCEEDED,
+                outcome=AuditOutcome.SUCCEEDED,
+            )
         except asyncio.CancelledError:
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
             try:
@@ -545,6 +559,43 @@ class AsyncWorker:
             "stream_sequence": delivery.stream_sequence,
             "consumer_sequence": delivery.consumer_sequence,
         }
+
+    async def _record_status_audit(
+        self,
+        delivery: JobDelivery,
+        job: JobEnvelope,
+        *,
+        event_type: AuditEventType,
+        outcome: AuditOutcome,
+    ) -> AuditEvent | None:
+        """Persist API-requested lifecycle status without changing legacy jobs."""
+
+        if job.metadata.get(STATUS_TRACKING_METADATA) != "1":
+            return None
+        return await self._append_job_audit_event(
+            delivery,
+            job,
+            event_type=event_type,
+            outcome=outcome,
+            details={
+                "job_type": job.job_type,
+                "attempt": delivery.attempt,
+                "cumulative_attempt": self._cumulative_attempt(delivery, job),
+                "redelivered": delivery.attempt > 1,
+                "source_stream": str(
+                    getattr(delivery, "source_stream", None)
+                    or self._last_health.stream
+                    or "unknown"
+                ),
+                "source_consumer": str(
+                    getattr(delivery, "source_consumer", None)
+                    or self._last_health.consumer
+                    or "worker"
+                ),
+                "stream_sequence": delivery.stream_sequence,
+                "consumer_sequence": delivery.consumer_sequence,
+            },
+        )
 
     async def _append_job_audit_event(
         self,

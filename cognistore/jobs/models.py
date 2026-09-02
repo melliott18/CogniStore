@@ -13,6 +13,7 @@ JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 SCHEMA_VERSION = 1
+STATUS_TRACKING_METADATA = "cognistore_status_tracking"
 DEAD_LETTER_SCHEMA_VERSION = 1
 REDRIVE_SCHEMA_VERSION = 1
 DEAD_LETTER_NAMESPACE = uuid5(NAMESPACE_URL, "https://cognistore.dev/dead-letters")
