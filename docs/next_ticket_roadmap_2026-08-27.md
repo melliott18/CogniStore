@@ -1,14 +1,16 @@
 # Next-ticket execution roadmap — 2026-08-27
 
-> **Progress update (2026-09-01):** Groups 1 through 4 are complete. The M2
-> canonical-content and search-index foundation landed through
-> [PR #107](https://github.com/melliott18/CogniStore/pull/107) (#33),
-> [PR #108](https://github.com/melliott18/CogniStore/pull/108) (#34),
-> [PR #111](https://github.com/melliott18/CogniStore/pull/111) (#35),
-> [PR #109](https://github.com/melliott18/CogniStore/pull/109) (#36), and
-> [PR #110](https://github.com/melliott18/CogniStore/pull/110) (#37). Group 5
-> is active, and [#38](https://github.com/melliott18/CogniStore/issues/38) is
-> the active delivery ticket.
+> **Progress update (2026-09-01):** Groups 1 through 4 are complete, and Group
+> 5 has reached its final delivery ticket. Hybrid retrieval landed through
+> [PR #113](https://github.com/melliott18/CogniStore/pull/113) (#38), the REST
+> contract through [PR #114](https://github.com/melliott18/CogniStore/pull/114)
+> plus CI follow-up [PR #115](https://github.com/melliott18/CogniStore/pull/115)
+> (#39), the typed SDK through
+> [PR #116](https://github.com/melliott18/CogniStore/pull/116) (#40), and the
+> content-search UI/sample through
+> [PR #117](https://github.com/melliott18/CogniStore/pull/117) (#41).
+> [#42](https://github.com/melliott18/CogniStore/issues/42) is the active and
+> final M2 delivery ticket.
 
 This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. Group 1
@@ -110,20 +112,26 @@ canonical catalog content.
 
 ## Group 5 — compose retrieval and public contracts (active)
 
-The remaining dependency chain is sequential at its core:
+The retrieval and public-contract chain is complete through its user-facing
+workflow:
 
-1. **Active delivery ticket:**
-   [#38](https://github.com/melliott18/CogniStore/issues/38), now that #36 and
-   #37 are complete, blends metadata, vector, and keyword retrieval with
-   source-backed results.
-2. [#39](https://github.com/melliott18/CogniStore/issues/39) after #30 and #38:
-   expose the versioned REST/OpenAPI contract.
-3. After #39, run
-   [#40](https://github.com/melliott18/CogniStore/issues/40) (typed SDK) and
-   [#42](https://github.com/melliott18/CogniStore/issues/42) (MIME/embedding
-   policy features) in parallel. #42 also requires #32 and #36.
-4. [#41](https://github.com/melliott18/CogniStore/issues/41) follows #39 and
-   #40, delivering the search UI and end-to-end sample corpus.
+1. [#38](https://github.com/melliott18/CogniStore/issues/38) delivered hybrid,
+   source-backed retrieval through
+   [PR #113](https://github.com/melliott18/CogniStore/pull/113).
+2. [#39](https://github.com/melliott18/CogniStore/issues/39) delivered the
+   versioned REST/OpenAPI contract through
+   [PR #114](https://github.com/melliott18/CogniStore/pull/114), with latest
+   mypy compatibility restored by
+   [PR #115](https://github.com/melliott18/CogniStore/pull/115).
+3. [#40](https://github.com/melliott18/CogniStore/issues/40) delivered the typed
+   SDK through [PR #116](https://github.com/melliott18/CogniStore/pull/116).
+4. [#41](https://github.com/melliott18/CogniStore/issues/41) delivered the
+   content-search UI and end-to-end sample corpus through
+   [PR #117](https://github.com/melliott18/CogniStore/pull/117).
+5. **Active delivery ticket:**
+   [#42](https://github.com/melliott18/CogniStore/issues/42) now feeds MIME and
+   embedding-derived features into placement policies. Its #32, #36, and #39
+   dependencies are complete.
 
 ## Execution and dependency view
 
@@ -135,8 +143,8 @@ M1:  #90 ─┐
 M2:  [done] #30 ─┬─> [done] #31
                  └─> [done] #32 ─> [done] #33 ─> [done] #34 ─┬─> [done] #35
                            #30 ──────────────────────────┼─> [done] #36 ─┐
-                                                       └─> [done] #37 ─┴─> [active] #38 ─> #39 ─┬─> #40 ─> #41
-                                                                                          └─> #42
+                                                       └─> [done] #37 ─┴─> [done] #38 ─> [done] #39 ─┬─> [done] #40 ─> [done] #41
+                                                                                                     └─> [active] #42
 ```
 
 The M1 arrows show the completed final closure order, not formal dependency
@@ -144,8 +152,8 @@ links in #29. The M2 arrows reflect the dependencies recorded in the issue
 bodies.
 
 #31 is complete and remains an M2 completion requirement even though no later
-ticket depends on it. #42 also depends directly on #32 and #36, as recorded in
-its issue.
+ticket depends on it. #42 is the final active M2 ticket; all of its #32, #36,
+and #39 dependencies are complete.
 
 ## Cross-wave quality gates
 

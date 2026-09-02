@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-02T00:12:37Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-02T06:37:27Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 41 open, 27 closed
+- **Snapshot:** 68 issues; 37 open, 31 closed
 
 ## How to use this mirror
 
@@ -34,7 +34,7 @@ git diff --check
 | Milestone | Epic | Original | Follow-ups | Other | Open / total | GitHub |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | 2 | 0 | 0 / 16 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
-| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 2 | 1 | 6 / 17 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
+| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 2 | 1 | 2 / 17 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 22 / 22 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
 
@@ -758,7 +758,7 @@ which is not the same as:
 - **Original delivery tickets:** 13
 - **Verification follow-ups:** 2
 - **Other tracking issues:** 1
-- **Status:** 6 open, 11 closed (17 including the epic)
+- **Status:** 2 open, 15 closed (17 including the epic)
 
 ### Epic
 
@@ -791,10 +791,10 @@ which is not the same as:
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/35">#35</a> — Implement safe deduplication reference and deletion semantics</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/36">#36</a> — Generate embeddings and query them through pgvector</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/37">#37</a> — Build a rebuildable keyword search index</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/38">#38</a> — Implement hybrid metadata, vector, and keyword Ask retrieval</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/39">#39</a> — Expose a versioned REST API and OpenAPI contract</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/40">#40</a> — Publish a typed Python SDK for the public API</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/41">#41</a> — Deliver a content-search UI and end-to-end sample corpus</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/38">#38</a> — Implement hybrid metadata, vector, and keyword Ask retrieval</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/39">#39</a> — Expose a versioned REST API and OpenAPI contract</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/40">#40</a> — Publish a typed Python SDK for the public API</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/41">#41</a> — Deliver a content-search UI and end-to-end sample corpus</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/42">#42</a> — Feed MIME and embedding features into placement policies</li>
 </ul>
 <p>Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.</p>
@@ -1150,10 +1150,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#38 — \[M2\] Implement hybrid metadata, vector, and keyword Ask retrieval](https://github.com/melliott18/CogniStore/issues/38)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1172,10 +1172,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-38-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Every returned passage identifies its source object and chunk.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Score components and retrieval mode are inspectable.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Missing vector, keyword, or generation providers degrade to supported retrieval modes.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Golden fixture queries validate ranking and citations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Every returned passage identifies its source object and chunk.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Score components and retrieval mode are inspectable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Missing vector, keyword, or generation providers degrade to supported retrieval modes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Golden fixture queries validate ranking and citations.</li>
 </ul>
 <h5 id="issue-38-dependencies">Dependencies</h5>
 <ul>
@@ -1184,14 +1184,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-38-roadmap-coverage">Roadmap coverage</h5>
 <p>Indexing and knowledge layer → Ask service blending metadata, vector, and keyword.</p>
+<h5 id="issue-38-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/113">PR #113</a>, merged 2026-09-02.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33577346056">run 33577346056</a> (11/11 jobs successful).</li>
+</ul>
 
 #### [#39 — \[M2\] Expose a versioned REST API and OpenAPI contract](https://github.com/melliott18/CogniStore/issues/39)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:api`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1210,10 +1215,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-39-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Contract tests cover success, validation, pagination, missing resources, and backend failure mapping.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Long-running actions return job IDs and expose status.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> OpenAPI generation is deterministic and checked in CI.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> No endpoint bypasses the service/DAL abstractions.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Contract tests cover success, validation, pagination, missing resources, and backend failure mapping.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Long-running actions return job IDs and expose status.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> OpenAPI generation is deterministic and checked in CI.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> No endpoint bypasses the service/DAL abstractions.</li>
 </ul>
 <h5 id="issue-39-dependencies">Dependencies</h5>
 <ul>
@@ -1222,14 +1227,20 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-39-roadmap-coverage">Roadmap coverage</h5>
 <p>API, CLI, and UI → REST and/or gRPC external API (REST selected for this milestone).</p>
+<h5 id="issue-39-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/114">PR #114</a>, merged 2026-09-02.</li>
+<li>CI compatibility follow-up: <a href="https://github.com/melliott18/CogniStore/pull/115">PR #115</a>, merged 2026-09-02.</li>
+<li>Passing completion CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33583260966">run 33583260966</a> (11/11 jobs successful). PR <a href="https://github.com/melliott18/CogniStore/pull/114">#114</a>'s original run had one lint/type failure corrected by PR <a href="https://github.com/melliott18/CogniStore/pull/115">#115</a>.</li>
+</ul>
 
 #### [#40 — \[M2\] Publish a typed Python SDK for the public API](https://github.com/melliott18/CogniStore/issues/40)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:api`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1248,10 +1259,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-40-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> SDK contract tests run against the API test server.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> All public endpoints used by the M2 workflow have typed methods.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Version compatibility and deprecation policy are documented.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Package installation and a minimal query example work from a clean environment.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> SDK contract tests run against the API test server.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> All public endpoints used by the M2 workflow have typed methods.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Version compatibility and deprecation policy are documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Package installation and a minimal query example work from a clean environment.</li>
 </ul>
 <h5 id="issue-40-dependencies">Dependencies</h5>
 <ul>
@@ -1259,14 +1270,20 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-40-roadmap-coverage">Roadmap coverage</h5>
 <p>API, CLI, and UI → Python SDK.</p>
+<h5 id="issue-40-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/116">PR #116</a>, merged 2026-09-02.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33589536717">run 33589536717</a> (11/11 jobs successful).</li>
+<li>Closeout verification: the installed clean-wheel example ran against the documented sample API and returned typed, cited results.</li>
+</ul>
 
 #### [#41 — \[M2\] Deliver a content-search UI and end-to-end sample corpus](https://github.com/melliott18/CogniStore/issues/41)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:ui`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-02
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1285,10 +1302,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-41-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A fresh environment can load the sample corpus using documented steps.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Users can run keyword, vector, and Ask queries and inspect citations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Loading, empty, degraded-provider, and error states are handled.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The end-to-end workflow runs automatically at reduced scale.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A fresh environment can load the sample corpus using documented steps.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Users can run keyword, vector, and Ask queries and inspect citations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Loading, empty, degraded-provider, and error states are handled.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The end-to-end workflow runs automatically at reduced scale.</li>
 </ul>
 <h5 id="issue-41-dependencies">Dependencies</h5>
 <ul>
@@ -1297,6 +1314,12 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-41-roadmap-coverage">Roadmap coverage</h5>
 <p>M2 success criterion → query objects by content via API/UI; sample datasets.</p>
+<h5 id="issue-41-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/117">PR #117</a>, merged 2026-09-02.</li>
+<li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33597369495">run 33597369495</a> (11/11 jobs successful).</li>
+<li>Closeout verification: an isolated Compose sample loaded successfully; browser keyword, vector, Ask, empty-result, and validation-error flows passed.</li>
+</ul>
 
 #### [#42 — \[M2\] Feed MIME and embedding features into placement policies](https://github.com/melliott18/CogniStore/issues/42)
 
