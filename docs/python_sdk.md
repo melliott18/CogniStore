@@ -144,6 +144,48 @@ request-ID metadata. Request models such as `AskRequest`,
 `PolicyEvaluationRequest`, `CatalogScanRequest`, and `PolicyRunRequest` are exported
 from `cognistore.sdk` with their response models.
 
+Embedding-aware policy evaluation uses the same typed contract. Configure named
+similarity rules on a content policy, then inspect the returned feature state and
+provenance before acting on the decision:
+
+```python
+from cognistore.sdk import (
+    CogniStoreClient,
+    EmbeddingPolicyRuleConfig,
+    PolicyConfig,
+    PolicyEvaluationRequest,
+)
+
+request = PolicyEvaluationRequest(
+    bucket="research",
+    key="papers/current.pdf",
+    config=PolicyConfig(
+        policy="content",
+        allowed_tiers=["hot", "warm"],
+        embedding_rules=[
+            EmbeddingPolicyRuleConfig(
+                name="active-research",
+                query="frequently used current research",
+                minimum_similarity=0.8,
+                destination_tier="hot",
+            )
+        ],
+    ),
+)
+
+with CogniStoreClient("http://127.0.0.1:8080") as client:
+    evaluation = client.evaluate_policy(request)
+
+if evaluation.features is not None:
+    signal = evaluation.features.embeddings[0]
+    print(signal.state, signal.similarity, signal.provenance.details)
+```
+
+Current servers always include `features`. The SDK keeps the field optional only
+so it can still read policy responses from older API v1 servers. See the
+[policy feature projection contract](policy_features.md) for precedence,
+freshness, and fail-closed behavior.
+
 ## Pagination
 
 Catalog pages use opaque, filter-bound keyset cursors. Pass a returned cursor back

@@ -11,6 +11,8 @@ from typing import Any
 import pytest
 
 from cognistore.jobs.models import (
+    JOB_SCHEMA_VERSION_V1,
+    JOB_SCHEMA_VERSION_V2,
     REDRIVE_COUNT_METADATA,
     DeadLetterDisposition,
     EnqueueReceipt,
@@ -136,6 +138,19 @@ def _policy_job(
     )
 
 
+def _embedding_policy_job(
+    schedule_id: str,
+    *,
+    policy: str = "content",
+    rules: str,
+) -> str:
+    return (
+        _policy_job(schedule_id).replace("policy: simple", f"policy: {policy}")
+        + "      embedding_rules:\n"
+        + rules
+    )
+
+
 def _context(*, attempt: int = 1, redrive_count: int = 0) -> JobContext:
     return JobContext(
         attempt=attempt,
@@ -196,6 +211,8 @@ def test_due_catalog_scan_and_policy_pass_are_only_enqueued(tmp_path: Path) -> N
     assert queue.closed == 1
     assert [job.job_type for job in queue.enqueued] == ["catalog.scan", "policy.run"]
     scan, policy = queue.enqueued
+    assert scan.schema_version == JOB_SCHEMA_VERSION_V1
+    assert policy.schema_version == JOB_SCHEMA_VERSION_V1
     assert scan.payload == {
         "tier": "hot",
         "bucket": "demo-bucket",
@@ -1724,4 +1741,173 @@ def test_schedule_config_rejects_invalid_policy_payload(tmp_path: Path) -> None:
     _write_schedules(config_path, invalid_policy)
 
     with pytest.raises(ValueError, match="unknown policy: unsupported"):
+        _load(config_path)
+
+
+def test_schedule_normalization_preserves_ordered_embedding_rules(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(
+        config_path,
+        _embedding_policy_job(
+            "classify-reports",
+            rules=(
+                "        - name: invoice\n"
+                "          query: invoice accounts payable\n"
+                "          minimum_similarity: 0.8\n"
+                "          destination_tier: hot\n"
+                "        - name: retention\n"
+                "          query: long-term records retention\n"
+                "          minimum_similarity: 0.65\n"
+                "          destination_tier: warm\n"
+            ),
+        ),
+    )
+
+    schedules = _load(config_path)
+
+    assert schedules[0].payload["embedding_rules"] == [
+        {
+            "name": "invoice",
+            "query": "invoice accounts payable",
+            "minimum_similarity": 0.8,
+            "destination_tier": "hot",
+        },
+        {
+            "name": "retention",
+            "query": "long-term records retention",
+            "minimum_similarity": 0.65,
+            "destination_tier": "warm",
+        },
+    ]
+
+
+def test_schedule_config_rejects_oversized_aggregate_policy_strings(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    query = "q" * 14_000
+    rules = "".join(
+        "        - name: rule-{index}\n"
+        "          query: {query}\n"
+        "          minimum_similarity: 0.8\n"
+        "          destination_tier: hot\n".format(index=index, query=query)
+        for index in range(5)
+    )
+    _write_schedules(
+        config_path,
+        _embedding_policy_job("classify-reports", rules=rules),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="policy strings must total at most 65536 bytes",
+    ):
+        _load(config_path)
+
+
+def test_scheduled_embedding_policy_is_enqueued_as_v2(tmp_path: Path) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(
+        config_path,
+        _embedding_policy_job(
+            "classify-reports",
+            rules=(
+                "        - name: invoice\n"
+                "          query: invoice accounts payable\n"
+                "          minimum_similarity: 0.8\n"
+                "          destination_tier: hot\n"
+            ),
+        ),
+    )
+    queue = RecordingQueue()
+    clock = MutableClock()
+
+    async def scenario() -> None:
+        store = SQLiteScheduleStore(tmp_path / "scheduler.db")
+        scheduler = PeriodicScheduler(
+            queue,
+            store,
+            _load(config_path),
+            clock=clock,
+            publication_lease_seconds=30,
+        )
+        await scheduler.start()
+        assert await scheduler.run_due() == 1
+        await scheduler.close()
+        store.close()
+
+    asyncio.run(scenario())
+
+    assert queue.enqueued[0].schema_version == JOB_SCHEMA_VERSION_V2
+
+
+@pytest.mark.parametrize(
+    ("policy", "rules", "message"),
+    [
+        (
+            "content",
+            "        - name: invoice\n"
+            "          query: invoice accounts payable\n"
+            "          minimum_similarity: 2.0\n"
+            "          destination_tier: hot\n",
+            "minimum_similarity must be between -1 and 1",
+        ),
+        (
+            "content",
+            "        - name: invoice\n"
+            "          query: first query\n"
+            "          minimum_similarity: 0.8\n"
+            "          destination_tier: hot\n"
+            "        - name: invoice\n"
+            "          query: second query\n"
+            "          minimum_similarity: 0.7\n"
+            "          destination_tier: warm\n",
+            "cannot contain duplicate rule names",
+        ),
+        (
+            "simple",
+            "        - name: invoice\n"
+            "          query: invoice accounts payable\n"
+            "          minimum_similarity: 0.8\n"
+            "          destination_tier: hot\n",
+            "require the content policy",
+        ),
+        (
+            "content",
+            "        - name: invoice\n"
+            "          query: invoice accounts payable\n"
+            "          minimum_similarity: 0.8\n"
+            "          destination_tier: cold\n",
+            "contain disallowed destination tier\\(s\\): cold",
+        ),
+        (
+            "content",
+            "        - 1: invalid-field-name\n"
+            "          name: invoice\n"
+            "          query: invoice accounts payable\n"
+            "          minimum_similarity: 0.8\n"
+            "          destination_tier: hot\n",
+            "field names must be strings",
+        ),
+    ],
+)
+def test_schedule_config_rejects_invalid_embedding_rules(
+    tmp_path: Path,
+    policy: str,
+    rules: str,
+    message: str,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(
+        config_path,
+        _embedding_policy_job(
+            "classify-reports",
+            policy=policy,
+            rules=rules,
+        ),
+    )
+
+    with pytest.raises(ValueError, match=message):
         _load(config_path)

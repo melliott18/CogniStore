@@ -997,13 +997,25 @@ class SQLCatalog(Catalog):
             existing_manifest_id = existing["manifest_id"] if existing else None
             proposed_manifest_id = self._manifest_id(content) if content is not None else None
             content_changed = existing_manifest_id != proposed_manifest_id
+            incoming_metadata = metadata or {}
             merged_metadata = dict(existing_metadata)
-            merged_metadata.update(metadata or {})
-            if content_changed and "document_extraction" not in (metadata or {}):
+            merged_metadata.update(incoming_metadata)
+            if content_changed and "document_extraction" not in incoming_metadata:
                 # Extraction text is an observation of exact source bytes. A
                 # partial-metadata caller cannot carry it across a replacement
                 # manifest and thereby bind stale text to a new source digest.
                 merged_metadata.pop("document_extraction", None)
+            extraction_changed = existing_metadata.get(
+                "document_extraction"
+            ) != merged_metadata.get("document_extraction")
+            if content_changed or extraction_changed:
+                # MIME selection and provenance are observations of the same
+                # source bytes/extraction. Omitted evidence may be merged only
+                # while that source identity remains unchanged.
+                if "mime" not in incoming_metadata:
+                    merged_metadata.pop("mime", None)
+                if "mime_detection" not in incoming_metadata:
+                    merged_metadata.pop("mime_detection", None)
             if content is None:
                 merged_metadata.pop("content_identity", None)
             else:
@@ -1018,9 +1030,6 @@ class SQLCatalog(Catalog):
                 metadata=merged_metadata,
                 now=now,
             )
-            extraction_changed = existing_metadata.get(
-                "document_extraction"
-            ) != merged_metadata.get("document_extraction")
             if extraction_changed or content_changed:
                 connection.execute(
                     sa.delete(object_embedding_documents).where(
@@ -1847,6 +1856,7 @@ class SQLCatalog(Catalog):
                     dst_tier=dst_tier,
                     bucket=bucket,
                     key=key,
+                    source_metadata=source_metadata,
                 )
                 if existing.state.terminal:
                     return existing

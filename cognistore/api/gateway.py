@@ -20,9 +20,16 @@ from cognistore.core.audit import (
     stable_audit_event_id,
 )
 from cognistore.core.catalog import CatalogStore, ObjectRecord
+from cognistore.core.policy import EmbeddingPolicyRule
 from cognistore.core.policy_factory import build_policy
+from cognistore.core.policy_features import CatalogPolicyFeatureLoader
 from cognistore.drivers.storage_driver import DEFAULT_STREAM_CHUNK_SIZE, StorageDriver
-from cognistore.jobs.handlers import CATALOG_SCAN_JOB, POLICY_RUN_JOB, policy_job_payload
+from cognistore.jobs.handlers import (
+    CATALOG_SCAN_JOB,
+    POLICY_RUN_JOB,
+    policy_job_payload,
+    policy_job_schema_version,
+)
 from cognistore.jobs.models import STATUS_TRACKING_METADATA, JobEnvelope
 from cognistore.jobs.protocols import JobQueue
 from cognistore.search import AskFilters, AskQuery, AskService, RetrievalMode
@@ -52,6 +59,7 @@ from .models import (
     PolicyConfig,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
+    PolicyFeaturesResponse,
     PolicyRunRequest,
     ProviderDiagnosticResponse,
     RetrievalResultResponse,
@@ -182,12 +190,14 @@ class CogniStoreGateway:
         drivers: Mapping[str, StorageDriver],
         *,
         ask_service: AskService | None = None,
+        feature_loader: CatalogPolicyFeatureLoader | None = None,
         queue: JobQueue | None = None,
         manage_queue: bool = False,
     ) -> None:
         self.catalog = catalog
         self.drivers = dict(drivers)
         self.ask_service = ask_service or AskService(catalog)
+        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader()
         self.queue = queue
         self.manage_queue = manage_queue
 
@@ -635,6 +645,20 @@ class CogniStoreGateway:
             )
 
     @staticmethod
+    def _embedding_rules(
+        config: PolicyConfig,
+    ) -> tuple[EmbeddingPolicyRule, ...]:
+        return tuple(
+            EmbeddingPolicyRule(
+                name=rule.name,
+                query=rule.query,
+                minimum_similarity=rule.minimum_similarity,
+                destination_tier=rule.destination_tier,
+            )
+            for rule in config.embedding_rules
+        )
+
+    @staticmethod
     def _policy(config: PolicyConfig):
         return build_policy(
             config.policy,
@@ -647,6 +671,7 @@ class CogniStoreGateway:
             hot_mime_prefixes=config.hot_mime_prefixes,
             warm_mime_prefixes=config.warm_mime_prefixes,
             cold_mime_prefixes=config.cold_mime_prefixes,
+            embedding_rules=CogniStoreGateway._embedding_rules(config),
         )
 
     def evaluate_policy(
@@ -655,12 +680,22 @@ class CogniStoreGateway:
         self._validate_policy_tiers(request.config)
         record = self._catalog_record(request.bucket, request.key)
         policy = self._policy(request.config)
+        requests = tuple(getattr(policy, "feature_requests", ()))
+        projections = self.feature_loader.load((record,), requests)
+        try:
+            features = projections[(record.bucket, record.key)]
+        except KeyError as exc:
+            raise RuntimeError(
+                f"policy feature loader omitted {record.bucket}/{record.key}"
+            ) from exc
+        evaluate_features = getattr(policy, "evaluate_features", None)
         evaluate_record = getattr(policy, "evaluate_record", None)
-        decision = (
-            evaluate_record(record)
-            if callable(evaluate_record)
-            else policy.evaluate(record.tier, record.size)
-        )
+        if callable(evaluate_features):
+            decision = evaluate_features(record, features)
+        elif callable(evaluate_record):
+            decision = evaluate_record(record)
+        else:
+            decision = policy.evaluate(record.tier, record.size)
         return PolicyEvaluationResponse(
             bucket=record.bucket,
             key=record.key,
@@ -669,6 +704,7 @@ class CogniStoreGateway:
             action=decision.action,
             destination_tier=decision.dst_tier,
             reason=decision.reason,
+            features=PolicyFeaturesResponse.model_validate(features.to_dict()),
         )
 
     def _queue(self) -> JobQueue:
@@ -750,23 +786,26 @@ class CogniStoreGateway:
     ) -> JobStatusResponse:
         self._validate_policy_tiers(request.config)
         config = request.config
+        payload = policy_job_payload(
+            bucket=request.bucket,
+            prefix=request.prefix,
+            policy=config.policy,
+            threshold=config.threshold,
+            llm_threshold=config.llm_threshold,
+            allowed_tiers=config.allowed_tiers,
+            hot_name_patterns=config.hot_name_patterns,
+            warm_name_patterns=config.warm_name_patterns,
+            cold_name_patterns=config.cold_name_patterns,
+            hot_mime_prefixes=config.hot_mime_prefixes,
+            warm_mime_prefixes=config.warm_mime_prefixes,
+            cold_mime_prefixes=config.cold_mime_prefixes,
+            embedding_rules=self._embedding_rules(config),
+        )
         job = JobEnvelope.create(
             POLICY_RUN_JOB,
-            policy_job_payload(
-                bucket=request.bucket,
-                prefix=request.prefix,
-                policy=config.policy,
-                threshold=config.threshold,
-                llm_threshold=config.llm_threshold,
-                allowed_tiers=config.allowed_tiers,
-                hot_name_patterns=config.hot_name_patterns,
-                warm_name_patterns=config.warm_name_patterns,
-                cold_name_patterns=config.cold_name_patterns,
-                hot_mime_prefixes=config.hot_mime_prefixes,
-                warm_mime_prefixes=config.warm_mime_prefixes,
-                cold_mime_prefixes=config.cold_mime_prefixes,
-            ),
+            payload,
             metadata={STATUS_TRACKING_METADATA: "1"},
+            schema_version=policy_job_schema_version(payload),
         )
         return await self._submit(job)
 

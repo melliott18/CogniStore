@@ -11,19 +11,38 @@ from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
 from cognistore.core.mover import Mover
+from cognistore.core.policy import (
+    EmbeddingPolicyRule,
+    validate_policy_config_size,
+)
 from cognistore.core.policy_factory import build_policy
+from cognistore.core.policy_features import CatalogPolicyFeatureLoader
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.throughput import ThroughputConfig
 from cognistore.drivers.storage_driver import StorageDriver
 
-from .models import InvalidJobError, JobContext, JobEnvelope
+from .models import (
+    JOB_SCHEMA_VERSION_V1,
+    JOB_SCHEMA_VERSION_V2,
+    InvalidJobError,
+    JobContext,
+    JobEnvelope,
+)
 from .runtime import JobHandler
 
 LOGGER = logging.getLogger(__name__)
 CATALOG_SCAN_JOB = "catalog.scan"
 POLICY_RUN_JOB = "policy.run"
 POLICY_AUDIT_VERSION = "1"
+
+
+def policy_job_schema_version(payload: Mapping[str, object]) -> int:
+    """Select the oldest envelope schema that can represent a policy job."""
+
+    if "embedding_rules" in payload:
+        return JOB_SCHEMA_VERSION_V2
+    return JOB_SCHEMA_VERSION_V1
 
 
 class MoveThroughputController(Protocol):
@@ -108,11 +127,40 @@ def _strings(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _embedding_rules(
+    payload: Mapping[str, Any],
+    name: str = "embedding_rules",
+) -> tuple[EmbeddingPolicyRule, ...]:
+    value = payload.get(name, [])
+    if not isinstance(value, list) or len(value) > 100:
+        raise InvalidJobError(
+            f"job payload field {name!r} must be a list of at most 100 rules"
+        )
+    rules: list[EmbeddingPolicyRule] = []
+    for index, raw_rule in enumerate(value):
+        if not isinstance(raw_rule, Mapping):
+            raise InvalidJobError(
+                f"job payload field {name!r} item {index} must be an object"
+            )
+        try:
+            rules.append(EmbeddingPolicyRule.from_mapping(raw_rule))
+        except ValueError as exc:
+            raise InvalidJobError(
+                f"invalid job payload field {name!r} item {index}: {exc}"
+            ) from exc
+    if len({rule.name for rule in rules}) != len(rules):
+        raise InvalidJobError(
+            f"job payload field {name!r} cannot contain duplicate rule names"
+        )
+    return tuple(rules)
+
+
 def build_handlers(
     drivers: Mapping[str, StorageDriver],
     catalog: CatalogStore,
     *,
     throughput: MoveThroughputController | None = None,
+    policy_feature_loader: CatalogPolicyFeatureLoader | None = None,
 ) -> dict[str, JobHandler]:
     """Build handlers whose dependencies are configured by the worker process."""
 
@@ -310,6 +358,13 @@ def build_handlers(
         )
 
     async def policy_run(job: JobEnvelope, context: JobContext) -> None:
+        if (
+            job.schema_version == JOB_SCHEMA_VERSION_V1
+            and "embedding_rules" in job.payload
+        ):
+            raise InvalidJobError(
+                "job payload field 'embedding_rules' requires schema_version 2"
+            )
         bucket = _string(job.payload, "bucket")
         prefix = _string(job.payload, "prefix", allow_empty=True)
         policy_name = _string(job.payload, "policy")
@@ -324,17 +379,54 @@ def build_handlers(
                 f"unknown allowed tier(s): {', '.join(unknown)}"
             )
 
+        embedding_rules = _embedding_rules(job.payload)
+        if embedding_rules and policy_name != "content":
+            raise InvalidJobError("embedding rules require the content policy")
+        disallowed_rule_tiers = sorted(
+            {
+                rule.destination_tier
+                for rule in embedding_rules
+                if rule.destination_tier not in allowed_tiers
+            }
+        )
+        if disallowed_rule_tiers:
+            raise InvalidJobError(
+                "embedding rule destination tier(s) are not allowed: "
+                + ", ".join(disallowed_rule_tiers)
+            )
+
+        hot_name_patterns = _strings(job.payload, "hot_name_patterns")
+        warm_name_patterns = _strings(job.payload, "warm_name_patterns")
+        cold_name_patterns = _strings(job.payload, "cold_name_patterns")
+        hot_mime_prefixes = _strings(job.payload, "hot_mime_prefixes")
+        warm_mime_prefixes = _strings(job.payload, "warm_mime_prefixes")
+        cold_mime_prefixes = _strings(job.payload, "cold_mime_prefixes")
+        try:
+            validate_policy_config_size(
+                allowed_tiers=allowed_tiers,
+                hot_name_patterns=hot_name_patterns,
+                warm_name_patterns=warm_name_patterns,
+                cold_name_patterns=cold_name_patterns,
+                hot_mime_prefixes=hot_mime_prefixes,
+                warm_mime_prefixes=warm_mime_prefixes,
+                cold_mime_prefixes=cold_mime_prefixes,
+                embedding_rules=embedding_rules,
+            )
+        except ValueError as exc:
+            raise InvalidJobError(f"invalid policy job payload: {exc}") from exc
+
         policy = build_policy(
             policy_name,
             threshold=_integer(job.payload, "threshold"),
             llm_threshold=_optional_integer(job.payload, "llm_threshold"),
             allowed_tiers=allowed_tiers,
-            hot_name_patterns=_strings(job.payload, "hot_name_patterns"),
-            warm_name_patterns=_strings(job.payload, "warm_name_patterns"),
-            cold_name_patterns=_strings(job.payload, "cold_name_patterns"),
-            hot_mime_prefixes=_strings(job.payload, "hot_mime_prefixes"),
-            warm_mime_prefixes=_strings(job.payload, "warm_mime_prefixes"),
-            cold_mime_prefixes=_strings(job.payload, "cold_mime_prefixes"),
+            hot_name_patterns=hot_name_patterns,
+            warm_name_patterns=warm_name_patterns,
+            cold_name_patterns=cold_name_patterns,
+            hot_mime_prefixes=hot_mime_prefixes,
+            warm_mime_prefixes=warm_mime_prefixes,
+            cold_mime_prefixes=cold_mime_prefixes,
+            embedding_rules=embedding_rules,
         )
         audit_context = AuditContext(
             correlation_id=job.correlation_id,
@@ -367,6 +459,7 @@ def build_handlers(
             policy_version=POLICY_AUDIT_VERSION,
             audit_context=audit_context,
             audit_occurred_at=job.created_at,
+            feature_loader=policy_feature_loader,
         )
         actions = await _run_blocking_safely(
             runner.plan_once,
@@ -403,8 +496,28 @@ def policy_job_payload(
     hot_mime_prefixes: Sequence[str],
     warm_mime_prefixes: Sequence[str],
     cold_mime_prefixes: Sequence[str],
+    embedding_rules: Sequence[EmbeddingPolicyRule | Mapping[str, object]] = (),
 ) -> dict[str, Any]:
-    return {
+    rule_objects = [
+        (
+            rule
+            if isinstance(rule, EmbeddingPolicyRule)
+            else EmbeddingPolicyRule.from_mapping(rule)
+        )
+        for rule in embedding_rules
+    ]
+    validate_policy_config_size(
+        allowed_tiers=allowed_tiers,
+        hot_name_patterns=hot_name_patterns,
+        warm_name_patterns=warm_name_patterns,
+        cold_name_patterns=cold_name_patterns,
+        hot_mime_prefixes=hot_mime_prefixes,
+        warm_mime_prefixes=warm_mime_prefixes,
+        cold_mime_prefixes=cold_mime_prefixes,
+        embedding_rules=rule_objects,
+    )
+    normalized_rules = [rule.to_mapping() for rule in rule_objects]
+    payload = {
         "bucket": bucket,
         "prefix": prefix,
         "policy": policy,
@@ -418,3 +531,6 @@ def policy_job_payload(
         "warm_mime_prefixes": list(warm_mime_prefixes),
         "cold_mime_prefixes": list(cold_mime_prefixes),
     }
+    if normalized_rules:
+        payload["embedding_rules"] = normalized_rules
+    return payload

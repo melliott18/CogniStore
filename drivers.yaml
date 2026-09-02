@@ -22,3 +22,15 @@ tiers:
   #   chunk_size: 8388608
   #   list_page_size: 1000
   #   multipart_threshold: 8388608
+
+# Optional policy-similarity runtime. This requires a PostgreSQL catalog with
+# pgvector and uses only embeddings already indexed in the same model space.
+# Keep API keys in the named environment variable, never in this file.
+# embedding:
+#   provider: openai-compatible
+#   base_url: https://embeddings.example.com
+#   api_key_env: COGNISTORE_EMBEDDING_API_KEY
+#   model: text-embedding-model
+#   deployment_version: release-2026-09-01
+#   dimensions: 1536
+#   request_dimensions: false

@@ -14,6 +14,10 @@ from cognistore.core.move_jobs import (
     MoveJobState,
 )
 from cognistore.core.mover import Mover
+from cognistore.core.policy import (
+    MAX_POLICY_CONFIG_BYTES,
+    EmbeddingPolicyRule,
+)
 from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.core.throughput import (
@@ -28,8 +32,15 @@ from cognistore.jobs.handlers import (
     _run_blocking_safely,
     build_handlers,
     policy_job_payload,
+    policy_job_schema_version,
 )
-from cognistore.jobs.models import JobContext, JobEnvelope
+from cognistore.jobs.models import (
+    JOB_SCHEMA_VERSION_V1,
+    JOB_SCHEMA_VERSION_V2,
+    InvalidJobError,
+    JobContext,
+    JobEnvelope,
+)
 
 
 async def _wait_for_thread_event(event: threading.Event) -> None:
@@ -104,6 +115,352 @@ def _context() -> JobContext:
         consumer_sequence=1,
         shutdown_requested=asyncio.Event(),
     )
+
+
+def test_policy_job_payload_round_trips_embedding_rules() -> None:
+    rules = (
+        EmbeddingPolicyRule(
+            name="invoice",
+            query="invoice accounts payable",
+            minimum_similarity=0.8,
+            destination_tier="hot",
+        ),
+        {
+            "name": "archive",
+            "query": "long-term records retention",
+            "minimum_similarity": 0.65,
+            "destination_tier": "warm",
+        },
+    )
+    payload = policy_job_payload(
+        bucket="bucket",
+        prefix="reports/",
+        policy="content",
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+        embedding_rules=rules,
+    )
+
+    restored = JobEnvelope.from_bytes(
+        JobEnvelope.create(
+            POLICY_RUN_JOB,
+            payload,
+            schema_version=policy_job_schema_version(payload),
+        ).to_bytes()
+    )
+
+    assert restored.schema_version == JOB_SCHEMA_VERSION_V2
+    assert restored.payload["embedding_rules"] == [
+        {
+            "name": "invoice",
+            "query": "invoice accounts payable",
+            "minimum_similarity": 0.8,
+            "destination_tier": "hot",
+        },
+        {
+            "name": "archive",
+            "query": "long-term records retention",
+            "minimum_similarity": 0.65,
+            "destination_tier": "warm",
+        },
+    ]
+
+
+def test_policy_job_payload_rejects_oversized_aggregate_policy_strings() -> None:
+    query = "q" * (MAX_POLICY_CONFIG_BYTES // 5 + 1)
+    rules = tuple(
+        EmbeddingPolicyRule(
+            name=f"rule-{index}",
+            query=query,
+            minimum_similarity=0.8,
+            destination_tier="hot",
+        )
+        for index in range(5)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="policy strings must total at most 65536 bytes",
+    ):
+        policy_job_payload(
+            bucket="bucket",
+            prefix="",
+            policy="content",
+            threshold=1024,
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+            embedding_rules=rules,
+        )
+
+
+def test_policy_handler_rejects_oversized_aggregate_policy_strings(
+    tmp_path: Path,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    payload = policy_job_payload(
+        bucket="bucket",
+        prefix="",
+        policy="content",
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+    )
+    payload["hot_name_patterns"] = ["x" * MAX_POLICY_CONFIG_BYTES]
+    job = JobEnvelope.create(POLICY_RUN_JOB, payload)
+    handler = build_handlers({"hot": hot, "warm": warm}, Catalog())[POLICY_RUN_JOB]
+
+    with pytest.raises(
+        InvalidJobError,
+        match="policy strings must total at most 65536 bytes",
+    ):
+        asyncio.run(handler(job, _context()))
+
+
+def test_policy_handler_stays_when_embedding_provider_is_not_configured(
+    tmp_path: Path,
+) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    data = b"small enough for the fallback to move"
+    warm.put_object("bucket", "invoice.txt", data)
+    catalog = Catalog()
+    catalog.upsert("bucket", "invoice.txt", len(data), "warm")
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        policy_job_payload(
+            bucket="bucket",
+            prefix="",
+            policy="content",
+            threshold=len(data),
+            llm_threshold=None,
+            allowed_tiers=("hot", "warm"),
+            hot_name_patterns=(),
+            warm_name_patterns=(),
+            cold_name_patterns=(),
+            hot_mime_prefixes=(),
+            warm_mime_prefixes=(),
+            cold_mime_prefixes=(),
+            embedding_rules=(
+                EmbeddingPolicyRule(
+                    name="invoice",
+                    query="invoice accounts payable",
+                    minimum_similarity=0.8,
+                    destination_tier="hot",
+                ),
+            ),
+        ),
+        schema_version=JOB_SCHEMA_VERSION_V2,
+    )
+
+    handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
+    asyncio.run(handler(job, _context()))
+
+    record = catalog.get("bucket", "invoice.txt")
+    assert record is not None
+    assert record.tier == "warm"
+    assert warm.get_object("bucket", "invoice.txt") == data
+    with pytest.raises(FileNotFoundError):
+        hot.get_object("bucket", "invoice.txt")
+    decisions = [
+        event
+        for event in catalog.list_audit_events()
+        if event.event_type == AuditEventType.POLICY_DECISION.value
+    ]
+    assert len(decisions) == 1
+    assert decisions[0].outcome == "stayed"
+    assert decisions[0].details["action"] == "stay"
+
+
+@pytest.mark.parametrize(
+    ("policy_name", "embedding_rules", "message"),
+    [
+        (
+            "content",
+            [
+                {
+                    "name": "invoice",
+                    "query": "invoice accounts payable",
+                    "minimum_similarity": 2.0,
+                    "destination_tier": "hot",
+                }
+            ],
+            "minimum_similarity must be between -1 and 1",
+        ),
+        (
+            "content",
+            [
+                {
+                    "name": "invoice",
+                    "query": "first query",
+                    "minimum_similarity": 0.8,
+                    "destination_tier": "hot",
+                },
+                {
+                    "name": "invoice",
+                    "query": "second query",
+                    "minimum_similarity": 0.7,
+                    "destination_tier": "warm",
+                },
+            ],
+            "cannot contain duplicate rule names",
+        ),
+        (
+            "simple",
+            [
+                {
+                    "name": "invoice",
+                    "query": "invoice accounts payable",
+                    "minimum_similarity": 0.8,
+                    "destination_tier": "hot",
+                }
+            ],
+            "embedding rules require the content policy",
+        ),
+        (
+            "content",
+            [
+                {
+                    "name": "invoice",
+                    "query": "invoice accounts payable",
+                    "minimum_similarity": 0.8,
+                    "destination_tier": "cold",
+                }
+            ],
+            "embedding rule destination tier\\(s\\) are not allowed: cold",
+        ),
+    ],
+)
+def test_policy_handler_rejects_invalid_embedding_rule_contracts(
+    tmp_path: Path,
+    policy_name: str,
+    embedding_rules: list[dict[str, object]],
+    message: str,
+) -> None:
+    payload = policy_job_payload(
+        bucket="bucket",
+        prefix="",
+        policy=policy_name,
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+    )
+    payload["embedding_rules"] = embedding_rules
+    handler = build_handlers(
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+        Catalog(),
+    )[POLICY_RUN_JOB]
+
+    with pytest.raises(InvalidJobError, match=message):
+        asyncio.run(
+            handler(
+                JobEnvelope.create(
+                    POLICY_RUN_JOB,
+                    payload,
+                    schema_version=JOB_SCHEMA_VERSION_V2,
+                ),
+                _context(),
+            )
+        )
+
+
+def test_policy_handler_rejects_embedding_rules_in_v1_envelope(
+    tmp_path: Path,
+) -> None:
+    payload = policy_job_payload(
+        bucket="bucket",
+        prefix="",
+        policy="content",
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+        embedding_rules=(
+            EmbeddingPolicyRule(
+                name="invoice",
+                query="invoice accounts payable",
+                minimum_similarity=0.8,
+                destination_tier="hot",
+            ),
+        ),
+    )
+    handler = build_handlers(
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+        Catalog(),
+    )[POLICY_RUN_JOB]
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        payload,
+        schema_version=JOB_SCHEMA_VERSION_V1,
+    )
+
+    with pytest.raises(InvalidJobError, match="requires schema_version 2"):
+        asyncio.run(handler(job, _context()))
+
+
+def test_policy_handler_accepts_legacy_v1_payload(tmp_path: Path) -> None:
+    payload = policy_job_payload(
+        bucket="bucket",
+        prefix="",
+        policy="simple",
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+    )
+    handler = build_handlers(
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+        Catalog(),
+    )[POLICY_RUN_JOB]
+    job = JobEnvelope.create(POLICY_RUN_JOB, payload)
+
+    assert job.schema_version == JOB_SCHEMA_VERSION_V1
+    assert "embedding_rules" not in job.payload
+    asyncio.run(handler(job, _context()))
 
 
 def test_catalog_scan_handler_indexes_into_worker_catalog(tmp_path: Path) -> None:

@@ -31,10 +31,20 @@ from cognistore.core.audit import (
     AuditQuery,
 )
 from cognistore.core.catalog import Catalog
+from cognistore.core.policy_features import (
+    EmbeddingFeatureRequest,
+    EmbeddingPolicyFeature,
+    FeatureState,
+    MimePolicyFeature,
+    PolicyFeatureProvenance,
+    PolicyFeatures,
+)
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.handlers import CATALOG_SCAN_JOB, POLICY_RUN_JOB
 from cognistore.jobs.models import (
+    JOB_SCHEMA_VERSION_V1,
+    JOB_SCHEMA_VERSION_V2,
     STATUS_TRACKING_METADATA,
     BusState,
     EnqueueReceipt,
@@ -43,6 +53,20 @@ from cognistore.jobs.models import (
     QueueSaturatedError,
 )
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig
+
+
+class _StaticPolicyFeatureLoader:
+    def __init__(self, features: PolicyFeatures) -> None:
+        self.features = features
+        self.requests: tuple[EmbeddingFeatureRequest, ...] = ()
+
+    def load(self, records, requests=()):
+        detached_records = tuple(records)
+        self.requests = tuple(requests)
+        return {
+            (record.bucket, record.key): self.features
+            for record in detached_records
+        }
 
 
 def _assert_error(
@@ -752,7 +776,253 @@ def test_ask_and_policy_evaluation_contracts(tmp_path: Path) -> None:
             "action": "move",
             "destination_tier": "warm",
             "reason": "large object -> warm tier",
+            "features": {
+                "schema_version": 1,
+                "mime": {
+                    "state": "missing",
+                    "value": None,
+                    "provenance": {
+                        "source": "catalog_metadata",
+                        "source_version": 1,
+                        "content_sha256": None,
+                        "details": {"reason": "mime_missing"},
+                    },
+                },
+                "embeddings": [],
+            },
         }
+
+
+def test_policy_evaluation_exposes_fresh_feature_provenance(
+    tmp_path: Path,
+) -> None:
+    catalog = Catalog()
+    catalog.upsert(
+        "documents",
+        "archive.pdf",
+        size=42,
+        tier="warm",
+    )
+    content_sha256 = "a" * 64
+    features = PolicyFeatures(
+        mime=MimePolicyFeature(
+            state=FeatureState.FRESH,
+            value="application/pdf",
+            provenance=PolicyFeatureProvenance(
+                source="mime_detection",
+                source_version=1,
+                content_sha256=content_sha256,
+                details={
+                    "confidence": "high",
+                    "detector": "libmagic",
+                    "provenance": "content",
+                },
+            ),
+        ),
+        embeddings=(
+            EmbeddingPolicyFeature(
+                name="archive",
+                query="historical archive material",
+                state=FeatureState.FRESH,
+                similarity=0.92,
+                provenance=PolicyFeatureProvenance(
+                    source="embedding_similarity",
+                    source_version=1,
+                    content_sha256=content_sha256,
+                    details={
+                        "aggregation": "max_passage_similarity",
+                        "model_revision": "fixture-model-commit-a",
+                    },
+                ),
+            ),
+        ),
+    )
+    feature_loader = _StaticPolicyFeatureLoader(features)
+    gateway = CogniStoreGateway(
+        catalog,
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+        feature_loader=feature_loader,  # type: ignore[arg-type]
+    )
+
+    with TestClient(create_app(gateway)) as client:
+        response = client.post(
+            "/v1/policies/evaluate",
+            json={
+                "bucket": "documents",
+                "key": "archive.pdf",
+                "config": {
+                    "policy": "content",
+                    "allowed_tiers": ["hot", "warm"],
+                    "embedding_rules": [
+                        {
+                            "name": "archive",
+                            "query": "historical archive material",
+                            "minimum_similarity": 0.8,
+                            "destination_tier": "hot",
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    assert feature_loader.requests == (
+        EmbeddingFeatureRequest(
+            name="archive",
+            query="historical archive material",
+        ),
+    )
+    assert response.json() == {
+        "schema_version": 1,
+        "bucket": "documents",
+        "key": "archive.pdf",
+        "current_tier": "warm",
+        "size": 42,
+        "action": "move",
+        "destination_tier": "hot",
+        "reason": "embedding archive similarity 0.920000 >= 0.800000 -> hot",
+        "features": features.to_dict(),
+    }
+
+
+def test_policy_evaluation_missing_embedding_provider_fails_closed(
+    tmp_path: Path,
+) -> None:
+    catalog = Catalog()
+    catalog.upsert("documents", "archive.bin", size=11, tier="hot")
+    gateway = CogniStoreGateway(
+        catalog,
+        {
+            "hot": PosixDriver(str(tmp_path / "hot")),
+            "warm": PosixDriver(str(tmp_path / "warm")),
+        },
+    )
+
+    with TestClient(create_app(gateway)) as client:
+        response = client.post(
+            "/v1/policies/evaluate",
+            json={
+                "bucket": "documents",
+                "key": "archive.bin",
+                "config": {
+                    "policy": "content",
+                    "threshold": 10,
+                    "allowed_tiers": ["hot", "warm"],
+                    "embedding_rules": [
+                        {
+                            "name": "archive",
+                            "query": "historical archive material",
+                            "minimum_similarity": 0.8,
+                            "destination_tier": "warm",
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action"] == "stay"
+    assert body["destination_tier"] is None
+    assert body["reason"] == "required policy features unavailable: embedding:archive=missing"
+    embedding = body["features"]["embeddings"][0]
+    assert {key: value for key, value in embedding.items() if key != "provenance"} == {
+        "name": "archive",
+        "query": "historical archive material",
+        "state": "missing",
+        "similarity": None,
+    }
+    provenance = embedding["provenance"]
+    assert provenance["source"]
+    assert provenance["source_version"] == 1
+    assert provenance["content_sha256"] is None
+    assert isinstance(provenance["details"], dict)
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        (
+            {
+                "policy": "simple",
+                "embedding_rules": [
+                    {
+                        "name": "archive",
+                        "query": "historical archive material",
+                        "minimum_similarity": 0.8,
+                        "destination_tier": "hot",
+                    }
+                ],
+            },
+            "embedding rules require the content policy",
+        ),
+        (
+            {
+                "policy": "content",
+                "embedding_rules": [
+                    {
+                        "name": "duplicate",
+                        "query": "first",
+                        "minimum_similarity": 0.8,
+                        "destination_tier": "hot",
+                    },
+                    {
+                        "name": "duplicate",
+                        "query": "second",
+                        "minimum_similarity": 0.7,
+                        "destination_tier": "warm",
+                    },
+                ],
+            },
+            "embedding rule names must be unique",
+        ),
+        (
+            {
+                "policy": "content",
+                "allowed_tiers": ["hot", "warm"],
+                "embedding_rules": [
+                    {
+                        "name": "archive",
+                        "query": "historical archive material",
+                        "minimum_similarity": 0.8,
+                        "destination_tier": "cold",
+                    }
+                ],
+            },
+            "embedding rule destination tier(s) must be allowed",
+        ),
+        (
+            {
+                "policy": "content",
+                "embedding_rules": [
+                    {
+                        "name": "archive",
+                        "query": "historical archive material",
+                        "minimum_similarity": 1.01,
+                        "destination_tier": "hot",
+                    }
+                ],
+            },
+            "Input should be less than or equal to 1",
+        ),
+    ],
+    ids=("wrong-policy", "duplicate-names", "disallowed-tier", "bad-threshold"),
+)
+def test_policy_embedding_rule_configuration_is_strict(
+    config: dict[str, object],
+    message: str,
+) -> None:
+    with TestClient(create_app(CogniStoreGateway(Catalog(), {}))) as client:
+        response = client.post(
+            "/v1/policies/evaluate",
+            json={"bucket": "documents", "key": "archive.bin", "config": config},
+        )
+
+    body = _assert_error(response, status_code=422, code="validation_error")
+    assert message in json.dumps(body["error"]["details"])
 
 
 class _RecordingSubmissionQueue:
@@ -899,8 +1169,16 @@ def test_async_actions_return_202_and_worker_updates_status(tmp_path: Path) -> N
                 "bucket": "documents",
                 "prefix": "reports/",
                 "config": {
-                    "policy": "simple",
+                    "policy": "content",
                     "allowed_tiers": ["hot", "warm"],
+                    "embedding_rules": [
+                        {
+                            "name": "archive",
+                            "query": "historical archive material",
+                            "minimum_similarity": 0.8,
+                            "destination_tier": "warm",
+                        }
+                    ],
                 },
             },
         )
@@ -914,8 +1192,18 @@ def test_async_actions_return_202_and_worker_updates_status(tmp_path: Path) -> N
     policy_job, policy_message_id = submission_queue.enqueued[1]
     assert scan_message_id == scan_job.job_id
     assert policy_message_id == policy_job.job_id
+    assert scan_job.schema_version == JOB_SCHEMA_VERSION_V1
+    assert policy_job.schema_version == JOB_SCHEMA_VERSION_V2
     assert scan_job.metadata[STATUS_TRACKING_METADATA] == "1"
     assert policy_job.metadata[STATUS_TRACKING_METADATA] == "1"
+    assert policy_job.payload["embedding_rules"] == [
+        {
+            "name": "archive",
+            "query": "historical archive material",
+            "minimum_similarity": 0.8,
+            "destination_tier": "warm",
+        }
+    ]
 
     delivery = _run_tracked_job(scan_job, catalog)
     assert delivery.ack_count == 1
@@ -1149,6 +1437,30 @@ def test_openapi_contract_is_deterministic_and_checked_in() -> None:
 
     document = json.loads(first)
     assert document["openapi"] == "3.1.0"
+    schemas = document["components"]["schemas"]
+    assert set(schemas["PolicyFeaturesResponse"]["required"]) == {
+        "schema_version",
+        "mime",
+        "embeddings",
+    }
+    assert set(schemas["MimePolicyFeatureResponse"]["required"]) == {
+        "state",
+        "value",
+        "provenance",
+    }
+    assert set(schemas["EmbeddingPolicyFeatureResponse"]["required"]) == {
+        "name",
+        "query",
+        "state",
+        "similarity",
+        "provenance",
+    }
+    assert set(schemas["PolicyFeatureProvenanceResponse"]["required"]) == {
+        "source",
+        "source_version",
+        "content_sha256",
+        "details",
+    }
     operation_ids = sorted(
         operation["operationId"]
         for path_item in document["paths"].values()

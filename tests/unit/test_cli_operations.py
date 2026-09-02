@@ -678,6 +678,8 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
     events: list[str] = []
     callbacks = {}
     catalog_sentinel = object()
+    feature_loader_sentinel = object()
+    seen_feature_loader: object | None = None
     limits_path = tmp_path / "limits.yaml"
     limits_path.write_text("tiers:\n  hot:\n    source_concurrency: 1\n")
     reload_started = threading.Event()
@@ -761,8 +763,25 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
     monkeypatch.setattr(cognistore_cli, "load_throughput_config", delayed_load)
     monkeypatch.setattr(
         cognistore_cli,
+        "load_policy_feature_loader",
+        lambda path, catalog: feature_loader_sentinel,
+    )
+
+    def handlers(
+        drivers,
+        catalog,
+        *,
+        throughput=None,
+        policy_feature_loader=None,
+    ):
+        nonlocal seen_feature_loader
+        seen_feature_loader = policy_feature_loader
+        return {}
+
+    monkeypatch.setattr(
+        cognistore_cli,
         "build_handlers",
-        lambda drivers, catalog, *, throughput=None: {},
+        handlers,
     )
     monkeypatch.setattr(cognistore_cli.asyncio, "get_running_loop", lambda: FakeLoop())
     args = argparse.Namespace(
@@ -778,6 +797,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         once=True,
         health_host="127.0.0.1",
         health_port=0,
+        drivers="runtime.yaml",
         schedule_db=str(tmp_path / "schedule.db"),
         tier_limits=str(limits_path),
         _throughput_config=cognistore_cli.ThroughputConfig(
@@ -806,3 +826,4 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         "health:close",
     ]
     assert reload_calls == 2
+    assert seen_feature_loader is feature_loader_sentinel

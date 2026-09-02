@@ -373,6 +373,96 @@
         "title": "CatalogScanRequest",
         "type": "object"
       },
+      "EmbeddingPolicyFeatureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/PolicyFeatureProvenanceResponse"
+          },
+          "query": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "state": {
+            "enum": [
+              "fresh",
+              "missing",
+              "stale",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "query",
+          "state",
+          "similarity",
+          "provenance"
+        ],
+        "title": "EmbeddingPolicyFeatureResponse",
+        "type": "object"
+      },
+      "EmbeddingPolicyRuleConfig": {
+        "additionalProperties": false,
+        "description": "One named semantic classification rule for content placement.",
+        "properties": {
+          "destination_tier": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Destination Tier",
+            "type": "string"
+          },
+          "minimum_similarity": {
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Minimum Similarity",
+            "type": "number"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "query",
+          "minimum_similarity",
+          "destination_tier"
+        ],
+        "title": "EmbeddingPolicyRuleConfig",
+        "type": "object"
+      },
       "ErrorBody": {
         "additionalProperties": false,
         "properties": {
@@ -564,6 +654,42 @@
         "type": "object"
       },
       "JsonValue": {},
+      "MimePolicyFeatureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "provenance": {
+            "$ref": "#/components/schemas/PolicyFeatureProvenanceResponse"
+          },
+          "state": {
+            "enum": [
+              "fresh",
+              "missing",
+              "stale",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "state",
+          "value",
+          "provenance"
+        ],
+        "title": "MimePolicyFeatureResponse",
+        "type": "object"
+      },
       "ObjectCitationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -911,6 +1037,14 @@
             "title": "Cold Name Patterns",
             "type": "array"
           },
+          "embedding_rules": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingPolicyRuleConfig"
+            },
+            "maxItems": 100,
+            "title": "Embedding Rules",
+            "type": "array"
+          },
           "hot_mime_prefixes": {
             "items": {
               "maxLength": 255,
@@ -1047,6 +1181,16 @@
             ],
             "title": "Destination Tier"
           },
+          "features": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyFeaturesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "key": {
             "maxLength": 8192,
             "minLength": 1,
@@ -1079,6 +1223,91 @@
           "reason"
         ],
         "title": "PolicyEvaluationResponse",
+        "type": "object"
+      },
+      "PolicyFeatureProvenanceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "content_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Sha256"
+          },
+          "details": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Details",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_version": {
+            "minimum": 1.0,
+            "title": "Source Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "source_version",
+          "content_sha256",
+          "details"
+        ],
+        "title": "PolicyFeatureProvenanceResponse",
+        "type": "object"
+      },
+      "PolicyFeaturesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "embeddings": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingPolicyFeatureResponse"
+            },
+            "maxItems": 100,
+            "title": "Embeddings",
+            "type": "array"
+          },
+          "mime": {
+            "$ref": "#/components/schemas/MimePolicyFeatureResponse"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mime",
+          "embeddings"
+        ],
+        "title": "PolicyFeaturesResponse",
         "type": "object"
       },
       "PolicyRunRequest": {

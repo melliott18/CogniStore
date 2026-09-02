@@ -30,6 +30,7 @@ from .content_references import (
 	build_content_reference_report,
 )
 from .move_jobs import (
+	EXPECTED_SOURCE_SHA256_METADATA_KEY,
 	MoveJob,
 	MoveJobConflictError,
 	MoveJobLeaseError,
@@ -474,11 +475,34 @@ class Catalog(CatalogStore):
 				return False
 			object_key = (bucket, key)
 			existing = self._objects.get(object_key)
+			existing_content = self._object_contents.get(object_key)
+			content_changed = existing_content != content
+			incoming_metadata = metadata or {}
 			merged_metadata = (
 				deepcopy(existing.metadata) if existing is not None else {}
 			)
 			if metadata is not None:
 				merged_metadata.update(deepcopy(metadata))
+			if content_changed and "document_extraction" not in incoming_metadata:
+				# Extraction text is bound to exact source bytes. A partial scan
+				# observation must not carry it across a content replacement.
+				merged_metadata.pop("document_extraction", None)
+			existing_extraction = (
+				existing.metadata.get("document_extraction")
+				if existing is not None
+				else None
+			)
+			extraction_changed = (
+				existing_extraction != merged_metadata.get("document_extraction")
+			)
+			if content_changed or extraction_changed:
+				# MIME selection and provenance are observations of the same source
+				# bytes/extraction. Omitted evidence may be merged only while that
+				# source identity remains unchanged.
+				if "mime" not in incoming_metadata:
+					merged_metadata.pop("mime", None)
+				if "mime_detection" not in incoming_metadata:
+					merged_metadata.pop("mime_detection", None)
 			if content is None:
 				merged_metadata.pop("content_identity", None)
 			else:
@@ -878,6 +902,7 @@ class Catalog(CatalogStore):
 				dst_tier=dst_tier,
 				bucket=bucket,
 				key=key,
+				source_metadata=source_metadata,
 			)
 			if existing.state.terminal:
 				return existing
@@ -1157,6 +1182,7 @@ class Catalog(CatalogStore):
 		dst_tier: str,
 		bucket: str,
 		key: str,
+		source_metadata: Mapping[str, Any],
 	) -> None:
 		actual = (job.src_tier, job.dst_tier, job.bucket, job.key)
 		requested = (src_tier, dst_tier, bucket, key)
@@ -1164,6 +1190,18 @@ class Catalog(CatalogStore):
 			raise MoveJobConflictError(
 				f"Idempotency key {job.idempotency_key!r} already identifies "
 				f"{job.src_tier}:{job.bucket}/{job.key} -> {job.dst_tier}"
+			)
+		requested_digest = source_metadata.get(
+			EXPECTED_SOURCE_SHA256_METADATA_KEY
+		)
+		if (
+			requested_digest is not None
+			and job.source_metadata.get(EXPECTED_SOURCE_SHA256_METADATA_KEY)
+			!= requested_digest
+		):
+			raise MoveJobConflictError(
+				f"Idempotency key {job.idempotency_key!r} already identifies "
+				"a move with a different expected source digest"
 			)
 
 	def _owned_move_job(

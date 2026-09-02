@@ -11,6 +11,7 @@ from uuid import uuid4
 from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import (
+    EXPECTED_SOURCE_SHA256_METADATA_KEY,
     MoveJob,
     MoveJobFailedError,
     MoveJobLeaseError,
@@ -25,6 +26,7 @@ from cognistore.drivers.storage_driver import (
 )
 
 CHECKSUM_ALGORITHM = "sha256"
+_LOWERCASE_HEX = frozenset("0123456789abcdef")
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,17 @@ class MoveGenerationMismatchError(RuntimeError):
         super().__init__(
             f"Move aborted because the {role} generation changed for "
             f"{plan.bucket}/{plan.key}"
+        )
+
+
+class MoveSourceContentMismatchError(RuntimeError):
+    """Raised before transfer when policy evidence targets different bytes."""
+
+    def __init__(self, plan: MovePlan) -> None:
+        self.plan = plan
+        super().__init__(
+            "Move aborted because policy evidence does not match the current "
+            f"source bytes for {plan.bucket}/{plan.key}"
         )
 
 
@@ -362,6 +375,7 @@ class Mover:
         *,
         idempotency_key: str | None = None,
         audit_context: AuditContext | None = None,
+        expected_source_sha256: str | None = None,
     ) -> MoveVerificationResult:
         """Execute or resume one durable, idempotent object move.
 
@@ -370,12 +384,36 @@ class Mover:
         """
 
         self._drivers_for_move(src_tier, dst_tier)
+        if expected_source_sha256 is not None and (
+            not isinstance(expected_source_sha256, str)
+            or len(expected_source_sha256) != 64
+            or any(character not in _LOWERCASE_HEX for character in expected_source_sha256)
+        ):
+            raise ValueError(
+                "expected_source_sha256 must be a lowercase 64-character SHA-256 digest"
+            )
         move_key = idempotency_key or str(uuid4())
         context = audit_context or self.audit_context
         existing = self.catalog.get_move_job(move_key)
         was_new = existing is None
         if existing is None:
             plan = self.plan(src_tier, dst_tier, bucket, key)
+            if expected_source_sha256 is not None:
+                self._verify_expected_source_content(
+                    plan,
+                    expected_source_sha256,
+                )
+                plan = MovePlan(
+                    src_tier=plan.src_tier,
+                    dst_tier=plan.dst_tier,
+                    bucket=plan.bucket,
+                    key=plan.key,
+                    size=plan.size,
+                    metadata={
+                        **dict(plan.metadata),
+                        EXPECTED_SOURCE_SHA256_METADATA_KEY: expected_source_sha256,
+                    },
+                )
         else:
             plan = MovePlan(
                 src_tier=src_tier,
@@ -384,6 +422,10 @@ class Mover:
                 key=key,
                 size=existing.expected_size,
                 metadata=existing.source_metadata,
+            )
+            self._validate_expected_source_contract(
+                plan,
+                expected_source_sha256,
             )
 
         now, lease_expires_at = self._lease_window()
@@ -400,6 +442,22 @@ class Mover:
             lease_expires_at=lease_expires_at,
             audit_context=context,
         )
+        # ``get_move_job`` above is only a preflight optimization.  The claim
+        # is the atomic authority: another caller may have created this key
+        # between the read and claim, so revalidate the contract that was
+        # actually returned before any terminal result or transfer is accepted.
+        claimed_plan = MovePlan(
+            src_tier=job.src_tier,
+            dst_tier=job.dst_tier,
+            bucket=job.bucket,
+            key=job.key,
+            size=job.expected_size,
+            metadata=job.source_metadata,
+        )
+        self._validate_expected_source_contract(
+            claimed_plan,
+            expected_source_sha256,
+        )
         if was_new:
             self._after_transition(job)
         if job.state == MoveJobState.COMPLETED:
@@ -408,6 +466,70 @@ class Mover:
             raise MoveJobFailedError(job)
         with self._lease_heartbeat(job.idempotency_key):
             return self._resume(job, audit_context=context)
+
+    def _verify_expected_source_content(
+        self,
+        plan: MovePlan,
+        expected_sha256: str,
+    ) -> None:
+        """Bind policy evidence to one generation before any move is claimed."""
+
+        source, _destination = self._drivers_for_move(plan.src_tier, plan.dst_tier)
+        generation = plan.metadata.get("generation")
+        if not isinstance(generation, str) or not generation:
+            raise ValueError("move plan lacks a valid source generation")
+        chunk_size = getattr(source, "chunk_size", DEFAULT_STREAM_CHUNK_SIZE)
+        if (
+            isinstance(chunk_size, bool)
+            or not isinstance(chunk_size, int)
+            or chunk_size <= 0
+        ):
+            chunk_size = DEFAULT_STREAM_CHUNK_SIZE
+        size = 0
+        digest = hashlib.sha256()
+        try:
+            reader = source.open_object_reader_if_generation(
+                plan.bucket,
+                plan.key,
+                generation,
+            )
+        except NotImplementedError as exc:
+            raise RuntimeError(
+                "policy-fenced moves require generation-bound source reads"
+            ) from exc
+        with reader as stream:
+            while True:
+                chunk = stream.read(chunk_size)
+                if not isinstance(chunk, bytes):
+                    raise TypeError("Object stream read() must return bytes")
+                if not chunk:
+                    break
+                if self._throughput is not None:
+                    self._throughput.consume_bytes(plan.src_tier, len(chunk))
+                size += len(chunk)
+                digest.update(chunk)
+        if size != plan.size or digest.hexdigest() != expected_sha256:
+            raise MoveSourceContentMismatchError(plan)
+
+    @staticmethod
+    def _validate_expected_source_contract(
+        plan: MovePlan,
+        expected_sha256: str | None,
+    ) -> None:
+        durable_expected = plan.metadata.get(EXPECTED_SOURCE_SHA256_METADATA_KEY)
+        if durable_expected is not None and (
+            not isinstance(durable_expected, str)
+            or len(durable_expected) != 64
+            or any(
+                character not in _LOWERCASE_HEX
+                for character in durable_expected
+            )
+        ):
+            raise RuntimeError(
+                "move job has invalid expected source SHA-256 metadata"
+            )
+        if expected_sha256 is not None and durable_expected != expected_sha256:
+            raise MoveSourceContentMismatchError(plan)
 
     def recover_incomplete(
         self, *, idempotency_prefix: str | None = None
@@ -484,6 +606,11 @@ class Mover:
             metadata=job.source_metadata,
         )
         src, dst = self._drivers_for_move(job.src_tier, job.dst_tier)
+        source_generation = job.source_metadata.get("generation")
+        if not isinstance(source_generation, str) or not source_generation:
+            raise RuntimeError(
+                "move job lacks the source generation required for transfer"
+            )
 
         while True:
             if job.state == MoveJobState.PREPARED:
@@ -505,12 +632,15 @@ class Mover:
                             job.key,
                             tier=job.src_tier,
                             job=job,
+                            generation=source_generation,
                         )
                         transferred_size = job.expected_size
                         reason = "existing destination recovered after transfer"
                     else:
-                        with src.open_object_reader(
-                            job.bucket, job.key
+                        with src.open_object_reader_if_generation(
+                            job.bucket,
+                            job.key,
+                            source_generation,
                         ) as source_stream:
                             source = _HashingReader(
                                 source_stream,
@@ -524,14 +654,30 @@ class Mover:
                                 source,
                                 size=job.expected_size,
                                 overwrite=False,
-                                metadata=job.source_metadata,
+                                metadata=self._destination_metadata(
+                                    job.source_metadata
+                                ),
                             )
-                        source_size = source.size
-                        source_checksum = source.checksum
+                            source_size = source.size
+                            source_checksum = source.checksum
                         reason = "destination transfer completed"
                     observed_source_generation = src.object_generation(
                         job.bucket, job.key
                     )
+                except ObjectGenerationMismatchError as error:
+                    # ``put_object_stream`` does not return the generation it
+                    # published. A later observation could already belong to a
+                    # concurrent writer, so source-fence failures deliberately
+                    # leave any destination residue for explicit reconciliation.
+                    reason = "source generation changed during transfer"
+                    job = self._transition(
+                        job,
+                        MoveJobState.FAILED,
+                        reason,
+                        updates={"terminal_reason": reason},
+                        audit_context=audit_context,
+                    )
+                    raise MoveGenerationMismatchError(plan, "source") from error
                 except FileNotFoundError as error:
                     # FileNotFoundError can also originate from a destination
                     # backend. Only terminalize the job after proving that its
@@ -585,6 +731,7 @@ class Mover:
                         job.key,
                         tier=job.src_tier,
                         job=job,
+                        generation=source_generation,
                     )
                 else:
                     source_size = job.source_size
@@ -652,21 +799,40 @@ class Mover:
                 # itself required to be idempotent by the driver contract.
                 try:
                     self._verify_committed_destination(plan, dst, job)
-                    if (
-                        dst.object_generation(job.bucket, job.key)
-                        != job.destination_generation
-                    ):
-                        raise ObjectGenerationMismatchError(
-                            "destination generation changed after final verification"
-                        )
+                    self._require_destination_generation(dst, job)
                     source_generation = job.source_metadata.get("generation")
                     if not isinstance(source_generation, str) or not source_generation:
                         raise RuntimeError(
                             "move job lacks the source generation required for cleanup"
                         )
-                    src.delete_object_if_generation(
-                        job.bucket, job.key, source_generation
-                    )
+                    try:
+                        source_reader = src.open_object_reader_if_generation(
+                            job.bucket,
+                            job.key,
+                            source_generation,
+                        )
+                        with source_reader as retained_source:
+                            src.delete_object_if_generation(
+                                job.bucket, job.key, source_generation
+                            )
+                            try:
+                                # This is the cleanup linearization point.  If
+                                # the destination changed while the source was
+                                # being deleted, republish the still-open source
+                                # generation before failing the move.
+                                self._require_destination_generation(dst, job)
+                            except ObjectGenerationMismatchError:
+                                self._restore_retained_source(
+                                    job,
+                                    src,
+                                    retained_source,
+                                )
+                                raise
+                    except FileNotFoundError:
+                        # Recovery can legitimately revisit CLEANUP after the
+                        # conditional delete succeeded but before COMPLETED was
+                        # checkpointed.  The destination must still match.
+                        self._require_destination_generation(dst, job)
                 except (MoveVerificationError, ObjectGenerationMismatchError) as error:
                     role = (
                         "destination"
@@ -748,6 +914,7 @@ class Mover:
         *,
         tier: str,
         job: MoveJob,
+        generation: str | None = None,
     ) -> tuple[int, str]:
         chunk_size = getattr(driver, "chunk_size", DEFAULT_STREAM_CHUNK_SIZE)
         if (
@@ -758,7 +925,16 @@ class Mover:
             chunk_size = DEFAULT_STREAM_CHUNK_SIZE
         size = 0
         digest = hashlib.sha256()
-        with driver.open_object_reader(bucket, key) as stream:
+        reader = (
+            driver.open_object_reader(bucket, key)
+            if generation is None
+            else driver.open_object_reader_if_generation(
+                bucket,
+                key,
+                generation,
+            )
+        )
+        with reader as stream:
             while True:
                 chunk = stream.read(chunk_size)
                 if not isinstance(chunk, bytes):
@@ -769,6 +945,72 @@ class Mover:
                 size += len(chunk)
                 digest.update(chunk)
         return size, digest.hexdigest()
+
+    @staticmethod
+    def _destination_metadata(
+        source_metadata: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Remove durable mover-only fields before publishing an object."""
+
+        return {
+            name: value
+            for name, value in source_metadata.items()
+            if name != EXPECTED_SOURCE_SHA256_METADATA_KEY
+        }
+
+    @staticmethod
+    def _require_destination_generation(
+        dst: StorageDriver,
+        job: MoveJob,
+    ) -> None:
+        try:
+            observed = dst.object_generation(job.bucket, job.key)
+        except FileNotFoundError as error:
+            raise ObjectGenerationMismatchError(
+                "destination generation is missing after final verification"
+            ) from error
+        if observed != job.destination_generation:
+            raise ObjectGenerationMismatchError(
+                "destination generation changed after final verification"
+            )
+
+    def _restore_retained_source(
+        self,
+        job: MoveJob,
+        src: StorageDriver,
+        retained_source: ReadableStream,
+    ) -> None:
+        """Republish retained bytes after a cleanup-time destination race."""
+
+        source = _HashingReader(
+            retained_source,
+            on_bytes=lambda amount: self._consume_bytes(
+                job.src_tier,
+                amount,
+                job,
+            ),
+        )
+        try:
+            transferred = src.put_object_stream(
+                job.bucket,
+                job.key,
+                source,
+                size=job.expected_size,
+                overwrite=False,
+                metadata=self._destination_metadata(job.source_metadata),
+            )
+        except FileExistsError:
+            # Preserve any concurrent source replacement.  The outer failure
+            # path will make that retained source authoritative in the catalog.
+            return
+        if (
+            transferred != job.expected_size
+            or source.size != job.expected_size
+            or source.checksum != job.source_checksum
+        ):
+            raise RuntimeError(
+                "failed to restore the verified source after destination replacement"
+            )
 
     def _verify_committed_destination(
         self, plan: MovePlan, dst: StorageDriver, job: MoveJob

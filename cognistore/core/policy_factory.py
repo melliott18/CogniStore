@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from .policy import ContentAwarePolicy, LLMPolicy, Policy, SimplePolicy
+from .policy import (
+    ContentAwarePolicy,
+    EmbeddingPolicyRule,
+    LLMPolicy,
+    Policy,
+    SimplePolicy,
+)
 
 
 class ThresholdProvider:
@@ -48,7 +54,10 @@ def build_policy(
     hot_mime_prefixes: Sequence[str] = (),
     warm_mime_prefixes: Sequence[str] = (),
     cold_mime_prefixes: Sequence[str] = (),
+    embedding_rules: Sequence[EmbeddingPolicyRule] = (),
 ) -> Policy:
+    if embedding_rules and policy_name != "content":
+        raise ValueError("embedding rules require the content policy")
     if policy_name == "llm":
         selected_threshold = llm_threshold if llm_threshold is not None else threshold
         return LLMPolicy(
@@ -63,6 +72,7 @@ def build_policy(
             warm_name_patterns=warm_name_patterns,
             hot_mime_prefixes=hot_mime_prefixes,
             warm_mime_prefixes=warm_mime_prefixes,
+            embedding_rules=embedding_rules,
         )
         if hasattr(policy, "cold_name_patterns"):
             policy.cold_name_patterns = list(cold_name_patterns)

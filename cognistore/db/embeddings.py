@@ -810,6 +810,7 @@ class PgVectorEmbeddingStore:
                     embedding_documents.c.document_id,
                     embedding_documents.c.source_sha256,
                     embedding_documents.c.text_sha256.label("document_text_sha256"),
+                    embedding_document_spaces.c.completed_at.label("indexed_at"),
                     objects.c.bucket,
                     objects.c.object_key,
                     object_placements.c.tier_name,
@@ -831,6 +832,10 @@ class PgVectorEmbeddingStore:
             )
             if filters.buckets:
                 statement = statement.where(objects.c.bucket.in_(sorted(filters.buckets)))
+            if filters.object_keys:
+                statement = statement.where(
+                    objects.c.object_key.in_(sorted(filters.object_keys))
+                )
             if filters.key_prefix:
                 statement = statement.where(
                     self._literal_prefix(
@@ -931,6 +936,7 @@ class PgVectorEmbeddingStore:
             cosine_distance=float(row["cosine_distance"]),
             object_metadata=MappingProxyType(metadata),
             object_metadata_truncated=bool(row["metadata_truncated"]),
+            indexed_at=row["indexed_at"],
         )
 
     def index_metadata(self, space: EmbeddingSpace) -> dict[str, object]:

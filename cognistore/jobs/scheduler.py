@@ -17,10 +17,18 @@ from uuid import UUID, uuid4
 
 import yaml
 
-from .handlers import CATALOG_SCAN_JOB, POLICY_RUN_JOB, policy_job_payload
+from cognistore.core.policy import EmbeddingPolicyRule
+
+from .handlers import (
+    CATALOG_SCAN_JOB,
+    POLICY_RUN_JOB,
+    policy_job_payload,
+    policy_job_schema_version,
+)
 from .models import (
     ATTEMPT_OFFSET_METADATA,
     DEAD_LETTER_CHAIN_METADATA,
+    JOB_SCHEMA_VERSION_V1,
     REDRIVE_COUNT_METADATA,
     REDRIVEN_FROM_METADATA,
     DeadLetterDisposition,
@@ -54,6 +62,7 @@ _POLICY_RUN_FIELDS = frozenset(
         "hot_mime_prefixes",
         "warm_mime_prefixes",
         "cold_mime_prefixes",
+        "embedding_rules",
     }
 )
 _TERMINAL_RUN_STATES = frozenset(
@@ -326,6 +335,44 @@ def _normalize_policy_payload(
             raise ValueError(
                 "policy.run payload contains unknown allowed tier(s): " + ", ".join(unknown)
             )
+    raw_embedding_rules = payload.get("embedding_rules", [])
+    if not isinstance(raw_embedding_rules, list) or len(raw_embedding_rules) > 100:
+        raise ValueError(
+            "policy.run payload.embedding_rules must be a list of at most 100 rules"
+        )
+    embedding_rules: list[EmbeddingPolicyRule] = []
+    for index, raw_rule in enumerate(raw_embedding_rules):
+        if not isinstance(raw_rule, Mapping):
+            raise ValueError(
+                f"policy.run payload.embedding_rules item {index} must be an object"
+            )
+        try:
+            rule = EmbeddingPolicyRule.from_mapping(raw_rule)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid policy.run payload.embedding_rules item {index}: {exc}"
+            ) from exc
+        embedding_rules.append(rule)
+    if len({rule.name for rule in embedding_rules}) != len(embedding_rules):
+        raise ValueError(
+            "policy.run payload.embedding_rules cannot contain duplicate rule names"
+        )
+    if embedding_rules and policy != "content":
+        raise ValueError(
+            "policy.run payload.embedding_rules require the content policy"
+        )
+    unknown_rule_tiers = sorted(
+        {
+            rule.destination_tier
+            for rule in embedding_rules
+            if rule.destination_tier not in allowed_tiers
+        }
+    )
+    if unknown_rule_tiers:
+        raise ValueError(
+            "policy.run payload.embedding_rules contain disallowed destination tier(s): "
+            + ", ".join(unknown_rule_tiers)
+        )
     assert threshold is not None
     return policy_job_payload(
         bucket=bucket,
@@ -352,6 +399,7 @@ def _normalize_policy_payload(
         cold_mime_prefixes=_string_list(
             payload.get("cold_mime_prefixes"), "policy.run payload.cold_mime_prefixes"
         ),
+        embedding_rules=embedding_rules,
     )
 
 
@@ -1136,6 +1184,11 @@ class SQLiteScheduleStore:
                         SCHEDULED_FOR_METADATA: _timestamp(scheduled_for),
                     },
                     created_at=current,
+                    schema_version=(
+                        policy_job_schema_version(schedule.payload)
+                        if schedule.job_type == POLICY_RUN_JOB
+                        else JOB_SCHEMA_VERSION_V1
+                    ),
                 )
                 next_run = _timestamp(current + timedelta(seconds=schedule.interval_seconds))
                 run_sequence = self._conn.execute(

@@ -111,6 +111,10 @@ microsecond precision and cannot exceed 100 years. A `catalog.scan` payload requ
 It also accepts `prefix`, `llm_threshold`, and the content-policy lists
 `hot_name_patterns`, `warm_name_patterns`, `cold_name_patterns`,
 `hot_mime_prefixes`, `warm_mime_prefixes`, and `cold_mime_prefixes`.
+Embedding-rule policy jobs use schema v2. Upgrade and drain or stop every older
+worker sharing the durable consumer before enabling those rules in schedules or
+other producers; older workers terminally reject v2 jobs. Policy jobs without
+embedding rules omit `embedding_rules` and remain schema v1.
 
 Start it with the same NATS topology, drivers, and SQLite scheduler-state file
 used by its workers:

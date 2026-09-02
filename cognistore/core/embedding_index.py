@@ -237,10 +237,12 @@ class SimilaritySearchFilters:
     tiers: frozenset[str] = frozenset()
     mime_types: frozenset[str] = frozenset()
     metadata: Mapping[str, str] = field(default_factory=dict)
+    # Appended to preserve the positional constructor used by earlier releases.
+    object_keys: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         payload_bytes = 0
-        for field_name in ("buckets", "tiers", "mime_types"):
+        for field_name in ("buckets", "object_keys", "tiers", "mime_types"):
             raw_values = getattr(self, field_name)
             if isinstance(raw_values, (str, bytes, bytearray, Mapping)) or not isinstance(
                 raw_values, Iterable
@@ -347,6 +349,7 @@ class SimilaritySearchResult:
     cosine_distance: float
     object_metadata: Mapping[str, object]
     object_metadata_truncated: bool = False
+    indexed_at: str | None = None
 
     @property
     def score(self) -> float:
@@ -516,6 +519,19 @@ class EmbeddingIndexer:
             safe_filters = filters
         else:
             raise ValueError("filters must be SimilaritySearchFilters or None")
+        vector = self.query_vector(query)
+        return self.repository.search(
+            self.provider.space,
+            vector,
+            filters=safe_filters,
+            limit=limit,
+            exact=exact,
+        )
+
+    def query_vector(self, query: str) -> tuple[float, ...]:
+        """Embed and validate one query in this indexer's exact search space."""
+
+        _required_text(query, field_name="query")
         raw_vector = self._retry(lambda: self.provider.embed_query(query))
         vectors = validate_embedding_vectors(
             [raw_vector],
@@ -523,13 +539,7 @@ class EmbeddingIndexer:
             dimensions=self.provider.space.dimensions,
             distance_metric=self.provider.space.distance_metric,
         )
-        return self.repository.search(
-            self.provider.space,
-            vectors[0],
-            filters=safe_filters,
-            limit=limit,
-            exact=exact,
-        )
+        return vectors[0]
 
 
 def vector_literal(vector: Sequence[float]) -> str:

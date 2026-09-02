@@ -67,8 +67,18 @@ the 16 MiB limit is exceeded, including chunked requests without
 `Content-Length`. JSON bodies for Ask, policy, and action endpoints are bounded
 to 256 KiB before parsing and use the same 413 behavior for declared or chunked
 oversize requests. Policy configuration additionally limits each pattern to
-1,024 characters, each MIME prefix to 255 characters, and all policy strings
-together to 64 KiB of UTF-8.
+1,024 characters, each MIME prefix to 255 characters, each embedding-rule name
+to 256 characters, each embedding prototype query to 16,384 characters, and
+all policy strings together to 64 KiB of UTF-8. Embedding rules are available only to the
+`content` policy, use unique names and allowed destination tiers, and accept
+cosine thresholds from -1 through 1.
+
+Policy evaluation is the side-effect-free dry-run contract. Its response
+includes the schema-v1 MIME and embedding feature projection with explicit
+`fresh`, `missing`, `stale`, or `unavailable` state and source provenance.
+Configured non-fresh signals fail closed before size fallback. See the
+[policy feature projection](policy_features.md) for rule order and reindexing
+semantics.
 
 Public object and catalog metadata excludes storage paths, generations, parser
 state, extraction text, and content-identity internals. The remaining mapping

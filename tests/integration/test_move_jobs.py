@@ -586,3 +586,50 @@ def test_cleanup_retains_source_if_destination_changes_after_final_verification(
         == "destination generation changed; source cleanup aborted"
     )
     catalog.close()
+
+
+def test_cleanup_restores_source_if_destination_changes_during_delete(
+    tmp_path: Path,
+) -> None:
+    warm = PosixDriver(str(tmp_path / "warm"))
+    original = b"good-version"
+    replacement = b"evil-version"
+
+    class ReplacingDestinationOnDelete(PosixDriver):
+        def delete_object_if_generation(
+            self,
+            bucket: str,
+            key: str,
+            generation: str,
+        ) -> bool:
+            warm.put_object(bucket, key, replacement)
+            return super().delete_object_if_generation(bucket, key, generation)
+
+    hot = ReplacingDestinationOnDelete(str(tmp_path / "hot"))
+    hot.put_object("bucket", "object", original)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    catalog.upsert("bucket", "object", len(original), "hot")
+    mover = Mover({"hot": hot, "warm": warm}, catalog)
+
+    with pytest.raises(MoveGenerationMismatchError, match="destination generation"):
+        mover.move(
+            "hot",
+            "warm",
+            "bucket",
+            "object",
+            idempotency_key="destination-replacement-during-delete",
+        )
+
+    assert hot.get_object("bucket", "object") == original
+    assert warm.get_object("bucket", "object") == replacement
+    placement = catalog.get("bucket", "object")
+    assert placement is not None
+    assert (placement.tier, placement.size) == ("hot", len(original))
+    job = mover.get_job("destination-replacement-during-delete")
+    assert job is not None
+    assert job.state == MoveJobState.FAILED
+    assert (
+        job.terminal_reason
+        == "destination generation changed; source cleanup aborted"
+    )
+    catalog.close()

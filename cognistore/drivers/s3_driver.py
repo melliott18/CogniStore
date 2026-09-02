@@ -410,7 +410,12 @@ class S3Driver(StorageDriver):
     def delete_object_if_generation(
         self, bucket: str, key: str, generation: str
     ) -> bool:
-        """Delete the current version only when its S3 identity still matches."""
+        """Conditionally hide the current S3 generation.
+
+        Omitting ``VersionId`` is deliberate. Versioned buckets create a
+        delete marker, retaining the accepted source generation for crash-safe
+        recovery; unversioned buckets still perform a physical delete.
+        """
 
         try:
             current = self.stat_object(bucket, key)
@@ -426,13 +431,10 @@ class S3Driver(StorageDriver):
             "Key": key,
             "IfMatch": current["etag"],
         }
-        version_id = current.get("version_id")
-        if isinstance(version_id, str) and version_id and version_id != "null":
-            request["VersionId"] = version_id
         try:
             self._client.delete_object(**request)
         except ClientError as error:
-            if _is_precondition_failed(error):
+            if _is_precondition_failed(error) or _is_conditional_conflict(error):
                 raise ObjectGenerationMismatchError(
                     f"Object generation changed: {bucket}/{key}"
                 ) from error

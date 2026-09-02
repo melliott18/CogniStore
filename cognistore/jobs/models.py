@@ -12,7 +12,13 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
-SCHEMA_VERSION = 1
+JOB_SCHEMA_VERSION_V1 = 1
+JOB_SCHEMA_VERSION_V2 = 2
+# Feature-free jobs remain v1 so they can still be handled by older workers.
+SCHEMA_VERSION = JOB_SCHEMA_VERSION_V1
+SUPPORTED_JOB_SCHEMA_VERSIONS = frozenset(
+    {JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2}
+)
 STATUS_TRACKING_METADATA = "cognistore_status_tracking"
 DEAD_LETTER_SCHEMA_VERSION = 1
 REDRIVE_SCHEMA_VERSION = 1
@@ -132,10 +138,14 @@ class JobEnvelope:
         if (
             not isinstance(self.schema_version, int)
             or isinstance(self.schema_version, bool)
-            or self.schema_version != SCHEMA_VERSION
+            or self.schema_version not in SUPPORTED_JOB_SCHEMA_VERSIONS
         ):
+            supported = ", ".join(
+                str(version) for version in sorted(SUPPORTED_JOB_SCHEMA_VERSIONS)
+            )
             raise JobEnvelopeError(
-                f"unsupported schema_version {self.schema_version}; expected {SCHEMA_VERSION}"
+                f"unsupported schema_version {self.schema_version}; "
+                f"expected one of {supported}"
             )
         object.__setattr__(self, "job_id", _uuid_string(self.job_id, "job_id"))
         object.__setattr__(self, "job_type", _header_string(self.job_type, "job_type"))
@@ -169,13 +179,14 @@ class JobEnvelope:
         correlation_id: str | None = None,
         metadata: Mapping[str, str] | None = None,
         created_at: datetime | None = None,
+        schema_version: int = SCHEMA_VERSION,
     ) -> "JobEnvelope":
         identifier = job_id or str(uuid4())
         timestamp = created_at or datetime.now(timezone.utc)
         if timestamp.tzinfo is None or timestamp.utcoffset() is None:
             raise JobEnvelopeError("created_at must include a timezone")
         return cls(
-            schema_version=SCHEMA_VERSION,
+            schema_version=schema_version,
             job_id=identifier,
             job_type=job_type,
             created_at=timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),

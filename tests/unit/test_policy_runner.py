@@ -1,12 +1,31 @@
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 
 from cognistore.core.audit import AuditContext, AuditEventType, AuditQuery
 from cognistore.core.catalog import Catalog
-from cognistore.core.mover import Mover
-from cognistore.core.policy import PolicyDecision, SimplePolicy
+from cognistore.core.content_identity import ContentIdentityBuilder
+from cognistore.core.move_jobs import MoveJobConflictError, MoveJobState
+from cognistore.core.mover import (
+    MoveGenerationMismatchError,
+    Mover,
+    MoveSourceContentMismatchError,
+)
+from cognistore.core.policy import (
+    ContentAwarePolicy,
+    EmbeddingPolicyRule,
+    PolicyDecision,
+    SimplePolicy,
+)
+from cognistore.core.policy_features import (
+    CatalogPolicyFeatureLoader,
+    EmbeddingPolicyFeature,
+    FeatureState,
+    PolicyFeatureProvenance,
+)
 from cognistore.core.policy_runner import PolicyRunner
 from cognistore.drivers.posix_driver import PosixDriver
 
@@ -148,6 +167,8 @@ def test_policy_runner_dry_run_is_planned_and_has_no_mutations(tmp_path: Path):
     assert record is not None
     assert record.tier == "hot"
     assert record.size == len(data)
+    assert results[0].features is not None
+    assert results[0].features.schema_version == 1
 
 
 def test_policy_runner_execution_is_completed_and_mutates_placement(tmp_path: Path):
@@ -173,6 +194,47 @@ def test_policy_runner_execution_is_completed_and_mutates_placement(tmp_path: Pa
     assert record is not None
     assert record.tier == "warm"
     assert record.size == len(data)
+
+
+def test_policy_preview_reports_missing_features_and_fails_closed(
+    tmp_path: Path,
+) -> None:
+    policy = ContentAwarePolicy(
+        size_threshold=5,
+        allowed_tiers=("hot", "warm"),
+        embedding_rules=(
+            EmbeddingPolicyRule(
+                name="active",
+                query="frequently used material",
+                minimum_similarity=0.8,
+                destination_tier="hot",
+            ),
+        ),
+    )
+    runner, catalog, hot, warm = make_runner(
+        tmp_path,
+        policy,
+        allowed_tiers=("hot", "warm"),
+    )
+    data = b"small"
+    warm.put_object("bk", "unknown.bin", data)
+    catalog.upsert("bk", "unknown.bin", len(data), tier="warm")
+
+    evaluations = runner.preview_once("bk")
+    actions = runner.run_once("bk", dry_run=True)
+
+    assert actions == []
+    assert len(evaluations) == 1
+    evaluation = evaluations[0]
+    assert evaluation.action == "stay"
+    assert evaluation.destination_tier is None
+    assert evaluation.features.schema_version == 1
+    assert evaluation.features.embeddings[0].state is FeatureState.MISSING
+    assert evaluation.features.embeddings[0].provenance is not None
+    assert "embedding:active=missing" in evaluation.reason
+    assert warm.get_object("bk", "unknown.bin") == data
+    assert list(hot.list_objects("bk")) == []
+    assert catalog.list_audit_events() == []
 
 
 def test_policy_decision_replay_is_idempotent_before_execution(tmp_path: Path) -> None:
@@ -242,3 +304,412 @@ def test_policy_runner_preflights_entire_batch_before_moving(tmp_path: Path):
     assert warm.get_object(bucket, colliding_key) == collision_data
     assert catalog.get(bucket, first_key).tier == "hot"  # type: ignore[union-attr]
     assert catalog.get(bucket, colliding_key).tier == "hot"  # type: ignore[union-attr]
+
+
+def test_policy_runner_fences_selected_move_to_evaluated_source_bytes(
+    tmp_path: Path,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    evaluated_bytes = b"old bytes"
+    replacement_bytes = b"new bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(evaluated_bytes),
+        expected_size=len(evaluated_bytes),
+    )
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    drivers = {"hot": hot, "warm": warm}
+    catalog = Catalog()
+    warm.put_object(bucket, key, evaluated_bytes)
+    source_metadata = warm.stat_object(bucket, key)
+    generation = source_metadata["generation"]
+    assert isinstance(generation, str)
+    catalog.upsert_scan_observation(
+        bucket,
+        key,
+        size=len(evaluated_bytes),
+        tier="warm",
+        generation=generation,
+        metadata={},
+        fence=catalog.capture_scan_fence(bucket, key),
+        content=content,
+    )
+
+    class ReplacingFeatureProvider:
+        def load(self, records, requests):
+            # Simulate replacement after the detached catalog snapshot has
+            # been evaluated but before the mover performs its preflight.
+            warm.put_object(bucket, key, replacement_bytes)
+            return {
+                (record.bucket, record.key): tuple(
+                    EmbeddingPolicyFeature(
+                        name=request.name,
+                        query="stale query",
+                        state=FeatureState.STALE,
+                        provenance=PolicyFeatureProvenance(
+                            source="test-provider",
+                            source_version=1,
+                            content_sha256="0" * 64,
+                            details={"reason": "stale evidence"},
+                        ),
+                    )
+                    for request in requests
+                )
+                for record in records
+            }
+
+    policy = ContentAwarePolicy(
+        size_threshold=0,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=("*.bin",),
+        embedding_rules=(
+            EmbeddingPolicyRule(
+                name="active",
+                query="active query",
+                minimum_similarity=0.8,
+                destination_tier="hot",
+            ),
+        ),
+    )
+    runner = PolicyRunner(
+        catalog,
+        drivers,
+        Mover(drivers, catalog),
+        policy,
+        feature_loader=CatalogPolicyFeatureLoader(ReplacingFeatureProvider()),
+    )
+
+    with pytest.raises(MoveSourceContentMismatchError):
+        runner.run_once(bucket)
+
+    assert warm.get_object(bucket, key) == replacement_bytes
+    with pytest.raises(FileNotFoundError):
+        hot.get_object(bucket, key)
+    record = catalog.get(bucket, key)
+    assert record is not None
+    assert record.tier == "warm"
+
+
+def test_policy_fence_rejects_replacement_between_hash_and_transfer(
+    tmp_path: Path,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    evaluated_bytes = b"old bytes"
+    replacement_bytes = b"new bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(evaluated_bytes),
+        expected_size=len(evaluated_bytes),
+    )
+
+    class ReplacingPosixDriver(PosixDriver):
+        bound_opens = 0
+
+        def open_object_reader_if_generation(
+            self,
+            bucket: str,
+            key: str,
+            generation: str,
+            range: str | None = None,
+        ):
+            self.bound_opens += 1
+            if self.bound_opens == 2:
+                self.put_object(bucket, key, replacement_bytes)
+            return super().open_object_reader_if_generation(
+                bucket,
+                key,
+                generation,
+                range,
+            )
+
+    warm = ReplacingPosixDriver(str(tmp_path / "warm"))
+    hot = PosixDriver(str(tmp_path / "hot"))
+    catalog = Catalog()
+    warm.put_object(bucket, key, evaluated_bytes)
+
+    with pytest.raises(MoveGenerationMismatchError, match="source generation"):
+        Mover({"hot": hot, "warm": warm}, catalog).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="policy-fence-race",
+            expected_source_sha256=content.sha256,
+        )
+
+    assert warm.get_object(bucket, key) == replacement_bytes
+    with pytest.raises(FileNotFoundError):
+        hot.get_object(bucket, key)
+
+
+def test_policy_fence_leaves_destination_residue_when_source_changes_after_transfer(
+    tmp_path: Path,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    evaluated_bytes = b"old bytes"
+    replacement_bytes = b"new bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(evaluated_bytes),
+        expected_size=len(evaluated_bytes),
+    )
+
+    class ReplacingAfterTransferPosixDriver(PosixDriver):
+        bound_opens = 0
+
+        def open_object_reader_if_generation(
+            self,
+            bucket: str,
+            key: str,
+            generation: str,
+            range: str | None = None,
+        ):
+            self.bound_opens += 1
+            reader = super().open_object_reader_if_generation(
+                bucket,
+                key,
+                generation,
+                range,
+            )
+            if self.bound_opens != 2:
+                return reader
+
+            @contextmanager
+            def replace_after_reader_closes():
+                with reader as stream:
+                    yield stream
+                self.put_object(bucket, key, replacement_bytes)
+
+            return replace_after_reader_closes()
+
+    warm = ReplacingAfterTransferPosixDriver(str(tmp_path / "warm"))
+    hot = PosixDriver(str(tmp_path / "hot"))
+    catalog = Catalog()
+    warm.put_object(bucket, key, evaluated_bytes)
+    catalog.upsert(bucket, key, len(evaluated_bytes), "warm")
+
+    with pytest.raises(MoveGenerationMismatchError, match="source generation"):
+        Mover({"hot": hot, "warm": warm}, catalog).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="policy-fence-post-transfer-race",
+            expected_source_sha256=content.sha256,
+        )
+
+    assert warm.get_object(bucket, key) == replacement_bytes
+    assert hot.get_object(bucket, key) == evaluated_bytes
+    placement = catalog.get(bucket, key)
+    assert placement is not None
+    assert placement.tier == "warm"
+
+
+def test_policy_fence_never_discards_a_replaced_destination_generation(
+    tmp_path: Path,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    evaluated_bytes = b"old bytes"
+    replacement_bytes = b"new source bytes"
+    concurrent_destination_bytes = b"concurrent destination bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(evaluated_bytes),
+        expected_size=len(evaluated_bytes),
+    )
+    replacement_destination_generation: str | None = None
+
+    class ReplacingSourceAfterTransfer(PosixDriver):
+        bound_opens = 0
+
+        def open_object_reader_if_generation(
+            self,
+            bucket: str,
+            key: str,
+            generation: str,
+            range: str | None = None,
+        ):
+            self.bound_opens += 1
+            reader = super().open_object_reader_if_generation(
+                bucket,
+                key,
+                generation,
+                range,
+            )
+            if self.bound_opens != 2:
+                return reader
+
+            @contextmanager
+            def replace_after_reader_closes():
+                with reader as stream:
+                    yield stream
+                self.put_object(bucket, key, replacement_bytes)
+
+            return replace_after_reader_closes()
+
+    class ReplacingDestinationBeforeReturn(PosixDriver):
+        def put_object_stream(
+            self,
+            bucket: str,
+            key: str,
+            source,
+            *,
+            size: int,
+            overwrite: bool = True,
+            metadata=None,
+        ) -> int:
+            nonlocal replacement_destination_generation
+            transferred = PosixDriver.put_object_stream(
+                self,
+                bucket,
+                key,
+                source,
+                size=size,
+                overwrite=overwrite,
+                metadata=metadata,
+            )
+            PosixDriver.put_object_stream(
+                self,
+                bucket,
+                key,
+                BytesIO(concurrent_destination_bytes),
+                size=len(concurrent_destination_bytes),
+                overwrite=True,
+            )
+            replacement_destination_generation = self.object_generation(bucket, key)
+            return transferred
+
+    warm = ReplacingSourceAfterTransfer(str(tmp_path / "warm"))
+    hot = ReplacingDestinationBeforeReturn(str(tmp_path / "hot"))
+    catalog = Catalog()
+    warm.put_object(bucket, key, evaluated_bytes)
+
+    with pytest.raises(MoveGenerationMismatchError, match="source generation"):
+        Mover({"hot": hot, "warm": warm}, catalog).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="policy-fence-destination-replacement",
+            expected_source_sha256=content.sha256,
+        )
+
+    assert warm.get_object(bucket, key) == replacement_bytes
+    assert hot.get_object(bucket, key) == concurrent_destination_bytes
+    assert replacement_destination_generation is not None
+    assert hot.object_generation(bucket, key) == replacement_destination_generation
+
+
+@pytest.mark.parametrize("initially_fenced", [False, True])
+def test_expected_source_digest_is_part_of_durable_move_contract(
+    tmp_path: Path,
+    initially_fenced: bool,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    payload = b"source bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(payload),
+        expected_size=len(payload),
+    )
+    warm = PosixDriver(str(tmp_path / "warm"))
+    hot = PosixDriver(str(tmp_path / "hot"))
+    catalog = Catalog()
+    warm.put_object(bucket, key, payload)
+
+    class StopAfterClaim(RuntimeError):
+        pass
+
+    def stop_after_claim(_job) -> None:
+        raise StopAfterClaim
+
+    with pytest.raises(StopAfterClaim):
+        Mover(
+            {"hot": hot, "warm": warm},
+            catalog,
+            transition_hook=stop_after_claim,
+        ).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="durable-policy-fence",
+            expected_source_sha256=(content.sha256 if initially_fenced else None),
+        )
+
+    retry_digest = "0" * 64 if initially_fenced else content.sha256
+    with pytest.raises(MoveSourceContentMismatchError):
+        Mover({"hot": hot, "warm": warm}, catalog).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="durable-policy-fence",
+            expected_source_sha256=retry_digest,
+        )
+
+    assert warm.get_object(bucket, key) == payload
+    with pytest.raises(FileNotFoundError):
+        hot.get_object(bucket, key)
+
+
+def test_expected_digest_is_revalidated_after_atomic_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bucket = "bk"
+    key = "selected.bin"
+    evaluated_bytes = b"old bytes"
+    replacement_bytes = b"new bytes"
+    content = ContentIdentityBuilder(chunk_size=4).build(
+        BytesIO(evaluated_bytes),
+        expected_size=len(evaluated_bytes),
+    )
+    warm = PosixDriver(str(tmp_path / "warm"))
+    hot = PosixDriver(str(tmp_path / "hot"))
+    catalog = Catalog()
+    warm.put_object(bucket, key, evaluated_bytes)
+    original_claim = catalog.claim_move_job
+    injected = False
+
+    def substitute_contract(idempotency_key: str, **arguments):
+        nonlocal injected
+        if not injected:
+            injected = True
+            warm.put_object(bucket, key, replacement_bytes)
+            replacement_metadata = warm.stat_object(bucket, key)
+            original_claim(
+                idempotency_key,
+                src_tier=arguments["src_tier"],
+                dst_tier=arguments["dst_tier"],
+                bucket=arguments["bucket"],
+                key=arguments["key"],
+                expected_size=len(replacement_bytes),
+                source_metadata=replacement_metadata,
+                owner_id="competing-owner",
+                now=arguments["now"],
+                lease_expires_at=arguments["lease_expires_at"],
+                audit_context=arguments["audit_context"],
+            )
+        return original_claim(idempotency_key, **arguments)
+
+    monkeypatch.setattr(catalog, "claim_move_job", substitute_contract)
+
+    with pytest.raises(MoveJobConflictError, match="different expected source digest"):
+        Mover({"hot": hot, "warm": warm}, catalog).move(
+            "warm",
+            "hot",
+            bucket,
+            key,
+            idempotency_key="claim-substitution-race",
+            expected_source_sha256=content.sha256,
+        )
+
+    assert warm.get_object(bucket, key) == replacement_bytes
+    with pytest.raises(FileNotFoundError):
+        hot.get_object(bucket, key)
+    claimed = catalog.get_move_job("claim-substitution-race")
+    assert claimed is not None
+    assert claimed.state == MoveJobState.PREPARED
+    assert claimed.owner_id == "competing-owner"

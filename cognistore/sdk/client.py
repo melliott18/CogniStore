@@ -418,6 +418,19 @@ class CogniStoreClient:
     def _request_json(request: SDKRequest) -> dict[str, object]:
         return request.model_dump(mode="json", exclude_none=True)
 
+    @classmethod
+    def _policy_request_json(
+        cls,
+        request: PolicyEvaluationRequest | PolicyRunRequest,
+    ) -> dict[str, object]:
+        """Keep feature-free policy calls compatible with older API v1 servers."""
+
+        payload = cls._request_json(request)
+        config = payload.get("config")
+        if isinstance(config, dict) and not config.get("embedding_rules"):
+            config.pop("embedding_rules", None)
+        return payload
+
     @staticmethod
     def _required_header(response: httpx.Response, name: str) -> str:
         value = response.headers.get(name)
@@ -670,7 +683,7 @@ class CogniStoreClient:
             "POST",
             "/v1/policies/evaluate",
             expected_statuses={200},
-            json=self._request_json(request),
+            json=self._policy_request_json(request),
             headers={"Accept": "application/json"},
         )
         return self._parse_model(response, PolicyEvaluationResponse)
@@ -700,7 +713,7 @@ class CogniStoreClient:
             "POST",
             "/v1/actions/policy-runs",
             expected_statuses={202},
-            json=self._request_json(request),
+            json=self._policy_request_json(request),
             headers={"Accept": "application/json"},
         )
         job = self._parse_model(response, JobStatus)

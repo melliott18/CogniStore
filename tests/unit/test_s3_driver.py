@@ -414,13 +414,30 @@ def test_conditional_delete_uses_atomic_etag_precondition() -> None:
     ]
 
 
-def test_conditional_delete_maps_precondition_failure_to_generation_mismatch() -> None:
+def test_versioned_conditional_delete_creates_recoverable_marker() -> None:
+    client = _VersionedFakeS3Client()
+    driver = S3Driver(client=client)
+    generation = driver.object_generation("bucket", "key")
+
+    assert driver.delete_object_if_generation("bucket", "key", generation)
+
+    assert client.delete_calls == [
+        {"Bucket": "bucket", "Key": "key", "IfMatch": '"etag"'}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error_code", "status"),
+    [("PreconditionFailed", 412), ("ConditionalRequestConflict", 409)],
+)
+def test_conditional_delete_maps_races_to_generation_mismatch(
+    error_code: str,
+    status: int,
+) -> None:
     client = _FakeS3Client()
     driver = S3Driver(client=client)
     generation = driver.object_generation("bucket", "key")
-    client.delete_error = _client_error(
-        "PreconditionFailed", 412, "DeleteObject"
-    )
+    client.delete_error = _client_error(error_code, status, "DeleteObject")
 
     with pytest.raises(ObjectGenerationMismatchError):
         driver.delete_object_if_generation("bucket", "key", generation)
