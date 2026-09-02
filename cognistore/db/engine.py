@@ -50,7 +50,7 @@ def create_catalog_engine(
     if url.startswith("sqlite+pysqlite://"):
         parsed_url = sa.engine.make_url(url)
         database = parsed_url.database
-        if database in (None, "", ":memory:"):
+        if database is None or database in ("", ":memory:"):
             if read_only:
                 raise ValueError("an in-memory SQL catalog cannot be opened read-only")
             connection = sqlite3.connect(":memory:", check_same_thread=False)

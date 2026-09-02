@@ -178,6 +178,16 @@ class CatalogStore(Protocol):
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]: ...
 
+	def list_page(
+		self,
+		bucket: str,
+		prefix: str = "",
+		*,
+		after_key: str | None = None,
+		limit: int = 100,
+		tier: str | None = None,
+	) -> List[ObjectRecord]: ...
+
 	def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]: ...
 
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent: ...
@@ -586,6 +596,39 @@ class Catalog(CatalogStore):
 				key=lambda record: record.key,
 			)
 			return [self._copy_object_record(record) for record in records]
+
+	def list_page(
+		self,
+		bucket: str,
+		prefix: str = "",
+		*,
+		after_key: str | None = None,
+		limit: int = 100,
+		tier: str | None = None,
+	) -> List[ObjectRecord]:
+		"""Return one bounded keyset page in backend-neutral key order."""
+
+		if after_key is not None and not isinstance(after_key, str):
+			raise ValueError("after_key must be a string or null")
+		if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+			raise ValueError("limit must be a positive integer")
+		if tier is not None and not isinstance(tier, str):
+			raise ValueError("tier must be a string or null")
+		with self._lock:
+			records = sorted(
+				(
+					record
+					for (record_bucket, key), record in self._objects.items()
+					if record_bucket == bucket
+					and key.startswith(prefix)
+					and (after_key is None or key > after_key)
+					and (tier is None or record.tier == tier)
+				),
+				key=lambda record: record.key,
+			)
+			return [
+				self._copy_object_record(record) for record in records[:limit]
+			]
 
 	def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]:
 		"""Yield detached snapshots for every object in bucket/key order."""

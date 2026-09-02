@@ -64,7 +64,18 @@ MAX_RESULT_METADATA_BYTES = 16 * 1_024
 JSONScalar = str | int | float | bool | None
 _LOWERCASE_HEX = frozenset("0123456789abcdef")
 _TOKEN = re.compile(r"\w+", flags=re.UNICODE)
-_INTERNAL_METADATA_KEYS = frozenset({"content_identity", "document_extraction"})
+_INTERNAL_METADATA_KEYS = frozenset(
+    {
+        "content_identity",
+        "document_extraction",
+        "etag",
+        "mime_detection",
+        "mtime",
+        "path",
+        "sample_len",
+        "version_id",
+    }
+)
 _SIGNAL_ORDER = {
     "metadata": 0,
     "keyword": 1,
@@ -350,6 +361,12 @@ class AskFilters:
             self.object_metadata,
             field_name="object_metadata",
         )
+        internal_filters = sorted(set(safe_object_metadata).intersection(_INTERNAL_METADATA_KEYS))
+        if internal_filters:
+            raise ValueError(
+                "object_metadata cannot filter internal field(s): "
+                + ", ".join(internal_filters)
+            )
         safe_document_metadata = _scalar_mapping(
             self.document_metadata,
             field_name="document_metadata",

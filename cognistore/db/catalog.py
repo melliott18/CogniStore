@@ -214,7 +214,11 @@ class SQLCatalog(Catalog):
     def _transaction(self) -> Iterator[Connection]:
         if self._closed:
             raise RuntimeError("catalog is closed")
-        lock = self._sqlite_lock if self.backend == "sqlite" else contextlib.nullcontext()
+        lock: Any = (
+            self._sqlite_lock
+            if self.backend == "sqlite"
+            else contextlib.nullcontext()
+        )
         with lock:
             try:
                 with self._engine.begin() as connection:
@@ -228,7 +232,11 @@ class SQLCatalog(Catalog):
     def _connection(self) -> Iterator[Connection]:
         if self._closed:
             raise RuntimeError("catalog is closed")
-        lock = self._sqlite_lock if self.backend == "sqlite" else contextlib.nullcontext()
+        lock: Any = (
+            self._sqlite_lock
+            if self.backend == "sqlite"
+            else contextlib.nullcontext()
+        )
         with lock:
             with self._engine.connect() as connection:
                 yield connection
@@ -1389,6 +1397,46 @@ class SQLCatalog(Catalog):
         # Normalize after fetching so database collation cannot change the
         # backend-neutral ordering contract.
         return sorted(records, key=lambda record: record.key)
+
+    def list_page(
+        self,
+        bucket: str,
+        prefix: str = "",
+        *,
+        after_key: str | None = None,
+        limit: int = 100,
+        tier: str | None = None,
+    ) -> List[ObjectRecord]:
+        """Return one bounded keyset page in backend-neutral key order."""
+
+        if after_key is not None and not isinstance(after_key, str):
+            raise ValueError("after_key must be a string or null")
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if tier is not None and not isinstance(tier, str):
+            raise ValueError("tier must be a string or null")
+        with self._connection() as connection:
+            # NulSafeText is BYTEA on PostgreSQL, whose native comparison is
+            # already the UTF-8 byte order used by Python string ordering.
+            # SQLite stores TEXT and needs an explicit binary collation so a
+            # database's default collation cannot alter cursor boundaries.
+            key: sa.ColumnElement[Any] = objects.c.object_key
+            if connection.dialect.name == "sqlite":
+                key = key.collate("BINARY")
+            statement = self._object_select().where(
+                objects.c.bucket == bucket,
+                self._literal_prefix(connection, objects.c.object_key, prefix),
+            )
+            if after_key is not None:
+                statement = statement.where(key > after_key)
+            if tier is not None:
+                statement = statement.where(object_placements.c.tier_name == tier)
+            rows = (
+                connection.execute(statement.order_by(key).limit(limit))
+                .mappings()
+                .all()
+            )
+        return [self._record(row) for row in rows]
 
     def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]:
         """Stream detached snapshots for a bounded full-catalog rebuild."""

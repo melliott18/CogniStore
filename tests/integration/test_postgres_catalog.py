@@ -475,6 +475,47 @@ def test_postgres_object_prefix_matches_in_memory_including_nul(
         postgres.close()
 
 
+def test_postgres_list_page_matches_memory_order_filters_and_keyset(
+    postgres_dsn: str,
+) -> None:
+    memory = Catalog()
+    postgres = SQLCatalog(postgres_dsn)
+    records = [
+        ("page\0a", "hot\0tier"),
+        ("page%literal", "warm"),
+        ("pageA", "hot\0tier"),
+        ("page_", "warm"),
+        ("pagea", "hot\0tier"),
+        ("page\u00e9", "hot\0tier"),
+    ]
+
+    try:
+        for catalog in (memory, postgres):
+            for key, tier in reversed(records):
+                catalog.upsert("bucket\0name", key, size=len(key), tier=tier)
+            catalog.upsert("other", "page-before", size=1, tier="hot\0tier")
+
+        queries = [
+            {"prefix": "page", "limit": 3},
+            {"prefix": "page", "after_key": "pageA", "limit": 2},
+            {"prefix": "page", "limit": 10, "tier": "hot\0tier"},
+            {
+                "prefix": "page",
+                "after_key": "pageA",
+                "limit": 10,
+                "tier": "hot\0tier",
+            },
+        ]
+        for query in queries:
+            expected = memory.list_page("bucket\0name", **query)  # type: ignore[arg-type]
+            actual = postgres.list_page("bucket\0name", **query)  # type: ignore[arg-type]
+            assert [(record.key, record.tier) for record in actual] == [
+                (record.key, record.tier) for record in expected
+            ]
+    finally:
+        postgres.close()
+
+
 def _exercise_move_catalog(
     catalog: CatalogStore,
 ) -> tuple[MoveJob, ObjectRecord | None, list[MoveJobTransition], list[str]]:

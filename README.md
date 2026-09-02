@@ -105,6 +105,22 @@ The reference also defines configuration precedence, the JSON/stdout contract,
 the command-by-command dry-run matrix, durable manual-move recovery, and the
 read-only shared-content reference report.
 
+### REST API
+
+Start the version 1 FastAPI service against the same driver and catalog
+configuration used by workers:
+
+```bash
+COGNISTORE_DRIVERS=./drivers.yaml \
+COGNISTORE_CATALOG_DB=./catalog.sqlite3 \
+cognistore-api --host 127.0.0.1 --port 8080
+```
+
+The service exposes physical objects, bounded catalog pages, grounded Ask,
+policy evaluation, queued scans and policy runs, and durable job polling under
+`/v1`. See the [REST API reference](docs/rest_api.md) and the checked
+[OpenAPI 3.1 contract](docs/openapi/v1.json).
+
 ### Driver configuration (optional)
 
 You can instantiate drivers from a YAML file using `cognistore.drivers.driver_loader.load_drivers`.

@@ -30,7 +30,9 @@ classifiers = [
 dependencies = [
   "alembic>=1.17.1,<2",
   "boto3>=1.35.9",
+  "fastapi==0.141.1",
   "nats-py>=2.9,<3",
+  "pydantic==2.13.5",
   "psycopg[binary]>=3.3,<4",
   "pypdf>=6.16.2,<7",
   "python-magic>=0.4.27,<0.5",
@@ -38,6 +40,7 @@ dependencies = [
   "PyYAML>=6.0",
   "SQLAlchemy>=2.0.44,<3",
   "tantivy>=0.26,<0.27",
+  "uvicorn==0.52.4",
 ]
 
 [project.optional-dependencies]
@@ -49,10 +52,12 @@ dev = [
   "boto3-stubs[s3]>=1.35.9",
   "build>=1.2.2",
   "coverage[toml]>=7.2",
+  "httpx==0.28.1",
   "linkify-it-py>=2.2,<3",
   "markdown-it-py>=4,<5",
   "mdit-py-plugins>=0.6,<0.7",
   "mypy>=1.11",
+  "openapi-spec-validator>=0.7.2,<0.8",
   "pip-audit>=2.7.3",
   "pytest>=7.0",
   "pytest-cov>=5.0",
@@ -64,6 +69,7 @@ dev = [
 
 [project.scripts]
 cognistore = "cognistore.cli.cognistore_cli:main"
+cognistore-api = "cognistore.api.server:main"
 
 [project.urls]
 Homepage = "https://github.com/melliott18/CogniStore"
