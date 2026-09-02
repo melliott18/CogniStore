@@ -219,6 +219,18 @@ def test_pgvector_indexes_queries_filters_and_reembeds_idempotently(
         assert hits[0].score > hits[1].score
         assert hits[0].passage_index == 0
         assert hits[0].text.startswith("Apple trees")
+        orchard = catalog.get("knowledge", "agriculture/orchard.pdf")
+        assert orchard is not None
+        content_identity = orchard.metadata["content_identity"]
+        assert isinstance(content_identity, dict)
+        assert hits[0].source_sha256 == content_identity["sha256"]
+        extraction = orchard.metadata["document_extraction"]
+        assert isinstance(extraction, dict)
+        normalized_text = extraction["text"]
+        assert isinstance(normalized_text, str)
+        assert hits[0].document_text_sha256 == hashlib.sha256(
+            normalized_text.encode("utf-8")
+        ).hexdigest()
         assert hits[0].object_metadata["department"] == "agriculture"
         assert "document_extraction" not in hits[0].object_metadata
         assert "content_identity" not in hits[0].object_metadata

@@ -21,6 +21,11 @@ async workers -- handlers --> scan / policy / mover -- driver contract -->
                               POSIX and S3-compatible storage tiers
 
 CatalogStore -- bounded projection --> keyword search service --> Tantivy generations
+
+CatalogStore -- authoritative metadata --+
+pgvector similarity search --------------+--> Ask retrieval service --> ranked citations
+Tantivy keyword search ------------------+             |
+                                                      +--> optional answer provider
 ```
 
 The CLI can execute selected development operations synchronously, but normal
@@ -41,6 +46,7 @@ also publishes durable envelopes; it never runs scan or policy logic inline.
 | Throughput | `cognistore/core/throughput.py` | Per-tier source/destination concurrency, bounded admission, operation/byte rates, fairness, live reconfiguration, and metrics snapshots |
 | Discovery/policy | `cognistore/core/scanner.py`, `policy*.py`, `utils/` | Storage observations, scan/move coordination, prototype placement rules, device discovery, and tier profiling |
 | Keyword search | `cognistore/search/` | Versioned normalized-passage projection, BM25 ranking, exact metadata filters, synchronous replace/delete visibility, and atomic full rebuild from the catalog |
+| Ask | `cognistore/search/` | Hybrid retrieval and grounded citations |
 
 ## State and ownership
 
@@ -58,6 +64,15 @@ The Tantivy keyword directory is derived from catalog extraction records. Its
 versioned generations are persistent for query availability but are not source
 data; a complete generation can be reconstructed through the catalog's bounded
 full-object iterator.
+
+Ask adds no durable state plane. It reads detached authoritative catalog
+snapshots, vector hits from one explicit embedding space, and keyword hits from
+the selected Tantivy generation. Because vector and keyword passage layouts are
+distinct, it combines ranks at the catalog-object coordinate and preserves each
+passage as source-qualified citation evidence. Common filters are applied again
+to current catalog state before any candidate is returned. Optional answer
+providers receive only the selected citations and do not gain catalog, index,
+or storage access through the Ask contract.
 
 No one plane is sufficient evidence that an operation completed. A move is
 complete only after storage verification, a durable catalog transition, safe
@@ -151,8 +166,10 @@ artifact.
 
 - PostgreSQL catalog persistence, pgvector-backed versioned embeddings,
   metadata-filtered similarity search, bounded PDF/DOCX extraction, and
-  embedded keyword indexing are present; Ask, REST, SDK, and UI are not current
-  components.
+  embedded keyword indexing are present. The versioned Ask Python service blends
+  bounded catalog metadata with optional vector and keyword providers, using
+  object-level weighted reciprocal-rank fusion and authoritative catalog
+  post-filtering. REST, SDK, and UI are not current components.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves
@@ -164,6 +181,12 @@ artifact.
 - The Tantivy adapter is single-writer and host-local. Catalog-to-index writes
   do not yet have a durable outbox, so failed updates are repaired by retry or
   full rebuild and rebuilds require a quiesced/replayed mutation window.
+- Ask requires the authoritative catalog but treats keyword, vector, and answer
+  providers as optional capabilities. Its response reports the active retrieval
+  mode and provider statuses; missing providers degrade to the supported
+  remaining signals, and missing answer generation does not suppress ranked
+  citations. Ask is a Python service only; external API exposure belongs to the
+  later REST contract.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,

@@ -333,6 +333,8 @@ class SimilaritySearchResult:
     space_id: UUID
     passage_id: UUID
     document_id: UUID
+    source_sha256: str
+    document_text_sha256: str
     bucket: str
     key: str
     tier: str

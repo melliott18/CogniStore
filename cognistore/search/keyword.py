@@ -24,7 +24,7 @@ MAX_SEARCH_LIMIT = 1_000
 MAX_SEARCH_OFFSET = 100_000
 
 _LOWERCASE_HEX = frozenset("0123456789abcdef")
-_DOCUMENT_METADATA_FIELDS = (
+DOCUMENT_METADATA_FIELDS = (
     "format",
     "title",
     "author",
@@ -37,7 +37,7 @@ _DOCUMENT_METADATA_FIELDS = (
     "paragraph_count",
     "table_count",
 )
-_FILTER_FIELDS = frozenset(_DOCUMENT_METADATA_FIELDS)
+_FILTER_FIELDS = frozenset(DOCUMENT_METADATA_FIELDS)
 
 
 def _validate_nonempty_text(value: object, *, field_name: str) -> str:
@@ -416,7 +416,7 @@ def _document_metadata(extraction: Mapping[str, object] | None) -> dict[str, obj
         return {}
     return {
         name: deepcopy(raw[name])
-        for name in _DOCUMENT_METADATA_FIELDS
+        for name in DOCUMENT_METADATA_FIELDS
         if name in raw and _is_json_scalar(raw[name]) and raw[name] is not None
     }
 
