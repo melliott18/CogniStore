@@ -25,12 +25,12 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
     ([#34](https://github.com/melliott18/CogniStore/issues/34))
   - [x] Safe deduplication references and deletion semantics
     ([#35](https://github.com/melliott18/CogniStore/issues/35))
-- [ ] Embeddings + search
+- [x] Embeddings + search
   - [x] Sentence-transformers or API embeddings → pgvector
     ([#36](https://github.com/melliott18/CogniStore/issues/36))
   - [x] Rebuildable keyword index through a Tantivy-based adapter
     ([#37](https://github.com/melliott18/CogniStore/issues/37))
-  - [ ] **Active:** "Ask" service that blends metadata + vector + keyword
+  - [x] "Ask" service that blends metadata + vector + keyword
     ([#38](https://github.com/melliott18/CogniStore/issues/38))
 
 ## Policy engine v2
@@ -89,8 +89,13 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## API, CLI, and UI
 
-- [ ] External APIs
-  - [ ] REST (FastAPI) and/or gRPC; Python SDK
+- [x] External APIs
+  - [x] Versioned REST/OpenAPI contract
+    ([#39](https://github.com/melliott18/CogniStore/issues/39))
+  - [x] Typed Python SDK
+    ([#40](https://github.com/melliott18/CogniStore/issues/40))
+- [x] Content-search UI and sample corpus
+  ([#41](https://github.com/melliott18/CogniStore/issues/41))
 - [ ] Admin UI
   - [ ] Drivers, tiers, policies, actions, audit trail; dry-run previews and diffs
 - [ ] CLI polish
@@ -128,9 +133,9 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed and is retained on `main`; #29, #16, and the M1 milestone are closed
 - [ ] M2: Postgres/pgvector + embeddings + keyword search
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
-  - Progress: the data and indexing foundation (#30–#37) is complete;
-    [#38](https://github.com/melliott18/CogniStore/issues/38) is the active
-    hybrid-retrieval delivery ticket
+  - Progress: the knowledge, API, SDK, and content-search workflow (#30–#41)
+    is complete; [#42](https://github.com/melliott18/CogniStore/issues/42) is
+    the active and final M2 delivery ticket
   - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
 - [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
   - Success: Automated, explainable actions under budget constraints; no tier flapping
