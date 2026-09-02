@@ -231,16 +231,55 @@ jobs:
             'import cognistore; from importlib.metadata import version; print(version("cognistore"))'
           "${RUNNER_TEMP}/cognistore-smoke/bin/cognistore" --help >/dev/null
           "${RUNNER_TEMP}/cognistore-smoke/bin/python" - <<'PY'
+          from importlib.resources import files
           from pathlib import Path
           from tempfile import TemporaryDirectory
 
+          import httpx
+
           from cognistore.db import MigrationManager, SQLCatalog
+          from cognistore.sdk import AskRequest, CogniStoreClient
+          from cognistore.sdk.examples.minimal_query import main as example_main
 
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
                   migrations = MigrationManager()
                   assert migrations.heads() == ("0006_embeddings",)
                   assert migrations.is_at_head(catalog.engine)
+
+          assert files("cognistore.sdk").joinpath("py.typed").is_file()
+          assert callable(example_main)
+
+          def query_response(request: httpx.Request) -> httpx.Response:
+              assert request.method == "POST"
+              assert request.url.path == "/v1/ask"
+              assert b'"text":"Which documents explain tiering?"' in request.content
+              return httpx.Response(
+                  200,
+                  request=request,
+                  headers={"X-Request-ID": "clean-wheel-sdk-smoke"},
+                  json={
+                      "schema_version": 1,
+                      "mode": "metadata",
+                      "active_signals": ["metadata"],
+                      "results": [],
+                      "providers": [],
+                      "generation_status": "not_requested",
+                      "answer": None,
+                  },
+              )
+
+          transport = httpx.MockTransport(query_response)
+          with httpx.Client(transport=transport) as http_client:
+              with CogniStoreClient(
+                  "https://cognistore.example.test",
+                  http_client=http_client,
+              ) as sdk:
+                  result = sdk.ask(
+                      AskRequest(text="Which documents explain tiering?")
+                  )
+          assert result.schema_version == 1
+          assert result.results == []
           PY
 
       - name: Upload verified distributions

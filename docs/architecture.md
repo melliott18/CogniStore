@@ -31,6 +31,8 @@ Tantivy keyword search ------------------+             |
 The CLI can execute selected development operations synchronously, but normal
 catalog scans and policy passes are submitted as durable jobs. The scheduler
 also publishes durable envelopes; it never runs scan or policy logic inline.
+External Python applications use the typed SDK, which communicates only through
+the REST API v1 boundary.
 
 ## Components
 
@@ -38,6 +40,7 @@ also publishes durable envelopes; it never runs scan or policy logic inline.
 | --- | --- | --- |
 | CLI | `cognistore/cli/` | Strict configuration/profile resolution, human or JSON output, previews, storage commands, worker/scheduler lifecycle, move recovery, and DLQ redrive |
 | REST API | `cognistore/api/` | Versioned FastAPI transport, explicit public schemas, bounded cursor pages, stable errors, service injection, and deterministic OpenAPI generation |
+| Python SDK | `cognistore/sdk/` | Server-independent typed REST v1 client, response and error models, cursor iteration, and asynchronous job polling |
 | Storage | `cognistore/drivers/` | Common object contract plus POSIX and S3-compatible drivers, streaming I/O, capability flags, generations, conditional deletion, and durability hooks |
 | Catalog | `cognistore/core/catalog.py`, `cognistore/db/` | Backend-neutral `CatalogStore` contract plus the in-memory `Catalog` and transactional `SQLCatalog`; normalized objects, placements, tiers, pools, scan fences, durable move journals, leases, and transition history on SQLite or PostgreSQL |
 | Movement | `cognistore/core/mover.py`, `move_jobs.py` | Bounded transfer, full SHA-256 verification, generation fencing, resumable phases, and catalog placement commit |
@@ -171,8 +174,9 @@ artifact.
   bounded catalog metadata with optional vector and keyword providers, using
   object-level weighted reciprocal-rank fusion and authoritative catalog
   post-filtering. A versioned REST API exposes object, catalog, Ask, policy,
-  and asynchronous action contracts; SDK and UI clients are not current
-  components.
+  and asynchronous action contracts. The typed Python SDK consumes that REST
+  boundary and adds catalog iteration and durable-job polling conveniences; a
+  browser UI is not a current component.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves

@@ -14,6 +14,7 @@ nav:
       - Embedding search: embedding_search.md
       - Ask retrieval: ask_retrieval.md
       - REST API v1: rest_api.md
+      - Python SDK: python_sdk.md
       - S3 driver: s3_driver.md
       - Tier profiling: tier_profiling.md
       - Raspberry Pi tiers: rpi_three_tier_setup.md

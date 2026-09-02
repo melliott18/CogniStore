@@ -121,6 +121,26 @@ policy evaluation, queued scans and policy runs, and durable job polling under
 `/v1`. See the [REST API reference](docs/rest_api.md) and the checked
 [OpenAPI 3.1 contract](docs/openapi/v1.json).
 
+### Python SDK
+
+The typed synchronous SDK covers every REST API v1 operation plus automatic
+catalog pagination and asynchronous job polling. It ships in the default
+`cognistore` installation:
+
+```python
+from cognistore.sdk import AskRequest, CogniStoreClient
+
+with CogniStoreClient("http://127.0.0.1:8080") as client:
+    answer = client.ask(AskRequest(text="Which documents explain tiering?"))
+
+print(answer.model_dump_json(indent=2))
+```
+
+See the [Python SDK guide](docs/python_sdk.md) for installation, configuration,
+complete method coverage, pagination, typed errors, action polling, and the API
+v1 compatibility and deprecation policy. A minimal runnable query is in
+[`examples/python_sdk_query.py`](examples/python_sdk_query.py).
+
 ### Driver configuration (optional)
 
 You can instantiate drivers from a YAML file using `cognistore.drivers.driver_loader.load_drivers`.
