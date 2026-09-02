@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="Search and ask questions across content stored by CogniStore.">
+    <title>CogniStore · Discover</title>
+    <link rel="stylesheet" href="/ui/styles.css">
+    <script src="/ui/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to search</a>
+
+    <header class="app-header">
+      <a class="brand" href="/ui/" aria-label="CogniStore content discovery home">
+        <span class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+        <span class="brand-copy">
+          <strong>CogniStore</strong>
+          <small>Knowledge layer</small>
+        </span>
+      </a>
+      <div class="service-state" id="service-state" aria-live="polite">
+        <span class="state-dot" aria-hidden="true"></span>
+        <span>Checking service</span>
+      </div>
+      <a class="api-link" href="/docs" target="_blank" rel="noopener noreferrer">
+        API reference <span aria-hidden="true">↗</span>
+      </a>
+    </header>
+
+    <main id="workspace" class="workspace">
+      <section class="query-panel" aria-labelledby="page-title">
+        <div class="eyebrow">Content discovery</div>
+        <h1 id="page-title">Find the signal in your storage.</h1>
+        <p class="lede" id="view-description">
+          Search extracted document content with a ranked keyword or vector query.
+        </p>
+
+        <div class="view-tabs" role="tablist" aria-label="Discovery view">
+          <button
+            id="search-tab"
+            class="view-tab is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="query-view"
+            data-view="search"
+          >
+            <span aria-hidden="true">⌕</span> Search
+          </button>
+          <button
+            id="ask-tab"
+            class="view-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="query-view"
+            data-view="ask"
+          >
+            <span aria-hidden="true">✦</span> Ask
+          </button>
+        </div>
+
+        <form id="query-form" novalidate>
+          <div id="query-view" role="tabpanel" aria-labelledby="search-tab">
+            <fieldset id="search-modes" class="mode-selector">
+              <legend>Search signal</legend>
+              <label>
+                <input type="radio" name="search-mode" value="keyword" checked>
+                <span>
+                  <strong>Keyword</strong>
+                  <small>Exact terms · BM25</small>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="search-mode" value="vector">
+                <span>
+                  <strong>Vector</strong>
+                  <small>Similar meaning · pgvector</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <label class="query-label" for="query-text" id="query-label">Search your content</label>
+            <div class="query-box">
+              <textarea
+                id="query-text"
+                name="query"
+                rows="2"
+                maxlength="16384"
+                required
+                placeholder="Try “quarterly restore drill”"
+                aria-describedby="query-help"
+              ></textarea>
+              <button class="submit-button" id="submit-query" type="submit">
+                <span class="submit-label">Search</span>
+                <span class="submit-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+            <p class="query-help" id="query-help">
+              Results remain grounded in the current catalog and include source citations.
+            </p>
+
+            <details class="filter-drawer" id="filter-drawer">
+              <summary>
+                <span>
+                  <span class="filter-icon" aria-hidden="true">≡</span>
+                  Filters
+                  <span class="filter-count" id="filter-count" hidden>0</span>
+                </span>
+                <small>Narrow by location, type, identity, or metadata</small>
+              </summary>
+
+              <div class="filter-grid">
+                <label>
+                  <span>Bucket</span>
+                  <input id="filter-bucket" name="bucket" maxlength="1024" placeholder="documents">
+                </label>
+                <label>
+                  <span>Key prefix</span>
+                  <input id="filter-prefix" name="key-prefix" maxlength="8192" placeholder="operations/">
+                </label>
+                <label>
+                  <span>Tier</span>
+                  <input id="filter-tier" name="tier" maxlength="256" placeholder="hot">
+                </label>
+                <label>
+                  <span>MIME type</span>
+                  <input id="filter-mime" name="mime" maxlength="1024" placeholder="application/pdf">
+                </label>
+                <label>
+                  <span>Exact size</span>
+                  <input id="filter-size" name="size" type="number" min="0" step="1" placeholder="Bytes">
+                </label>
+                <label>
+                  <span>Content SHA-256</span>
+                  <input
+                    id="filter-sha"
+                    name="content-sha256"
+                    minlength="64"
+                    maxlength="64"
+                    pattern="[0-9a-f]{64}"
+                    placeholder="64 lowercase hex characters"
+                    spellcheck="false"
+                  >
+                </label>
+                <label class="wide-field">
+                  <span>Object metadata <small>JSON object of exact scalar values</small></span>
+                  <textarea id="filter-object-metadata" name="object-metadata" rows="2" placeholder='{"department":"platform"}' spellcheck="false"></textarea>
+                </label>
+                <label class="wide-field">
+                  <span>Document metadata <small>JSON object of exact scalar values</small></span>
+                  <textarea id="filter-document-metadata" name="document-metadata" rows="2" placeholder='{"language":"en-US"}' spellcheck="false"></textarea>
+                </label>
+              </div>
+
+              <div class="query-options">
+                <label>
+                  <span>Results</span>
+                  <select id="result-limit" name="result-limit">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Passages per result</span>
+                  <select id="passage-limit" name="passage-limit">
+                    <option value="1">1</option>
+                    <option value="3" selected>3</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                  </select>
+                </label>
+                <label class="check-option" id="exact-vector-option" hidden>
+                  <input id="exact-vector" name="exact-vector" type="checkbox">
+                  <span>
+                    <strong>Exact vector search</strong>
+                    <small>Bypass approximate HNSW lookup</small>
+                  </span>
+                </label>
+              </div>
+
+              <button class="clear-filters" id="clear-filters" type="button">Clear filters</button>
+            </details>
+          </div>
+        </form>
+      </section>
+
+      <section class="results-panel" aria-labelledby="results-heading">
+        <div class="results-heading-row">
+          <div>
+            <div class="eyebrow">Ranked evidence</div>
+            <h2 id="results-heading">Results</h2>
+          </div>
+          <div class="result-summary" id="result-summary" hidden></div>
+        </div>
+
+        <div id="query-status" class="query-status idle-state" role="status" aria-live="polite">
+          <div class="status-glyph" aria-hidden="true">⌕</div>
+          <h3>Ready when you are</h3>
+          <p>Run a search to see ranked objects, passage-level evidence, and stable citation IDs.</p>
+        </div>
+
+        <div id="provider-notices" class="provider-notices" aria-live="polite"></div>
+        <div id="answer-region" class="answer-region"></div>
+        <ol id="results-list" class="results-list" aria-label="Ranked content results"></ol>
+      </section>
+    </main>
+
+    <footer>
+      <span>CogniStore M2 · Source-backed discovery</span>
+      <span>API v1</span>
+    </footer>
+  </body>
+</html>

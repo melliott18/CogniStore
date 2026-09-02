@@ -141,6 +141,26 @@ complete method coverage, pagination, typed errors, action polling, and the API
 v1 compatibility and deprecation policy. A minimal runnable query is in
 [`examples/python_sdk_query.py`](examples/python_sdk_query.py).
 
+### Content-search UI and sample corpus
+
+Run the complete offline discovery sample from a fresh checkout:
+
+```bash
+docker compose --profile sample up --build --wait sample-api
+```
+
+Then open [http://127.0.0.1:8080/ui/](http://127.0.0.1:8080/ui/). The profile
+loads a checked, MIT-licensed PDF/DOCX corpus (including exact duplicate
+content), extracts and indexes it with Tantivy and pgvector, and serves Search
+and Ask views with filters, ranked evidence, provider diagnostics, citations,
+metadata, and cited-object links. The included offline embedding and answer
+providers are deterministic sample implementations, not production models.
+
+See the [content-search sample guide](docs/content_search_sample.md) for the
+three query modes, direct CLI workflow, corpus provenance, state behavior, and
+reduced-scale end-to-end test. Verify packaged assets alone with
+`cognistore-sample verify`.
+
 ### Driver configuration (optional)
 
 You can instantiate drivers from a YAML file using `cognistore.drivers.driver_loader.load_drivers`.

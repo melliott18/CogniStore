@@ -157,6 +157,96 @@ services:
     # delivery. Preserve extra time for the durable move checkpoint to flush.
     stop_grace_period: 45s
 
+  sample-loader:
+    image: cognistore:runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    profiles:
+      - sample
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
+      PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
+    entrypoint: ["cognistore-sample"]
+    command:
+      - load
+      - --drivers
+      - /etc/cognistore/sample-drivers.yaml
+      - --catalog-db
+      - postgresql://cognistore@postgres:5432/cognistore
+      - --keyword-index
+      - /var/lib/cognistore/sample-keyword
+    volumes:
+      - cognistore-data:/var/lib/cognistore
+      - ./docker/sample-drivers.yaml:/etc/cognistore/sample-drivers.yaml:ro
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    restart: "no"
+
+  sample-api:
+    image: cognistore:runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    profiles:
+      - sample
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      sample-loader:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
+      PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
+    entrypoint: ["cognistore-sample"]
+    command:
+      - serve
+      - --drivers
+      - /etc/cognistore/sample-drivers.yaml
+      - --catalog-db
+      - postgresql://cognistore@postgres:5432/cognistore
+      - --keyword-index
+      - /var/lib/cognistore/sample-keyword
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    ports:
+      - "127.0.0.1:${COGNISTORE_SAMPLE_API_PORT:-8080}:8080"
+    volumes:
+      - cognistore-data:/var/lib/cognistore
+      - ./docker/sample-drivers.yaml:/etc/cognistore/sample-drivers.yaml:ro
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    stop_grace_period: 30s
+
   integration-tests:
     image: cognistore:development
     build:

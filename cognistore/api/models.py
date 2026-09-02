@@ -96,6 +96,7 @@ class AskRequest(APIModel):
     passages_per_result: Annotated[int, Field(ge=1, le=10)] = 3
     synthesize: bool = False
     exact_vector: bool = False
+    retrieval_mode: RetrievalModeValue = "metadata+keyword+vector"
 
 
 class ObjectCitationResponse(APIModel):

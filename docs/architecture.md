@@ -159,6 +159,11 @@ default worker uses PostgreSQL for its catalog and a separate SQLite file for
 scheduler coordination. Named volumes retain catalog data, scheduler state,
 objects, queue state, and test evidence across ordinary stops.
 
+The opt-in `sample` Compose profile adds a finite loader followed by a
+same-origin API/UI process. It composes the production extraction, Tantivy,
+pgvector, REST, and citation paths with checked project-authored documents and
+deterministic offline sample providers.
+
 CI exercises Python 3.10–3.14, live NATS, MinIO, and PostgreSQL/pgvector
 integration, package and security gates, the Compose shutdown probe, and a reduced movement
 qualification. The manual full profile completed on 2026-08-29 with one million
@@ -175,8 +180,10 @@ artifact.
   object-level weighted reciprocal-rank fusion and authoritative catalog
   post-filtering. A versioned REST API exposes object, catalog, Ask, policy,
   and asynchronous action contracts. The typed Python SDK consumes that REST
-  boundary and adds catalog iteration and durable-job polling conveniences; a
-  browser UI is not a current component.
+  boundary and adds catalog iteration and durable-job polling conveniences.
+  The packaged browser UI uses that same contract for keyword, vector, and
+  hybrid Ask views, with exact filters, provider diagnostics, ranked evidence,
+  metadata, and cited-object downloads.
 - Catalog scans persist a full-source SHA-256 plus transactional, versioned
   source-byte chunk/CAS mappings. Active logical mappings maintain shared
   full-object and chunk-edge counts transactionally; logical deletion leaves
@@ -190,11 +197,11 @@ artifact.
   full rebuild and rebuilds require a quiesced/replayed mutation window.
 - Ask requires the authoritative catalog but treats keyword, vector, and answer
   providers as optional capabilities. Its response reports the active retrieval
-  mode and provider statuses; missing providers degrade to the supported
-  remaining signals, and missing answer generation does not suppress ranked
-  citations. The REST API exposes that same service response without bypassing
-  its authoritative catalog checks; provider composition remains an injected
-  runtime concern.
+  mode and provider statuses. Requests can skip unselected providers; missing
+  requested providers degrade to the supported remaining signals, and missing
+  answer generation does not suppress ranked citations. The REST API exposes
+  that same service response without bypassing its authoritative catalog
+  checks; production provider composition remains an injected runtime concern.
 - POSIX path containment rejects static symlinks but is not yet race-safe
   against a concurrent component swap; #91 owns production hardening.
 - Authentication, authorization, tenancy, production observability, repair,

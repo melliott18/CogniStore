@@ -26,6 +26,12 @@ authentication or tenancy policy. M2's default authorization hook permits the
 request; a deployment can pass `authorization_hook` to `create_app` without
 changing a route.
 
+Every application created by `create_app` also serves the same-origin content
+discovery interface at `/ui/`; those static routes are deliberately excluded
+from the versioned OpenAPI document. The
+[content-search sample](content_search_sample.md) composes Tantivy, pgvector,
+and offline providers around this interface for a complete runnable workflow.
+
 Queued actions require a worker connected to the same NATS stream and catalog.
 Without one, accepted jobs remain durably visible in `queued` state.
 
@@ -39,11 +45,11 @@ health remains observable through its own service probes.
 | --- | --- |
 | `PUT /v1/objects/{tier}/{bucket}/{key}` | Stream and store up to 16 MiB of raw request bytes with any media type, then publish the placement through `CatalogStore`. |
 | `HEAD /v1/objects/{tier}/{bucket}/{key}` | Return size, media type, and generation headers. |
-| `GET /v1/objects/{tier}/{bucket}/{key}` | Stream generation-bound object bytes; one closed, open-ended, or suffix `Range` is normalized before reaching the driver. |
+| `GET /v1/objects/{tier}/{bucket}/{key}` | Stream generation-bound object bytes as an attachment with `nosniff` and sandbox headers; one closed, open-ended, or suffix `Range` is normalized before reaching the driver. |
 | `DELETE /v1/objects/{tier}/{bucket}/{key}` | Delete physical bytes and the authoritative logical record. |
 | `GET /v1/catalog/objects` | Return a bounded keyset page filtered by bucket, prefix, and optional tier. |
 | `GET /v1/catalog/objects/{bucket}/{key}` | Return one detached authoritative catalog snapshot. |
-| `POST /v1/ask` | Run the version 1 hybrid Ask contract and retain provider diagnostics, score components, and citations. |
+| `POST /v1/ask` | Run the version 1 retrieval/Ask contract and retain provider diagnostics, score components, and citations. An optional mode can request metadata, keyword, vector, or full hybrid retrieval. |
 | `POST /v1/policies/evaluate` | Evaluate a policy against one current catalog record without moving it. |
 | `POST /v1/actions/catalog-scans` | Queue a catalog scan and return `202 Accepted`. |
 | `POST /v1/actions/policy-runs` | Queue a policy run and return `202 Accepted`. |
@@ -93,6 +99,25 @@ bucket for an API page.
 
 Ask is a bounded ranked top-k operation rather than an offset page. Its result,
 candidate, and passage limits are part of the Ask v1 contract.
+
+## Retrieval selection
+
+`POST /v1/ask` accepts an optional `retrieval_mode` with one of the response
+mode values:
+
+| Value | Providers requested |
+| --- | --- |
+| `metadata` | Authoritative catalog metadata only |
+| `metadata+keyword` | Catalog metadata and keyword search |
+| `metadata+vector` | Catalog metadata and vector similarity |
+| `metadata+keyword+vector` | All retrieval providers (default) |
+
+Catalog metadata is always the authoritative base signal. A provider outside
+the requested mode is not invoked and reports `not_requested`. If a requested
+optional provider is missing or unavailable, the request still returns 200,
+its diagnostic explains the degradation, and `mode`/`active_signals` describe
+only the providers that actually succeeded. `synthesize=true` independently
+requests answer generation over the resulting cited context.
 
 ## Errors and request identity
 

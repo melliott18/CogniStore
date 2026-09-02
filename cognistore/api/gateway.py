@@ -25,7 +25,7 @@ from cognistore.drivers.storage_driver import DEFAULT_STREAM_CHUNK_SIZE, Storage
 from cognistore.jobs.handlers import CATALOG_SCAN_JOB, POLICY_RUN_JOB, policy_job_payload
 from cognistore.jobs.models import STATUS_TRACKING_METADATA, JobEnvelope
 from cognistore.jobs.protocols import JobQueue
-from cognistore.search import AskFilters, AskQuery, AskService
+from cognistore.search import AskFilters, AskQuery, AskService, RetrievalMode
 
 from .errors import (
     BackendUnavailableError,
@@ -514,6 +514,7 @@ class CogniStoreGateway:
                     object_metadata=filters.object_metadata,
                     document_metadata=filters.document_metadata,
                 ),
+                retrieval_mode=RetrievalMode(request.retrieval_mode),
                 limit=request.limit,
                 candidate_limit=request.candidate_limit,
                 passages_per_result=request.passages_per_result,

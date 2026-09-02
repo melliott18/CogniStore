@@ -399,6 +399,7 @@ class AskQuery:
     passages_per_result: int = DEFAULT_PASSAGES_PER_RESULT
     synthesize: bool = False
     exact_vector: bool = False
+    retrieval_mode: RetrievalMode = RetrievalMode.HYBRID
 
     def __post_init__(self) -> None:
         query_text = _required_text(self.text, field_name="query text")
@@ -410,6 +411,8 @@ class AskQuery:
             raise ValueError(f"query text must be at most {MAX_QUERY_BYTES} UTF-8 bytes")
         if not isinstance(self.filters, AskFilters):
             raise ValueError("filters must be AskFilters")
+        if not isinstance(self.retrieval_mode, RetrievalMode):
+            raise ValueError("retrieval_mode must be RetrievalMode")
         limit = _bounded_integer(
             self.limit,
             field_name="limit",
@@ -1315,6 +1318,8 @@ class AskService:
         self,
         query: AskQuery,
     ) -> tuple[list[KeywordSearchHit], ProviderDiagnostic]:
+        if RetrievalSignal.KEYWORD not in query.retrieval_mode.signals:
+            return [], ProviderDiagnostic("keyword", ProviderState.NOT_REQUESTED)
         if self.keyword is None:
             return [], ProviderDiagnostic("keyword", ProviderState.MISSING)
         try:
@@ -1336,6 +1341,8 @@ class AskService:
         self,
         query: AskQuery,
     ) -> tuple[list[SimilaritySearchResult], ProviderDiagnostic]:
+        if RetrievalSignal.VECTOR not in query.retrieval_mode.signals:
+            return [], ProviderDiagnostic("vector", ProviderState.NOT_REQUESTED)
         if self.vector is None:
             return [], ProviderDiagnostic("vector", ProviderState.MISSING)
         try:

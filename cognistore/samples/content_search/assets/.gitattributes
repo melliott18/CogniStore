@@ -1,0 +1,9 @@
+# Generated document fixtures must remain byte-for-byte binary assets.
+*.docx binary
+*.pdf binary
+*.py text eol=lf
+LICENSE text eol=lf
+README.md text eol=lf
+THIRD_PARTY_NOTICES text eol=lf
+manifest.json text eol=lf
+SHA256SUMS text eol=lf

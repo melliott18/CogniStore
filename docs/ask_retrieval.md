@@ -5,8 +5,9 @@ catalog metadata with optional keyword and vector search results. It returns a
 bounded, deterministically ranked retrieval response and can optionally ask an
 answer provider to synthesize an answer from those results.
 
-Ask does not expose a CLI command or an HTTP endpoint. The versioned REST and
-OpenAPI surface is a separate milestone built on top of this service contract.
+The service is exposed through `POST /v1/ask` and the typed Python SDK. The
+browser content-search UI uses the same contract for provider-selectable Search
+and full hybrid Ask views.
 
 ## Service and contract
 
@@ -32,7 +33,7 @@ answers.
 The Python-facing construction is conceptually:
 
 ```python
-from cognistore.search import AskFilters, AskQuery, AskService
+from cognistore.search import AskFilters, AskQuery, AskService, RetrievalMode
 
 ask = AskService(
     catalog,
@@ -52,6 +53,7 @@ response = ask.ask(
             object_metadata={"department": "legal"},
             document_metadata={"language": "en"},
         ),
+        retrieval_mode=RetrievalMode.HYBRID,
         limit=10,
     )
 )
@@ -60,6 +62,13 @@ response = ask.ask(
 Concrete providers are configured by the embedding and keyword search layers;
 Ask receives ready-to-query objects through constructor injection. It does not
 resolve model credentials or backend paths from CLI configuration.
+
+`AskQuery.retrieval_mode` can request `METADATA`, `METADATA_KEYWORD`,
+`METADATA_VECTOR`, or `HYBRID`. Hybrid remains the default for compatibility.
+Metadata always runs as the authoritative base. Optional providers excluded by
+the requested mode are not called and report `not_requested`; requested
+providers that are missing or unavailable degrade the observed response mode
+to the providers that succeeded.
 
 ## Filters and authoritative validation
 
@@ -166,6 +175,7 @@ Ask is a stateless orchestration layer over the existing catalog and derived
 indexes. It does not add conversation memory, autonomous tool use, background
 index repair, or an answer-model implementation. The Tantivy adapter remains
 host-local and single-writer, and pgvector search continues to select one exact
-embedding space. REST, SDK, and UI consumers are later components that must
-preserve the Ask schema, modes, score inspection, and citation provenance when
-they expose this service externally.
+embedding space. REST, SDK, and UI consumers preserve the Ask schema, observed
+modes, score inspection, and citation provenance when they expose this service
+externally. The deterministic providers in the content-search sample are for
+offline workflow demonstration and are not production model implementations.

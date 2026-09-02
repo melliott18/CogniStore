@@ -230,6 +230,7 @@ jobs:
           "${RUNNER_TEMP}/cognistore-smoke/bin/python" -c \
             'import cognistore; from importlib.metadata import version; print(version("cognistore"))'
           "${RUNNER_TEMP}/cognistore-smoke/bin/cognistore" --help >/dev/null
+          "${RUNNER_TEMP}/cognistore-smoke/bin/cognistore-sample" verify >/dev/null
           "${RUNNER_TEMP}/cognistore-smoke/bin/python" - <<'PY'
           from importlib.resources import files
           from pathlib import Path
@@ -240,6 +241,7 @@ jobs:
           from cognistore.db import MigrationManager, SQLCatalog
           from cognistore.sdk import AskRequest, CogniStoreClient
           from cognistore.sdk.examples.minimal_query import main as example_main
+          from cognistore.samples.content_search import read_sample_corpus
 
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
@@ -248,6 +250,11 @@ jobs:
                   assert migrations.is_at_head(catalog.engine)
 
           assert files("cognistore.sdk").joinpath("py.typed").is_file()
+          assert files("cognistore.ui").joinpath("static").joinpath("index.html").is_file()
+          sample_assets = files("cognistore.samples.content_search").joinpath("assets")
+          assert sample_assets.joinpath("LICENSE").is_file()
+          assert sample_assets.joinpath("THIRD_PARTY_NOTICES").is_file()
+          assert len(read_sample_corpus().manifest.objects) == 4
           assert callable(example_main)
 
           def query_response(request: httpx.Request) -> httpx.Response:
@@ -301,7 +308,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate Compose configuration
-        run: docker compose --profile integration config --quiet
+        run: docker compose --profile integration --profile sample config --quiet
 
       - name: Build stack images
         run: docker compose --profile integration build

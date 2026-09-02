@@ -32,6 +32,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
+from cognistore.ui import register_content_search_ui
 
 from .errors import APIError, PayloadTooLargeError, RequestContractError
 from .gateway import APIGateway, UnavailableGateway
@@ -143,8 +144,16 @@ _BINARY_CONTENT = {
 _OBJECT_HEADERS = {
     "X-Request-ID": _REQUEST_ID_HEADER,
     "Accept-Ranges": {"schema": {"type": "string", "enum": ["bytes"]}},
+    "Content-Disposition": {"schema": {"type": "string", "enum": ["attachment"]}},
     "Content-Length": {"schema": {"type": "integer", "minimum": 0}},
+    "Content-Security-Policy": {"schema": {"type": "string"}},
     "ETag": {"schema": {"type": "string"}},
+    "X-Content-Type-Options": {"schema": {"type": "string", "enum": ["nosniff"]}},
+}
+_OBJECT_DOWNLOAD_HEADERS = {
+    "Content-Disposition": "attachment",
+    "Content-Security-Policy": "sandbox; default-src 'none'",
+    "X-Content-Type-Options": "nosniff",
 }
 _PUT_OBJECT_HEADERS = {
     "X-Request-ID": _REQUEST_ID_HEADER,
@@ -552,6 +561,7 @@ def create_app(
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(resource.size),
                 "ETag": _etag(resource.generation),
+                **_OBJECT_DOWNLOAD_HEADERS,
             },
         )
 
@@ -599,6 +609,7 @@ def create_app(
             "Accept-Ranges": "bytes",
             "ETag": _etag(download.resource.generation),
             "Content-Length": str(download.content_length),
+            **_OBJECT_DOWNLOAD_HEADERS,
         }
         if download.content_range is not None:
             headers["Content-Range"] = download.content_range
@@ -752,4 +763,5 @@ def create_app(
         return services.get_job(job_id)
 
     app.include_router(router)
+    register_content_search_ui(app)
     return app

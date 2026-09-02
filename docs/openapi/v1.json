@@ -156,6 +156,17 @@
             "title": "Passages Per Result",
             "type": "integer"
           },
+          "retrieval_mode": {
+            "default": "metadata+keyword+vector",
+            "enum": [
+              "metadata",
+              "metadata+keyword",
+              "metadata+vector",
+              "metadata+keyword+vector"
+            ],
+            "title": "Retrieval Mode",
+            "type": "string"
+          },
           "synthesize": {
             "default": false,
             "title": "Synthesize",
@@ -2605,14 +2616,35 @@
                   "type": "string"
                 }
               },
+              "Content-Disposition": {
+                "schema": {
+                  "enum": [
+                    "attachment"
+                  ],
+                  "type": "string"
+                }
+              },
               "Content-Length": {
                 "schema": {
                   "minimum": 0,
                   "type": "integer"
                 }
               },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                }
+              },
               "ETag": {
                 "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "enum": [
+                    "nosniff"
+                  ],
                   "type": "string"
                 }
               },
@@ -2643,6 +2675,14 @@
                   "type": "string"
                 }
               },
+              "Content-Disposition": {
+                "schema": {
+                  "enum": [
+                    "attachment"
+                  ],
+                  "type": "string"
+                }
+              },
               "Content-Length": {
                 "schema": {
                   "minimum": 0,
@@ -2654,8 +2694,21 @@
                   "type": "string"
                 }
               },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                }
+              },
               "ETag": {
                 "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "enum": [
+                    "nosniff"
+                  ],
                   "type": "string"
                 }
               },
@@ -2881,14 +2934,35 @@
                   "type": "string"
                 }
               },
+              "Content-Disposition": {
+                "schema": {
+                  "enum": [
+                    "attachment"
+                  ],
+                  "type": "string"
+                }
+              },
               "Content-Length": {
                 "schema": {
                   "minimum": 0,
                   "type": "integer"
                 }
               },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                }
+              },
               "ETag": {
                 "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "enum": [
+                    "nosniff"
+                  ],
                   "type": "string"
                 }
               },
