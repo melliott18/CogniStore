@@ -115,12 +115,18 @@ def test_object_and_catalog_success_contracts(tmp_path: Path) -> None:
         assert head.headers["Content-Length"] == "9"
         assert head.headers["Content-Type"].startswith("text/plain")
         assert head.headers["ETag"] == created.headers["ETag"]
+        assert head.headers["Content-Disposition"] == "attachment"
+        assert head.headers["Content-Security-Policy"] == "sandbox; default-src 'none'"
+        assert head.headers["X-Content-Type-Options"] == "nosniff"
 
         downloaded = client.get("/v1/objects/hot/documents/folder/report.txt")
         assert downloaded.status_code == 200
         assert downloaded.content == b"hello api"
         assert downloaded.headers["Accept-Ranges"] == "bytes"
         assert downloaded.headers["ETag"] == created.headers["ETag"]
+        assert downloaded.headers["Content-Disposition"] == "attachment"
+        assert downloaded.headers["Content-Security-Policy"] == "sandbox; default-src 'none'"
+        assert downloaded.headers["X-Content-Type-Options"] == "nosniff"
 
         partial = client.get(
             "/v1/objects/hot/documents/folder/report.txt",
@@ -132,6 +138,8 @@ def test_object_and_catalog_success_contracts(tmp_path: Path) -> None:
         assert partial.headers["Content-Length"] == "4"
         assert partial.headers["Accept-Ranges"] == "bytes"
         assert partial.headers["ETag"] == expected_etag
+        assert partial.headers["Content-Disposition"] == "attachment"
+        assert partial.headers["X-Content-Type-Options"] == "nosniff"
 
         for invalid_range in ("items=0-1", "bytes=99-100"):
             invalid = client.get(
@@ -315,6 +323,36 @@ def test_object_responses_reject_unsafe_persisted_media_types(tmp_path: Path) ->
     assert "X-Injected" not in downloaded.headers
 
 
+def test_active_content_is_always_served_as_a_sandboxed_attachment(
+    tmp_path: Path,
+) -> None:
+    gateway = CogniStoreGateway(
+        Catalog(),
+        {"hot": PosixDriver(str(tmp_path / "active-content"))},
+    )
+
+    with TestClient(create_app(gateway)) as client:
+        uploaded = client.put(
+            "/v1/objects/hot/documents/untrusted.html",
+            content=b"<script>document.cookie</script>",
+            headers={"Content-Type": "text/html; charset=utf-8"},
+        )
+        full = client.get("/v1/objects/hot/documents/untrusted.html")
+        partial = client.get(
+            "/v1/objects/hot/documents/untrusted.html",
+            headers={"Range": "bytes=0-7"},
+        )
+
+    assert uploaded.status_code == 201
+    for response in (full, partial):
+        assert response.headers["Content-Disposition"] == "attachment"
+        assert response.headers["Content-Security-Policy"] == (
+            "sandbox; default-src 'none'"
+        )
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["Content-Type"].startswith("text/html")
+
+
 def test_catalog_pagination_is_opaque_stable_and_query_bound() -> None:
     catalog = Catalog()
     for key, tier in (
@@ -440,6 +478,53 @@ def test_ask_domain_validation_maps_request_constraints_to_422() -> None:
         "object_metadata cannot filter internal field(s): content_identity"
     )
     assert "fake-secret-filter-value" not in internal_filter.text
+
+
+def test_ask_retrieval_mode_controls_optional_provider_selection() -> None:
+    app = create_app(CogniStoreGateway(Catalog(), {}))
+
+    with TestClient(app) as client:
+        metadata_only = client.post(
+            "/v1/ask",
+            json={"text": "metadata query", "retrieval_mode": "metadata"},
+        )
+        keyword_requested = client.post(
+            "/v1/ask",
+            json={
+                "text": "keyword query",
+                "retrieval_mode": "metadata+keyword",
+            },
+        )
+        invalid = client.post(
+            "/v1/ask",
+            json={"text": "invalid mode", "retrieval_mode": "keyword"},
+        )
+
+    assert metadata_only.status_code == 200
+    assert metadata_only.json()["mode"] == "metadata"
+    assert {
+        provider["component"]: provider["state"]
+        for provider in metadata_only.json()["providers"]
+    } == {
+        "metadata": "succeeded",
+        "keyword": "not_requested",
+        "vector": "not_requested",
+        "generation": "not_requested",
+    }
+
+    assert keyword_requested.status_code == 200
+    assert keyword_requested.json()["mode"] == "metadata"
+    assert {
+        provider["component"]: provider["state"]
+        for provider in keyword_requested.json()["providers"]
+    } == {
+        "metadata": "succeeded",
+        "keyword": "missing",
+        "vector": "not_requested",
+        "generation": "not_requested",
+    }
+
+    _assert_error(invalid, status_code=422, code="validation_error")
 
 
 def test_json_body_limit_rejects_oversized_content_length() -> None:

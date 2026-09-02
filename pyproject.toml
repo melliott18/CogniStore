@@ -70,6 +70,7 @@ dev = [
 [project.scripts]
 cognistore = "cognistore.cli.cognistore_cli:main"
 cognistore-api = "cognistore.api.server:main"
+cognistore-sample = "cognistore.samples.content_search.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/melliott18/CogniStore"
@@ -86,6 +87,8 @@ include = ["cognistore*"]
   "migrations/versions/*.py",
 ]
 "cognistore.sdk" = ["py.typed"]
+"cognistore.samples.content_search" = ["assets/*"]
+"cognistore.ui" = ["static/*.css", "static/*.html", "static/*.js"]
 
 [tool.ruff]
 line-length = 100

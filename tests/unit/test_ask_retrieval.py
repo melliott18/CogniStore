@@ -292,6 +292,10 @@ def _diagnostics(response_providers: Sequence[ProviderDiagnostic]) -> dict[str, 
         (lambda: AskQuery("query", synthesize=cast(Any, 1)), "synthesize"),
         (lambda: AskQuery("query", exact_vector=cast(Any, 1)), "exact_vector"),
         (lambda: AskQuery("query", filters=cast(Any, {})), "filters"),
+        (
+            lambda: AskQuery("query", retrieval_mode=cast(Any, "metadata")),
+            "retrieval_mode",
+        ),
         (lambda: AskFilters(bucket=""), "bucket"),
         (lambda: AskFilters(bucket="b" * (4 * 1_024 + 1)), "bucket must be at most"),
         (
@@ -841,6 +845,100 @@ def test_retrieval_mode_and_status_report_configured_capabilities(
     assert diagnostics["generation"].state is ProviderState.NOT_REQUESTED
     assert response.generation_status is GenerationStatus.NOT_REQUESTED
     assert response.answer is None
+
+
+@pytest.mark.parametrize(
+    (
+        "requested_mode",
+        "expected_mode",
+        "keyword_calls",
+        "vector_calls",
+        "keyword_state",
+        "vector_state",
+    ),
+    [
+        (
+            RetrievalMode.METADATA,
+            RetrievalMode.METADATA,
+            0,
+            0,
+            ProviderState.NOT_REQUESTED,
+            ProviderState.NOT_REQUESTED,
+        ),
+        (
+            RetrievalMode.METADATA_KEYWORD,
+            RetrievalMode.METADATA_KEYWORD,
+            1,
+            0,
+            ProviderState.SUCCEEDED,
+            ProviderState.NOT_REQUESTED,
+        ),
+        (
+            RetrievalMode.METADATA_VECTOR,
+            RetrievalMode.METADATA_VECTOR,
+            0,
+            1,
+            ProviderState.NOT_REQUESTED,
+            ProviderState.SUCCEEDED,
+        ),
+        (
+            RetrievalMode.HYBRID,
+            RetrievalMode.HYBRID,
+            1,
+            1,
+            ProviderState.SUCCEEDED,
+            ProviderState.SUCCEEDED,
+        ),
+    ],
+)
+def test_requested_retrieval_mode_skips_unselected_optional_providers(
+    requested_mode: RetrievalMode,
+    expected_mode: RetrievalMode,
+    keyword_calls: int,
+    vector_calls: int,
+    keyword_state: ProviderState,
+    vector_state: ProviderState,
+) -> None:
+    record = _record("metadata.pdf", object_metadata={"tag": "needle"})
+    metadata = _MetadataRetriever(
+        [MetadataSearchHit(record.bucket, record.key, 1.0)]
+    )
+    keyword = _KeywordRetriever()
+    vector = _VectorRetriever()
+
+    response = AskService(
+        _catalog(record),
+        metadata=metadata,
+        keyword=keyword,
+        vector=vector,
+    ).ask(AskQuery("needle", retrieval_mode=requested_mode))
+    diagnostics = _diagnostics(response.providers)
+
+    assert response.mode is expected_mode
+    assert len(metadata.calls) == 1
+    assert len(keyword.calls) == keyword_calls
+    assert len(vector.calls) == vector_calls
+    assert diagnostics["metadata"].state is ProviderState.SUCCEEDED
+    assert diagnostics["keyword"].state is keyword_state
+    assert diagnostics["vector"].state is vector_state
+
+
+def test_requested_provider_can_degrade_while_unselected_provider_is_not_called() -> None:
+    vector = _VectorRetriever(
+        error=AssertionError("unselected vector provider must not be called")
+    )
+    response = AskService(
+        _catalog(),
+        metadata=_MetadataRetriever([]),
+        keyword=None,
+        vector=vector,
+    ).ask(AskQuery("query", retrieval_mode=RetrievalMode.METADATA_KEYWORD))
+    diagnostics = _diagnostics(response.providers)
+
+    assert response.mode is RetrievalMode.METADATA
+    assert diagnostics["keyword"].state is ProviderState.MISSING
+    assert diagnostics["vector"].state is ProviderState.NOT_REQUESTED
+    assert vector.calls == []
 
 
 def test_missing_generation_provider_degrades_without_losing_retrieval() -> None:

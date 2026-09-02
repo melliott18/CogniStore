@@ -71,6 +71,7 @@ class AskRequest(SDKRequest):
     passages_per_result: Annotated[int, Field(ge=1, le=10)] = 3
     synthesize: bool = False
     exact_vector: bool = False
+    retrieval_mode: RetrievalMode = "metadata+keyword+vector"
 
 
 class PolicyConfig(SDKRequest):

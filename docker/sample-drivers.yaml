@@ -1,0 +1,13 @@
+tiers:
+  hot:
+    driver: posix
+    path: /var/lib/cognistore/sample-tiers/hot
+    chunk_size: 8388608
+  warm:
+    driver: posix
+    path: /var/lib/cognistore/sample-tiers/warm
+    chunk_size: 8388608
+  cold:
+    driver: posix
+    path: /var/lib/cognistore/sample-tiers/cold
+    chunk_size: 8388608

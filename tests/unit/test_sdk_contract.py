@@ -149,6 +149,40 @@ def test_sdk_model_schemas_match_the_checked_api_contract(
     ) == _normalized_model_schema(sdk_model.model_json_schema())
 
 
+def test_default_ask_mode_is_omitted_for_older_strict_v1_servers() -> None:
+    request_bodies: list[bytes] = []
+
+    def ask_handler(request: httpx.Request) -> httpx.Response:
+        request_bodies.append(request.content)
+        return httpx.Response(
+            200,
+            request=request,
+            headers={"X-Request-ID": "ask-mode-compatibility"},
+            json={
+                "schema_version": 1,
+                "mode": "metadata",
+                "active_signals": ["metadata"],
+                "results": [],
+                "providers": [],
+                "generation_status": "not_requested",
+                "answer": None,
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(ask_handler)) as http_client:
+        with CogniStoreClient("https://sdk.test", http_client=http_client) as sdk:
+            sdk.ask(AskRequest(text="implicit hybrid default"))
+            sdk.ask(
+                AskRequest(
+                    text="explicit hybrid mode",
+                    retrieval_mode="metadata+keyword+vector",
+                )
+            )
+
+    assert b'"retrieval_mode"' not in request_bodies[0]
+    assert b'"retrieval_mode":"metadata+keyword+vector"' in request_bodies[1]
+
+
 class _ContractGateway:
     """Small in-memory implementation of the API gateway protocol."""
 
@@ -459,7 +493,12 @@ def test_all_public_api_operations_round_trip_as_typed_models(
     downloaded = sdk.get_object("hot", "documents", "reports/example.txt")
     page = sdk.list_catalog_objects("documents", prefix="reports/")
     catalog_object = sdk.get_catalog_object("documents", "reports/example.txt")
-    answer = sdk.ask(AskRequest(text="find the example"))
+    answer = sdk.ask(
+        AskRequest(
+            text="find the example",
+            retrieval_mode="metadata+vector",
+        )
+    )
     evaluation = sdk.evaluate_policy(
         PolicyEvaluationRequest(
             bucket="documents",
@@ -496,6 +535,7 @@ def test_all_public_api_operations_round_trip_as_typed_models(
     assert isinstance(answer, AskResponse)
     assert answer.active_signals == ["metadata"]
     assert gateway.ask_requests[0].text == "find the example"
+    assert gateway.ask_requests[0].retrieval_mode == "metadata+vector"
     assert isinstance(evaluation, PolicyEvaluationResponse)
     assert (evaluation.action, evaluation.destination_tier) == ("move", "warm")
     assert len(gateway.policy_requests) == 1
@@ -933,6 +973,8 @@ def test_request_models_are_strict_and_forbid_unknown_fields() -> None:
         AskRequest.model_validate({"text": "query", "limit": "1"})
     with pytest.raises(PydanticValidationError):
         AskRequest.model_validate({"text": "query", "future_option": True})
+    with pytest.raises(PydanticValidationError):
+        AskRequest.model_validate({"text": "query", "retrieval_mode": "keyword"})
 
 
 def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> None:

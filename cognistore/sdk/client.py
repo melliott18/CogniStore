@@ -415,7 +415,7 @@ class CogniStoreClient:
             ) from exc
 
     @staticmethod
-    def _request_json(request: SDKRequest) -> object:
+    def _request_json(request: SDKRequest) -> dict[str, object]:
         return request.model_dump(mode="json", exclude_none=True)
 
     @staticmethod
@@ -648,11 +648,16 @@ class CogniStoreClient:
         return self._parse_model(response, CatalogObject)
 
     def ask(self, request: AskRequest) -> AskResponse:
+        payload = self._request_json(request)
+        # Keep a default-constructed newer SDK compatible with older strict v1
+        # servers. Explicit mode selection is still serialized normally.
+        if "retrieval_mode" not in request.model_fields_set:
+            payload.pop("retrieval_mode", None)
         response = self._send(
             "POST",
             "/v1/ask",
             expected_statuses={200},
-            json=self._request_json(request),
+            json=payload,
             headers={"Accept": "application/json"},
         )
         return self._parse_model(response, AskResponse)

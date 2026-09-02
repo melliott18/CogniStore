@@ -36,6 +36,7 @@ with CogniStoreClient("http://127.0.0.1:8080") as client:
     response = client.ask(
         AskRequest(
             text="Which documents describe storage lifecycle policy?",
+            retrieval_mode="metadata+keyword+vector",
             limit=3,
         )
     )
@@ -55,6 +56,11 @@ python examples/python_sdk_query.py
 Ask can return an empty `results` list when no indexed content matches. Optional
 keyword, vector, and generation providers report their state in the successful
 typed response; provider degradation is not a transport error.
+`AskRequest.retrieval_mode` can select `metadata`, `metadata+keyword`,
+`metadata+vector`, or the default `metadata+keyword+vector`. Providers outside
+the selected mode report `not_requested` and are not invoked. When left at its
+default, the SDK omits this newly added field on the wire so older strict v1
+servers retain their equivalent hybrid default; setting it explicitly sends it.
 
 ## Configuration and timeouts
 

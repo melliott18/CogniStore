@@ -1,0 +1,68 @@
+{
+  "bucket": "sample-documents",
+  "license": "MIT",
+  "name": "cognistore-content-search-sample-v1",
+  "objects": [
+    {
+      "key": "policies/records-retention.pdf",
+      "media_type": "application/pdf",
+      "sha256": "58dbe97b3747fb11d24305033fc9e3d328602c4c0acec3fd971928df292556d1",
+      "source": "records-retention.pdf",
+      "tier": "warm"
+    },
+    {
+      "key": "security/incident-response.pdf",
+      "media_type": "application/pdf",
+      "sha256": "2e893d5d51f40d7ac52e5069ea96f28a32af8c7f594e92f7fdf2232b36a0a4bb",
+      "source": "incident-response.pdf",
+      "tier": "hot"
+    },
+    {
+      "key": "runbooks/database-backups.docx",
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "sha256": "9a258fc6fb3d7930cf0bb7942f2fa67471205e6d79c1342731ae27880947d5e1",
+      "source": "database-backups.docx",
+      "tier": "hot"
+    },
+    {
+      "key": "z-archive/database-backups-copy.docx",
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "sha256": "9a258fc6fb3d7930cf0bb7942f2fa67471205e6d79c1342731ae27880947d5e1",
+      "source": "database-backups.docx",
+      "tier": "cold"
+    }
+  ],
+  "queries": {
+    "ask": {
+      "expected_keys": [
+        "policies/records-retention.pdf"
+      ],
+      "filters": {
+        "bucket": "sample-documents",
+        "mime": "application/pdf"
+      },
+      "text": "What prevents contract deletion during a legal hold?"
+    },
+    "keyword": {
+      "expected_keys": [
+        "runbooks/database-backups.docx",
+        "z-archive/database-backups-copy.docx"
+      ],
+      "filters": {
+        "bucket": "sample-documents"
+      },
+      "text": "quarterly restore drill"
+    },
+    "vector": {
+      "expected_keys": [
+        "runbooks/database-backups.docx"
+      ],
+      "filters": {
+        "bucket": "sample-documents",
+        "tier": "hot"
+      },
+      "text": "How does an isolated restore prove backup recovery?"
+    }
+  },
+  "schema_version": 1
+}

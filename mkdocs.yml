@@ -13,6 +13,7 @@ nav:
       - Keyword search: keyword_search.md
       - Embedding search: embedding_search.md
       - Ask retrieval: ask_retrieval.md
+      - Content-search sample: content_search_sample.md
       - REST API v1: rest_api.md
       - Python SDK: python_sdk.md
       - S3 driver: s3_driver.md

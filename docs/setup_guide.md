@@ -98,6 +98,19 @@ docker compose --profile integration run --rm --no-deps \
   > test-results/integration.xml
 ```
 
+## Run the content-search sample
+
+The opt-in sample profile loads the licensed PDF/DOCX corpus into the production
+extraction, Tantivy, and pgvector path before starting the API and browser UI:
+
+```bash
+docker compose --profile sample up --build --wait sample-api
+```
+
+Open `http://127.0.0.1:8080/ui/`. See the
+[content-search sample guide](content_search_sample.md) for query examples,
+provider behavior, corpus provenance, and the direct installed-CLI workflow.
+
 ## Use the editable development image
 
 Open a shell with the checkout mounted at `/workspace` and the development
