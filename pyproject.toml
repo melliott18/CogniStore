@@ -31,6 +31,7 @@ dependencies = [
   "alembic>=1.17.1,<2",
   "boto3>=1.35.9",
   "fastapi==0.141.1",
+  "httpx==0.28.1",
   "nats-py>=2.9,<3",
   "pydantic==2.13.5",
   "psycopg[binary]>=3.3,<4",
@@ -52,7 +53,6 @@ dev = [
   "boto3-stubs[s3]>=1.35.9",
   "build>=1.2.2",
   "coverage[toml]>=7.2",
-  "httpx==0.28.1",
   "linkify-it-py>=2.2,<3",
   "markdown-it-py>=4,<5",
   "mdit-py-plugins>=0.6,<0.7",
@@ -85,6 +85,7 @@ include = ["cognistore*"]
   "migrations/*.mako",
   "migrations/versions/*.py",
 ]
+"cognistore.sdk" = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -113,8 +114,11 @@ addopts = [
   "--import-mode=importlib",
 ]
 testpaths = ["tests"]
+# SDK deprecations require explicit pytest.warns contract tests; these filters
+# suppress existing dependency warnings that would otherwise hide useful output.
 filterwarnings = [
   "ignore::DeprecationWarning",
+  "ignore::starlette.exceptions.StarletteDeprecationWarning",
 ]
 markers = [
   "integration: requires an explicitly configured external integration service",
