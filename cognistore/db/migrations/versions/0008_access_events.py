@@ -7,8 +7,8 @@ from alembic import op
 
 from cognistore.db.types import NulSafeText
 
-revision = "0007_access_events"
-down_revision = "0006_embeddings"
+revision = "0008_access_events"
+down_revision = "0007_tier_pools"
 branch_labels = None
 depends_on = None
 

@@ -56,11 +56,11 @@
     },
     "in_retention_unchanged_after_prune": true,
     "latency_ms": {
-      "max": 5.93787498655729,
-      "mean": 1.9677964427578416,
-      "min": 1.5825830050744116,
-      "p50": 1.8755419878289104,
-      "p95": 2.3872909951023757,
+      "max": 5.372542014811188,
+      "mean": 1.8280974680213928,
+      "min": 1.527417014585808,
+      "p50": 1.7511670012027025,
+      "p95": 2.1707919950131327,
       "sample_count": 306
     },
     "missing_object": {
@@ -180,19 +180,19 @@
     "sqlite": "3.50.4",
     "system": "Darwin"
   },
-  "generated_at": "2026-09-08T19:53:29.252136Z",
+  "generated_at": "2026-09-08T23:57:24.299742Z",
   "insert": {
     "definition": "one committed DAL append per event, single writer; migration excluded",
-    "events_per_second": 732.073376063771,
+    "events_per_second": 941.5091260992316,
     "latency_ms": {
-      "max": 311.56375000136904,
-      "mean": 1.3654789685970172,
-      "min": 0.5705420044250786,
-      "p50": 0.8615420083515346,
-      "p95": 2.743541990639642,
+      "max": 67.11908298893832,
+      "mean": 1.0616232901578768,
+      "min": 0.5972920043859631,
+      "p50": 0.9171669953502715,
+      "p95": 1.493458985351026,
       "sample_count": 10000
     },
-    "seconds": 13.659832916979212
+    "seconds": 10.621245957998326
   },
   "limitations": [
     "Local SQLite DAL only; no PostgreSQL, concurrent writers, network, or HTTP measurements.",
@@ -205,7 +205,7 @@
     "attempts_after_prune": 1000,
     "attempts_before_prune": 1000,
     "expired_rows_resurrected": 0,
-    "seconds_before_prune": 0.675154124997789
+    "seconds_before_prune": 0.3276533340103924
   },
   "retention": {
     "advanced_dedup_horizon": {
@@ -262,11 +262,11 @@
       "cutoff": "2026-09-01T00:00:00.000000Z",
       "expired_events": 4997,
       "latency_ms": {
-        "max": 26.5680419979617,
-        "mean": 15.179916660902867,
-        "min": 0.4599579842761159,
-        "p50": 16.41129099880345,
-        "p95": 26.5680419979617,
+        "max": 36.94579197326675,
+        "mean": 14.04889232799178,
+        "min": 0.48579199938103557,
+        "p50": 13.596124976174906,
+        "p95": 36.94579197326675,
         "sample_count": 12
       },
       "purged_events": 5001
@@ -325,11 +325,11 @@
       "cutoff": "2026-08-02T00:00:00.000000Z",
       "expired_events": 5001,
       "latency_ms": {
-        "max": 12.906959018437192,
-        "mean": 7.699080003173246,
-        "min": 0.9650840074755251,
-        "p50": 8.084500004770234,
-        "p95": 12.906959018437192,
+        "max": 9.661874995799735,
+        "mean": 6.842975834539781,
+        "min": 0.9162920177914202,
+        "p50": 7.277333992533386,
+        "p95": 9.661874995799735,
         "sample_count": 12
       },
       "purged_events": 0

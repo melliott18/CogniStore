@@ -113,7 +113,7 @@ def test_sqlite_reopen_read_only_and_migration_preserve_history(tmp_path):
     original = event("persistent")
     with SQLiteCatalog(path) as catalog:
         catalog.append_access_event(original)
-        assert MigrationManager().current(catalog.engine) == "0007_access_events"
+        assert MigrationManager().current(catalog.engine) == "0008_access_events"
         assert {
             index["name"] for index in sa.inspect(catalog.engine).get_indexes("access_events")
         } == {"access_events_object_time_idx", "access_events_retention_idx"}
@@ -144,7 +144,7 @@ def test_access_migration_upgrade_existing_catalog_and_downgrade(tmp_path):
     with SQLiteCatalog(path) as catalog:
         catalog.upsert("bucket", "object", 1, "hot")
         manager = MigrationManager()
-        manager.downgrade(catalog.engine, "0006_embeddings")
+        manager.downgrade(catalog.engine, "0007_tier_pools")
         assert not sa.inspect(catalog.engine).has_table("access_events")
         manager.upgrade(catalog.engine)
         assert catalog.get("bucket", "object").size == 1
