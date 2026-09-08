@@ -17,6 +17,15 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from cognistore.core.access import (
+    ACCESS_KINDS,
+    AccessConfig,
+    AccessEvent,
+    AccessSnapshot,
+    AccessWindow,
+    access_cutoff,
+    access_timestamp,
+)
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -66,6 +75,7 @@ from cognistore.utils.redaction import redact, redact_text
 from .engine import create_catalog_engine
 from .migrations import MigrationManager, catalog_schema_exists
 from .schema import (
+    access_events,
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
@@ -1500,6 +1510,177 @@ class SQLCatalog(Catalog):
                         yield self._record(row)
             finally:
                 rows.close()
+
+    @staticmethod
+    def _access_event_from_row(row: RowMapping) -> AccessEvent:
+        return AccessEvent(
+            event_id=row["event_id"],
+            operation_id=row["operation_id"],
+            correlation_id=row["correlation_id"],
+            occurred_at=row["occurred_at"],
+            kind=row["kind"],
+            bucket=row["bucket"],
+            key=row["object_key"],
+            tier=row["tier"],
+            source=row["source"],
+            sample_rate=row["sample_rate"],
+            schema_version=row["schema_version"],
+        )
+
+    def append_access_event(self, event: AccessEvent) -> AccessEvent:
+        if self.read_only:
+            raise PermissionError("cannot append access events to a read-only catalog")
+        if not isinstance(event, AccessEvent):
+            raise TypeError("event must be an AccessEvent")
+        values = {
+            "event_id": event.event_id,
+            "operation_id": event.operation_id,
+            "correlation_id": event.correlation_id,
+            "occurred_at": event.occurred_at,
+            "kind": event.kind,
+            "bucket": event.bucket,
+            "object_key": event.key,
+            "tier": event.tier,
+            "source": event.source,
+            "sample_rate": event.sample_rate,
+            "schema_version": event.schema_version,
+            "expired": False,
+        }
+        with self._transaction() as connection:
+            if connection.dialect.name == "postgresql":
+                # Return and lock the winning observation in the same statement.
+                # DO NOTHING followed by SELECT leaves a gap where retention
+                # can purge an expired retry ID before the SELECT sees it.
+                # The no-op update preserves every first-observation field,
+                # including the sampling rate and expired tombstone marker.
+                statement = (
+                    postgresql.insert(access_events)
+                    .values(**values)
+                    .on_conflict_do_update(
+                        index_elements=[access_events.c.event_id],
+                        set_={"event_id": access_events.c.event_id},
+                    )
+                    .returning(*access_events.c)
+                )
+                row = connection.execute(statement).mappings().one()
+            else:
+                # SQLite's writer transaction already excludes concurrent purge.
+                self._do_nothing_insert(connection, access_events, values)
+                row = (
+                    connection.execute(
+                        sa.select(access_events).where(access_events.c.event_id == event.event_id)
+                    )
+                    .mappings()
+                    .one()
+                )
+            persisted = self._access_event_from_row(row)
+            if persisted.replay_identity() != event.replay_identity():
+                raise ValueError("access event ID conflicts with persisted identity")
+            return persisted
+
+    def aggregate_access_events(
+        self,
+        bucket: str,
+        key: str | None,
+        *,
+        config: AccessConfig,
+        as_of: str | datetime,
+    ) -> AccessSnapshot:
+        instant = access_timestamp(as_of)
+        lower = access_cutoff(instant, config.retention_seconds)
+        fields: list[Any] = [
+            sa.func.count().label("observed_events"),
+            sa.func.min(access_events.c.occurred_at).label("observed_since"),
+            sa.func.max(access_events.c.occurred_at).label("last_access_at"),
+            sa.func.min(access_events.c.sample_rate).label("minimum_sample_rate"),
+        ]
+        for index, seconds in enumerate(config.windows_seconds):
+            cutoff = access_cutoff(instant, seconds)
+            for kind in ACCESS_KINDS:
+                included = sa.and_(
+                    access_events.c.kind == kind, access_events.c.occurred_at > cutoff
+                )
+                fields.append(
+                    sa.func.coalesce(sa.func.sum(sa.case((included, 1), else_=0)), 0).label(
+                        f"count_{index}_{kind}"
+                    )
+                )
+                fields.append(
+                    sa.func.coalesce(
+                        sa.func.sum(
+                            sa.case((included, 1.0 / access_events.c.sample_rate), else_=0.0)
+                        ),
+                        0.0,
+                    ).label(f"estimate_{index}_{kind}")
+                )
+        # One aggregate query over one indexed object and a bounded time range.
+        # The row count returned is constant regardless of raw event volume.
+        query = (
+            sa.select(*fields)
+            .select_from(access_events)
+            .where(
+                access_events.c.bucket == bucket,
+                access_events.c.object_key == key,
+                access_events.c.expired.is_(False),
+                access_events.c.occurred_at > lower,
+                access_events.c.occurred_at <= instant,
+            )
+        )
+        with self._connection() as connection:
+            row = connection.execute(query).mappings().one()
+        return AccessSnapshot(
+            windows=tuple(
+                AccessWindow(
+                    seconds,
+                    tuple(int(row[f"count_{index}_{kind}"]) for kind in ACCESS_KINDS),
+                    tuple(float(row[f"estimate_{index}_{kind}"]) for kind in ACCESS_KINDS),
+                )
+                for index, seconds in enumerate(config.windows_seconds)
+            ),
+            observed_events=int(row["observed_events"]),
+            observed_since=row["observed_since"],
+            last_access_at=row["last_access_at"],
+            minimum_sample_rate=row["minimum_sample_rate"],
+        )
+
+    def prune_access_events(
+        self,
+        occurred_before: str | datetime,
+        *,
+        limit: int = 1000,
+        retention_seconds: int = 2592000,
+    ) -> int:
+        if self.read_only:
+            raise PermissionError("cannot prune access events in a read-only catalog")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10000:
+            raise ValueError("limit must be an integer from 1 to 10000")
+        config = AccessConfig(windows_seconds=(1,), retention_seconds=retention_seconds)
+        cutoff = access_timestamp(occurred_before)
+        dedup_cutoff = access_cutoff(cutoff, config.retention_seconds)
+        with self._transaction() as connection:
+            purge = (
+                sa.select(access_events.c.event_id)
+                .where(
+                    access_events.c.expired.is_(True), access_events.c.occurred_at < dedup_cutoff
+                )
+                .order_by(access_events.c.occurred_at, access_events.c.event_id)
+                .limit(limit)
+            )
+            purged = connection.execute(
+                sa.delete(access_events).where(access_events.c.event_id.in_(purge))
+            )
+            expire = (
+                sa.select(access_events.c.event_id)
+                .where(access_events.c.expired.is_(False), access_events.c.occurred_at < cutoff)
+                .order_by(access_events.c.occurred_at, access_events.c.event_id)
+                .limit(limit)
+            )
+            changed = connection.execute(
+                sa.update(access_events)
+                .where(access_events.c.expired.is_(False), access_events.c.event_id.in_(expire))
+                .values(expired=True)
+            )
+            return int(changed.rowcount) + int(purged.rowcount)
 
     def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append one redacted event, idempotently by event UUID."""

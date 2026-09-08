@@ -57,6 +57,7 @@ from tests.conformance.catalog_store import CatalogStoreConformance
 pytestmark = pytest.mark.integration
 
 _CATALOG_TABLES = {
+    "access_events",
     "alembic_version",
     "audit_events",
     "audit_move_heads",

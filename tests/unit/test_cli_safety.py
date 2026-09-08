@@ -123,6 +123,13 @@ def test_policy_output_distinguishes_planned_from_completed(
             "dry_run": dry_run,
         }
         if dry_run:
+            access = payload["evaluations"][0]["features"]["access"]
+            assert access["freshness"] == "missing"
+            assert access["missing"] is True
+            assert access["partial"] is True
+            assert access["observed_events"] == 0
+            assert access["recency_seconds"] is None
+            feature_projection["access"] = access
             action["features"] = feature_projection
             expected["evaluations"] = [
                 {

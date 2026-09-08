@@ -115,6 +115,7 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
     return all(
         inspector.has_table(table)
         for table in (
+            "access_events",
             "audit_events",
             "audit_move_heads",
             "audit_event_tombstones",

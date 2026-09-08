@@ -767,7 +767,13 @@ def test_ask_and_policy_evaluation_contracts(tmp_path: Path) -> None:
             },
         )
         assert evaluation.status_code == 200
-        assert evaluation.json() == {
+        evaluation_body = evaluation.json()
+        access = evaluation_body["features"].pop("access")
+        assert access["freshness"] == "missing"
+        assert access["missing"] is True
+        assert access["partial"] is True
+        assert access["recency_seconds"] is None
+        assert evaluation_body == {
             "schema_version": 1,
             "bucket": "documents",
             "key": "archive.bin",
@@ -884,7 +890,7 @@ def test_policy_evaluation_exposes_fresh_feature_provenance(
         "action": "move",
         "destination_tier": "hot",
         "reason": "embedding archive similarity 0.920000 >= 0.800000 -> hot",
-        "features": features.to_dict(),
+        "features": {**features.to_dict(), "access": None},
     }
 
 

@@ -1,7 +1,7 @@
 """Backend-neutral, ephemeral feature projections for placement policies.
 
 The projection in this module is deliberately not a persistence model.  It is
-assembled from one detached catalog snapshot and optional indexing services so
+assembled from one detached catalog snapshot, access history, and optional indexing services so
 policy code can reason about feature state without importing those backends.
 """
 
@@ -11,11 +11,13 @@ import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from types import MappingProxyType
 from typing import Protocol
 
-from .catalog import ObjectRecord
+from .access import AccessConfig, AccessFeatures, compute_access_features
+from .catalog import CatalogStore, ObjectRecord
 from .embedding_index import (
     EmbeddingIndexer,
     SimilaritySearchFilters,
@@ -353,6 +355,7 @@ class PolicyFeatures:
     mime: MimePolicyFeature
     embeddings: tuple[EmbeddingPolicyFeature, ...] = ()
     schema_version: int = POLICY_FEATURE_SCHEMA_VERSION
+    access: AccessFeatures | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -365,6 +368,8 @@ class PolicyFeatures:
             )
         if not isinstance(self.mime, MimePolicyFeature):
             raise ValueError("policy MIME feature must be MimePolicyFeature")
+        if self.access is not None and not isinstance(self.access, AccessFeatures):
+            raise ValueError("policy access feature must be AccessFeatures")
         embeddings = tuple(self.embeddings)
         if any(not isinstance(item, EmbeddingPolicyFeature) for item in embeddings):
             raise ValueError("policy embeddings must contain EmbeddingPolicyFeature values")
@@ -379,11 +384,14 @@ class PolicyFeatures:
     def to_dict(self) -> dict[str, object]:
         """Return a fresh, deterministically ordered JSON-safe projection."""
 
-        return {
+        result: dict[str, object] = {
             "schema_version": self.schema_version,
             "mime": self.mime.to_dict(),
             "embeddings": [item.to_dict() for item in self.embeddings],
         }
+        if self.access is not None:
+            result["access"] = self.access.to_dict()
+        return result
 
 
 class EmbeddingPolicyFeatureProvider(Protocol):
@@ -628,18 +636,25 @@ def _mime_feature(record: ObjectRecord) -> MimePolicyFeature:
 
 
 class CatalogPolicyFeatureLoader:
-    """Project catalog snapshots through an optional embedding feature service."""
+    """Project catalog snapshots with observed access and optional embeddings."""
 
     def __init__(
         self,
         embedding_provider: EmbeddingPolicyFeatureProvider | None = None,
+        *,
+        access_catalog: CatalogStore | None = None,
+        access_config: AccessConfig | None = None,
     ) -> None:
         self.embedding_provider = embedding_provider
+        self.access_catalog = access_catalog
+        self.access_config = access_config or AccessConfig()
 
     def load(
         self,
         records: Iterable[ObjectRecord],
         requests: Iterable[EmbeddingFeatureRequest] = (),
+        *,
+        as_of: str | datetime | None = None,
     ) -> dict[PolicyFeatureCoordinate, PolicyFeatures]:
         detached_records = tuple(records)
         detached_requests = tuple(requests)
@@ -667,10 +682,18 @@ class CatalogPolicyFeatureLoader:
             sorted(detached_requests, key=lambda request: (request.name, request.query))
         )
         embedding_features = self._embedding_features(ordered_records, ordered_requests)
+        evaluated_at = as_of if as_of is not None else datetime.now(timezone.utc)
         return {
             (record.bucket, record.key): PolicyFeatures(
                 mime=_mime_feature(record),
                 embeddings=embedding_features[(record.bucket, record.key)],
+                access=compute_access_features(
+                    self.access_catalog,
+                    record.bucket,
+                    record.key,
+                    config=self.access_config,
+                    as_of=evaluated_at,
+                ),
             )
             for record in ordered_records
         }

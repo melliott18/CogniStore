@@ -421,6 +421,10 @@ Notes:
 	  in [the policy feature projection contract](docs/policy_features.md).
 	The LLM mode currently uses a threshold-based mock provider; you can swap in a real provider later.
 
+Observed object reads, writes, and metadata touches also feed configurable
+recency/frequency windows in policy projections. See [access history](docs/access_history.md)
+for capture coverage, retry identities, sampling, and retention.
+
 ### Durable background workers
 
 CogniStore uses file-backed NATS JetStream and a durable pull consumer for

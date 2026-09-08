@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
 from cognistore.ui import register_content_search_ui
@@ -173,6 +174,32 @@ def allow_anonymous() -> None:
     return None
 
 
+def access_headers(
+    request_id: Annotated[
+        str | None,
+        Header(
+            alias="X-Request-ID",
+            description=(
+                "Request correlation and default access-operation identity. Reusing a valid "
+                "identifier deduplicates access signals for the same operation kind and object."
+            ),
+        ),
+    ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            pattern=r"^[A-Za-z0-9._:-]{1,128}$",
+            description=(
+                "Optional logical access-operation identity shared across retries with different "
+                "request IDs. Deduplicates access history only; storage operations still execute."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Document the correlation headers parsed by the request middleware."""
+
+
 def _request_id(request: Request) -> str:
     value = getattr(request.state, "request_id", None)
     return value if isinstance(value, str) else str(uuid4())
@@ -271,6 +298,14 @@ def create_app(
         request.state.request_id = (
             supplied if supplied is not None and _REQUEST_ID.fullmatch(supplied) else str(uuid4())
         )
+        operation_id = request.headers.get("idempotency-key", request.state.request_id)
+        if _REQUEST_ID.fullmatch(operation_id) is None:
+            return _error_response(
+                request,
+                status_code=422,
+                code="validation_error",
+                message="Idempotency-Key must contain 1-128 letters, digits, dots, underscores, colons or hyphens",
+            )
         if request.method == "POST" and request.url.path in _JSON_BODY_PATHS:
             raw_content_length = request.headers.get("content-length")
             if raw_content_length is not None:
@@ -331,7 +366,12 @@ def create_app(
                     retryable=exc.retryable,
                     headers=exc.headers,
                 )
-        response = await call_next(request)
+        with access_operation(
+            operation_id=operation_id,
+            correlation_id=request.state.request_id,
+            source="api",
+        ):
+            response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         return response
 
@@ -456,7 +496,7 @@ def create_app(
         )
 
     auth = authorization_hook or allow_anonymous
-    router = APIRouter(prefix="/v1", dependencies=[Depends(auth)])
+    router = APIRouter(prefix="/v1", dependencies=[Depends(auth), Depends(access_headers)])
     @app.get(
         "/healthz",
         response_model=HealthResponse,

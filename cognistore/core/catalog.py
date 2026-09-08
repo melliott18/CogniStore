@@ -11,6 +11,15 @@ from uuid import UUID
 
 from cognistore.utils.redaction import redact, redact_text
 
+from .access import (
+	ACCESS_KINDS,
+	AccessConfig,
+	AccessEvent,
+	AccessSnapshot,
+	AccessWindow,
+	access_cutoff,
+	access_timestamp,
+)
 from .audit import (
 	AuditContext,
 	AuditEvent,
@@ -242,6 +251,25 @@ class CatalogStore(Protocol):
 
 	def iter_objects(self, *, batch_size: int = 1000) -> Iterator[ObjectRecord]: ...
 
+	def append_access_event(self, event: AccessEvent) -> AccessEvent: ...
+
+	def aggregate_access_events(
+		self,
+		bucket: str,
+		key: str | None,
+		*,
+		config: AccessConfig,
+		as_of: str | datetime,
+	) -> AccessSnapshot: ...
+
+	def prune_access_events(
+		self,
+		occurred_before: str | datetime,
+		*,
+		limit: int = 1000,
+		retention_seconds: int = 2592000,
+	) -> int: ...
+
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent: ...
 
 	def get_audit_event(self, event_id: str) -> AuditEvent | None: ...
@@ -350,6 +378,8 @@ class Catalog(CatalogStore):
 		self._content_blobs: Dict[str, _ContentBlobState] = {}
 		self._move_jobs: Dict[str, MoveJob] = {}
 		self._move_transitions: Dict[str, List[MoveJobTransition]] = {}
+		self._access_events: Dict[str, AccessEvent] = {}
+		self._pruned_access_events: set[str] = set()
 		self._audit_events: Dict[str, AuditEvent] = {}
 		self._audit_move_heads: Dict[str, tuple[int, str]] = {}
 		self._audit_event_tombstones: Dict[
@@ -849,6 +879,111 @@ class Catalog(CatalogStore):
 		"""Copy one record without preserving aliases to mutable fields."""
 
 		return deepcopy(record)
+
+	def append_access_event(self, event: AccessEvent) -> AccessEvent:
+		"""Append once per logical operation, retaining the first observation."""
+		if not isinstance(event, AccessEvent):
+			raise TypeError("event must be an AccessEvent")
+		with self._lock:
+			existing = self._access_events.get(event.event_id)
+			if existing is not None:
+				if existing.replay_identity() != event.replay_identity():
+					raise ValueError("access event ID conflicts with persisted identity")
+				return existing
+			self._access_events[event.event_id] = event
+			return event
+
+	def aggregate_access_events(
+		self,
+		bucket: str,
+		key: str | None,
+		*,
+		config: AccessConfig,
+		as_of: str | datetime,
+	) -> AccessSnapshot:
+		instant = access_timestamp(as_of)
+		lower = access_cutoff(instant, config.retention_seconds)
+		cutoffs = tuple(access_cutoff(instant, seconds) for seconds in config.windows_seconds)
+		counts = [[0 for _kind in ACCESS_KINDS] for _window in config.windows_seconds]
+		estimates = [[0.0 for _kind in ACCESS_KINDS] for _window in config.windows_seconds]
+		total = 0
+		first: str | None = None
+		last: str | None = None
+		minimum_rate: float | None = None
+		with self._lock:
+			for event in self._access_events.values():
+				if (
+					event.event_id in self._pruned_access_events
+					or (event.bucket, event.key) != (bucket, key)
+					or not lower < event.occurred_at <= instant
+				):
+					continue
+				total += 1
+				first = min(first, event.occurred_at) if first is not None else event.occurred_at
+				last = max(last, event.occurred_at) if last is not None else event.occurred_at
+				minimum_rate = (
+					min(minimum_rate, event.sample_rate)
+					if minimum_rate is not None
+					else event.sample_rate
+				)
+				kind_index = ACCESS_KINDS.index(event.kind)
+				for index, cutoff in enumerate(cutoffs):
+					if event.occurred_at > cutoff:
+						counts[index][kind_index] += 1
+						estimates[index][kind_index] += 1 / event.sample_rate
+		return AccessSnapshot(
+			windows=tuple(
+				AccessWindow(seconds, tuple(counts[index]), tuple(estimates[index]))
+				for index, seconds in enumerate(config.windows_seconds)
+			),
+			observed_events=total,
+			observed_since=first,
+			last_access_at=last,
+			minimum_sample_rate=minimum_rate,
+		)
+
+	def prune_access_events(
+		self,
+		occurred_before: str | datetime,
+		*,
+		limit: int = 1000,
+		retention_seconds: int = 2592000,
+	) -> int:
+		"""Expire a bounded batch, retaining retry IDs for one extra horizon.
+
+		The returned count measures expired observations plus purged identities. Expired identities
+		older than cutoff minus retention_seconds are physically removed in a
+		separate bounded batch. Retry IDs are not promised beyond that horizon.
+		"""
+		if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10000:
+			raise ValueError("limit must be an integer from 1 to 10000")
+		config = AccessConfig(windows_seconds=(1,), retention_seconds=retention_seconds)
+		cutoff = access_timestamp(occurred_before)
+		dedup_cutoff = access_cutoff(cutoff, config.retention_seconds)
+		with self._lock:
+			purge = sorted(
+				(
+					event
+					for event in self._access_events.values()
+					if event.event_id in self._pruned_access_events
+					and event.occurred_at < dedup_cutoff
+				),
+				key=lambda event: (event.occurred_at, event.event_id),
+			)[:limit]
+			for event in purge:
+				del self._access_events[event.event_id]
+				self._pruned_access_events.remove(event.event_id)
+			expire = sorted(
+				(
+					event
+					for event in self._access_events.values()
+					if event.event_id not in self._pruned_access_events
+					and event.occurred_at < cutoff
+				),
+				key=lambda event: (event.occurred_at, event.event_id),
+			)[:limit]
+			self._pruned_access_events.update(event.event_id for event in expire)
+			return len(expire) + len(purge)
 
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent:
 		"""Append one redacted event, idempotently by event UUID."""

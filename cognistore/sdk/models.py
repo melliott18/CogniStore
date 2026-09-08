@@ -377,10 +377,53 @@ class EmbeddingPolicyFeature(SDKResponse):
     provenance: PolicyFeatureProvenance
 
 
+class AccessWindow(SDKResponse):
+    read: Annotated[int, Field(ge=0)]
+    write: Annotated[int, Field(ge=0)]
+    list: Annotated[int, Field(ge=0)]
+    touch: Annotated[int, Field(ge=0)]
+
+
+class EstimatedAccessWindow(SDKResponse):
+    read: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+    write: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+    list: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+    touch: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+
+
+class AccessSampling(SDKResponse):
+    configured_rate: Annotated[float, Field(gt=0, le=1, allow_inf_nan=False)]
+    minimum_rate: Annotated[float, Field(gt=0, le=1, allow_inf_nan=False)] | None
+    sampled: bool
+
+
+class AccessPolicyFeature(SDKResponse):
+    schema_version: Literal[1]
+    as_of: str
+    bucket: str
+    key: str | None
+    windows: dict[str, AccessWindow]
+    estimated_windows: dict[str, EstimatedAccessWindow]
+    last_access_at: str | None
+    recency_seconds: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None
+    observed_events: Annotated[int, Field(ge=0)]
+    observed_since: str | None
+    freshness: Literal["fresh", "missing", "stale", "unavailable"]
+    freshness_seconds: Annotated[int, Field(gt=0)]
+    freshness_basis: Literal["latest_observed_event"]
+    sampling: AccessSampling
+    missing: bool
+    partial: Literal[True]
+    coverage: Literal["observed_operations_only"]
+    retention_seconds: Annotated[int, Field(gt=0)]
+    reason: str | None = None
+
+
 class PolicyFeatures(SDKResponse):
     schema_version: Literal[1]
     mime: MimePolicyFeature
     embeddings: Annotated[list[EmbeddingPolicyFeature], Field(max_length=100)]
+    access: AccessPolicyFeature | None = None
 
 
 class PolicyEvaluationResponse(SDKResponse):
@@ -473,5 +516,6 @@ GeneratedAnswerResponse: TypeAlias = GeneratedAnswer
 PolicyFeatureProvenanceResponse: TypeAlias = PolicyFeatureProvenance
 MimePolicyFeatureResponse: TypeAlias = MimePolicyFeature
 EmbeddingPolicyFeatureResponse: TypeAlias = EmbeddingPolicyFeature
+AccessPolicyFeatureResponse: TypeAlias = AccessPolicyFeature
 PolicyFeaturesResponse: TypeAlias = PolicyFeatures
 JobStatusResponse: TypeAlias = JobStatus
