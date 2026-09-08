@@ -185,7 +185,9 @@ def test_imports_normalized_tiers_pools_placements_and_fences(tmp_path: Path) ->
     source_path = tmp_path / "normalized.db"
     source = SQLCatalog(source_path)
     source.register_tier("hot", {"region": "us\0west", "nested\0key": ["tier\0value"]})
-    source.register_pool("pool-a", "hot", {"device": "nvme0\0serial"})
+    source.register_pool(
+        "pool-a", "hot", {"device": "nvme0\0serial"}, region="west", members=("nvme0",)
+    )
     source.upsert(
         "bucket",
         "object",

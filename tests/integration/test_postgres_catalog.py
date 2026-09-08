@@ -810,7 +810,9 @@ def test_imports_normalized_sqlite_catalog_into_postgres(
     source_path = tmp_path / "catalog.sqlite3"
     with SQLCatalog(source_path) as source:
         source.register_tier("hot", {"region": "us\0west"})
-        source.register_pool("pool-a", "hot", {"device": "nvme0\0serial"})
+        source.register_pool(
+            "pool-a", "hot", {"device": "nvme0\0serial"}, region="west", members=("nvme0",)
+        )
         source.upsert(
             "bucket\0name",
             "object\0key",
@@ -1247,6 +1249,8 @@ def test_concurrent_postgres_pool_registration_is_atomic(postgres_dsn: str) -> N
     barrier = threading.Barrier(worker_count)
 
     with SQLCatalog(postgres_dsn) as catalog:
+        catalog.register_tier("tier-0")
+        catalog.register_tier("tier-1")
 
         def register(index: int) -> None:
             barrier.wait(timeout=10)
@@ -1254,6 +1258,8 @@ def test_concurrent_postgres_pool_registration_is_atomic(postgres_dsn: str) -> N
                 "shared-pool",
                 f"tier-{index % 2}",
                 {"writer": index},
+                region="west",
+                members=(f"member-{index}",),
             )
 
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -1361,7 +1367,9 @@ def test_postgres_downgrade_refuses_unrepresentable_normalized_state(
     with SQLCatalog(postgres_dsn) as catalog:
         catalog.upsert("bucket", "object", size=1, tier="hot")
         catalog.register_tier("hot", {"region": "west"})
-        catalog.register_pool("pool-a", "hot", {"device": "nvme0"})
+        catalog.register_pool(
+            "pool-a", "hot", {"device": "nvme0"}, region="west", members=("nvme0",)
+        )
         with catalog.engine.begin() as connection:
             connection.execute(sa.update(object_placements).values(pool_id="pool-a"))
 

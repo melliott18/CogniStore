@@ -1,0 +1,117 @@
+{
+  "tiers": [
+    {
+      "name": "hot",
+      "metadata": {
+        "description": "Low latency storage"
+      }
+    },
+    {
+      "name": "warm",
+      "metadata": {
+        "description": "Lower cost storage"
+      }
+    }
+  ],
+  "pools": [
+    {
+      "pool_id": "hot-west",
+      "tier": "hot",
+      "region": "us-west-2",
+      "members": [
+        "ssd-west-1",
+        "ssd-west-2"
+      ],
+      "localities": [
+        "US",
+        "tenant-a"
+      ],
+      "attributes": {
+        "latency": {
+          "value": 3.5,
+          "unit": "ms",
+          "source": "example-probe/p95-read",
+          "kind": "measured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 300
+        },
+        "capacity": {
+          "value": 1099511627776,
+          "unit": "bytes",
+          "source": "example-config/usable-capacity",
+          "kind": "configured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 86400
+        },
+        "price": {
+          "value": 0.1,
+          "unit": "USD/GiB-month",
+          "source": "example-config/storage-rate",
+          "kind": "configured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 2592000
+        },
+        "carbon_intensity": {
+          "value": 120,
+          "unit": "gCO2e/kWh",
+          "source": "example-grid-monitor",
+          "kind": "measured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 3600
+        }
+      }
+    },
+    {
+      "pool_id": "hot-europe",
+      "tier": "hot",
+      "region": "eu-west-1",
+      "members": [
+        "ssd-europe-1"
+      ],
+      "localities": [
+        "EU",
+        "tenant-a"
+      ],
+      "attributes": {
+        "latency": {
+          "value": 2.0,
+          "unit": "ms",
+          "source": "example-probe/p95-read",
+          "kind": "measured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 300
+        }
+      }
+    },
+    {
+      "pool_id": "warm-west",
+      "tier": "warm",
+      "region": "us-west-2",
+      "members": [
+        "disk-west-1"
+      ],
+      "localities": [
+        "US",
+        "tenant-a"
+      ],
+      "attributes": {
+        "latency": {
+          "value": 15,
+          "unit": "ms",
+          "source": "example-probe/p95-read",
+          "kind": "measured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 300
+        },
+        "price": {
+          "value": 0.025,
+          "unit": "USD/GiB-month",
+          "source": "example-config/storage-rate",
+          "kind": "configured",
+          "observed_at": "2026-09-08T12:00:00Z",
+          "max_age_seconds": 2592000
+        }
+      }
+    }
+  ]
+}
