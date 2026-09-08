@@ -131,12 +131,14 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [x] M1: S3 driver + streaming mover + dry‑run + guardrails (completed 2026-08-29)
   - Success: Move 1M small files hot↔warm reliably with idempotent jobs and integrity checks
   - Exit gate: the clean-revision full-profile [report](evidence/m1/README.md) passed and is retained on `main`; #29, #16, and the M1 milestone are closed
-- [ ] M2: Postgres/pgvector + embeddings + keyword search
+- [x] M2: Postgres/pgvector + embeddings + keyword search (completed 2026-09-08)
   - Success: Query objects by content via API/UI; policy uses MIME + embeddings features
-  - Progress: the knowledge, API, SDK, and content-search workflow (#30–#41)
-    is complete; [#42](https://github.com/melliott18/CogniStore/issues/42) is
-    the active and final M2 delivery ticket
-  - Execution order: `docs/next_ticket_roadmap_2026-08-27.md`
+  - Exit gate: #30–#42 and verification/tracking follow-ups #100–#102 are
+    complete; [retained closeout evidence](evidence/m2/README.md) maps the
+    acceptance criteria to the qualified revision and passing CI reports
+  - Epic [#13](https://github.com/melliott18/CogniStore/issues/13) and the
+    [M2 milestone](https://github.com/melliott18/CogniStore/milestone/1) are closed
+  - Completed execution record: [next-ticket roadmap](next_ticket_roadmap_2026-08-27.md)
 - [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
   - Success: Automated, explainable actions under budget constraints; no tier flapping
 - [ ] M4: Multi-tenant, observable, and deployable

@@ -23,6 +23,7 @@ nav:
   - Qualification:
       - Move scale and recovery: scale_qualification.md
       - M1 closeout evidence: evidence/m1/README.md
+      - M2 closeout evidence: evidence/m2/README.md
       - M1 verification (historical): m1_verification_2026-08-27.md
       - M1 review (historical): m1_review_2026-08-20.md
   - Project:

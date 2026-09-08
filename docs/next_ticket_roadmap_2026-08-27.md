@@ -1,7 +1,6 @@
 # Next-ticket execution roadmap — 2026-08-27
 
-> **Progress update (2026-09-01):** Groups 1 through 4 are complete, and Group
-> 5 has reached its final delivery ticket. Hybrid retrieval landed through
+> **Closeout update (2026-09-08):** Groups 1 through 5 are complete. Hybrid retrieval landed through
 > [PR #113](https://github.com/melliott18/CogniStore/pull/113) (#38), the REST
 > contract through [PR #114](https://github.com/melliott18/CogniStore/pull/114)
 > plus CI follow-up [PR #115](https://github.com/melliott18/CogniStore/pull/115)
@@ -9,13 +8,18 @@
 > [PR #116](https://github.com/melliott18/CogniStore/pull/116) (#40), and the
 > content-search UI/sample through
 > [PR #117](https://github.com/melliott18/CogniStore/pull/117) (#41).
-> [#42](https://github.com/melliott18/CogniStore/issues/42) is the active and
-> final M2 delivery ticket.
+> [#42](https://github.com/melliott18/CogniStore/issues/42) completed the final
+> M2 delivery requirement through
+> [PR #119](https://github.com/melliott18/CogniStore/pull/119). Epic #13 and
+> the M2 milestone are closed; the [closeout evidence](evidence/m2/README.md)
+> retains the acceptance mapping and qualified CI reports.
 
 This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. Group 1
-finished M1, Group 2 established the M2 foundation, and the remaining waves
-deliver M2 from those stable storage and indexing contracts.
+finished M1, Group 2 established the M2 foundation, and Groups 3 through 5
+completed M2 from those stable storage and indexing contracts. This document
+now records the completed M1/M2 sequence; GitHub's M3 and M4 epics own the
+remaining delivery work.
 
 ## Group 1 — M1 exit gate (complete)
 
@@ -110,7 +114,7 @@ grace-qualified reclamation candidates without deleting bytes. The embedding
 and keyword indexes record their model/index versions and are rebuildable from
 canonical catalog content.
 
-## Group 5 — compose retrieval and public contracts (active)
+## Group 5 — compose retrieval and public contracts (complete)
 
 The retrieval and public-contract chain is complete through its user-facing
 workflow:
@@ -128,10 +132,11 @@ workflow:
 4. [#41](https://github.com/melliott18/CogniStore/issues/41) delivered the
    content-search UI and end-to-end sample corpus through
    [PR #117](https://github.com/melliott18/CogniStore/pull/117).
-5. **Active delivery ticket:**
-   [#42](https://github.com/melliott18/CogniStore/issues/42) now feeds MIME and
-   embedding-derived features into placement policies. Its #32, #36, and #39
-   dependencies are complete.
+5. [#42](https://github.com/melliott18/CogniStore/issues/42) delivered versioned
+   MIME and embedding-derived policy features through
+   [PR #119](https://github.com/melliott18/CogniStore/pull/119), with provenance,
+   freshness, safe missing-provider behavior, and reindexing/reevaluation
+   integration coverage.
 
 ## Execution and dependency view
 
@@ -144,16 +149,18 @@ M2:  [done] #30 ─┬─> [done] #31
                  └─> [done] #32 ─> [done] #33 ─> [done] #34 ─┬─> [done] #35
                            #30 ──────────────────────────┼─> [done] #36 ─┐
                                                        └─> [done] #37 ─┴─> [done] #38 ─> [done] #39 ─┬─> [done] #40 ─> [done] #41
-                                                                                                     └─> [active] #42
+                                                                                                     └─> [done] #42
 ```
 
 The M1 arrows show the completed final closure order, not formal dependency
 links in #29. The M2 arrows reflect the dependencies recorded in the issue
 bodies.
 
-#31 is complete and remains an M2 completion requirement even though no later
-ticket depends on it. #42 is the final active M2 ticket; all of its #32, #36,
-and #39 dependencies are complete.
+#31 and #42 are complete, satisfying the audit and policy requirements in
+addition to the retrieval path. All 13 original delivery tickets and the
+three verification/tracking follow-ups (#100–#102) are closed. The qualified
+revision, acceptance mapping, CI results, and scope limits are recorded in
+the [M2 closeout evidence](evidence/m2/README.md).
 
 ## Cross-wave quality gates
 

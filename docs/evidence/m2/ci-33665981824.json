@@ -1,0 +1,656 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-09-08",
+  "repository": "melliott18/CogniStore",
+  "qualified_revision": "2dcde3b70bf085c79d4b79ed9a93e280d6a92332",
+  "run": {
+    "conclusion": "success",
+    "createdAt": "2026-09-02T18:14:21Z",
+    "databaseId": 33665981824,
+    "displayTitle": "Merge pull request #119 from melliott18/feature/42-policy-features",
+    "event": "push",
+    "headBranch": "main",
+    "headSha": "2dcde3b70bf085c79d4b79ed9a93e280d6a92332",
+    "jobs": [
+      {
+        "completedAt": "2026-09-02T18:15:20Z",
+        "conclusion": "success",
+        "databaseId": 100367721681,
+        "name": "Dependency and static security scans",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721681",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721681/logs",
+        "log_sha256": "a571d7e83fce368d4eaee9d76e63b15bcb63f3698a4b583884fb5eaf5d6da1d4",
+        "excerpts": [
+          {
+            "log_line": 541,
+            "text": "2026-09-02T18:15:12.6819664Z No known vulnerabilities found"
+          },
+          {
+            "log_line": 555,
+            "text": "2026-09-02T18:15:14.7743276Z No known vulnerabilities found"
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Audit Python dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Audit installed development dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Scan Python source with Bandit",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:15:06Z",
+        "conclusion": "success",
+        "databaseId": 100367721833,
+        "name": "Build and install package",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721833",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721833/logs",
+        "log_sha256": "4a73eb6c7c8bbae9ec7e38bc76f8307c154a231c95db5bf489c8b9d963936248",
+        "excerpts": [
+          {
+            "log_line": 844,
+            "text": "2026-09-02T18:14:44.2618132Z Successfully built cognistore-0.1.0.tar.gz and cognistore-0.1.0-py3-none-any.whl"
+          },
+          {
+            "log_line": 1053,
+            "text": "2026-09-02T18:14:57.6572278Z No broken requirements found."
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Build wheel and source distribution",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify distribution metadata",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify wheel installation from outside the checkout",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:19:13Z",
+        "conclusion": "success",
+        "databaseId": 100367721894,
+        "name": "Tests (Python 3.10)",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721894",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721894/logs",
+        "log_sha256": "df27330a471526cc6b2d6ccbc65d1bf1b68744a49db392aa94f09766765b02e5",
+        "excerpts": [
+          {
+            "log_line": 3507,
+            "text": "2026-09-02T18:17:10.4837856Z ======================= 1222 passed in 121.12s (0:02:01) ======================="
+          },
+          {
+            "log_line": 4119,
+            "text": "2026-09-02T18:19:04.5011122Z ================== 160 passed, 1 skipped in 99.22s (0:01:39) ==================="
+          },
+          {
+            "log_line": 4240,
+            "text": "2026-09-02T18:19:08.0462631Z TOTAL                                                          16848   2021   5184   1166  84.74%"
+          }
+        ],
+        "tests": {
+          "unit_and_conformance_passed": 1222,
+          "integration_passed": 160,
+          "integration_skipped": 1
+        },
+        "coverage_percent": 84.74,
+        "verification_steps": [
+          {
+            "name": "Run unit and conformance tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run integration tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Enforce coverage threshold",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show integration service logs after a failure",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:19:05Z",
+        "conclusion": "success",
+        "databaseId": 100367721900,
+        "name": "Tests (Python 3.13)",
+        "startedAt": "2026-09-02T18:14:25Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721900",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721900/logs",
+        "log_sha256": "fb1ff437e0503b9b46a13885c6c1077134495d7551b70829a9df6fa9491e4975",
+        "excerpts": [
+          {
+            "log_line": 3625,
+            "text": "2026-09-02T18:17:08.4000480Z ================ 1222 passed, 14 warnings in 126.11s (0:02:06) ================="
+          },
+          {
+            "log_line": 4240,
+            "text": "2026-09-02T18:18:58.1611919Z ================== 160 passed, 1 skipped in 94.71s (0:01:34) ==================="
+          },
+          {
+            "log_line": 4361,
+            "text": "2026-09-02T18:19:00.7009559Z TOTAL                                                          16848   2017   5184   1166  84.76%"
+          }
+        ],
+        "tests": {
+          "unit_and_conformance_passed": 1222,
+          "integration_passed": 160,
+          "integration_skipped": 1
+        },
+        "coverage_percent": 84.76,
+        "verification_steps": [
+          {
+            "name": "Run unit and conformance tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run integration tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Enforce coverage threshold",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show integration service logs after a failure",
+            "conclusion": "skipped"
+          }
+        ],
+        "warnings": {
+          "count": 14,
+          "description": "ResourceWarning: unclosed database in sqlite3.Connection in the unit/conformance run."
+        }
+      },
+      {
+        "completedAt": "2026-09-02T18:15:22Z",
+        "conclusion": "success",
+        "databaseId": 100367721932,
+        "name": "Lint and type check",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721932",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721932/logs",
+        "log_sha256": "ea7a3d03a6ac413bd8a7e5a510e49807f02633a4206500fa0bab17913c8d297e",
+        "excerpts": [
+          {
+            "log_line": 541,
+            "text": "2026-09-02T18:15:02.6701607Z All checks passed!"
+          },
+          {
+            "log_line": 555,
+            "text": "2026-09-02T18:15:17.1696679Z Success: no issues found in 94 source files"
+          },
+          {
+            "log_line": 569,
+            "text": "2026-09-02T18:15:19.7000810Z OpenAPI contract is current: docs/openapi/v1.json"
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Run Ruff",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run mypy",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify deterministic OpenAPI contract",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:19:25Z",
+        "conclusion": "success",
+        "databaseId": 100367721933,
+        "name": "Container images and Compose integration",
+        "startedAt": "2026-09-02T18:15:00Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721933",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721933/logs",
+        "log_sha256": "bc4507a1f85a010149e96a295f461f5a81296abe92f2b13cbd185a76c6ef2cb7",
+        "excerpts": [
+          {
+            "log_line": 1854,
+            "text": "2026-09-02T18:18:09.7567895Z integration-tests-1  | ================== 160 passed, 1 skipped in 108.53s (0:01:48) =================="
+          },
+          {
+            "log_line": 2060,
+            "text": "2026-09-02T18:19:01.4842626Z Interrupted move journal survived worker shutdown and restart."
+          },
+          {
+            "log_line": 2111,
+            "text": "2026-09-02T18:19:21.4455851Z {\"acceptance_criteria\": {\"environment_configuration_and_metrics_recorded\": \"passed\", \"injected_failure_idempotency_retry_and_source_retention\": \"passed\", \"one_million_object_round_trip\": \"not_evaluated_reduced_scale\"}, \"corruption\": 0, \"elapsed_seconds\": 10.200449257999992, \"failed_attempts\": 12, \"fault_scenarios\": 8, \"injected_failure_events\": 12, \"logical_moves\": 48, \"objects_per_path\": 12, \"observed_failure_objects\": 0, \"paths_completed\": 2, \"paths_started\": 2, \"payload_bytes_moved\": 248868, \"recovered_fault_scenarios\": 8, \"silent_loss\": 0}"
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Validate Compose configuration",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build stack images",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify image isolation and non-root users",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify development volume ownership",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run Compose integration profile",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify interrupted move diagnostics survive restart",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run reduced move qualification",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export move qualification evidence",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show Compose logs after a failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Tear down Compose services and volumes",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:16:22Z",
+        "conclusion": "success",
+        "databaseId": 100367721938,
+        "name": "Default full test suite",
+        "startedAt": "2026-09-02T18:14:26Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721938",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721938/logs",
+        "log_sha256": "e82d4c62f53030afb5977ba37519d0e4f5ecabb41a5820c6434fe23bff145c74",
+        "excerpts": [
+          {
+            "log_line": 3790,
+            "text": "2026-09-02T18:16:18.4737786Z ================= 1286 passed, 81 skipped in 70.36s (0:01:10) =================="
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Run documented default full-suite command",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:18:10Z",
+        "conclusion": "success",
+        "databaseId": 100367721939,
+        "name": "Tests (Python 3.14)",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721939",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721939/logs",
+        "log_sha256": "00af0e8d45f3f22c3b65de24187b1124431fa22e5c654a1aabd659381dedadd5",
+        "excerpts": [
+          {
+            "log_line": 3634,
+            "text": "2026-09-02T18:16:16.2616584Z ================= 1222 passed, 14 warnings in 66.36s (0:01:06) ================="
+          },
+          {
+            "log_line": 4246,
+            "text": "2026-09-02T18:18:00.0831232Z ================== 160 passed, 1 skipped in 85.13s (0:01:25) ==================="
+          },
+          {
+            "log_line": 4367,
+            "text": "2026-09-02T18:18:03.7086157Z TOTAL                                                          16848   2016   5184   1166  84.77%"
+          }
+        ],
+        "tests": {
+          "unit_and_conformance_passed": 1222,
+          "integration_passed": 160,
+          "integration_skipped": 1
+        },
+        "coverage_percent": 84.77,
+        "verification_steps": [
+          {
+            "name": "Run unit and conformance tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run integration tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Enforce coverage threshold",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show integration service logs after a failure",
+            "conclusion": "skipped"
+          }
+        ],
+        "warnings": {
+          "count": 14,
+          "description": "ResourceWarning: unclosed database in sqlite3.Connection in the unit/conformance run."
+        }
+      },
+      {
+        "completedAt": "2026-09-02T18:21:41Z",
+        "conclusion": "success",
+        "databaseId": 100367721942,
+        "name": "Tests (Python 3.12)",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721942",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721942/logs",
+        "log_sha256": "0648b8cac57c3eb4fa0bf8d3a2b860ddb6b64e7e8270d566afaa5023ff5ba870",
+        "excerpts": [
+          {
+            "log_line": 3503,
+            "text": "2026-09-02T18:18:25.0423302Z ======================= 1222 passed in 171.72s (0:02:51) ======================="
+          },
+          {
+            "log_line": 4116,
+            "text": "2026-09-02T18:21:35.2276887Z ================== 160 passed, 1 skipped in 163.58s (0:02:43) =================="
+          },
+          {
+            "log_line": 4237,
+            "text": "2026-09-02T18:21:37.0317021Z TOTAL                                                          16848   2020   5184   1163  84.74%"
+          }
+        ],
+        "tests": {
+          "unit_and_conformance_passed": 1222,
+          "integration_passed": 160,
+          "integration_skipped": 1
+        },
+        "coverage_percent": 84.74,
+        "verification_steps": [
+          {
+            "name": "Run unit and conformance tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run integration tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Enforce coverage threshold",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show integration service logs after a failure",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:18:40Z",
+        "conclusion": "success",
+        "databaseId": 100367721968,
+        "name": "Tests (Python 3.11)",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367721968",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367721968/logs",
+        "log_sha256": "08059badc3dd75b145d27fc54249072e3c6bef758c6fc712e1e812beb794173d",
+        "excerpts": [
+          {
+            "log_line": 3514,
+            "text": "2026-09-02T18:16:38.8139575Z ======================= 1222 passed in 95.98s (0:01:35) ========================"
+          },
+          {
+            "log_line": 4127,
+            "text": "2026-09-02T18:18:32.8622880Z ================== 160 passed, 1 skipped in 91.84s (0:01:31) ==================="
+          },
+          {
+            "log_line": 4248,
+            "text": "2026-09-02T18:18:35.2260815Z TOTAL                                                          16848   2021   5184   1166  84.74%"
+          }
+        ],
+        "tests": {
+          "unit_and_conformance_passed": 1222,
+          "integration_passed": 160,
+          "integration_skipped": 1
+        },
+        "coverage_percent": 84.74,
+        "verification_steps": [
+          {
+            "name": "Run unit and conformance tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run integration tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Enforce coverage threshold",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show integration service logs after a failure",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      {
+        "completedAt": "2026-09-02T18:14:30Z",
+        "conclusion": "success",
+        "databaseId": 100367722188,
+        "name": "Secret scan",
+        "startedAt": "2026-09-02T18:14:24Z",
+        "status": "completed",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824/job/100367722188",
+        "log_api_url": "https://api.github.com/repos/melliott18/CogniStore/actions/jobs/100367722188/logs",
+        "log_sha256": "44d7bda25a4d736609f667a411a6a32da074d21bb15623a2d67ec5ca758f472f",
+        "excerpts": [
+          {
+            "log_line": 175,
+            "text": "2026-09-02T18:14:28.5040564Z 6:14PM INF no leaks found"
+          }
+        ],
+        "verification_steps": [
+          {
+            "name": "Scan commits for secrets",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ],
+    "status": "completed",
+    "updatedAt": "2026-09-02T18:21:42Z",
+    "url": "https://github.com/melliott18/CogniStore/actions/runs/33665981824",
+    "workflowName": "CI"
+  },
+  "python_3_12_artifact": {
+    "id": 9860842926,
+    "name": "test-reports-python-3.12",
+    "size_in_bytes": 84169,
+    "expired": false,
+    "created_at": "2026-09-02T18:21:39Z",
+    "updated_at": "2026-09-02T18:21:39Z",
+    "archive_download_url": "https://api.github.com/repos/melliott18/CogniStore/actions/artifacts/9860842926/zip"
+  },
+  "retained_files": [
+    {
+      "path": "coverage.xml",
+      "bytes": 771572,
+      "sha256": "c70006483da4d90c52f24d79ea85b2b27f76fc44e3592f4524afa4c86df86837",
+      "coverage_attributes": {
+        "version": "7.16.0",
+        "timestamp": "1788373297099",
+        "lines-valid": "16848",
+        "lines-covered": "14828",
+        "line-rate": "0.8801",
+        "branches-valid": "5184",
+        "branches-covered": "3841",
+        "branch-rate": "0.7409",
+        "complexity": "0"
+      },
+      "combined_statement_and_branch_percent": 84.74,
+      "retained_path": "coverage.xml.gz"
+    },
+    {
+      "path": "test-results/integration.xml",
+      "bytes": 25094,
+      "sha256": "00066218c75627cb751092256ef0dbea05635089444665779029224eaf931181",
+      "suite": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "1",
+          "tests": "161",
+          "time": "163.572",
+          "timestamp": "2026-09-02T18:18:51.617496+00:00",
+          "hostname": "runnervmejwal"
+        }
+      ],
+      "testcase_classes": {
+        "tests.integration.test_cli_move_recovery": 12,
+        "tests.integration.test_content_search_sample": 1,
+        "tests.integration.test_mime_detection": 1,
+        "tests.integration.test_move_jobs": 15,
+        "tests.integration.test_move_qualification": 1,
+        "tests.integration.test_mover_catalog": 17,
+        "tests.integration.test_nats_worker": 8,
+        "tests.integration.test_pgvector_embedding_benchmark": 1,
+        "tests.integration.test_pgvector_embeddings": 12,
+        "tests.integration.test_policy_features": 1,
+        "tests.integration.test_postgres_catalog.TestPostgresCatalogConformance": 20,
+        "tests.integration.test_postgres_catalog": 29,
+        "tests.integration.test_s3_minio.TestMinioS3DriverConformance": 21,
+        "tests.integration.test_s3_minio": 6,
+        "tests.integration.test_scanner_move_coordination": 15,
+        "tests.integration.test_scheduled_run_recovery": 1
+      },
+      "skips": [
+        {
+          "name": "test_range_write_when_supported",
+          "class": "tests.integration.test_s3_minio.TestMinioS3DriverConformance",
+          "reason": "backend does not advertise range writes"
+        }
+      ],
+      "retained_path": "integration.xml.gz"
+    },
+    {
+      "path": "test-results/unit.xml",
+      "bytes": 179642,
+      "sha256": "054e8e5a4d114d9d6289750c420f12deda5039de87544359224b898bc243d837",
+      "suite": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1222",
+          "time": "171.464",
+          "timestamp": "2026-09-02T18:15:33.255533+00:00",
+          "hostname": "runnervmejwal"
+        }
+      ],
+      "testcase_classes": {
+        "tests.unit.test_ask_retrieval": 54,
+        "tests.unit.test_audit_events": 43,
+        "tests.unit.test_catalog_content_scan": 20,
+        "tests.unit.test_catalog_migrations": 16,
+        "tests.unit.test_catalog_pagination": 12,
+        "tests.unit.test_cli_config": 38,
+        "tests.unit.test_cli_contract": 38,
+        "tests.unit.test_cli_operations": 27,
+        "tests.unit.test_cli_output": 11,
+        "tests.unit.test_cli_safety": 28,
+        "tests.unit.test_content_identity": 39,
+        "tests.unit.test_content_policy": 22,
+        "tests.unit.test_content_references": 7,
+        "tests.unit.test_content_search_sample": 10,
+        "tests.unit.test_content_search_sample_cli": 3,
+        "tests.unit.test_content_search_ui": 3,
+        "tests.unit.test_device_and_tier_utils": 57,
+        "tests.unit.test_document_extraction": 32,
+        "tests.unit.test_driver_loader": 3,
+        "tests.unit.test_embedding_index": 31,
+        "tests.unit.test_embedding_providers": 78,
+        "tests.unit.test_job_envelope": 17,
+        "tests.unit.test_job_handlers": 21,
+        "tests.unit.test_job_retry": 23,
+        "tests.unit.test_keyword_search": 25,
+        "tests.unit.test_llm_policy": 3,
+        "tests.unit.test_mime_detection": 18,
+        "tests.unit.test_move_qualification": 23,
+        "tests.unit.test_nats_queue": 45,
+        "tests.unit.test_passages": 21,
+        "tests.unit.test_policy_feature_runtime": 11,
+        "tests.unit.test_policy_features": 19,
+        "tests.unit.test_policy_runner": 16,
+        "tests.unit.test_posix_driver": 49,
+        "tests.unit.test_rest_api": 29,
+        "tests.unit.test_s3_driver": 46,
+        "tests.unit.test_s3_driver_loader": 2,
+        "tests.unit.test_schedule_recovery_cli": 5,
+        "tests.unit.test_scheduler": 48,
+        "tests.unit.test_sdk_contract": 60,
+        "tests.unit.test_sqlite_catalog": 19,
+        "tests.unit.test_sqlite_import": 21,
+        "tests.unit.test_throughput": 23,
+        "tests.unit.test_ticket_mirror_sync": 9,
+        "tests.unit.test_worker_health": 2,
+        "tests.unit.test_worker_runtime": 34,
+        "tests.conformance.test_catalog_conformance.TestMemoryCatalogConformance": 20,
+        "tests.conformance.test_catalog_conformance.TestSQLiteCatalogConformance": 20,
+        "tests.conformance.test_posix_conformance.TestPosixDriverConformance": 21
+      },
+      "skips": [],
+      "retained_path": "unit.xml.gz"
+    }
+  ],
+  "coverage_threshold_percent": 80,
+  "default_suite": {
+    "passed": 1286,
+    "skipped": 81,
+    "skip_counts_by_reason": {
+      "MinIO conformance requires COGNISTORE_MINIO_ENDPOINT_URL, COGNISTORE_MINIO_ACCESS_KEY, COGNISTORE_MINIO_SECRET_KEY": 1,
+      "COGNISTORE_TEST_POSTGRES_DSN is not configured": 70,
+      "set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+      "set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 9
+    }
+  },
+  "limitations": [
+    "The sole service-enabled integration skip is test_range_write_when_supported: backend does not advertise range writes.",
+    "Default full-suite skips cover opt-in services; service-enabled matrix and Compose jobs provide the service qualification. A module-level MinIO skip is counted once in the default command, so totals are not additive across configurations.",
+    "Reduced move qualification does not evaluate the one-million-object round trip.",
+    "CI success and retained reports establish the qualified revision above; any later closeout documentation commit needs its own CI status.",
+    "Python 3.13 and 3.14 unit/conformance runs each emit 14 unclosed SQLite connection ResourceWarnings; the jobs still pass."
+  ]
+}

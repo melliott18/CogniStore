@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-02T06:37:27Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-08T19:44:24Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 37 open, 31 closed
+- **Snapshot:** 68 issues; 35 open, 33 closed
 
 ## How to use this mirror
 
@@ -34,7 +34,7 @@ git diff --check
 | Milestone | Epic | Original | Follow-ups | Other | Open / total | GitHub |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | 2 | 0 | 0 / 16 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
-| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 2 | 1 | 2 / 17 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/1) |
+| M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 3 | 0 | 0 / 17 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 22 / 22 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
 
@@ -66,7 +66,7 @@ git diff --check
 - **Status:** Open
 - **Milestone:** None
 - **Labels:** `roadmap`, `type:epic`
-- **Last updated:** 2026-08-31
+- **Last updated:** 2026-09-08
 
 <h4 id="issue-12-purpose">Purpose</h4>
 <p>This is the top-level tracker for converting the original CogniStore roadmap into an executable GitHub Issues backlog.</p>
@@ -82,7 +82,7 @@ git diff --check
 <h4 id="issue-12-milestone-epics">Milestone epics</h4>
 <ul class="contains-task-list">
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> — <a href="https://github.com/melliott18/CogniStore/milestone/4">M1 milestone</a>: reliable multi-backend movement</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> — <a href="https://github.com/melliott18/CogniStore/milestone/1">M2 milestone</a>: knowledge layer and search</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> — <a href="https://github.com/melliott18/CogniStore/milestone/1">M2 milestone</a>: knowledge layer and search</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> — <a href="https://github.com/melliott18/CogniStore/milestone/2">M3 milestone</a>: explainable policy engine</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> — <a href="https://github.com/melliott18/CogniStore/milestone/3">M4 milestone</a>: production platform</li>
 </ul>
@@ -97,6 +97,8 @@ git diff --check
 <p>&quot;Backlog is maintained against the default <code>main</code> branch; GitHub Issues is the canonical tracker.&quot;</p>
 <h4 id="issue-12-m1-completion">M1 completion</h4>
 <p>M1 completed on 2026-08-29. Epic <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> and milestone 4 are closed. The canonical clean full-scale qualification report is retained at <a href="https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json">https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json</a> (SHA-256 <code>0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39</code>).</p>
+<h4 id="issue-12-m2-completion">M2 completion</h4>
+<p>M2 completed on 2026-09-08. Epic <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> and <a href="https://github.com/melliott18/CogniStore/milestone/1">milestone 1</a> are closed; all 13 delivery issues and three verification/tracking follow-ups are complete. The <a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">retained closeout evidence</a> maps every milestone success criterion to the qualified source revision <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>, <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">passing CI</a>, and archived JUnit/coverage reports. M3 and M4 remain open.</p>
 
 ## M1 – Reliable multi-backend movement
 
@@ -756,19 +758,19 @@ which is not the same as:
 
 - **GitHub milestone:** [M2 – Knowledge layer and search](https://github.com/melliott18/CogniStore/milestone/1)
 - **Original delivery tickets:** 13
-- **Verification follow-ups:** 2
-- **Other tracking issues:** 1
-- **Status:** 2 open, 15 closed (17 including the epic)
+- **Verification follow-ups:** 3
+- **Other tracking issues:** 0
+- **Status:** 0 open, 17 closed (17 including the epic)
 
 ### Epic
 
 #### [#13 — \[Epic\] M2 – Knowledge layer and search](https://github.com/melliott18/CogniStore/issues/13)
 
 - **Kind:** Milestone epic
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:indexing`, `roadmap`, `type:epic`
-- **Last updated:** 2026-09-02
+- **Last updated:** 2026-09-08
 
 <p>Parent roadmap: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
 <h5 id="issue-13-outcome">Outcome</h5>
@@ -795,7 +797,7 @@ which is not the same as:
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/39">#39</a> — Expose a versioned REST API and OpenAPI contract</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/40">#40</a> — Publish a typed Python SDK for the public API</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/41">#41</a> — Deliver a content-search UI and end-to-end sample corpus</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/42">#42</a> — Feed MIME and embedding features into placement policies</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/42">#42</a> — Feed MIME and embedding features into placement policies</li>
 </ul>
 <p>Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.</p>
 <h5 id="issue-13-source">Source</h5>
@@ -804,6 +806,14 @@ which is not the same as:
 <ul class="contains-task-list">
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/100">#100</a> — Make CatalogStore read snapshots mutation-safe across backends</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/101">#101</a> — Close PostgreSQL catalog lifecycle and race regression gaps</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/102">#102</a> — Reconcile completed-ticket checklists and roadmap mirrors</li>
+</ul>
+<h5 id="issue-13-m2-completion">M2 completion</h5>
+<p>Accepted on 2026-09-08. All 13 delivery issues (<a href="https://github.com/melliott18/CogniStore/issues/30">#30</a>–<a href="https://github.com/melliott18/CogniStore/issues/42">#42</a>) and all three verification/tracking follow-ups (<a href="https://github.com/melliott18/CogniStore/issues/100">#100</a>–<a href="https://github.com/melliott18/CogniStore/issues/102">#102</a>) are complete. Final delivery <a href="https://github.com/melliott18/CogniStore/issues/42">#42</a> merged through <a href="https://github.com/melliott18/CogniStore/pull/119">PR #119</a>.</p>
+<ul>
+<li>Qualified source revision: <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">Passing CI run 33665981824</a>: 11/11 jobs successful, including the Python 3.10–3.14 matrix and isolated PostgreSQL/pgvector, NATS, and MinIO integration.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">Retained acceptance mapping, CI provenance, JUnit, coverage, and scope limits</a>.</li>
 </ul>
 
 ### Original delivery tickets
@@ -1324,10 +1334,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#42 — \[M2\] Feed MIME and embedding features into placement policies](https://github.com/melliott18/CogniStore/issues/42)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-08
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1346,10 +1356,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-42-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Policies can select on MIME and configured embedding-derived classifications or similarity signals.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Feature provenance and freshness are included in dry-run output.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Missing indexing providers never cause unsafe movement.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Integration tests cover reindexing and policy reevaluation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Policies can select on MIME and configured embedding-derived classifications or similarity signals.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Feature provenance and freshness are included in dry-run output.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Missing indexing providers never cause unsafe movement.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Integration tests cover reindexing and policy reevaluation.</li>
 </ul>
 <h5 id="issue-42-dependencies">Dependencies</h5>
 <ul>
@@ -1359,6 +1369,13 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-42-roadmap-coverage">Roadmap coverage</h5>
 <p>M2 success criterion → policy uses MIME and embeddings features.</p>
+<h5 id="issue-42-completion-evidence">Completion evidence</h5>
+<ul>
+<li>Implementation: <a href="https://github.com/melliott18/CogniStore/pull/119">PR #119</a>, merged 2026-09-02.</li>
+<li>Qualified revision: <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>.</li>
+<li>Passing <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">CI run 33665981824</a>: all 11 jobs successful; Python 3.10–3.14 each passed 1,222 unit/conformance tests and 160 integration tests, with one expected S3 range-write capability skip.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">Retained closeout evidence and criterion mapping</a> covers fresh MIME/embedding selection, dry-run provenance, fail-closed provider states, and live pgvector reindexing/policy reevaluation.</li>
+</ul>
 
 ### Verification follow-ups
 
@@ -1464,11 +1481,9 @@ Follow-up to: <a href="https://github.com/melliott18/CogniStore/issues/30">#30</
 <li>Passing CI: <a href="https://github.com/melliott18/CogniStore/actions/runs/33452279320">run 33452279320</a> (11/11 jobs successful).</li>
 </ul>
 
-### Other tracking issues
-
 #### [#102 — \[M2\] Reconcile completed-ticket checklists and roadmap mirrors](https://github.com/melliott18/CogniStore/issues/102)
 
-- **Kind:** Tracking issue
+- **Kind:** Verification follow-up
 - **Status:** Closed
 - **Milestone:** M2 – Knowledge layer and search
 - **Labels:** `area:docs`, `documentation`, `roadmap`, `type:chore`
