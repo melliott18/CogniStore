@@ -487,6 +487,9 @@ actions, retries, failures, and terminal moves. See the
 schedule timing, reservations, execution leases, and recovery audits. See the
 [PostgreSQL catalog operations guide](docs/postgres_catalog.md) for schema
 migrations and the supported offline SQLite import.
+The [tier and pool topology guide](docs/tier_pools.md) describes multi-pool tiers,
+region and locality constraints, attribute freshness, and backend-neutral
+placement assignment, with JSON and YAML configuration examples.
 
 The scheduler-state file must be persistent; worker and scheduler commands
 reject `:memory:` because their coordination state must be shared across

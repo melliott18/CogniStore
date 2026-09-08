@@ -16,6 +16,12 @@ available for isolated inline work and tests; `SQLiteCatalog` is a compatibility
 wrapper over `SQLCatalog`. See [Operational audit events](audit_events.md) for
 the event/query and retention contract.
 
+Tier/pool registration, membership, locality filtering, and atomic pool
+assignment also use `CatalogStore` on every backend. See
+[Tier pools and placement attributes](tier_pools.md) for the validated model,
+multi-pool configuration, and the distinction between current placement
+references and retained move-journal names.
+
 ## Provision a clean PostgreSQL catalog
 
 Create a dedicated database and role using the normal controls for the target
@@ -142,6 +148,9 @@ legacy schema cannot represent that state. It also refuses noncanonical
 imported object or placement UUIDs because the legacy layout has nowhere to
 retain them. Remove or export those normalized-only records deliberately
 before a downgrade; CogniStore will not discard or rewrite them silently.
+Downgrading from `0007_tier_pools` removes pool topology, attribute observations,
+and tier/pool lifecycle flags. Export that configuration before rollback; pool
+identities, metadata, and current pool/tier placement references remain intact.
 Downgrading from `0006_embeddings` drops all normalized passage layouts,
 vectors, compatibility spaces, HNSW indexes, and active embedding mappings;
 retain or rebuild them deliberately before rollback.

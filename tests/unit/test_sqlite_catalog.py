@@ -58,7 +58,9 @@ def test_sqlite_catalog_crud(tmp_path: Path):
 def test_same_tier_writes_preserve_pool_assignment(tmp_path: Path) -> None:
     with SQLiteCatalog(tmp_path / "catalog.db") as catalog:
         catalog.upsert("bucket", "object", size=1, tier="hot")
-        catalog.register_pool("pool-a", "hot", {"device": "nvme0"})
+        catalog.register_pool(
+            "pool-a", "hot", {"device": "nvme0"}, region="west", members=("nvme0",)
+        )
         with catalog.engine.begin() as connection:
             connection.execute(sa.update(object_placements).values(pool_id="pool-a"))
 

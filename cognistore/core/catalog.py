@@ -38,6 +38,14 @@ from .move_jobs import (
 	MoveJobTransition,
 	validate_move_job_transition,
 )
+from .topology import (
+	AttributeValue,
+	PlacementCandidate,
+	PlacementConstraints,
+	Pool,
+	Tier,
+	eligible_candidates,
+)
 
 
 @dataclass
@@ -55,6 +63,7 @@ class ObjectRecord:
 	size: int
 	tier: str
 	metadata: Dict[str, object] = field(default_factory=dict)
+	pool_id: str | None = None
 
 
 MoveJobScanFingerprint = tuple[
@@ -126,7 +135,49 @@ class CatalogStore(Protocol):
 
 	``get()`` and ``list()`` return detached :class:`ObjectRecord` snapshots.
 	``list()`` returns matching records in ascending key order.
+	Tier/pool reads are also detached snapshots. Active placement references
+	prevent deletion or deactivation; historical move-journal names do not.
+	``assign_pool()`` atomically changes both pool and tier; clearing the pool
+	retains the tier. Tier-only writes preserve a pool only within the same tier.
 	"""
+
+	def register_tier(
+		self, name: str, metadata: Mapping[str, object] | None = None, *, active: bool = True
+	) -> None: ...
+
+	def get_tier(self, name: str) -> Tier | None: ...
+
+	def list_tiers(self) -> list[Tier]: ...
+
+	def delete_tier(self, name: str) -> None: ...
+
+	def register_pool(
+		self,
+		pool_id: str,
+		tier: str,
+		metadata: Mapping[str, object] | None = None,
+		*,
+		region: str | None = None,
+		members: tuple[str, ...] = (),
+		localities: tuple[str, ...] = (),
+		attributes: Mapping[str, AttributeValue] | None = None,
+		active: bool = True,
+	) -> None: ...
+
+	def get_pool(self, pool_id: str) -> Pool | None: ...
+
+	def list_pools(self, *, tier: str | None = None) -> list[Pool]: ...
+
+	def delete_pool(self, pool_id: str) -> None: ...
+
+	def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None: ...
+
+	def eligible_placements(
+		self,
+		constraints: PlacementConstraints | None = None,
+		*,
+		now: str | datetime | None = None,
+	) -> list[PlacementCandidate]: ...
 
 	def upsert(
 		self,
@@ -292,6 +343,8 @@ class Catalog(CatalogStore):
 		audit_retention: AuditRetentionPolicy | None = None,
 	) -> None:
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
+		self._tiers: dict[str, Tier] = {}
+		self._pools: dict[str, Pool] = {}
 		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
 		self._content_manifests: Dict[tuple[object, ...], ObjectContent] = {}
 		self._content_blobs: Dict[str, _ContentBlobState] = {}
@@ -305,6 +358,118 @@ class Catalog(CatalogStore):
 		] = {}
 		self.audit_retention = audit_retention or AuditRetentionPolicy()
 		self._lock = threading.RLock()
+
+	def _ensure_active_tier(self, name: str) -> None:
+		"""Keep tier-only callers compatible while honoring explicit retirement."""
+		tier = self._tiers.get(name)
+		if tier is None:
+			self._tiers[name] = Tier(name=name)
+		elif not tier.active:
+			raise ValueError(f"Tier is inactive: {name}")
+
+	def register_tier(
+		self, name: str, metadata: Mapping[str, object] | None = None, *, active: bool = True
+	) -> None:
+		with self._lock:
+			existing = self._tiers.get(name)
+			value = Tier(
+				name=name,
+				metadata=(existing.metadata if existing and metadata is None else metadata or {}),
+				active=active,
+			)
+			if not active and (
+				any(record.tier == name for record in self._objects.values())
+				or any(pool.tier == name and pool.active for pool in self._pools.values())
+			):
+				raise ValueError(f"Tier has active references: {name}")
+			self._tiers[name] = deepcopy(value)
+
+	def get_tier(self, name: str) -> Tier | None:
+		with self._lock:
+			return deepcopy(self._tiers.get(name))
+
+	def list_tiers(self) -> list[Tier]:
+		with self._lock:
+			return [deepcopy(self._tiers[name]) for name in sorted(self._tiers)]
+
+	def delete_tier(self, name: str) -> None:
+		with self._lock:
+			if any(record.tier == name for record in self._objects.values()) or any(
+				pool.tier == name for pool in self._pools.values()
+			):
+				raise ValueError(f"Tier is referenced: {name}")
+			self._tiers.pop(name, None)
+
+	def register_pool(
+		self,
+		pool_id: str,
+		tier: str,
+		metadata: Mapping[str, object] | None = None,
+		*,
+		region: str | None = None,
+		members: tuple[str, ...] = (),
+		localities: tuple[str, ...] = (),
+		attributes: Mapping[str, AttributeValue] | None = None,
+		active: bool = True,
+	) -> None:
+		value = Pool(
+			pool_id=pool_id, tier=tier, region=region, members=members,
+			localities=localities, attributes=attributes or {}, metadata=metadata or {}, active=active,
+		)
+		with self._lock:
+			parent = self._tiers.get(tier)
+			if parent is None:
+				raise KeyError(f"Tier not found: {tier}")
+			if not parent.active:
+				raise ValueError(f"Tier is inactive: {tier}")
+			existing = self._pools.get(pool_id)
+			if existing and (existing.tier != tier or not active) and any(
+				record.pool_id == pool_id for record in self._objects.values()
+			):
+				raise ValueError(f"Pool is referenced: {pool_id}")
+			self._pools[pool_id] = deepcopy(value)
+
+	def get_pool(self, pool_id: str) -> Pool | None:
+		with self._lock:
+			return deepcopy(self._pools.get(pool_id))
+
+	def list_pools(self, *, tier: str | None = None) -> list[Pool]:
+		with self._lock:
+			return [
+				deepcopy(pool) for _, pool in sorted(self._pools.items())
+				if tier is None or pool.tier == tier
+			]
+
+	def delete_pool(self, pool_id: str) -> None:
+		with self._lock:
+			if any(record.pool_id == pool_id for record in self._objects.values()):
+				raise ValueError(f"Pool is referenced: {pool_id}")
+			self._pools.pop(pool_id, None)
+
+	def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None:
+		with self._lock:
+			record = self._objects.get((bucket, key))
+			if record is None:
+				raise KeyError(f"Object not found: {bucket}/{key}")
+			if pool_id is not None:
+				pool = self._pools.get(pool_id)
+				if pool is None:
+					raise KeyError(f"Pool not found: {pool_id}")
+				if not pool.active or not self._tiers[pool.tier].active:
+					raise ValueError(f"Pool or tier is inactive: {pool_id}")
+				record.tier = pool.tier
+			record.pool_id = pool_id
+
+	def eligible_placements(
+		self,
+		constraints: PlacementConstraints | None = None,
+		*,
+		now: str | datetime | None = None,
+	) -> list[PlacementCandidate]:
+		with self._lock:
+			return eligible_candidates(
+				self._tiers.values(), self._pools.values(), constraints, now=now
+			)
 
 	@staticmethod
 	def _content_manifest_key(content: ObjectContent) -> tuple[object, ...]:
@@ -417,6 +582,8 @@ class Catalog(CatalogStore):
 		persisted_metadata.pop("content_identity", None)
 		with self._lock:
 			object_key = (bucket, key)
+			self._ensure_active_tier(tier)
+			existing = self._objects.get(object_key)
 			self._replace_object_content(object_key, None)
 			rec = ObjectRecord(
 				bucket=bucket,
@@ -424,6 +591,7 @@ class Catalog(CatalogStore):
 				size=size,
 				tier=tier,
 				metadata=persisted_metadata,
+				pool_id=existing.pool_id if existing and existing.tier == tier else None,
 			)
 			self._objects[object_key] = rec
 
@@ -474,6 +642,7 @@ class Catalog(CatalogStore):
 			):
 				return False
 			object_key = (bucket, key)
+			self._ensure_active_tier(tier)
 			existing = self._objects.get(object_key)
 			existing_content = self._object_contents.get(object_key)
 			content_changed = existing_content != content
@@ -515,6 +684,7 @@ class Catalog(CatalogStore):
 				size=size,
 				tier=tier,
 				metadata=merged_metadata,
+				pool_id=existing.pool_id if existing and existing.tier == tier else None,
 			)
 			return True
 
@@ -566,6 +736,9 @@ class Catalog(CatalogStore):
 			rec = self._objects.get((bucket, key))
 			if not rec:
 				raise KeyError(f"Object not found: {bucket}/{key}")
+			self._ensure_active_tier(tier)
+			if rec.tier != tier:
+				rec.pool_id = None
 			rec.tier = tier
 
 	def upsert_placement(
@@ -581,6 +754,7 @@ class Catalog(CatalogStore):
 
 		validate_catalog_size(size)
 		with self._lock:
+			self._ensure_active_tier(tier)
 			rec = self._objects.get((bucket, key))
 			metadata = deepcopy(rec.metadata) if rec is not None else {}
 			if checksum is not None:
@@ -601,6 +775,7 @@ class Catalog(CatalogStore):
 				size=size,
 				tier=tier,
 				metadata=metadata,
+				pool_id=rec.pool_id if rec and rec.tier == tier else None,
 			)
 
 	def delete(self, bucket: str, key: str) -> None:

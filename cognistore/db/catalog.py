@@ -53,6 +53,14 @@ from cognistore.core.move_jobs import (
     MoveJobTransition,
     validate_move_job_transition,
 )
+from cognistore.core.topology import (
+    AttributeValue,
+    PlacementCandidate,
+    PlacementConstraints,
+    Pool,
+    Tier,
+    eligible_candidates,
+)
 from cognistore.utils.redaction import redact, redact_text
 
 from .engine import create_catalog_engine
@@ -280,12 +288,35 @@ class SQLCatalog(Catalog):
         connection.execute(statement).one()
 
     @staticmethod
+    def _lock_topology(connection: Connection, *, exclusive: bool = False) -> None:
+        """Serialize lifecycle validation against placement and membership writes.
+
+        PostgreSQL placement writers share the lock and remain concurrent across
+        objects. Lifecycle operations take it exclusively before checking active
+        references, closing the race between a successful check and a new
+        assignment. The lock is always acquired after any object mutation fence.
+        SQLite needs its writer lock before a read/validate/write transaction.
+        """
+        if connection.dialect.name == "postgresql":
+            function = "pg_advisory_xact_lock" if exclusive else "pg_advisory_xact_lock_shared"
+            connection.exec_driver_sql(f"SELECT {function}(1129270869)")
+        else:
+            connection.execute(sa.update(tiers).where(sa.false()).values(active=tiers.c.active))
+
+    @staticmethod
     def _ensure_tier(connection: Connection, tier: str, now: str) -> None:
+        Tier(name=tier)
+        SQLCatalog._lock_topology(connection)
         SQLCatalog._do_nothing_insert(
             connection,
             tiers,
-            {"name": tier, "metadata": {}, "created_at": now, "updated_at": now},
+            {"name": tier, "metadata": {}, "active": True, "created_at": now, "updated_at": now},
         )
+        active = connection.execute(
+            sa.select(tiers.c.active).where(tiers.c.name == tier)
+        ).scalar_one()
+        if not active:
+            raise ValueError(f"Tier is inactive: {tier}")
 
     @staticmethod
     def _object_id(bucket: str, key: str) -> UUID:
@@ -1060,6 +1091,7 @@ class SQLCatalog(Catalog):
             objects.c.size,
             object_placements.c.tier_name,
             objects.c.metadata,
+            object_placements.c.pool_id,
         ).select_from(
             objects.join(
                 object_placements,
@@ -1075,6 +1107,7 @@ class SQLCatalog(Catalog):
             size=row["size"],
             tier=row["tier_name"],
             metadata=deepcopy(dict(row["metadata"] or {})),
+            pool_id=row["pool_id"],
         )
 
     def get(self, bucket: str, key: str) -> ObjectRecord | None:
@@ -2147,54 +2180,245 @@ class SQLCatalog(Catalog):
             )
             return updated
 
-    def register_tier(self, name: str, metadata: Mapping[str, object] | None = None) -> None:
+    @staticmethod
+    def _tier_record(row: RowMapping) -> Tier:
+        return Tier(
+            name=row["name"],
+            metadata=deepcopy(dict(row["metadata"] or {})),
+            active=bool(row["active"]),
+        )
+
+    @staticmethod
+    def _pool_record(row: RowMapping) -> Pool:
+        return Pool(
+            pool_id=row["pool_id"],
+            tier=row["tier_name"],
+            region=row["region"],
+            members=tuple(row["members"]),
+            localities=tuple(row["localities"]),
+            attributes={
+                name: AttributeValue.from_mapping(value)
+                for name, value in row["attributes"].items()
+            },
+            metadata=deepcopy(dict(row["metadata"] or {})),
+            active=bool(row["active"]),
+        )
+
+    def register_tier(
+        self,
+        name: str,
+        metadata: Mapping[str, object] | None = None,
+        *,
+        active: bool = True,
+    ) -> None:
+        definition = Tier(name=name, metadata=dict(metadata or {}), active=active)
         now = _timestamp()
         with self._transaction() as connection:
-            self._ensure_tier(connection, name, now)
-            connection.execute(
-                sa.update(tiers)
-                .where(tiers.c.name == name)
-                .values(metadata=dict(metadata or {}), updated_at=now)
+            self._lock_topology(connection, exclusive=True)
+            if not definition.active:
+                placed = connection.execute(
+                    sa.select(object_placements.c.placement_id)
+                    .where(object_placements.c.tier_name == name)
+                    .limit(1)
+                ).first()
+                active_pool = connection.execute(
+                    sa.select(pools.c.pool_id)
+                    .where(pools.c.tier_name == name, pools.c.active.is_(True))
+                    .limit(1)
+                ).first()
+                if placed is not None or active_pool is not None:
+                    raise ValueError(f"Tier has active references: {name}")
+            self._do_nothing_insert(
+                connection,
+                tiers,
+                {
+                    "name": name,
+                    "metadata": definition.metadata,
+                    "active": active,
+                    "created_at": now,
+                    "updated_at": now,
+                },
             )
+            changes: dict[str, object] = {"active": active, "updated_at": now}
+            if metadata is not None:
+                changes["metadata"] = definition.metadata
+            connection.execute(sa.update(tiers).where(tiers.c.name == name).values(**changes))
+
+    def get_tier(self, name: str) -> Tier | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                sa.select(tiers).where(tiers.c.name == name)
+            ).mappings().first()
+        return None if row is None else self._tier_record(row)
+
+    def list_tiers(self) -> List[Tier]:
+        with self._connection() as connection:
+            rows = connection.execute(sa.select(tiers)).mappings().all()
+        # Sorting decoded identifiers gives the same result for both backends,
+        # including strings that require PostgreSQL's NUL-safe representation.
+        return sorted((self._tier_record(row) for row in rows), key=lambda item: item.name)
+
+    def delete_tier(self, name: str) -> None:
+        with self._transaction() as connection:
+            self._lock_topology(connection, exclusive=True)
+            placed = connection.execute(
+                sa.select(object_placements.c.placement_id)
+                .where(object_placements.c.tier_name == name)
+                .limit(1)
+            ).first()
+            pool = connection.execute(
+                sa.select(pools.c.pool_id).where(pools.c.tier_name == name).limit(1)
+            ).first()
+            if placed is not None or pool is not None:
+                raise ValueError(f"Tier has references: {name}")
+            connection.execute(sa.delete(tiers).where(tiers.c.name == name))
 
     def register_pool(
         self,
         pool_id: str,
         tier: str,
         metadata: Mapping[str, object] | None = None,
+        *,
+        region: str | None = None,
+        members: tuple[str, ...] = (),
+        localities: tuple[str, ...] = (),
+        attributes: Mapping[str, AttributeValue] | None = None,
+        active: bool = True,
     ) -> None:
+        definition = Pool(
+            pool_id=pool_id,
+            tier=tier,
+            region=region,
+            members=members,
+            localities=localities,
+            attributes=dict(attributes or {}),
+            metadata=dict(metadata or {}),
+            active=active,
+        )
         now = _timestamp()
         with self._transaction() as connection:
-            self._ensure_tier(connection, tier, now)
+            self._lock_topology(connection, exclusive=True)
+            tier_active = connection.execute(
+                sa.select(tiers.c.active).where(tiers.c.name == tier)
+            ).scalar_one_or_none()
+            if tier_active is None:
+                raise KeyError(f"Tier not found: {tier}")
+            if not tier_active:
+                raise ValueError(f"Tier is inactive: {tier}")
+            previous = connection.execute(
+                sa.select(pools.c.tier_name).where(pools.c.pool_id == pool_id)
+            ).scalar_one_or_none()
+            if previous is not None and (previous != tier or not active):
+                placed = connection.execute(
+                    sa.select(object_placements.c.placement_id)
+                    .where(object_placements.c.pool_id == pool_id)
+                    .limit(1)
+                ).first()
+                if placed is not None:
+                    raise ValueError(f"Pool has active placements: {pool_id}")
             values = {
                 "pool_id": pool_id,
                 "tier_name": tier,
-                "metadata": dict(metadata or {}),
+                "metadata": definition.metadata,
+                "region": definition.region,
+                "members": list(definition.members),
+                "localities": list(definition.localities),
+                "attributes": {
+                    name: value.to_mapping() for name, value in definition.attributes.items()
+                },
+                "active": definition.active,
                 "created_at": now,
                 "updated_at": now,
             }
-            statement: Any
-            if connection.dialect.name == "postgresql":
-                pg_insert = postgresql.insert(pools).values(**values)
-                statement = pg_insert.on_conflict_do_update(
-                    index_elements=[pools.c.pool_id],
-                    set_={
-                        "tier_name": pg_insert.excluded.tier_name,
-                        "metadata": pg_insert.excluded.metadata,
-                        "updated_at": pg_insert.excluded.updated_at,
-                    },
-                )
+            if previous is None:
+                connection.execute(sa.insert(pools).values(**values))
             else:
-                sqlite_insert = sqlite.insert(pools).values(**values)
-                statement = sqlite_insert.on_conflict_do_update(
-                    index_elements=[pools.c.pool_id],
-                    set_={
-                        "tier_name": sqlite_insert.excluded.tier_name,
-                        "metadata": sqlite_insert.excluded.metadata,
-                        "updated_at": sqlite_insert.excluded.updated_at,
-                    },
+                values.pop("created_at")
+                connection.execute(
+                    sa.update(pools).where(pools.c.pool_id == pool_id).values(**values)
                 )
-            connection.execute(statement)
+
+    def get_pool(self, pool_id: str) -> Pool | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                sa.select(pools).where(pools.c.pool_id == pool_id)
+            ).mappings().first()
+        return None if row is None else self._pool_record(row)
+
+    def list_pools(self, *, tier: str | None = None) -> List[Pool]:
+        statement = sa.select(pools)
+        if tier is not None:
+            statement = statement.where(pools.c.tier_name == tier)
+        with self._connection() as connection:
+            rows = connection.execute(statement).mappings().all()
+        return sorted((self._pool_record(row) for row in rows), key=lambda item: item.pool_id)
+
+    def delete_pool(self, pool_id: str) -> None:
+        with self._transaction() as connection:
+            self._lock_topology(connection, exclusive=True)
+            placed = connection.execute(
+                sa.select(object_placements.c.placement_id)
+                .where(object_placements.c.pool_id == pool_id)
+                .limit(1)
+            ).first()
+            if placed is not None:
+                raise ValueError(f"Pool has active placements: {pool_id}")
+            connection.execute(sa.delete(pools).where(pools.c.pool_id == pool_id))
+
+    def eligible_placements(
+        self,
+        constraints: PlacementConstraints | None = None,
+        *,
+        now: str | datetime | None = None,
+    ) -> List[PlacementCandidate]:
+        # One statement gives both definitions a consistent database snapshot.
+        statement = sa.select(
+            pools,
+            tiers.c.metadata.label("tier_metadata"),
+            tiers.c.active.label("tier_active"),
+        ).select_from(pools.join(tiers, pools.c.tier_name == tiers.c.name))
+        with self._connection() as connection:
+            rows = connection.execute(statement).mappings().all()
+        definitions = [self._pool_record(row) for row in rows]
+        tier_definitions = {
+            row["tier_name"]: Tier(
+                name=row["tier_name"],
+                metadata=dict(row["tier_metadata"] or {}),
+                active=bool(row["tier_active"]),
+            )
+            for row in rows
+        }
+        return eligible_candidates(tier_definitions.values(), definitions, constraints, now=now)
+
+    def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None:
+        now = _timestamp()
+        with self._transaction() as connection:
+            self._lock_object(connection, bucket, key)
+            self._lock_topology(connection)
+            row = connection.execute(
+                sa.select(objects.c.object_id, object_placements.c.tier_name)
+                .select_from(objects.join(object_placements))
+                .where(objects.c.bucket == bucket, objects.c.object_key == key)
+            ).mappings().first()
+            if row is None:
+                raise KeyError(f"Object not found: {bucket}/{key}")
+            tier = row["tier_name"]
+            if pool_id is not None:
+                target = connection.execute(
+                    sa.select(pools.c.tier_name, pools.c.active, tiers.c.active.label("tier_active"))
+                    .select_from(pools.join(tiers, pools.c.tier_name == tiers.c.name))
+                    .where(pools.c.pool_id == pool_id)
+                ).mappings().first()
+                if target is None:
+                    raise KeyError(f"Pool not found: {pool_id}")
+                if not target["active"] or not target["tier_active"]:
+                    raise ValueError(f"Pool or its tier is inactive: {pool_id}")
+                tier = target["tier_name"]
+            connection.execute(
+                sa.update(object_placements)
+                .where(object_placements.c.object_id == row["object_id"])
+                .values(tier_name=tier, pool_id=pool_id, updated_at=now)
+            )
 
     @staticmethod
     def _select_move_job(

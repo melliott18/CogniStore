@@ -34,6 +34,7 @@ from cognistore.core.content_identity import (
     DIGEST_ALGORITHM,
     cas_key_for_sha256,
 )
+from cognistore.core.topology import Pool, Tier
 from cognistore.utils.redaction import redact, redact_text
 
 from .catalog import SQLCatalog
@@ -418,6 +419,12 @@ def _json_list(raw: object, field: str) -> list[Any]:
     return value
 
 
+def _topology_active(value: object) -> bool:
+    if not isinstance(value, int) or value not in (0, 1):
+        raise ValueError("active must be a SQLite boolean (0 or 1)")
+    return bool(value)
+
+
 def _redacted_json_list(raw: object, field: str) -> list[Any]:
     value = redact(_json_list(raw, field))
     if not isinstance(value, list):  # pragma: no cover - redaction preserves lists
@@ -534,44 +541,83 @@ def _copy_normalized_catalog(
     *,
     batch_size: int,
 ) -> SQLiteCatalogImportReport:
-    _require_columns(
+    tier_columns = _require_columns(
         source,
         "tiers",
         {"name", "metadata", "created_at", "updated_at"},
     )
+    def tier_values(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            definition = Tier(
+                name=row["name"],
+                metadata=_json_mapping(row["metadata"], "tier metadata"),
+                active=_topology_active(row["active"]) if "active" in tier_columns else True,
+            )
+        except ValueError as exc:
+            raise SQLiteCatalogImportError(f"invalid source tier topology: {exc}") from exc
+        return {
+            **definition.to_mapping(),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
     tier_count = _copy_rows(
         source,
         destination,
         tiers,
-        "SELECT name, metadata, created_at, updated_at FROM tiers ORDER BY name",
-        lambda row: {
-            "name": row["name"],
-            "metadata": _json_mapping(row["metadata"], f"metadata for tier {row['name']!r}"),
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        },
+        "SELECT * FROM tiers ORDER BY name",
+        tier_values,
         batch_size=batch_size,
     )
 
-    _require_columns(
+    pool_columns = _require_columns(
         source,
         "pools",
         {"pool_id", "tier_name", "metadata", "created_at", "updated_at"},
     )
+    topology_columns = {"region", "members", "localities", "attributes", "active"}
+    if pool_columns & topology_columns and not topology_columns <= pool_columns:
+        raise SQLiteCatalogImportError("source pool topology schema is incomplete")
+    has_topology = topology_columns <= pool_columns
+
+    def pool_values(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            definition = Pool.from_mapping({
+                "pool_id": row["pool_id"],
+                "tier": row["tier_name"],
+                "metadata": _json_mapping(row["metadata"], "pool metadata"),
+                "region": row["region"] if has_topology else None,
+                "members": _json_list(row["members"], "pool members") if has_topology else [],
+                "localities": (
+                    _json_list(row["localities"], "pool localities") if has_topology else []
+                ),
+                "attributes": (
+                    _json_mapping(row["attributes"], "pool attributes") if has_topology else {}
+                ),
+                "active": _topology_active(row["active"]) if has_topology else False,
+            })
+        except ValueError as exc:
+            raise SQLiteCatalogImportError(f"invalid source pool topology: {exc}") from exc
+        values = definition.to_mapping()
+        values["tier_name"] = values.pop("tier")
+        return {**values, "created_at": row["created_at"], "updated_at": row["updated_at"]}
+
     pool_count = _copy_rows(
         source,
         destination,
         pools,
-        "SELECT pool_id, tier_name, metadata, created_at, updated_at FROM pools ORDER BY pool_id",
-        lambda row: {
-            "pool_id": row["pool_id"],
-            "tier_name": row["tier_name"],
-            "metadata": _json_mapping(row["metadata"], f"metadata for pool {row['pool_id']!r}"),
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        },
+        "SELECT * FROM pools ORDER BY pool_id",
+        pool_values,
         batch_size=batch_size,
     )
+    invalid_parent = destination.execute(
+        sa.select(pools.c.pool_id)
+        .select_from(pools.join(tiers, pools.c.tier_name == tiers.c.name))
+        .where(pools.c.active.is_(True), tiers.c.active.is_(False))
+        .limit(1)
+    ).first()
+    if invalid_parent is not None:
+        raise SQLiteCatalogImportError("active source pool references an inactive tier")
 
     _require_columns(
         source,
@@ -635,6 +681,14 @@ def _copy_normalized_catalog(
         },
         batch_size=batch_size,
     )
+    inactive_placement = destination.execute(
+        sa.select(object_placements.c.placement_id)
+        .select_from(object_placements.join(tiers, object_placements.c.tier_name == tiers.c.name))
+        .where(tiers.c.active.is_(False))
+        .limit(1)
+    ).first()
+    if inactive_placement is not None:
+        raise SQLiteCatalogImportError("source placement references an inactive tier")
     if placement_count != object_count:
         raise SQLiteCatalogImportError(
             "normalized SQLite catalog must have exactly one placement per object"
