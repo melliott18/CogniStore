@@ -15,6 +15,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
+from cognistore.core.access import AccessEvent
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -39,6 +40,7 @@ from cognistore.utils.redaction import redact, redact_text
 
 from .catalog import SQLCatalog
 from .schema import (
+    access_events,
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
@@ -75,6 +77,7 @@ def _content_reference_timestamp() -> str:
     )
 
 _DESTINATION_DATA_TABLES = (
+    access_events,
     embedding_vectors,
     embedding_document_spaces,
     object_embedding_documents,
@@ -123,6 +126,7 @@ class SQLiteCatalogImportReport:
     content_manifests: int = 0
     content_manifest_chunks: int = 0
     object_contents: int = 0
+    access_events: int = 0
 
 
 def import_sqlite_catalog(
@@ -229,6 +233,11 @@ def import_sqlite_catalog(
                     retention=destination.audit_retention,
                 )
             _validate_imported_audit_heads(target_connection)
+            access_count = _copy_access_history(
+                source_connection,
+                target_connection,
+                batch_size=batch_size,
+            )
             report = SQLiteCatalogImportReport(
                 source_layout=report.source_layout,
                 tiers=report.tiers,
@@ -242,6 +251,7 @@ def import_sqlite_catalog(
                 content_manifests=content_counts[1],
                 content_manifest_chunks=content_counts[2],
                 object_contents=content_counts[3],
+                access_events=access_count,
             )
 
         source_connection.rollback()
@@ -1507,6 +1517,73 @@ def _copy_move_history(
         batch_size=batch_size,
     )
     return move_count, transition_count
+
+
+def _copy_access_history(
+    source: sqlite3.Connection,
+    destination: Connection,
+    *,
+    batch_size: int,
+) -> int:
+    """Preserve observations and expired retry identities without replaying them.
+
+    Catalogs predating access telemetry have no table. When the table exists,
+    every row must satisfy the complete current contract; partial or malformed
+    history must abort the entire import. In particular, appending events via
+    the public API would reset expired tombstones to active observations.
+    """
+    if "access_events" not in _source_tables(source):
+        return 0
+    columns = (
+        "event_id",
+        "operation_id",
+        "correlation_id",
+        "occurred_at",
+        "kind",
+        "bucket",
+        "object_key",
+        "tier",
+        "source",
+        "sample_rate",
+        "schema_version",
+        "expired",
+    )
+    _require_columns(source, "access_events", set(columns))
+
+    def access_values(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            event = AccessEvent(
+                event_id=row["event_id"],
+                operation_id=row["operation_id"],
+                correlation_id=row["correlation_id"],
+                occurred_at=row["occurred_at"],
+                kind=row["kind"],
+                bucket=row["bucket"],
+                key=row["object_key"],
+                tier=row["tier"],
+                source=row["source"],
+                sample_rate=row["sample_rate"],
+                schema_version=row["schema_version"],
+            )
+            if event.occurred_at != row["occurred_at"]:
+                raise ValueError("occurred_at must be a canonical UTC access timestamp")
+            expired = row["expired"]
+            if not isinstance(expired, int) or expired not in (0, 1):
+                raise ValueError("expired must be a SQLite boolean (0 or 1)")
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise SQLiteCatalogImportError(f"invalid source access event: {exc}") from exc
+        # Use the original values, preserving identities, provenance, event
+        # time, sampling rates, and tombstones across the database cutover.
+        return {**dict(row), "expired": bool(expired)}
+
+    return _copy_rows(
+        source,
+        destination,
+        access_events,
+        "SELECT " + ", ".join(columns) + " FROM access_events ORDER BY occurred_at, event_id",
+        access_values,
+        batch_size=batch_size,
+    )
 
 
 def _copy_audit_history(

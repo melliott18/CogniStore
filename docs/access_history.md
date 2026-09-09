@@ -164,6 +164,12 @@ expired rows for roughly another 30 days when maintenance runs promptly; disk
 usage also depends on maintenance cadence. SQLite cleanup frees reusable pages
 but does not shrink the database file without separate compaction.
 
+SQLite catalog imports preserve active events and expired retry identities,
+including their original timestamps, correlation, sampling rates, and expiry
+state. Imports reject a destination that already contains access history and
+abort atomically if the source history is malformed. Older catalogs without
+access history import with zero observations.
+
 ## Qualification
 
 The reproducible SQLite harness and archived measurements live in

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
+from cognistore.core.access import AccessEvent
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -21,6 +22,7 @@ from cognistore.core.move_jobs import MoveJobState
 from cognistore.db.catalog import SQLCatalog
 from cognistore.db.migrations import MigrationManager
 from cognistore.db.schema import (
+    access_events,
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
@@ -44,6 +46,7 @@ from cognistore.db.sqlite_import import (
     import_sqlite_catalog,
 )
 from tests.catalog_fixtures import create_prototype_sqlite_catalog
+from tests.conformance.access_import import AccessImportConformance
 
 
 def _table_count(catalog: SQLCatalog, table: sa.Table) -> int:
@@ -749,3 +752,57 @@ def test_import_refuses_to_merge_into_a_nonempty_destination(tmp_path: Path) -> 
     assert destination.get("existing", "object") is not None
     assert destination.get("bucket", "reports/annual.pdf") is None
     destination.close()
+
+
+class TestSQLiteAccessImport(AccessImportConformance):
+    @pytest.fixture
+    def import_destination(self, tmp_path):
+        with SQLCatalog(tmp_path / "access-destination.db") as destination:
+            yield destination
+
+
+@pytest.mark.parametrize(
+    ("corruption", "expected_error"),
+    [
+        ("UPDATE access_events SET occurred_at = '2026-09-08T12:00:00+00:00'", "canonical UTC"),
+        ("UPDATE access_events SET occurred_at = '2026-09-08T12:00:00'", "timezone"),
+        ("UPDATE access_events SET sample_rate = 0.00000000001", "sample_rate"),
+        ("UPDATE access_events SET operation_id = ''", "operation_id"),
+        ("UPDATE access_events SET expired = 2", "expired"),
+        ("ALTER TABLE access_events DROP COLUMN source", "missing required.*source"),
+    ],
+)
+def test_import_rejects_malformed_access_history_and_rolls_back(
+    tmp_path: Path,
+    corruption: str,
+    expected_error: str,
+) -> None:
+    source_path = tmp_path / "invalid-access-source.db"
+    with SQLCatalog(source_path) as source:
+        source.upsert("bucket", "object", 1, "hot")
+        # A batch committed earlier within the import transaction must also
+        # roll back if a later access-history row is invalid.
+        for operation, when in (
+            ("valid", "2026-09-08T11:00:00Z"),
+            ("invalid", "2026-09-08T12:00:00Z"),
+        ):
+            source.append_access_event(
+                AccessEvent.create(
+                    kind="read",
+                    bucket="bucket",
+                    key="object",
+                    operation_id=operation,
+                    occurred_at=when,
+                )
+            )
+    with sqlite3.connect(source_path) as connection:
+        if corruption.startswith("UPDATE"):
+            corruption += " WHERE operation_id = 'invalid'"
+        connection.execute(corruption)
+    source_before = source_path.read_bytes()
+    with SQLCatalog(tmp_path / "failed-access-destination.db") as destination:
+        with pytest.raises(SQLiteCatalogImportError, match=expected_error):
+            import_sqlite_catalog(source_path, destination, batch_size=1)
+        for table in (access_events, objects, object_placements, tiers):
+            assert _table_count(destination, table) == 0
+    assert source_path.read_bytes() == source_before
