@@ -32,6 +32,8 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    AccessPolicyFeature,
+    AccessPolicyFeatureResponse,
     AskFilters,
     AskFiltersRequest,
     AskRequest,
@@ -89,6 +91,8 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 __all__ = [
+    "AccessPolicyFeature",
+    "AccessPolicyFeatureResponse",
     "APIError",
     "API_VERSION",
     "AskFilters",

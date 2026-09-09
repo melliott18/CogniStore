@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Literal, Protocol, cast
 from uuid import UUID
 
+from cognistore.core.access import AccessConfig
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -23,6 +24,11 @@ from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.policy import EmbeddingPolicyRule
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_features import CatalogPolicyFeatureLoader
+from cognistore.drivers.observed import (
+    AccessRecorder,
+    ObservedStorageDriver,
+    suppress_access_capture,
+)
 from cognistore.drivers.storage_driver import DEFAULT_STREAM_CHUNK_SIZE, StorageDriver
 from cognistore.jobs.handlers import (
     CATALOG_SCAN_JOB,
@@ -193,11 +199,20 @@ class CogniStoreGateway:
         feature_loader: CatalogPolicyFeatureLoader | None = None,
         queue: JobQueue | None = None,
         manage_queue: bool = False,
+        access_config: AccessConfig | None = None,
     ) -> None:
         self.catalog = catalog
-        self.drivers = dict(drivers)
+        self.access_recorder = AccessRecorder(catalog, access_config)
+        self.drivers = {
+            tier: ObservedStorageDriver(
+                driver, catalog, tier=tier, config=access_config, source="api"
+            )
+            for tier, driver in drivers.items()
+        }
         self.ask_service = ask_service or AskService(catalog)
-        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader()
+        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader(
+            access_catalog=catalog, access_config=access_config
+        )
         self.queue = queue
         self.manage_queue = manage_queue
 
@@ -343,18 +358,26 @@ class CogniStoreGateway:
         content_type: str | None,
     ) -> ObjectResource:
         driver = self._driver(tier)
-        driver.put_object(bucket, key, data, overwrite=overwrite)
-        stat = driver.stat_object(bucket, key)
-        metadata = self._storage_metadata(stat, content_type=content_type)
-        self.catalog.upsert(bucket, key, len(data), tier, metadata=metadata)
-        return self._object_resource(tier, bucket, key, stat, metadata)
+        event = self.access_recorder.event("write", bucket, key, tier=tier, source="api")
+        with suppress_access_capture():
+            driver.put_object(bucket, key, data, overwrite=overwrite)
+            stat = driver.stat_object(bucket, key)
+            metadata = self._storage_metadata(stat, content_type=content_type)
+            self.catalog.upsert(bucket, key, len(data), tier, metadata=metadata)
+            resource = self._object_resource(tier, bucket, key, stat, metadata)
+        self.access_recorder.persist(event)
+        return resource
 
     def stat_object(self, tier: str, bucket: str, key: str) -> ObjectResource:
         record = self._catalog_record(bucket, key)
         if record.tier != tier:
             raise ResourceNotFoundError("object", f"{tier}/{bucket}/{key}")
-        stat = self._driver(tier).stat_object(bucket, key)
-        return self._object_resource(tier, bucket, key, stat, record.metadata)
+        event = self.access_recorder.event("touch", bucket, key, tier=tier, source="api")
+        with suppress_access_capture():
+            stat = self._driver(tier).stat_object(bucket, key)
+            resource = self._object_resource(tier, bucket, key, stat, record.metadata)
+        self.access_recorder.persist(event)
+        return resource
 
     def open_object(
         self,
@@ -364,7 +387,8 @@ class CogniStoreGateway:
         *,
         byte_range: str | None,
     ) -> ObjectDownload:
-        resource = self.stat_object(tier, bucket, key)
+        with suppress_access_capture():
+            resource = self.stat_object(tier, bucket, key)
         driver = self._driver(tier)
         normalized_range: str | None = None
         content_range: str | None = None
@@ -444,7 +468,8 @@ class CogniStoreGateway:
         return start, min(end, size - 1)
 
     def delete_object(self, tier: str, bucket: str, key: str) -> None:
-        resource = self.stat_object(tier, bucket, key)
+        with suppress_access_capture():
+            resource = self.stat_object(tier, bucket, key)
         deleted = self._driver(tier).delete_object_if_generation(
             bucket,
             key,
@@ -455,7 +480,12 @@ class CogniStoreGateway:
         self.catalog.delete(bucket, key)
 
     def get_catalog_object(self, bucket: str, key: str) -> CatalogObject:
-        return self._catalog_response(self._catalog_record(bucket, key))
+        record = self._catalog_record(bucket, key)
+        resource = self._catalog_response(record)
+        self.access_recorder.persist(
+            self.access_recorder.event("touch", bucket, key, tier=record.tier, source="api")
+        )
+        return resource
 
     def _catalog_response(self, record: ObjectRecord) -> CatalogObject:
         public_metadata, metadata_truncated = self._public_metadata(record.metadata)
@@ -504,10 +534,14 @@ class CogniStoreGateway:
             if has_more and selected
             else None
         )
-        return CatalogObjectPage(
+        page = CatalogObjectPage(
             items=[self._catalog_response(record) for record in selected],
             page=PageMetadata(limit=limit, next_cursor=next_cursor),
         )
+        self.access_recorder.persist(
+            self.access_recorder.event("list", bucket, tier=tier, source="api")
+        )
+        return page
 
     def ask(self, request: AskRequest) -> AskResponse:
         filters = request.filters

@@ -1,0 +1,413 @@
+{
+  "aggregation": {
+    "definition": "DAL aggregate and detached result; fixture oracle excluded; no warmup",
+    "example_object": {
+      "last_access_at": "2026-08-31T00:00:00.000000Z",
+      "minimum_sample_rate": 0.25,
+      "observed_events": 37,
+      "observed_since": "2026-08-03T04:17:56.000000Z",
+      "windows": [
+        {
+          "counts": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "seconds": 86400
+        },
+        {
+          "counts": [
+            2,
+            2,
+            0,
+            3
+          ],
+          "estimated_counts": [
+            8.0,
+            2.0,
+            0.0,
+            3.0
+          ],
+          "seconds": 604800
+        },
+        {
+          "counts": [
+            12,
+            12,
+            0,
+            13
+          ],
+          "estimated_counts": [
+            48.0,
+            12.0,
+            0.0,
+            13.0
+          ],
+          "seconds": 2592000
+        }
+      ]
+    },
+    "in_retention_unchanged_after_prune": true,
+    "latency_ms": {
+      "max": 5.372542014811188,
+      "mean": 1.8280974680213928,
+      "min": 1.527417014585808,
+      "p50": 1.7511670012027025,
+      "p95": 2.1707919950131327,
+      "sample_count": 306
+    },
+    "missing_object": {
+      "last_access_at": null,
+      "minimum_sample_rate": null,
+      "observed_events": 0,
+      "observed_since": null,
+      "windows": [
+        {
+          "counts": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "seconds": 86400
+        },
+        {
+          "counts": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "seconds": 604800
+        },
+        {
+          "counts": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "seconds": 2592000
+        }
+      ]
+    },
+    "namespace_listing": {
+      "last_access_at": "2026-08-31T23:08:10.000000Z",
+      "minimum_sample_rate": 0.25,
+      "observed_events": 1250,
+      "observed_since": "2026-08-02T00:12:58.000000Z",
+      "windows": [
+        {
+          "counts": [
+            0,
+            0,
+            41,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            65.0,
+            0.0
+          ],
+          "seconds": 86400
+        },
+        {
+          "counts": [
+            0,
+            0,
+            291,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            465.0,
+            0.0
+          ],
+          "seconds": 604800
+        },
+        {
+          "counts": [
+            0,
+            0,
+            1250,
+            0
+          ],
+          "estimated_counts": [
+            0.0,
+            0.0,
+            2000.0,
+            0.0
+          ],
+          "seconds": 2592000
+        }
+      ]
+    },
+    "oracle_comparisons": 612,
+    "wide_window_events_after": 4998,
+    "wide_window_events_before": 9997
+  },
+  "benchmark": "sqlite-access-history",
+  "environment": {
+    "machine": "arm64",
+    "python": "3.13.7",
+    "sqlite": "3.50.4",
+    "system": "Darwin"
+  },
+  "generated_at": "2026-09-08T23:57:24.299742Z",
+  "insert": {
+    "definition": "one committed DAL append per event, single writer; migration excluded",
+    "events_per_second": 941.5091260992316,
+    "latency_ms": {
+      "max": 67.11908298893832,
+      "mean": 1.0616232901578768,
+      "min": 0.5972920043859631,
+      "p50": 0.9171669953502715,
+      "p95": 1.493458985351026,
+      "sample_count": 10000
+    },
+    "seconds": 10.621245957998326
+  },
+  "limitations": [
+    "Local SQLite DAL only; no PostgreSQL, concurrent writers, network, or HTTP measurements.",
+    "Sampled rows are injected with declared weights; recorder sampling cost is excluded.",
+    "Allocated growth includes access indexes and SQLite page slack; JSONL is logical volume.",
+    "Pruning frees reusable pages; file truncation and VACUUM are not measured."
+  ],
+  "replays": {
+    "added_rows": 0,
+    "attempts_after_prune": 1000,
+    "attempts_before_prune": 1000,
+    "expired_rows_resurrected": 0,
+    "seconds_before_prune": 0.3276533340103924
+  },
+  "retention": {
+    "advanced_dedup_horizon": {
+      "batches": [
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 500,
+          "purged": 500
+        },
+        {
+          "expired": 497,
+          "purged": 500
+        },
+        {
+          "expired": 0,
+          "purged": 1
+        },
+        {
+          "expired": 0,
+          "purged": 0
+        }
+      ],
+      "cutoff": "2026-09-01T00:00:00.000000Z",
+      "expired_events": 4997,
+      "latency_ms": {
+        "max": 36.94579197326675,
+        "mean": 14.04889232799178,
+        "min": 0.48579199938103557,
+        "p50": 13.596124976174906,
+        "p95": 36.94579197326675,
+        "sample_count": 12
+      },
+      "purged_events": 5001
+    },
+    "expiration": {
+      "batches": [
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 500,
+          "purged": 0
+        },
+        {
+          "expired": 1,
+          "purged": 0
+        },
+        {
+          "expired": 0,
+          "purged": 0
+        }
+      ],
+      "cutoff": "2026-08-02T00:00:00.000000Z",
+      "expired_events": 5001,
+      "latency_ms": {
+        "max": 9.661874995799735,
+        "mean": 6.842975834539781,
+        "min": 0.9162920177914202,
+        "p50": 7.277333992533386,
+        "p95": 9.661874995799735,
+        "sample_count": 12
+      },
+      "purged_events": 0
+    },
+    "predicate": "occurred_at < cutoff",
+    "vacuum_performed": false
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "volume": {
+    "after_dedup_horizon": {
+      "active_events": 2,
+      "allocated_bytes": 6451200,
+      "events": 4999,
+      "file_bytes": 6451200,
+      "free_pages": 659,
+      "journal_mode": "delete",
+      "page_size_bytes": 4096,
+      "synchronous": 2
+    },
+    "after_insert": {
+      "active_events": 10000,
+      "allocated_bytes": 6434816,
+      "events": 10000,
+      "file_bytes": 6434816,
+      "free_pages": 0,
+      "journal_mode": "delete",
+      "page_size_bytes": 4096,
+      "synchronous": 2
+    },
+    "after_prune": {
+      "active_events": 4999,
+      "allocated_bytes": 6451200,
+      "events": 10000,
+      "file_bytes": 6451200,
+      "free_pages": 38,
+      "journal_mode": "delete",
+      "page_size_bytes": 4096,
+      "synchronous": 2
+    },
+    "allocated_growth_bytes": 6066176,
+    "allocated_growth_bytes_per_event": 606.6176,
+    "baseline": {
+      "active_events": 0,
+      "allocated_bytes": 368640,
+      "events": 0,
+      "file_bytes": 368640,
+      "free_pages": 0,
+      "journal_mode": "delete",
+      "page_size_bytes": 4096,
+      "synchronous": 2
+    },
+    "serialized_jsonl_bytes": 3378500
+  },
+  "workload": {
+    "as_of": "2026-09-01T00:00:00.000000Z",
+    "coordinates_queried": 102,
+    "declared_sampled_rows": 1000,
+    "event_count": 10000,
+    "fixture_sha256": "66ed5c965553cf691380c96484e7c9fdfd32205198daca1d5996d72ef749fca7",
+    "future_rows": 1,
+    "history_seconds": 5184000,
+    "kind_counts": {
+      "list": 2500,
+      "read": 2500,
+      "touch": 2500,
+      "write": 2500
+    },
+    "object_count": 100,
+    "prune_batch_size": 500,
+    "query_runs": 3,
+    "replay_every": 10,
+    "retention_seconds": 2592000,
+    "sampled_row_rate": 0.25,
+    "windows_seconds": [
+      86400,
+      604800,
+      2592000
+    ]
+  }
+}

@@ -1,6 +1,231 @@
 {
   "components": {
     "schemas": {
+      "AccessPolicyFeatureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "coverage": {
+            "const": "observed_operations_only",
+            "title": "Coverage",
+            "type": "string"
+          },
+          "estimated_windows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EstimatedAccessWindowResponse"
+            },
+            "title": "Estimated Windows",
+            "type": "object"
+          },
+          "freshness": {
+            "enum": [
+              "fresh",
+              "missing",
+              "stale",
+              "unavailable"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "freshness_basis": {
+            "const": "latest_observed_event",
+            "title": "Freshness Basis",
+            "type": "string"
+          },
+          "freshness_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Freshness Seconds",
+            "type": "integer"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "last_access_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Access At"
+          },
+          "missing": {
+            "title": "Missing",
+            "type": "boolean"
+          },
+          "observed_events": {
+            "minimum": 0.0,
+            "title": "Observed Events",
+            "type": "integer"
+          },
+          "observed_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Since"
+          },
+          "partial": {
+            "const": true,
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "recency_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recency Seconds"
+          },
+          "retention_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Retention Seconds",
+            "type": "integer"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/AccessSamplingResponse"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "windows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AccessWindowResponse"
+            },
+            "title": "Windows",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schema_version",
+          "as_of",
+          "bucket",
+          "key",
+          "windows",
+          "estimated_windows",
+          "last_access_at",
+          "recency_seconds",
+          "observed_events",
+          "observed_since",
+          "freshness",
+          "freshness_seconds",
+          "freshness_basis",
+          "sampling",
+          "missing",
+          "partial",
+          "coverage",
+          "retention_seconds"
+        ],
+        "title": "AccessPolicyFeatureResponse",
+        "type": "object"
+      },
+      "AccessSamplingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "configured_rate": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Configured Rate",
+            "type": "number"
+          },
+          "minimum_rate": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Rate"
+          },
+          "sampled": {
+            "title": "Sampled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured_rate",
+          "minimum_rate",
+          "sampled"
+        ],
+        "title": "AccessSamplingResponse",
+        "type": "object"
+      },
+      "AccessWindowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "minimum": 0.0,
+            "title": "List",
+            "type": "integer"
+          },
+          "read": {
+            "minimum": 0.0,
+            "title": "Read",
+            "type": "integer"
+          },
+          "touch": {
+            "minimum": 0.0,
+            "title": "Touch",
+            "type": "integer"
+          },
+          "write": {
+            "minimum": 0.0,
+            "title": "Write",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "read",
+          "write",
+          "list",
+          "touch"
+        ],
+        "title": "AccessWindowResponse",
+        "type": "object"
+      },
       "AskFiltersRequest": {
         "additionalProperties": false,
         "properties": {
@@ -516,6 +741,39 @@
           "error"
         ],
         "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "EstimatedAccessWindowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "minimum": 0.0,
+            "title": "List",
+            "type": "number"
+          },
+          "read": {
+            "minimum": 0.0,
+            "title": "Read",
+            "type": "number"
+          },
+          "touch": {
+            "minimum": 0.0,
+            "title": "Touch",
+            "type": "number"
+          },
+          "write": {
+            "minimum": 0.0,
+            "title": "Write",
+            "type": "number"
+          }
+        },
+        "required": [
+          "read",
+          "write",
+          "list",
+          "touch"
+        ],
+        "title": "EstimatedAccessWindowResponse",
         "type": "object"
       },
       "GeneratedAnswerResponse": {
@@ -1285,6 +1543,16 @@
       "PolicyFeaturesResponse": {
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccessPolicyFeatureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "embeddings": {
             "items": {
               "$ref": "#/components/schemas/EmbeddingPolicyFeatureResponse"
@@ -1543,6 +1811,45 @@
     "/v1/actions/catalog-scans": {
       "post": {
         "operationId": "submitCatalogScan",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1728,6 +2035,45 @@
     "/v1/actions/policy-runs": {
       "post": {
         "operationId": "submitPolicyRun",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1895,6 +2241,45 @@
     "/v1/ask": {
       "post": {
         "operationId": "ask",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2121,6 +2506,43 @@
               ],
               "title": "Cursor"
             }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "responses": {
@@ -2273,6 +2695,43 @@
               "minLength": 1,
               "title": "Key",
               "type": "string"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -2432,6 +2891,43 @@
               "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "Job Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -2614,6 +3110,43 @@
               "minLength": 1,
               "title": "Key",
               "type": "string"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -2822,6 +3355,43 @@
                 }
               ],
               "title": "Range"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -3149,6 +3719,43 @@
               "title": "Key",
               "type": "string"
             }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "responses": {
@@ -3372,6 +3979,43 @@
               "title": "Overwrite",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "requestBody": {
@@ -3579,6 +4223,45 @@
     "/v1/policies/evaluate": {
       "post": {
         "operationId": "evaluatePolicy",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

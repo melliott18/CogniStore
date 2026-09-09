@@ -85,7 +85,7 @@ class PolicyRunner:
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
-        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader()
+        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader(access_catalog=catalog)
         self.idempotency_namespace = idempotency_namespace
         self.policy_name = policy_name or self._default_policy_name(policy)
         self.policy_version = policy_version

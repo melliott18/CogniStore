@@ -1,4 +1,4 @@
-"""Runtime composition for ephemeral policy embedding features."""
+"""Runtime composition for access history and ephemeral policy features."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from cognistore.core.access import AccessConfig
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.embedding_index import EmbeddingIndexer
 from cognistore.core.embeddings import (
@@ -92,7 +93,7 @@ _UniqueKeyLoader.add_constructor(
 )
 
 
-def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
+def _runtime_config(config_path: str | Path) -> dict[str, Any]:
     try:
         with open(config_path, encoding="utf-8") as stream:
             loader = _UniqueKeyLoader(stream)
@@ -101,7 +102,7 @@ def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
             finally:
                 loader.dispose()
     except FileNotFoundError:
-        return None
+        return {}
     except yaml.YAMLError as exc:
         raise PolicyFeatureRuntimeConfigError(
             f"invalid driver configuration YAML: {exc}"
@@ -114,12 +115,17 @@ def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
         raise PolicyFeatureRuntimeConfigError(
             "driver configuration field names must be strings"
         )
-    unknown_top_level = sorted(set(raw).difference({"tiers", "embedding"}))
+    unknown_top_level = sorted(set(raw).difference({"tiers", "embedding", "access_history"}))
     if unknown_top_level:
         raise PolicyFeatureRuntimeConfigError(
             "driver configuration has unsupported top-level fields: "
             + ", ".join(unknown_top_level)
         )
+    return dict(raw)
+
+
+def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
+    raw = _runtime_config(config_path)
     if "embedding" not in raw:
         return None
     block = raw["embedding"]
@@ -132,6 +138,27 @@ def _embedding_config(config_path: str | Path) -> dict[str, Any] | None:
             "driver configuration 'embedding' field names must be strings"
         )
     return dict(block)
+
+
+def load_access_config(config_path: str | Path) -> AccessConfig:
+    """Read the shared capture and policy-window configuration."""
+
+    block = _runtime_config(config_path).get("access_history", {})
+    if not isinstance(block, Mapping):
+        raise PolicyFeatureRuntimeConfigError("access_history must be a mapping")
+    allowed = {"windows_seconds", "retention_seconds", "sample_rate", "freshness_seconds"}
+    if any(not isinstance(name, str) or name not in allowed for name in block):
+        raise PolicyFeatureRuntimeConfigError("access_history has unsupported fields")
+    values = dict(block)
+    if "windows_seconds" in values:
+        windows = values["windows_seconds"]
+        if not isinstance(windows, list):
+            raise PolicyFeatureRuntimeConfigError("access_history windows_seconds must be a list")
+        values["windows_seconds"] = tuple(windows)
+    try:
+        return AccessConfig(**values)
+    except (TypeError, ValueError) as exc:
+        raise PolicyFeatureRuntimeConfigError(f"invalid access_history configuration: {exc}") from exc
 
 
 def _required(config: Mapping[str, Any], field: str) -> Any:
@@ -229,18 +256,24 @@ def load_policy_feature_loader(
     """
 
     config = _embedding_config(config_path)
+    access_config = load_access_config(config_path)
     if config is None:
-        return CatalogPolicyFeatureLoader()
+        return CatalogPolicyFeatureLoader(access_catalog=catalog, access_config=access_config)
     if not isinstance(catalog, SQLCatalog) or catalog.backend != "postgresql":
         raise PolicyFeatureRuntimeConfigError(
             "embedding policy features require a PostgreSQL catalog with pgvector"
         )
     provider = _provider(config)
     indexer = EmbeddingIndexer(PgVectorEmbeddingStore(catalog), provider)
-    return CatalogPolicyFeatureLoader(EmbeddingSimilarityFeatureProvider(indexer))
+    return CatalogPolicyFeatureLoader(
+        EmbeddingSimilarityFeatureProvider(indexer),
+        access_catalog=catalog,
+        access_config=access_config,
+    )
 
 
 __all__ = [
     "PolicyFeatureRuntimeConfigError",
+    "load_access_config",
     "load_policy_feature_loader",
 ]

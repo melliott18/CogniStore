@@ -11,7 +11,7 @@ import uvicorn
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
-from cognistore.policy_feature_runtime import load_policy_feature_loader
+from cognistore.policy_feature_runtime import load_access_config, load_policy_feature_loader
 
 from .app import create_app
 from .gateway import CogniStoreGateway
@@ -83,6 +83,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             queue=queue,
             manage_queue=True,
             feature_loader=feature_loader,
+            access_config=load_access_config(args.drivers),
         )
         app = create_app(gateway)
         uvicorn.run(

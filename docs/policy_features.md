@@ -15,6 +15,11 @@ Every evaluation exposes `features.schema_version = 1` with:
   includes the prototype query, max-passage cosine similarity when fresh, the
   exact embedding-space/model identity, current source digest, and indexed
   document/passage evidence.
+- `access`: observed read/write/touch counts in configurable windows, recency,
+  sampling estimates, and explicit freshness, missing-data, and partial-coverage
+  indicators. Runtime loaders include this additive schema-v1 field; older
+  producers may omit it. See [Access history](access_history.md) for event
+  semantics, configuration, retention, and measured behavior.
 
 Feature state is one of:
 
@@ -26,6 +31,15 @@ Feature state is one of:
 The projection is immutable and returned in deterministic signal-name order.
 Persisted feature snapshots and outcome labels are intentionally deferred to
 the later policy-dataset milestone.
+
+Access history follows the logical bucket/key across tier moves and content
+updates. It is independent of MIME and embedding content provenance. Its
+`freshness` describes the latest observed event's age, and `partial: true` means
+it never proves that unobserved intervals were idle. Built-in placement rules
+retain their existing precedence; custom policies can consume `features.access`
+through `evaluate_features(record, features)`. Unknown or sparse history must
+not justify demotion. Use a fixed `as_of` when loading fixture projections to
+reproduce window boundaries exactly.
 
 A MIME value is `fresh` only when its detector envelope is source-compatible
 with the record's current content identity. Legacy bare `mime` metadata without
