@@ -113,7 +113,7 @@ def test_sqlite_reopen_read_only_and_migration_preserve_history(tmp_path):
     original = event("persistent")
     with SQLiteCatalog(path) as catalog:
         catalog.append_access_event(original)
-        assert MigrationManager().current(catalog.engine) == "0008_access_events"
+        assert MigrationManager().current(catalog.engine) == "0009_placement_controls"
         assert {
             index["name"] for index in sa.inspect(catalog.engine).get_indexes("access_events")
         } == {"access_events_object_time_idx", "access_events_retention_idx"}

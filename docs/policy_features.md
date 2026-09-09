@@ -5,6 +5,10 @@ projection. The projection is assembled from a detached catalog record and
 optional indexing services. Writable policy runs retain the evaluated projection
 inside the [versioned policy dataset snapshot](policy_datasets.md).
 
+Authoritative [importance and minimum residency](placement_controls.md) constrain
+movement before these policy preferences. Evaluation results expose the active
+constraint evidence alongside the feature projection.
+
 ## Schema version 1
 
 Every evaluation exposes `features.schema_version = 1` with:
@@ -108,12 +112,15 @@ and raw vectors never enter policy configuration or job payloads. See
 requirements.
 
 Queued policy runs containing embedding rules use job-envelope schema v2. New
-workers accept both legacy v1 jobs and v2; older workers reject v2 instead of
+workers accept legacy v1 jobs, v2, and movement-constraint v3 jobs; older workers
+reject unsupported versions instead of
 silently ignoring rules they do not understand. Before producers or schedules
 enable embedding rules, upgrade and drain or stop every older worker that shares
 the durable consumer. Publishing v2 jobs while an older worker can still receive
 them sends those jobs to terminal rejection. Feature-free policy jobs omit
-`embedding_rules` and remain schema v1 for mixed-version compatibility.
+`embedding_rules` and remain schema v1 when no explicit movement constraints
+are supplied. A payload containing `movement_constraints` uses schema v3; see
+[importance and minimum residency](placement_controls.md#scheduled-and-queued-policies).
 
 ## Deterministic and safe fallback
 

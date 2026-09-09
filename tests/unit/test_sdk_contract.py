@@ -37,9 +37,11 @@ from cognistore.sdk import (
     EmbeddingPolicyRuleConfig,
     HeadObjectResponse,
     HealthResponse,
+    ImportanceChangeRequest,
     JobFailedError,
     JobStatus,
     MimePolicyFeature,
+    MovementConstraintsConfig,
     NotFoundError,
     ObjectDownload,
     ObjectResource,
@@ -85,6 +87,8 @@ _MODEL_SCHEMA_PAIRS = {
     "AskResponse": "AskResponse",
     "EmbeddingPolicyRuleConfig": "EmbeddingPolicyRuleConfig",
     "PolicyConfig": "PolicyConfig",
+    "MovementConstraintsConfig": "MovementConstraintsConfig",
+    "ImportanceChangeRequest": "ImportanceChangeRequest",
     "PolicyEvaluationRequest": "PolicyEvaluationRequest",
     "PolicyFeatureProvenanceResponse": "PolicyFeatureProvenance",
     "MimePolicyFeatureResponse": "MimePolicyFeature",
@@ -322,6 +326,56 @@ def test_policy_evaluation_accepts_an_older_v1_response_without_features() -> No
 
     assert evaluation.reason == "legacy policy response"
     assert evaluation.features is None
+    assert evaluation.constraints == {}
+
+
+@pytest.mark.parametrize("level", ["critical", None])
+def test_importance_assignment_and_clear_round_trip(
+    sdk_server: tuple[_ContractGateway, CogniStoreClient], level: Literal["critical"] | None,
+) -> None:
+    gateway, sdk = sdk_server
+    sdk.put_object("hot", "documents", "report", b"retained")
+    evaluation = sdk.set_importance(ImportanceChangeRequest(
+        bucket="documents", key="report", level=level,
+        actor_id="operator-44", provenance="approved classification",
+        config=PolicyConfig(movement_constraints=MovementConstraintsConfig(
+            minimum_residency_seconds={"hot": 3600},
+            importance_tiers={"critical": ["hot"]},
+        )),
+    ))
+    assert evaluation.action == "stay"
+    assert evaluation.constraints["residency_active"] is False
+    assert gateway.importance_requests[0].level == level
+    controls = gateway.importance_requests[0].config.movement_constraints
+    assert controls is not None
+    assert controls.minimum_residency_seconds == {"hot": 3600}
+    assert sdk.get_object("hot", "documents", "report").content == b"retained"
+
+
+@pytest.mark.parametrize("invalid", [
+    {"minimum_residency_seconds": {"hot": True}},
+    {"minimum_residency_seconds": {"hot": -1}},
+    {"minimum_residency_seconds": {"hot": 315360001}},
+    {"minimum_residency_seconds": {" hot": 1}},
+    {"importance_tiers": {"critical": ["hot", "hot"]}},
+    {"importance_tiers": {"urgent": ["hot"]}},
+])
+def test_sdk_rejects_invalid_movement_controls_before_transport(invalid) -> None:
+    with pytest.raises(PydanticValidationError):
+        MovementConstraintsConfig.model_validate(invalid)
+
+
+@pytest.mark.parametrize("values", [
+    {"actor_id": " operator"}, {"provenance": "control\ncharacter"},
+    {"actor_id": "é" * 129}, {"provenance": "€" * 700}, {"level": "urgent"},
+])
+def test_sdk_rejects_invalid_importance_attribution(values) -> None:
+    request = {
+        "bucket": "documents", "key": "report", "level": "high",
+        "actor_id": "operator", "provenance": "classification",
+    }
+    with pytest.raises(PydanticValidationError):
+        ImportanceChangeRequest.model_validate(request | values)
 
 
 class _ContractGateway:
@@ -333,6 +387,7 @@ class _ContractGateway:
         self.page_cursors: list[str | None] = []
         self.ask_requests: list[api_models.AskRequest] = []
         self.policy_requests: list[api_models.PolicyEvaluationRequest] = []
+        self.importance_requests: list[api_models.ImportanceChangeRequest] = []
         self.job_get_count = 0
         self.jobs = {
             _SCAN_JOB_ID: self._job(_SCAN_JOB_ID, "catalog.scan"),
@@ -607,6 +662,23 @@ class _ContractGateway:
                     for rule in request.config.embedding_rules
                 ],
             ),
+        )
+
+    def set_importance(
+        self, request: api_models.ImportanceChangeRequest, *, correlation_id: str,
+    ) -> api_models.PolicyEvaluationResponse:
+        self.importance_requests.append(request)
+        catalog_object = self.get_catalog_object(request.bucket, request.key)
+        return api_models.PolicyEvaluationResponse(
+            bucket=request.bucket, key=request.key, current_tier=catalog_object.tier,
+            size=catalog_object.size, action="stay", reason="importance reevaluated",
+            constraints={
+                "importance": None if request.level is None else {
+                    "level": request.level, "actor_id": request.actor_id,
+                    "provenance": request.provenance,
+                },
+                "residency_active": False,
+            },
         )
 
     async def submit_catalog_scan(
@@ -1240,6 +1312,7 @@ def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> N
             "/v1/catalog/objects/{bucket}/{key}",
             "get_catalog_object",
         ),
+        "setObjectImportance": ("post", "/v1/catalog/importance", "set_importance"),
         "ask": ("post", "/v1/ask", "ask"),
         "evaluatePolicy": (
             "post",

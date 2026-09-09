@@ -401,9 +401,15 @@ Notes:
   reports conservative reclamation eligibility after a configurable grace
   period. It never repairs rows or deletes content; the default grace period is
   seven days.
+- `importance-set BUCKET KEY LEVEL` records an attributed importance change and
+  reevaluates placement; `LEVEL` accepts `low`, `normal`, `high`, `critical`, or
+  `clear`. Supply `--actor` and `--provenance`. See
+  [importance and minimum residency](docs/placement_controls.md).
 - `policy-run` supports:
 	- `--policy simple|llm|content` (default: simple)
 	- `--allowed-tiers hot,warm` to constrain decisions
+	- `--minimum-residency TIER SECONDS` (repeatable) to delay leaving a tier
+	- `--importance-tier LEVEL TIER` (repeatable) to configure importance destinations
 	- `--dry-run` to validate and report planned moves without writes
 	- `--json` for one machine-readable result object
 	- `--threshold` (and `--llm-threshold` for the LLM path)

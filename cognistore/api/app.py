@@ -46,6 +46,7 @@ from .models import (
     ErrorBody,
     ErrorEnvelope,
     HealthResponse,
+    ImportanceChangeRequest,
     JobStatusResponse,
     ObjectResource,
     PolicyEvaluationRequest,
@@ -62,6 +63,7 @@ _JSON_BODY_PATHS = frozenset(
         "/v1/actions/policy-runs",
         "/v1/ask",
         "/v1/policies/evaluate",
+        "/v1/catalog/importance",
     }
 )
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -733,6 +735,22 @@ def create_app(
     )
     def ask(request: AskRequest) -> AskResponse:
         return services.ask(request)
+
+    @router.post(
+        "/catalog/importance",
+        response_model=PolicyEvaluationResponse,
+        operation_id="setObjectImportance",
+        tags=["catalog"],
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            404: _NOT_FOUND_RESPONSE,
+            **_JSON_ERROR_RESPONSES,
+        },
+    )
+    def set_object_importance(
+        change: ImportanceChangeRequest, request: Request
+    ) -> PolicyEvaluationResponse:
+        return services.set_importance(change, correlation_id=_request_id(request))
 
     @router.post(
         "/policies/evaluate",

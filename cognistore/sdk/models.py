@@ -40,6 +40,7 @@ MimePrefix = Annotated[str, Field(min_length=1, max_length=255)]
 EmbeddingRuleName = Annotated[str, Field(min_length=1, max_length=256)]
 EmbeddingRuleQuery = Annotated[str, Field(min_length=1, max_length=16_384)]
 MAX_POLICY_CONFIG_BYTES = 64 * 1024
+ImportanceLevel: TypeAlias = Literal["low", "normal", "high", "critical"]
 
 
 class SDKRequest(BaseModel):
@@ -117,8 +118,48 @@ class EmbeddingPolicyRuleConfig(SDKRequest):
         return self
 
 
+def _validate_control_text(value: str, name: str, maximum_bytes: int) -> None:
+    if not value or value != value.strip():
+        raise ValueError(f"{name} must be non-empty text without outer whitespace")
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError(f"{name} must not contain control characters")
+    try:
+        length = len(value.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{name} must be valid UTF-8") from exc
+    if length > maximum_bytes:
+        raise ValueError(f"{name} must be at most {maximum_bytes} UTF-8 bytes")
+
+
+def _default_importance_tiers() -> dict[ImportanceLevel, list[str]]:
+    return {"high": ["hot", "warm"], "critical": ["hot"]}
+
+
+class MovementConstraintsConfig(SDKRequest):
+    minimum_residency_seconds: dict[
+        Tier, Annotated[int, Field(ge=0, le=315360000)]
+    ] = Field(default_factory=dict)
+    importance_tiers: dict[
+        ImportanceLevel, Annotated[list[Tier], Field(max_length=32)]
+    ] = Field(default_factory=_default_importance_tiers)
+
+    @model_validator(mode="after")
+    def _validate_constraints(self) -> MovementConstraintsConfig:
+        if len(self.minimum_residency_seconds) > 100:
+            raise ValueError("minimum_residency_seconds supports at most 100 tiers")
+        for tier in self.minimum_residency_seconds:
+            _validate_control_text(tier, "tier", 256)
+        for tiers in self.importance_tiers.values():
+            if len(set(tiers)) != len(tiers):
+                raise ValueError("importance_tiers must not contain duplicate tiers")
+            for tier in tiers:
+                _validate_control_text(tier, "importance tier", 256)
+        return self
+
+
 class PolicyConfig(SDKRequest):
     policy: Literal["simple", "content", "llm"] = "simple"
+    movement_constraints: MovementConstraintsConfig | None = None
     threshold: Annotated[int, Field(ge=0, le=2**63 - 1)] = 1_048_576
     llm_threshold: Annotated[int, Field(ge=0, le=2**63 - 1)] | None = None
     allowed_tiers: Annotated[list[Tier], Field(min_length=1, max_length=32)] = Field(
@@ -202,6 +243,21 @@ class PolicyEvaluationRequest(SDKRequest):
     bucket: Bucket
     key: ObjectKey
     config: PolicyConfig = Field(default_factory=PolicyConfig)
+
+
+class ImportanceChangeRequest(SDKRequest):
+    bucket: Bucket
+    key: ObjectKey
+    level: ImportanceLevel | None
+    actor_id: Annotated[str, Field(min_length=1, max_length=256)]
+    provenance: Annotated[str, Field(min_length=1, max_length=1024)]
+    config: PolicyConfig = Field(default_factory=PolicyConfig)
+
+    @model_validator(mode="after")
+    def _validate_attribution(self) -> ImportanceChangeRequest:
+        _validate_control_text(self.actor_id, "actor_id", 256)
+        _validate_control_text(self.provenance, "provenance", 2048)
+        return self
 
 
 class CatalogScanRequest(SDKRequest):
@@ -483,6 +539,7 @@ class PolicyEvaluationResponse(SDKResponse):
     destination_tier: Tier | None = None
     reason: str
     features: PolicyFeatures | None = None
+    constraints: dict[str, JSONValue] = Field(default_factory=dict)
 
 
 class JobStatus(SDKResponse):

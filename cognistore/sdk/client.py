@@ -44,6 +44,7 @@ from .models import (
     ErrorEnvelope,
     HeadObjectResponse,
     HealthResponse,
+    ImportanceChangeRequest,
     JobStatus,
     ObjectDownload,
     ObjectResource,
@@ -70,6 +71,7 @@ SUPPORTED_OPERATION_IDS = frozenset(
         "headObject",
         "listCatalogObjects",
         "putObject",
+        "setObjectImportance",
         "submitCatalogScan",
         "submitPolicyRun",
     }
@@ -421,7 +423,7 @@ class CogniStoreClient:
     @classmethod
     def _policy_request_json(
         cls,
-        request: PolicyEvaluationRequest | PolicyRunRequest,
+        request: PolicyEvaluationRequest | PolicyRunRequest | ImportanceChangeRequest,
     ) -> dict[str, object]:
         """Keep feature-free policy calls compatible with older API v1 servers."""
 
@@ -685,6 +687,18 @@ class CogniStoreClient:
             expected_statuses={200},
             json=self._policy_request_json(request),
             headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, PolicyEvaluationResponse)
+
+    def set_importance(self, request: ImportanceChangeRequest) -> PolicyEvaluationResponse:
+        """Set or clear a trusted tag and return its immediate policy reevaluation."""
+
+        payload = self._policy_request_json(request)
+        # Null is an intentional clear operation and the API requires the key.
+        payload["level"] = request.level
+        response = self._send(
+            "POST", "/v1/catalog/importance", expected_statuses={200},
+            json=payload, headers={"Accept": "application/json"},
         )
         return self._parse_model(response, PolicyEvaluationResponse)
 

@@ -35,6 +35,7 @@ from cognistore.core.content_identity import (
     DIGEST_ALGORITHM,
     cas_key_for_sha256,
 )
+from cognistore.core.placement_controls import ImportanceTag
 from cognistore.core.topology import Pool, Tier
 from cognistore.utils.redaction import redact, redact_text
 
@@ -545,6 +546,40 @@ def _copy_legacy_catalog(
     )
 
 
+def _import_importance(row: sqlite3.Row) -> dict[str, Any] | None:
+    if "importance" not in row.keys() or row["importance"] in (None, "null"):
+        return None
+    try:
+        return ImportanceTag.from_mapping(
+            _json_mapping(row["importance"], "object importance")
+        ).to_dict()
+    except ValueError as exc:
+        raise SQLiteCatalogImportError(f"invalid source importance: {exc}") from exc
+
+
+def _import_importance_revision(row: sqlite3.Row) -> int:
+    value = row["importance_revision"] if "importance_revision" in row.keys() else 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2**63 - 1:
+        raise SQLiteCatalogImportError("invalid source importance revision")
+    return value
+
+
+def _import_placement_start(row: sqlite3.Row) -> str | None:
+    value = (
+        row["placement_started_at"] if "placement_started_at" in row.keys()
+        else (None if row["updated_at"] == _MIGRATED_AT else row["updated_at"])
+    )
+    if value is None:
+        return None
+    try:
+        canonical = canonical_audit_timestamp(value, "placement_started_at")
+    except ValueError as exc:
+        raise SQLiteCatalogImportError(f"invalid source placement start: {exc}") from exc
+    if canonical != value:
+        raise SQLiteCatalogImportError("source placement start must use canonical UTC")
+    return canonical
+
+
 def _copy_normalized_catalog(
     source: sqlite3.Connection,
     destination: Connection,
@@ -629,7 +664,7 @@ def _copy_normalized_catalog(
     if invalid_parent is not None:
         raise SQLiteCatalogImportError("active source pool references an inactive tier")
 
-    _require_columns(
+    object_columns = _require_columns(
         source,
         "objects",
         {
@@ -642,14 +677,19 @@ def _copy_normalized_catalog(
             "updated_at",
         },
     )
+    importance_columns = {"importance", "importance_revision"}
+    has_controls = bool(object_columns & importance_columns)
+    if has_controls and not importance_columns <= object_columns:
+        raise SQLiteCatalogImportError("source has partial importance columns")
     object_count = _copy_rows(
         source,
         destination,
         objects,
-        "SELECT object_id, bucket, object_key, size, metadata, created_at, updated_at "
-        "FROM objects ORDER BY bucket, object_key",
+        "SELECT * FROM objects ORDER BY bucket, object_key",
         lambda row: {
             "object_id": _uuid(row["object_id"], "objects.object_id"),
+            "importance": _import_importance(row),
+            "importance_revision": _import_importance_revision(row),
             "bucket": row["bucket"],
             "object_key": row["object_key"],
             "size": row["size"],
@@ -663,7 +703,7 @@ def _copy_normalized_catalog(
         batch_size=batch_size,
     )
 
-    _require_columns(
+    placement_columns = _require_columns(
         source,
         "object_placements",
         {
@@ -675,14 +715,16 @@ def _copy_normalized_catalog(
             "updated_at",
         },
     )
+    if has_controls != ("placement_started_at" in placement_columns):
+        raise SQLiteCatalogImportError("source has partial placement controls columns")
     placement_count = _copy_rows(
         source,
         destination,
         object_placements,
-        "SELECT placement_id, object_id, tier_name, pool_id, created_at, updated_at "
-        "FROM object_placements ORDER BY object_id",
+        "SELECT * FROM object_placements ORDER BY object_id",
         lambda row: {
             "placement_id": _uuid(row["placement_id"], "object_placements.placement_id"),
+            "placement_started_at": _import_placement_start(row),
             "object_id": _uuid(row["object_id"], "object_placements.object_id"),
             "tier_name": row["tier_name"],
             "pool_id": row["pool_id"],

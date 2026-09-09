@@ -11,6 +11,7 @@ from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
 from cognistore.core.mover import Mover
+from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import (
     EmbeddingPolicyRule,
     validate_policy_config_size,
@@ -25,6 +26,7 @@ from cognistore.drivers.storage_driver import StorageDriver
 from .models import (
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
+    JOB_SCHEMA_VERSION_V3,
     InvalidJobError,
     JobContext,
     JobEnvelope,
@@ -40,6 +42,8 @@ POLICY_AUDIT_VERSION = "1"
 def policy_job_schema_version(payload: Mapping[str, object]) -> int:
     """Select the oldest envelope schema that can represent a policy job."""
 
+    if "movement_constraints" in payload:
+        return JOB_SCHEMA_VERSION_V3
     if "embedding_rules" in payload:
         return JOB_SCHEMA_VERSION_V2
     return JOB_SCHEMA_VERSION_V1
@@ -359,6 +363,26 @@ def build_handlers(
 
     async def policy_run(job: JobEnvelope, context: JobContext) -> None:
         if (
+            job.schema_version < JOB_SCHEMA_VERSION_V3
+            and "movement_constraints" in job.payload
+        ):
+            raise InvalidJobError(
+                "job payload field 'movement_constraints' requires schema_version 3"
+            )
+        movement_constraints = None
+        if "movement_constraints" in job.payload:
+            raw_constraints = job.payload["movement_constraints"]
+            if not isinstance(raw_constraints, Mapping):
+                raise InvalidJobError(
+                    "job payload field 'movement_constraints' must be an object"
+                )
+            try:
+                movement_constraints = MovementConstraints.from_mapping(raw_constraints)
+            except ValueError as exc:
+                raise InvalidJobError(
+                    f"invalid job payload field 'movement_constraints': {exc}"
+                ) from exc
+        if (
             job.schema_version == JOB_SCHEMA_VERSION_V1
             and "embedding_rules" in job.payload
         ):
@@ -378,6 +402,15 @@ def build_handlers(
             raise InvalidJobError(
                 f"unknown allowed tier(s): {', '.join(unknown)}"
             )
+
+        if movement_constraints is not None:
+            unknown_residency = sorted(
+                set(movement_constraints.minimum_residency_seconds).difference(drivers)
+            )
+            if unknown_residency:
+                raise InvalidJobError(
+                    "unknown residency tier(s): " + ", ".join(unknown_residency)
+                )
 
         embedding_rules = _embedding_rules(job.payload)
         if embedding_rules and policy_name != "content":
@@ -460,6 +493,7 @@ def build_handlers(
             audit_context=audit_context,
             audit_occurred_at=job.created_at,
             feature_loader=policy_feature_loader,
+            movement_constraints=movement_constraints,
         )
         actions = await _run_blocking_safely(
             runner.plan_once,
@@ -497,6 +531,7 @@ def policy_job_payload(
     warm_mime_prefixes: Sequence[str],
     cold_mime_prefixes: Sequence[str],
     embedding_rules: Sequence[EmbeddingPolicyRule | Mapping[str, object]] = (),
+    movement_constraints: MovementConstraints | None = None,
 ) -> dict[str, Any]:
     rule_objects = [
         (
@@ -533,4 +568,6 @@ def policy_job_payload(
     }
     if normalized_rules:
         payload["embedding_rules"] = normalized_rules
+    if movement_constraints is not None:
+        payload["movement_constraints"] = movement_constraints.to_dict()
     return payload

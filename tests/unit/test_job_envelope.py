@@ -11,6 +11,7 @@ from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
+    JOB_SCHEMA_VERSION_V3,
     REDRIVE_COUNT_METADATA,
     DeadLetterDisposition,
     DeadLetterRecord,
@@ -20,7 +21,7 @@ from cognistore.jobs.models import (
 
 
 @pytest.mark.parametrize(
-    "schema_version", (JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2)
+    "schema_version", (JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2, JOB_SCHEMA_VERSION_V3)
 )
 def test_job_envelope_round_trips_supported_schema_versions(
     schema_version: int,
@@ -144,10 +145,21 @@ def test_dead_letter_round_trip_preserves_malformed_bytes_and_diagnostics() -> N
     assert restored.job is None
 
 
-def test_redrive_preserves_logical_identity_and_extends_audit_chain() -> None:
+@pytest.mark.parametrize("schema_version", (JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V3))
+def test_redrive_preserves_logical_identity_and_extends_audit_chain(
+    schema_version: int,
+) -> None:
     original = JobEnvelope.create(
         "policy.run",
-        {"bucket": "documents"},
+        {
+            "bucket": "documents",
+            **(
+                {"movement_constraints": {"minimum_residency_seconds": {"hot": 3600}}}
+                if schema_version == JOB_SCHEMA_VERSION_V3
+                else {}
+            ),
+        },
+        schema_version=schema_version,
         correlation_id="request-42",
         metadata={"traceparent": "00-abc-def-01"},
         created_at=datetime(2026, 8, 17, 9, tzinfo=timezone.utc),
@@ -176,6 +188,7 @@ def test_redrive_preserves_logical_identity_and_extends_audit_chain() -> None:
 
     redriven = first.job_for_redrive()
 
+    assert redriven.schema_version == original.schema_version
     assert redriven.job_id == original.job_id
     assert redriven.correlation_id == original.correlation_id
     assert redriven.created_at == original.created_at

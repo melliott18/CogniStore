@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from copy import copy
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Literal, Sequence
 from uuid import uuid4
@@ -19,7 +21,12 @@ from .audit import (
 )
 from .catalog import CatalogStore, ObjectRecord
 from .mover import Mover
-from .policy import Policy, PolicyDecision
+from .placement_controls import (
+    MovementConstraints,
+    evaluate_movement_constraints,
+    normalize_movement_constraints,
+)
+from .policy import ContentAwarePolicy, LLMPolicy, Policy, PolicyDecision, SimplePolicy
 from .policy_features import CatalogPolicyFeatureLoader, PolicyFeatures
 from .policy_snapshot import (
     capture_policy_snapshot,
@@ -41,6 +48,8 @@ class ActionResult:
     job_id: str | None = None
     features: PolicyFeatures | None = None
     expected_source_sha256: str | None = None
+    constraints: dict[str, object] = field(default_factory=dict)
+    movement_constraints: MovementConstraints | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +64,7 @@ class PolicyEvaluationResult:
     destination_tier: str | None
     reason: str
     features: PolicyFeatures
+    constraints: dict[str, object] = field(default_factory=dict)
 
     def to_mapping(self) -> dict[str, object]:
         return {
@@ -66,6 +76,7 @@ class PolicyEvaluationResult:
             "destination_tier": self.destination_tier,
             "reason": self.reason,
             "features": self.features.to_dict(),
+            "constraints": self.constraints,
         }
 
 
@@ -87,6 +98,8 @@ class PolicyRunner:
         feature_loader: CatalogPolicyFeatureLoader | None = None,
         model_identity: str | None = None,
         model_version: str | None = None,
+        movement_constraints: MovementConstraints | Mapping[str, object] | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         if model_version is not None and model_identity is None:
             raise ValueError("model_version requires model_identity")
@@ -94,6 +107,8 @@ class PolicyRunner:
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
+        self.movement_constraints = normalize_movement_constraints(movement_constraints)
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.feature_loader = feature_loader or CatalogPolicyFeatureLoader(access_catalog=catalog)
         self.idempotency_namespace = idempotency_namespace
         self.policy_name = policy_name or self._default_policy_name(policy)
@@ -114,21 +129,25 @@ class PolicyRunner:
             names = ", ".join(sorted(unknown_tiers))
             raise ValueError(f"Unknown allowed tier(s): {names}")
 
-    def run_once(self, bucket: str, prefix: str = "", dry_run: bool = False) -> List[ActionResult]:
-        results = self.plan_once(bucket, prefix=prefix, dry_run=dry_run)
+    def run_once(
+        self, bucket: str, prefix: str = "", dry_run: bool = False,
+        *, as_of: str | datetime | None = None,
+    ) -> List[ActionResult]:
+        results = self.plan_once(bucket, prefix=prefix, dry_run=dry_run, as_of=as_of)
         if not dry_run:
             for result in results:
                 self.execute(result)
         return results
 
     def plan_once(
-        self, bucket: str, prefix: str = "", dry_run: bool = False
+        self, bucket: str, prefix: str = "", dry_run: bool = False,
+        *, as_of: str | datetime | None = None,
     ) -> List[ActionResult]:
         """Validate a complete policy batch without applying its moves."""
 
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
-        evaluated = self._evaluate_records(records)
+        evaluated = self._evaluate_records(records, as_of=as_of)
         for rec, evaluation in zip(records, evaluated):
             features = evaluation.features
             decision = PolicyDecision(
@@ -168,6 +187,9 @@ class PolicyRunner:
                     destination=decision.dst_tier,
                     outcome=outcome,
                     move_id=move_id,
+                    importance_revision=rec.importance_revision,
+                    constraints=evaluation.constraints,
+                    reason=evaluation.reason,
                 )
                 snapshot = snapshot_from_audit_details(decision_event.details)
                 if snapshot is not None:
@@ -188,7 +210,10 @@ class PolicyRunner:
             # Validate the entire batch before any move executes. A known
             # collision or invalid path must reject the run without partially
             # applying earlier decisions.
-            self.mover.plan(from_tier, decision.dst_tier, rec.bucket, rec.key)
+            self.mover.plan(
+                from_tier, decision.dst_tier, rec.bucket, rec.key,
+                movement_constraints=self.movement_constraints,
+            )
             status: Literal["planned", "completed"] = (
                 "planned" if dry_run else "completed"
             )
@@ -207,6 +232,8 @@ class PolicyRunner:
                     expected_source_sha256=self._feature_content_sha256(
                         features
                     ),
+                    constraints=evaluation.constraints,
+                    movement_constraints=self.movement_constraints,
                 )
             )
 
@@ -216,11 +243,13 @@ class PolicyRunner:
         self,
         bucket: str,
         prefix: str = "",
+        *,
+        as_of: str | datetime | None = None,
     ) -> List[PolicyEvaluationResult]:
         """Return every dry-run decision with feature provenance and freshness."""
 
         records = self.catalog.list(bucket, prefix=prefix)
-        evaluations = self._evaluate_records(records)
+        evaluations = self._evaluate_records(records, as_of=as_of)
         for rec, evaluation in zip(records, evaluations):
             decision = PolicyDecision(
                 action=evaluation.action,
@@ -229,15 +258,119 @@ class PolicyRunner:
             )
             if self._is_actionable(rec, decision):
                 assert decision.dst_tier is not None
-                self.mover.plan(rec.tier, decision.dst_tier, rec.bucket, rec.key)
+                self.mover.plan(
+                    rec.tier, decision.dst_tier, rec.bucket, rec.key,
+                    movement_constraints=self.movement_constraints,
+                )
         return evaluations
+
+    def evaluate_once(
+        self, bucket: str, key: str, *, as_of: str | datetime | None = None,
+    ) -> PolicyEvaluationResult:
+        """Evaluate one catalog object without auditing or reading object storage."""
+
+        record = self.catalog.get(bucket, key)
+        if record is None:
+            raise KeyError(f"object not found: {bucket}/{key}")
+        return self._evaluate_records((record,), as_of=as_of)[0]
+
+    def reevaluate_object(
+        self, bucket: str, key: str, *, as_of: str | datetime | None = None,
+    ) -> PolicyEvaluationResult:
+        """Reevaluate the latest tag and append its decision without moving bytes."""
+
+        record = self.catalog.get(bucket, key)
+        if record is None:
+            raise KeyError(f"object not found: {bucket}/{key}")
+        return self.reevaluate_record(record, as_of=as_of)
+
+    def reevaluate_record(
+        self, record: ObjectRecord, *, as_of: str | datetime | None = None,
+    ) -> PolicyEvaluationResult:
+        """Audit the exact committed tag revision, even if a later update races it."""
+
+        evaluation = self._evaluate_records((record,), as_of=as_of)[0]
+        decision = PolicyDecision(
+            evaluation.action, evaluation.reason, evaluation.destination_tier
+        )
+        self._record_decision(
+            record=record,
+            features=evaluation.features,
+            decision=decision,
+            bucket=record.bucket,
+            key=record.key,
+            current_tier=record.tier,
+            size=record.size,
+            action=decision.action,
+            destination=decision.dst_tier,
+            outcome=(
+                AuditOutcome.SELECTED if self._is_actionable(record, decision)
+                else AuditOutcome.REJECTED
+                if decision.action == "move"
+                else AuditOutcome.STAYED
+            ),
+            move_id=None,
+            importance_revision=record.importance_revision,
+            constraints=evaluation.constraints,
+            reason=evaluation.reason,
+        )
+        return evaluation
+
+    def evaluate_record(
+        self, record: ObjectRecord, *, as_of: str | datetime | None = None,
+    ) -> PolicyEvaluationResult:
+        """Evaluate a detached snapshot, including a proposed tag, without writes."""
+
+        return self._evaluate_records((record,), as_of=as_of)[0]
 
     def _evaluate_records(
         self,
         records: Sequence[ObjectRecord],
+        *,
+        as_of: str | datetime | None = None,
     ) -> List[PolicyEvaluationResult]:
+        evaluated_at = self.clock() if as_of is None else as_of
+        constraints: dict[tuple[str, str], dict[str, object]] = {}
+        eligible_records: list[ObjectRecord] = []
+        blocked_records: list[ObjectRecord] = []
+        for rec in records:
+            tier = self.catalog.get_tier(rec.tier)
+            evidence = evaluate_movement_constraints(
+                rec, self.movement_constraints,
+                tier_metadata=None if tier is None else tier.metadata,
+                as_of=evaluated_at,
+            )
+            configured_destinations = evidence["allowed_destination_tiers"]
+            evidence["importance_allowed_tiers"] = configured_destinations
+            allowed = self.allowed_tiers
+            if isinstance(configured_destinations, list):
+                allowed = allowed.intersection(configured_destinations)
+            evidence["allowed_destination_tiers"] = sorted(allowed)
+            evidence["blocked_reason"] = (
+                evidence["residency_reason"] if evidence["residency_active"]
+                else "importance constraint permits no other destination tier"
+                if isinstance(configured_destinations, list)
+                and not set(configured_destinations).difference({rec.tier})
+                else None
+            )
+            constraints[(rec.bucket, rec.key)] = evidence
+            (blocked_records if evidence["blocked_reason"] else eligible_records).append(rec)
         requests = tuple(getattr(self.policy, "feature_requests", ()))
-        projections = self.feature_loader.load(records, requests)
+        projections = {}
+        if eligible_records:
+            if isinstance(self.feature_loader, CatalogPolicyFeatureLoader):
+                projections = self.feature_loader.load(
+                    eligible_records, requests, as_of=evaluated_at
+                )
+            else:
+                # Preserve the original two-argument custom loader contract.
+                # Such loaders supply their own already-frozen feature times.
+                projections = self.feature_loader.load(eligible_records, requests)
+        # Blocked objects need only catalog evidence. Do not invoke semantic
+        # providers for decisions that a hard constraint has already settled.
+        projections.update(CatalogPolicyFeatureLoader(access_catalog=self.catalog).load(
+            blocked_records, requests, as_of=evaluated_at
+        ))
         results: List[PolicyEvaluationResult] = []
         for rec in records:
             coordinate = (rec.bucket, rec.key)
@@ -247,16 +380,39 @@ class PolicyRunner:
                 raise RuntimeError(
                     f"policy feature loader omitted {rec.bucket}/{rec.key}"
                 ) from exc
-            evaluate_features = getattr(self.policy, "evaluate_features", None)
-            if callable(evaluate_features):
-                decision = evaluate_features(rec, features)
+            evidence = constraints[coordinate]
+            if evidence["blocked_reason"]:
+                decision = PolicyDecision("stay", str(evidence["blocked_reason"]))
             else:
-                evaluate_record = getattr(self.policy, "evaluate_record", None)
-                decision = (
-                    evaluate_record(rec)
-                    if callable(evaluate_record)
-                    else self.policy.evaluate(rec.tier, rec.size)
-                )
+                # Built-in policies (including LLM payloads) see only eligible
+                # tiers. Copy per record to avoid changing shared policy state.
+                policy = self.policy
+                if isinstance(policy, (SimplePolicy, ContentAwarePolicy, LLMPolicy)):
+                    policy = copy(policy)
+                    eligible_tiers = evidence["importance_allowed_tiers"]
+                    if isinstance(eligible_tiers, list):
+                        policy.allowed_tiers = set(eligible_tiers).intersection(policy.allowed_tiers)
+                evaluate_features = getattr(policy, "evaluate_features", None)
+                if callable(evaluate_features):
+                    decision = evaluate_features(rec, features)
+                else:
+                    evaluate_record = getattr(policy, "evaluate_record", None)
+                    decision = (
+                        evaluate_record(rec)
+                        if callable(evaluate_record)
+                        else policy.evaluate(rec.tier, rec.size)
+                    )
+                allowed_destinations = evidence["importance_allowed_tiers"]
+                if (
+                    decision.action == "move"
+                    and decision.dst_tier != rec.tier
+                    and isinstance(allowed_destinations, list)
+                    and decision.dst_tier not in allowed_destinations
+                ):
+                    reason = "movement constraints forbid policy destination"
+                    evidence["blocked_reason"] = reason
+                    evidence["rejected_destination_tier"] = decision.dst_tier
+                    decision = PolicyDecision("stay", reason)
             results.append(
                 PolicyEvaluationResult(
                     bucket=rec.bucket,
@@ -267,6 +423,7 @@ class PolicyRunner:
                     destination_tier=decision.dst_tier,
                     reason=decision.reason,
                     features=features,
+                    constraints=evidence,
                 )
             )
         return results
@@ -302,6 +459,7 @@ class PolicyRunner:
             result.key,
             idempotency_key=self._move_idempotency_key(result),
             expected_source_sha256=result.expected_source_sha256,
+            movement_constraints=result.movement_constraints or self.movement_constraints,
             audit_context=AuditContext(
                 correlation_id=result.correlation_id or self.audit_context.correlation_id,
                 actor_type=self.audit_context.actor_type,
@@ -354,7 +512,31 @@ class PolicyRunner:
         destination: str | None,
         outcome: AuditOutcome,
         move_id: str | None,
+        importance_revision: int = 0,
+        constraints: Mapping[str, object] | None = None,
+        reason: str = "",
     ) -> AuditEvent:
+        safe_current_tier = redact_text(current_tier)
+        safe_action = redact_text(action)
+        safe_destination = None if destination is None else redact_text(destination)
+        safe_reason = redact_text(reason)
+        stable_constraints = {
+            name: value for name, value in (constraints or {}).items() if name != "as_of"
+        }
+        # Freeze a retry's first policy output and features, while recognizing
+        # new authoritative importance or residency inputs as a new decision.
+        # The runner's ordinary destination filter is deliberately excluded:
+        # expanding it must not turn a persisted rejection into a selected move.
+        hard_constraint_identity = {
+            name: value for name, value in stable_constraints.items()
+            if name not in {
+                "allowed_destination_tiers", "blocked_reason", "rejected_destination_tier",
+            }
+        }
+        evidence_identity = hashlib.sha256(json.dumps(
+            hard_constraint_identity,
+            sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()
         event_id = stable_audit_event_id(
             "policy-decision",
             self.audit_context.correlation_id,
@@ -367,6 +549,8 @@ class PolicyRunner:
             action,
             destination or "",
             str(size),
+            str(importance_revision),
+            evidence_identity,
         )
         # A retried batch may load newer feature evidence. The immutable first
         # observation owns this logical decision's snapshot and timestamps.
@@ -387,9 +571,17 @@ class PolicyRunner:
             model_identity=self.model_identity,
             model_version=self.model_version,
         )
-        safe_current_tier = redact_text(current_tier)
-        safe_action = redact_text(action)
-        safe_destination = None if destination is None else redact_text(destination)
+        if snapshot["replay"]["supported"] and (
+            stable_constraints.get("minimum_residency_seconds")
+            or stable_constraints.get("importance_allowed_tiers") is not None
+        ):
+            # Snapshot v1 has no fields for these hard inputs. Preserve the
+            # observed result for datasets without claiming an exact replay
+            # from only the unconstrained underlying policy configuration.
+            snapshot["replay"] = {
+                "supported": False,
+                "reason": "movement_constraints_not_in_snapshot_v1",
+            }
         event = AuditEvent.create(
             AuditEventType.POLICY_DECISION,
             outcome,
@@ -408,6 +600,11 @@ class PolicyRunner:
                 "destination_tier": safe_destination,
                 "size": size,
                 "dataset": snapshot,
+                "importance_revision": importance_revision,
+                "reason": safe_reason,
+                # The evaluation instant changes on retries; eligibility and
+                # its stable source evidence describe the logical decision.
+                "constraints": stable_constraints,
             },
         )
         try:

@@ -246,7 +246,7 @@ jobs:
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
                   migrations = MigrationManager()
-                  assert migrations.heads() == ("0008_access_events",)
+                  assert migrations.heads() == ("0009_placement_controls",)
                   assert migrations.is_at_head(catalog.engine)
 
           assert files("cognistore.sdk").joinpath("py.typed").is_file()

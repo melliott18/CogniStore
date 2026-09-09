@@ -114,7 +114,11 @@ It also accepts `prefix`, `llm_threshold`, and the content-policy lists
 Embedding-rule policy jobs use schema v2. Upgrade and drain or stop every older
 worker sharing the durable consumer before enabling those rules in schedules or
 other producers; older workers terminally reject v2 jobs. Policy jobs without
-embedding rules omit `embedding_rules` and remain schema v1.
+embedding rules omit `embedding_rules` and remain schema v1 when no explicit
+movement constraints are supplied. An optional `movement_constraints` payload
+object configures residency and importance and requires schema v3. Upgrade
+workers before publishing that version; scheduled publication recovery preserves
+the complete original controls. See [importance and minimum residency](placement_controls.md).
 
 Start it with the same NATS topology, drivers, and SQLite scheduler-state file
 used by its workers:

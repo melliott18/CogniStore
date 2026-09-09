@@ -979,6 +979,64 @@
         "title": "ImpactTotalResponse",
         "type": "object"
       },
+      "ImportanceChangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "bucket": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bucket",
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/PolicyConfig"
+          },
+          "key": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "normal",
+                  "high",
+                  "critical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "provenance": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Provenance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bucket",
+          "key",
+          "level",
+          "actor_id",
+          "provenance"
+        ],
+        "title": "ImportanceChangeRequest",
+        "type": "object"
+      },
       "JobStatusResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1108,6 +1166,47 @@
           "provenance"
         ],
         "title": "MimePolicyFeatureResponse",
+        "type": "object"
+      },
+      "MovementConstraintsConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "importance_tiers": {
+            "additionalProperties": {
+              "items": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 32,
+              "type": "array"
+            },
+            "propertyNames": {
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "critical"
+              ]
+            },
+            "title": "Importance Tiers",
+            "type": "object"
+          },
+          "minimum_residency_seconds": {
+            "additionalProperties": {
+              "maximum": 315360000.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Minimum Residency Seconds",
+            "type": "object"
+          }
+        },
+        "title": "MovementConstraintsConfig",
         "type": "object"
       },
       "ObjectCitationResponse": {
@@ -1655,6 +1754,16 @@
             ],
             "title": "Llm Threshold"
           },
+          "movement_constraints": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MovementConstraintsConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "policy": {
             "default": "simple",
             "enum": [
@@ -1738,6 +1847,13 @@
             "minLength": 1,
             "title": "Bucket",
             "type": "string"
+          },
+          "constraints": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Constraints",
+            "type": "object"
           },
           "current_tier": {
             "maxLength": 256,
@@ -2760,6 +2876,220 @@
         "summary": "Ask",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/v1/catalog/importance": {
+      "post": {
+        "operationId": "setObjectImportance",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportanceChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyEvaluationResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Authentication required by the configured authorization hook",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request forbidden by the configured authorization hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request body is too large",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Set Object Importance",
+        "tags": [
+          "catalog"
         ]
       }
     },

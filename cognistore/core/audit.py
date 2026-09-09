@@ -47,6 +47,7 @@ class AuditEventType(str, Enum):
     JOB_RETRY = "job.retry_scheduled"
     JOB_DEAD_LETTERED = "job.dead_lettered"
     MANUAL_ACTION = "manual.action"
+    IMPORTANCE_CHANGED = "importance.changed"
 
 
 class AuditOutcome(str, Enum):

@@ -13,6 +13,7 @@ import pytest
 from cognistore.jobs.models import (
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
+    JOB_SCHEMA_VERSION_V3,
     REDRIVE_COUNT_METADATA,
     DeadLetterDisposition,
     EnqueueReceipt,
@@ -1910,4 +1911,88 @@ def test_schedule_config_rejects_invalid_embedding_rules(
     )
 
     with pytest.raises(ValueError, match=message):
+        _load(config_path)
+
+
+def test_scheduled_constraints_survive_normalization_and_publication_recovery(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    database = tmp_path / "scheduler.db"
+    _write_schedules(
+        config_path,
+        _policy_job("place-reports")
+        + "      movement_constraints:\n"
+        + "        minimum_residency_seconds: {hot: 3600, warm: 300}\n"
+        + "        importance_tiers: {high: [warm], critical: [hot]}\n",
+    )
+    schedules = _load(config_path)
+    expected = {
+        "minimum_residency_seconds": {"hot": 3600, "warm": 300},
+        "importance_tiers": {"high": ["warm"], "critical": ["hot"]},
+    }
+    assert schedules[0].payload["movement_constraints"] == expected
+    clock = MutableClock()
+    first_queue = RecordingQueue(failures=1)
+
+    async def scenario() -> None:
+        first_store = SQLiteScheduleStore(database)
+        first = PeriodicScheduler(first_queue, first_store, schedules, clock=clock)
+        await first.start()
+        try:
+            with pytest.raises(ConnectionError, match="injected publication failure"):
+                await first.run_due()
+            attempted = first_queue.attempted[0][0]
+            assert attempted.schema_version == JOB_SCHEMA_VERSION_V3
+        finally:
+            await first.close()
+            first_store.close()
+
+        # A changed config must not replace the durable occurrence's controls.
+        _write_schedules(config_path, _policy_job("place-reports"))
+        recovered_queue = RecordingQueue()
+        recovered_store = SQLiteScheduleStore(database)
+        recovered = PeriodicScheduler(
+            recovered_queue, recovered_store, _load(config_path), clock=clock,
+        )
+        await recovered.start()
+        try:
+            assert await recovered.run_due() == 1
+            republished = recovered_queue.enqueued[0]
+            assert republished.to_bytes() == attempted.to_bytes()
+            assert republished.schema_version == JOB_SCHEMA_VERSION_V3
+            assert republished.payload["movement_constraints"] == expected
+            await _succeed_scheduled_job(recovered_store, republished, clock)
+        finally:
+            await recovered.close()
+            recovered_store.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "constraints_yaml",
+    (
+        "null",
+        "[]",
+        "{unknown: 1}",
+        "{minimum_residency_seconds: {hot: true}}",
+        "{minimum_residency_seconds: {hot: -1}}",
+        "{minimum_residency_seconds: {hot: 315360001}}",
+        "{minimum_residency_seconds: {wram: 3600}}",
+        "{importance_tiers: {urgent: [hot]}}",
+        "{importance_tiers: {high: [hot, hot]}}",
+    ),
+)
+def test_schedule_config_rejects_invalid_movement_constraints(
+    tmp_path: Path, constraints_yaml: str,
+) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(
+        config_path,
+        _policy_job("place-reports")
+        + f"      movement_constraints: {constraints_yaml}\n",
+    )
+
+    with pytest.raises(ValueError, match="movement_constraints"):
         _load(config_path)

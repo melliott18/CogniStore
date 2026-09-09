@@ -57,7 +57,7 @@ def test_topology_migration_preserves_legacy_identity_and_requires_pool_inventor
         SQLCatalog(path, read_only=True)
 
     with SQLCatalog(path) as catalog:
-        assert MigrationManager().current(catalog.engine) == "0008_access_events"
+        assert MigrationManager().current(catalog.engine) == "0009_placement_controls"
         tier = catalog.get_tier("hot")
         assert tier is not None and tier.active
         pool = catalog.get_pool("pool-a")

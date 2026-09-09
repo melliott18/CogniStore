@@ -50,6 +50,7 @@ health remains observable through its own service probes.
 | `GET /v1/catalog/objects` | Return a bounded keyset page filtered by bucket, prefix, and optional tier. |
 | `GET /v1/catalog/objects/{bucket}/{key}` | Return one detached authoritative catalog snapshot. |
 | `POST /v1/ask` | Run the version 1 retrieval/Ask contract and retain provider diagnostics, score components, and citations. An optional mode can request metadata, keyword, vector, or full hybrid retrieval. |
+| `POST /v1/catalog/importance` | Set or clear attributed importance, audit the change, and return a policy reevaluation. |
 | `POST /v1/policies/evaluate` | Evaluate a policy against one current catalog record without moving it. |
 | `POST /v1/actions/catalog-scans` | Queue a catalog scan and return `202 Accepted`. |
 | `POST /v1/actions/policy-runs` | Queue a policy run and return `202 Accepted`. |
@@ -78,7 +79,9 @@ includes the schema-v1 MIME and embedding feature projection with explicit
 `fresh`, `missing`, `stale`, or `unavailable` state and source provenance.
 Configured non-fresh signals fail closed before size fallback. See the
 [policy feature projection](policy_features.md) for rule order and reindexing
-semantics.
+semantics. [Importance and minimum residency](placement_controls.md) describes
+`config.movement_constraints`, trusted classification changes, and the
+constraint evidence returned by evaluation.
 
 Public object and catalog metadata excludes storage paths, generations, parser
 state, extraction text, and content-identity internals. The remaining mapping

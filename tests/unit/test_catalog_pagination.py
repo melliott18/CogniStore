@@ -85,6 +85,7 @@ def test_list_page_treats_prefix_as_literal_and_returns_detached_records(
 
     records = paged_catalog.list_page("bucket", "literal%_\\:", limit=10)
     expected = ObjectRecord(
+        placement_started_at=records[0].placement_started_at,
         bucket="bucket",
         key="literal%_\\:01",
         size=len("literal%_\\:01"),

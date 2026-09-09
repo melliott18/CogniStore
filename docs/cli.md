@@ -451,3 +451,13 @@ still performs an atomic recheck.
 
 The required process-fencing sequence, example commands, and failure handling
 are in the [background-worker recovery runbook](background_workers.md#recover-a-stale-scheduled-run).
+
+## Importance and residency controls
+
+`importance-set BUCKET KEY LEVEL --actor ACTOR --provenance REASON` sets or clears
+an attributed importance tag and returns an audited policy reevaluation. `LEVEL`
+is `low`, `normal`, `high`, `critical`, or `clear`. Both this command and
+`policy-run` accept repeatable `--minimum-residency TIER SECONDS` and
+`--importance-tier LEVEL TIER` options. See
+[importance and minimum residency](placement_controls.md) for examples, default
+importance destinations, timer boundaries, and background-job compatibility.

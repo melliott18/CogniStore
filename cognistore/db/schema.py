@@ -56,6 +56,8 @@ objects = sa.Table(
     sa.Column("object_key", NulSafeText(), nullable=False),
     sa.Column("size", sa.BigInteger(), nullable=False),
     sa.Column("metadata", json_type, nullable=False, server_default=sa.text("'{}'")),
+    sa.Column("importance", json_type, nullable=True),
+    sa.Column("importance_revision", sa.BigInteger(), nullable=False, server_default="0"),
     sa.Column("created_at", sa.Text(), nullable=False),
     sa.Column("updated_at", sa.Text(), nullable=False),
     sa.CheckConstraint("size >= 0", name="object_size_nonnegative"),
@@ -530,6 +532,7 @@ object_placements = sa.Table(
         nullable=False,
     ),
     sa.Column("pool_id", NulSafeText(), nullable=True),
+    sa.Column("placement_started_at", sa.Text(), nullable=True),
     sa.Column("created_at", sa.Text(), nullable=False),
     sa.Column("updated_at", sa.Text(), nullable=False),
     sa.ForeignKeyConstraint(
