@@ -21,6 +21,11 @@ from .catalog import CatalogStore, ObjectRecord
 from .mover import Mover
 from .policy import Policy, PolicyDecision
 from .policy_features import CatalogPolicyFeatureLoader, PolicyFeatures
+from .policy_snapshot import (
+    capture_policy_snapshot,
+    policy_snapshot_features,
+    snapshot_from_audit_details,
+)
 
 
 @dataclass
@@ -80,7 +85,11 @@ class PolicyRunner:
         audit_context: AuditContext | None = None,
         audit_occurred_at: str | datetime | None = None,
         feature_loader: CatalogPolicyFeatureLoader | None = None,
+        model_identity: str | None = None,
+        model_version: str | None = None,
     ) -> None:
+        if model_version is not None and model_identity is None:
+            raise ValueError("model_version requires model_identity")
         self.catalog = catalog
         self.drivers = drivers
         self.mover = mover
@@ -89,14 +98,14 @@ class PolicyRunner:
         self.idempotency_namespace = idempotency_namespace
         self.policy_name = policy_name or self._default_policy_name(policy)
         self.policy_version = policy_version
+        self.model_identity = model_identity
+        self.model_version = model_version
         self.audit_context = audit_context or AuditContext(
             correlation_id=idempotency_namespace or str(uuid4()),
             actor_type="system",
             actor_id="policy-runner",
         )
-        self.audit_occurred_at = (
-            datetime.now(timezone.utc) if audit_occurred_at is None else audit_occurred_at
-        )
+        self.audit_occurred_at = audit_occurred_at
         self.allowed_tiers = frozenset(
             drivers if allowed_tiers is None else allowed_tiers
         )
@@ -121,6 +130,7 @@ class PolicyRunner:
         records = self.catalog.list(bucket, prefix=prefix)
         evaluated = self._evaluate_records(records)
         for rec, evaluation in zip(records, evaluated):
+            features = evaluation.features
             decision = PolicyDecision(
                 action=evaluation.action,
                 dst_tier=evaluation.destination_tier,
@@ -147,6 +157,9 @@ class PolicyRunner:
             decision_event = None
             if not dry_run:
                 decision_event = self._record_decision(
+                    record=rec,
+                    features=evaluation.features,
+                    decision=decision,
                     bucket=rec.bucket,
                     key=rec.key,
                     current_tier=rec.tier,
@@ -156,6 +169,17 @@ class PolicyRunner:
                     outcome=outcome,
                     move_id=move_id,
                 )
+                snapshot = snapshot_from_audit_details(decision_event.details)
+                if snapshot is not None:
+                    persisted = snapshot["decision"]
+                    decision = PolicyDecision(
+                        persisted["action"],
+                        persisted["reason"],
+                        persisted["destination_tier"],
+                    )
+                    features = policy_snapshot_features(snapshot)
+                    if persisted["outcome"] != AuditOutcome.SELECTED.value:
+                        continue
             if decision.action != "move" or not decision.dst_tier or decision.dst_tier == rec.tier:
                 continue
             if decision.dst_tier not in self.allowed_tiers:
@@ -179,9 +203,9 @@ class PolicyRunner:
                     decision_event_id=(None if decision_event is None else decision_event.event_id),
                     correlation_id=self.audit_context.correlation_id,
                     job_id=self.audit_context.job_id,
-                    features=evaluation.features,
+                    features=features,
                     expected_source_sha256=self._feature_content_sha256(
-                        evaluation.features
+                        features
                     ),
                 )
             )
@@ -319,6 +343,9 @@ class PolicyRunner:
     def _record_decision(
         self,
         *,
+        record: ObjectRecord,
+        features: PolicyFeatures,
+        decision: PolicyDecision,
         bucket: str,
         key: str,
         current_tier: str,
@@ -328,6 +355,38 @@ class PolicyRunner:
         outcome: AuditOutcome,
         move_id: str | None,
     ) -> AuditEvent:
+        event_id = stable_audit_event_id(
+            "policy-decision",
+            self.audit_context.correlation_id,
+            self.audit_context.job_id or "",
+            self.policy_name,
+            self.policy_version,
+            bucket,
+            key,
+            current_tier,
+            action,
+            destination or "",
+            str(size),
+        )
+        # A retried batch may load newer feature evidence. The immutable first
+        # observation owns this logical decision's snapshot and timestamps.
+        existing = self.catalog.get_audit_event(event_id)
+        if existing is not None:
+            return existing
+        decision_at = datetime.now(timezone.utc)
+        snapshot = capture_policy_snapshot(
+            record=record,
+            features=features,
+            policy=self.policy,
+            allowed_tiers=sorted(self.allowed_tiers),
+            decision=decision,
+            outcome=outcome,
+            policy_name=self.policy_name,
+            policy_version=self.policy_version,
+            decision_at=decision_at,
+            model_identity=self.model_identity,
+            model_version=self.model_version,
+        )
         safe_current_tier = redact_text(current_tier)
         safe_action = redact_text(action)
         safe_destination = None if destination is None else redact_text(destination)
@@ -335,21 +394,9 @@ class PolicyRunner:
             AuditEventType.POLICY_DECISION,
             outcome,
             self.audit_context,
-            event_id=stable_audit_event_id(
-                "policy-decision",
-                self.audit_context.correlation_id,
-                self.audit_context.job_id or "",
-                self.policy_name,
-                self.policy_version,
-                bucket,
-                key,
-                current_tier,
-                action,
-                destination or "",
-                str(size),
-            ),
-            occurred_at=self.audit_occurred_at,
-            recorded_at=self.audit_occurred_at,
+            event_id=event_id,
+            occurred_at=self.audit_occurred_at or decision_at,
+            recorded_at=self.audit_occurred_at or decision_at,
             bucket=bucket,
             object_key=key,
             move_id=move_id,
@@ -360,9 +407,18 @@ class PolicyRunner:
                 "current_tier": safe_current_tier,
                 "destination_tier": safe_destination,
                 "size": size,
+                "dataset": snapshot,
             },
         )
-        return self.catalog.append_audit_event(event)
+        try:
+            return self.catalog.append_audit_event(event)
+        except ValueError:
+            # A concurrent retry can win between the read and append. Preserve
+            # that first persisted snapshot rather than replace its evidence.
+            existing = self.catalog.get_audit_event(event_id)
+            if existing is not None:
+                return existing
+            raise
 
     @staticmethod
     def _default_policy_name(policy: Policy) -> str:

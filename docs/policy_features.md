@@ -2,8 +2,8 @@
 
 CogniStore placement policies consume an ephemeral, backend-neutral feature
 projection. The projection is assembled from a detached catalog record and
-optional indexing services; it is not persisted as a training or outcome
-dataset.
+optional indexing services. Writable policy runs retain the evaluated projection
+inside the [versioned policy dataset snapshot](policy_datasets.md).
 
 ## Schema version 1
 
@@ -29,8 +29,8 @@ Feature state is one of:
 - `unavailable`: the configured feature service failed during evaluation.
 
 The projection is immutable and returned in deterministic signal-name order.
-Persisted feature snapshots and outcome labels are intentionally deferred to
-the later policy-dataset milestone.
+Persisted snapshots preserve these projected values and their provenance for
+offline replay and outcome-label export; see [Policy datasets](policy_datasets.md).
 
 Access history follows the logical bucket/key across tier moves and content
 updates. It is independent of MIME and embedding content provenance. Its

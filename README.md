@@ -425,6 +425,12 @@ Observed object reads, writes, and metadata touches also feed configurable
 recency/frequency windows in policy projections. See [access history](docs/access_history.md)
 for capture coverage, retry identities, sampling, and retention.
 
+Writable policy runs retain versioned feature and decision snapshots for offline
+replay. Use `policy-dataset-export` to export privacy-filtered rows with observed
+move outcomes and `policy-dataset-validate` to check schema, labels, and time
+ordering. See [policy datasets](docs/policy_datasets.md) for sampling, exclusions,
+retention, and the limits of execution-success labels.
+
 ### Durable background workers
 
 CogniStore uses file-backed NATS JetStream and a durable pull consumer for

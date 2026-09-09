@@ -8,6 +8,7 @@ import math
 import os
 import signal
 import sys
+import tempfile
 import time
 import traceback
 from collections.abc import Iterator
@@ -52,6 +53,7 @@ from cognistore.core.policy import (
 	EmbeddingPolicyRule,
 	validate_policy_config_size,
 )
+from cognistore.core.policy_dataset import export_policy_dataset, validate_policy_dataset
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_runner import ActionResult, PolicyEvaluationResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
@@ -134,6 +136,8 @@ _COMMAND_NAMES = frozenset(
 		"devices-scan",
 		"auto-refresh",
 		"policy-run",
+		"policy-dataset-export",
+		"policy-dataset-validate",
 		"worker",
 		"scheduler",
 		"dead-letter-redrive",
@@ -444,6 +448,28 @@ def _emit_failure(
 		message = str(error) if isinstance(error, BaseException) else error
 		print(f"error: {redact_text(message)}", file=sys.stderr)
 	return exit_code
+
+
+def _write_policy_dataset(path: Path, serialized: str) -> None:
+	"""Publish a fully serialized dataset without exposing a partial output file."""
+	temporary_path: Path | None = None
+	try:
+		with tempfile.NamedTemporaryFile(
+			mode="w", encoding="utf-8", dir=path.parent,
+			prefix=f".{path.name}.", suffix=".tmp", delete=False,
+		) as stream:
+			temporary_path = Path(stream.name)
+			stream.write(serialized)
+			stream.flush()
+			os.fsync(stream.fileno())
+		os.replace(temporary_path, path)
+	finally:
+		if temporary_path is not None:
+			temporary_path.unlink(missing_ok=True)
+
+
+def _reject_json_constant(value: str) -> NoReturn:
+	raise ValueError(f"dataset contains a non-finite JSON value: {value}")
 
 
 def _move_job_payload(job: MoveJob) -> dict[str, object]:
@@ -1419,6 +1445,32 @@ def _run_cli(
 	p_policy.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
 	p_policy.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
 
+	p_dataset_export = command(
+		"policy-dataset-export", help="Export privacy-filtered policy snapshots and outcome labels"
+	)
+	p_dataset_export.add_argument("--output", required=True, type=Path, help="JSON output path")
+	p_dataset_export.add_argument("--as-of", help="Evidence cutoff as a timezone-aware ISO timestamp; defaults to now")
+	p_dataset_export.add_argument("--after", help="Inclusive decision audit occurrence-time lower bound")
+	p_dataset_export.add_argument("--before", help="Exclusive decision audit occurrence-time upper bound")
+	p_dataset_export.add_argument("--sample-rate", type=float, default=1.0, help="Deterministic decision sampling rate (0, 1]")
+	p_dataset_export.add_argument("--seed", default="0", help="Stable sampling seed")
+	p_dataset_export.add_argument(
+		"--exclude-field", action="append", default=[],
+		help="Additional sensitive row path to omit; repeat, with * for list elements",
+	)
+	p_dataset_export.add_argument(
+		"--observation-seconds", type=int, default=86400,
+		help="Post-decision move-outcome observation window (default: 86400 seconds)",
+	)
+	p_dataset_validate = command(
+		"policy-dataset-validate", help="Validate an exported policy dataset without a catalog"
+	)
+	p_dataset_validate.add_argument("--input", default="-", help="JSON input path; omit or use - for stdin")
+	p_dataset_validate.add_argument(
+		"--allow-missing-labels", action="store_true",
+		help="Allow rows without a resolved supervised label; other checks still apply",
+	)
+
 	p_worker = command("worker", help="Run the durable background worker")
 	p_worker.add_argument("--health-host", default="127.0.0.1")
 	p_worker.add_argument("--health-port", type=int, default=8081)
@@ -1587,6 +1639,68 @@ def _run_cli(
 			_render_redrive_error(exc, json_output=args.json)
 			return 1
 		_render_redrive(receipt, json_output=args.json)
+		return 0
+
+	if args.cmd == "policy-dataset-validate":
+		if args.input == "-":
+			dataset = json.load(sys.stdin, parse_constant=_reject_json_constant)
+		else:
+			with Path(args.input).open(encoding="utf-8") as stream:
+				dataset = json.load(stream, parse_constant=_reject_json_constant)
+		issues = validate_policy_dataset(
+			dataset, require_labels=not args.allow_missing_labels,
+		)
+		_emit_result(
+			args.cmd, "invalid" if issues else "success", json_output=args.json,
+			human=[
+				f"policy dataset {'invalid' if issues else 'valid'} issues={len(issues)}",
+				*(f"{issue['code']} {issue['path']}: {issue['message']}" for issue in issues),
+			],
+			valid=not issues, count=len(issues), issues=issues,
+		)
+		return 1 if issues else 0
+
+	if args.cmd == "policy-dataset-export":
+		if not args.catalog_db or not catalog_locator_is_persistent(args.catalog_db):
+			parser.error(
+				"--catalog-db must name an existing persistent catalog for "
+				"policy-dataset-export"
+			)
+		catalog_path = sqlite_catalog_path(args.catalog_db)
+		if catalog_path is not None:
+			if not catalog_path.is_file():
+				parser.error(f"--catalog-db does not exist: {catalog_path}")
+			protected_paths = [
+				Path(str(catalog_path) + suffix)
+				for suffix in ("", "-wal", "-shm", "-journal")
+			]
+			if any(
+				args.output.resolve() == protected.resolve()
+				or (args.output.exists() and protected.exists() and args.output.samefile(protected))
+				for protected in protected_paths
+			):
+				parser.error("--output must not overwrite the catalog or its journal files")
+		dataset_catalog = open_sql_catalog(args.catalog_db, read_only=True)
+		try:
+			dataset = export_policy_dataset(
+				dataset_catalog,
+				as_of=args.as_of or datetime.now(timezone.utc).isoformat(),
+				occurred_after=args.after, occurred_before=args.before,
+				sample_rate=args.sample_rate, seed=args.seed,
+				exclude_fields=args.exclude_field,
+				observation_seconds=args.observation_seconds,
+			)
+		finally:
+			close_catalog(dataset_catalog)
+		serialized = json.dumps(dataset, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
+		if not dry_run:
+			_write_policy_dataset(args.output, serialized)
+		_emit_result(
+			args.cmd, "planned" if dry_run else "success", json_output=args.json,
+			human=f"{'planned export' if dry_run else 'exported'} {len(dataset['rows'])} policy dataset rows to {args.output}",
+			dry_run=dry_run, output=str(args.output), count=len(dataset["rows"]),
+			manifest=dataset["manifest"],
+		)
 		return 0
 
 	if args.cmd == "content-reference-report":
