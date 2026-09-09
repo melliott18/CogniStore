@@ -500,6 +500,9 @@ migrations and the supported offline SQLite import.
 The [tier and pool topology guide](docs/tier_pools.md) describes multi-pool tiers,
 region and locality constraints, attribute freshness, and backend-neutral
 placement assignment, with JSON and YAML configuration examples.
+The [storage estimation guide](docs/storage_estimation.md) covers versioned
+cost and operational carbon estimates, explicit workload forecasts, evidence
+freshness, uncertainty, deterministic replay, and policy feature injection.
 
 The scheduler-state file must be persistent; worker and scheduler commands
 reject `:memory:` because their coordination state must be shared across
