@@ -62,6 +62,31 @@ the selected mode report `not_requested` and are not invoked. When left at its
 default, the SDK omits this newly added field on the wire so older strict v1
 servers retain their equivalent hybrid default; setting it explicitly sends it.
 
+## Importance and residency
+
+Use typed controls in policy evaluation or queued runs. Setting importance audits
+and reevaluates the committed tag revision without moving bytes:
+
+```python
+from cognistore.sdk import (
+    CogniStoreClient, ImportanceChangeRequest, MovementConstraintsConfig, PolicyConfig,
+)
+
+with CogniStoreClient("http://127.0.0.1:8080") as client:
+    decision = client.set_importance(ImportanceChangeRequest(
+        bucket="reports", key="current.txt", level="critical",
+        actor_id="operator", provenance="Active incident response",
+        config=PolicyConfig(movement_constraints=MovementConstraintsConfig(
+            minimum_residency_seconds={"hot": 3600},
+        )),
+    ))
+    print(decision.constraints)
+```
+
+Set `level=None` to clear a tag; attribution remains required. See
+[Importance and minimum residency](placement_controls.md) for placement clocks,
+constraint precedence, defaults, and worker rollout requirements.
+
 ## Configuration and timeouts
 
 For simple use, pass the v1 server's origin as a string. The client appends `/v1`

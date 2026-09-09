@@ -47,6 +47,12 @@ from .move_jobs import (
 	MoveJobTransition,
 	validate_move_job_transition,
 )
+from .placement_controls import (
+	ImportanceTag,
+	assert_move_allowed,
+	validate_importance_provenance,
+	validate_minimum_residency_seconds,
+)
 from .topology import (
 	AttributeValue,
 	PlacementCandidate,
@@ -73,6 +79,9 @@ class ObjectRecord:
 	tier: str
 	metadata: Dict[str, object] = field(default_factory=dict)
 	pool_id: str | None = None
+	placement_started_at: str | None = None
+	importance: ImportanceTag | None = None
+	importance_revision: int = 0
 
 
 MoveJobScanFingerprint = tuple[
@@ -137,6 +146,55 @@ def validate_catalog_size(value: object, *, field: str = "size") -> int:
 			f"{field} must be a non-negative integer no greater than {2**63 - 1}"
 		)
 	return value
+
+
+def _validate_importance_actor(
+	tag: ImportanceTag | None, context: AuditContext, provenance: str | None = None,
+) -> None:
+	if not isinstance(context, AuditContext):
+		raise ValueError("audit_context must be an AuditContext")
+	if provenance is not None:
+		validate_importance_provenance(provenance)
+	if tag is None and provenance is None:
+		raise ValueError("clearing importance requires provenance")
+	if tag is not None:
+		if not isinstance(tag, ImportanceTag):
+			raise ValueError("tag must be an ImportanceTag or null")
+		if (tag.actor_type, tag.actor_id) != (context.actor_type, context.actor_id):
+			raise ValueError("importance tag actor must match audit context actor")
+
+
+def _assert_catalog_move_allowed(
+	record: ObjectRecord | None, src_tier: str, dst_tier: str,
+	source_metadata: Mapping[str, Any], tier_metadata: Mapping[str, object] | None,
+	now: str,
+) -> None:
+	if record is None:
+		# Unscanned or deleted sources have unknown residency, never an expired clock.
+		record = ObjectRecord(bucket="", key="", size=0, tier=src_tier)
+	if record.tier != src_tier:
+		raise MoveJobConflictError("Object placement changed since the move was planned")
+	assert_move_allowed(
+		record, dst_tier,
+		controls=source_metadata.get("cognistore_movement_constraints"),
+		tier_metadata=tier_metadata, as_of=now,
+	)
+
+
+def _importance_event(
+	previous: ObjectRecord, updated: ObjectRecord, context: AuditContext,
+	occurred_at: str | datetime | None, provenance: str | None = None,
+) -> AuditEvent:
+	return AuditEvent.create(
+		AuditEventType.IMPORTANCE_CHANGED, AuditOutcome.SUCCEEDED, context,
+		bucket=updated.bucket, object_key=updated.key, occurred_at=occurred_at,
+		details={
+			"previous_importance": previous.importance.to_dict() if previous.importance else None,
+			"importance": updated.importance.to_dict() if updated.importance else None,
+			"importance_revision": updated.importance_revision,
+			"provenance": provenance or (updated.importance.provenance if updated.importance else None),
+		},
+	)
 
 
 class CatalogStore(Protocol):
@@ -213,6 +271,12 @@ class CatalogStore(Protocol):
 	) -> bool: ...
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]: ...
+
+	def set_importance(
+		self, bucket: str, key: str, tag: ImportanceTag | None, *,
+		audit_context: AuditContext, occurred_at: str | datetime | None = None,
+		provenance: str | None = None,
+	) -> ObjectRecord: ...
 
 	def get_object_content(self, bucket: str, key: str) -> ObjectContent | None: ...
 
@@ -400,6 +464,8 @@ class Catalog(CatalogStore):
 	def register_tier(
 		self, name: str, metadata: Mapping[str, object] | None = None, *, active: bool = True
 	) -> None:
+		if metadata is not None and "minimum_residency_seconds" in metadata:
+			validate_minimum_residency_seconds(metadata["minimum_residency_seconds"])
 		with self._lock:
 			existing = self._tiers.get(name)
 			value = Tier(
@@ -487,6 +553,8 @@ class Catalog(CatalogStore):
 					raise KeyError(f"Pool not found: {pool_id}")
 				if not pool.active or not self._tiers[pool.tier].active:
 					raise ValueError(f"Pool or tier is inactive: {pool_id}")
+				if record.tier != pool.tier:
+					record.placement_started_at = _content_reference_timestamp()
 				record.tier = pool.tier
 			record.pool_id = pool_id
 
@@ -622,6 +690,12 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=persisted_metadata,
 				pool_id=existing.pool_id if existing and existing.tier == tier else None,
+				placement_started_at=(
+					existing.placement_started_at if existing and existing.tier == tier
+					else _content_reference_timestamp()
+				),
+				importance=deepcopy(existing.importance) if existing else None,
+				importance_revision=existing.importance_revision if existing else 0,
 			)
 			self._objects[object_key] = rec
 
@@ -715,6 +789,12 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=merged_metadata,
 				pool_id=existing.pool_id if existing and existing.tier == tier else None,
+				placement_started_at=(
+					existing.placement_started_at if existing and existing.tier == tier
+					else _content_reference_timestamp()
+				),
+				importance=deepcopy(existing.importance) if existing else None,
+				importance_revision=existing.importance_revision if existing else 0,
 			)
 			return True
 
@@ -722,6 +802,28 @@ class Catalog(CatalogStore):
 		with self._lock:
 			record = self._objects.get((bucket, key))
 			return None if record is None else self._copy_object_record(record)
+
+	def set_importance(
+		self, bucket: str, key: str, tag: ImportanceTag | None, *,
+		audit_context: AuditContext, occurred_at: str | datetime | None = None,
+		provenance: str | None = None,
+	) -> ObjectRecord:
+		"""Atomically replace trusted importance and append its actor's audit event."""
+
+		_validate_importance_actor(tag, audit_context, provenance)
+		with self._lock:
+			record = self._objects.get((bucket, key))
+			if record is None:
+				raise KeyError(f"Object not found: {bucket}/{key}")
+			updated = replace(
+				record, importance=deepcopy(tag),
+				importance_revision=record.importance_revision + 1,
+			)
+			event = _importance_event(record, updated, audit_context, occurred_at, provenance)
+			# Validate and append first: a rejected audit must leave the tag unchanged.
+			self.append_audit_event(event)
+			self._objects[(bucket, key)] = updated
+			return self._copy_object_record(updated)
 
 	def get_object_content(self, bucket: str, key: str) -> ObjectContent | None:
 		with self._lock:
@@ -769,6 +871,7 @@ class Catalog(CatalogStore):
 			self._ensure_active_tier(tier)
 			if rec.tier != tier:
 				rec.pool_id = None
+				rec.placement_started_at = _content_reference_timestamp()
 			rec.tier = tier
 
 	def upsert_placement(
@@ -806,6 +909,12 @@ class Catalog(CatalogStore):
 				tier=tier,
 				metadata=metadata,
 				pool_id=rec.pool_id if rec and rec.tier == tier else None,
+				placement_started_at=(
+					rec.placement_started_at if rec and rec.tier == tier
+					else _content_reference_timestamp()
+				),
+				importance=deepcopy(rec.importance) if rec else None,
+				importance_revision=rec.importance_revision if rec else 0,
 			)
 
 	def delete(self, bucket: str, key: str) -> None:
@@ -1174,6 +1283,20 @@ class Catalog(CatalogStore):
 		validate_catalog_size(expected_size, field="expected_size")
 		with self._lock:
 			existing = self._move_jobs.get(idempotency_key)
+			if existing is not None:
+				self._assert_same_move(
+					existing, src_tier=src_tier, dst_tier=dst_tier,
+					bucket=bucket, key=key, source_metadata=source_metadata,
+				)
+			if existing is None or existing.state in {
+				MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
+			}:
+				tier_definition = self._tiers.get(src_tier)
+				_assert_catalog_move_allowed(
+					self._objects.get((bucket, key)), src_tier, dst_tier,
+					existing.source_metadata if existing is not None else source_metadata,
+					tier_definition.metadata if tier_definition else None, now,
+				)
 			if existing is None:
 				job = MoveJob(
 					idempotency_key=idempotency_key,
@@ -1206,14 +1329,6 @@ class Catalog(CatalogStore):
 					raise
 				return job
 
-			self._assert_same_move(
-				existing,
-				src_tier=src_tier,
-				dst_tier=dst_tier,
-				bucket=bucket,
-				key=key,
-				source_metadata=source_metadata,
-			)
 			if existing.state.terminal:
 				return existing
 			if (
@@ -1376,10 +1491,19 @@ class Catalog(CatalogStore):
 			)
 			object_key = (job.bucket, job.key)
 			previous_object = self._objects.get(object_key)
+			if tier != job.dst_tier:
+				raise MoveJobConflictError("Committed tier must match move destination")
+			tier_definition = self._tiers.get(job.src_tier)
+			_assert_catalog_move_allowed(
+				previous_object, job.src_tier, tier, job.source_metadata,
+				tier_definition.metadata if tier_definition else None, now,
+			)
 			previous_content = self._object_contents.get(object_key)
 			self.upsert_placement(
 				job.bucket, job.key, size=size, tier=tier, checksum=checksum
 			)
+			if previous_object is None or previous_object.tier != tier:
+				self._objects[object_key].placement_started_at = now
 			updated = self._replace_move_job(
 				job,
 				state=MoveJobState.COMMITTED,

@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -285,7 +286,10 @@ def test_postgres_read_only_reads_at_head_and_rejects_writes(
         )
 
     with SQLCatalog(postgres_dsn, read_only=True) as reader:
-        assert reader.get("read-only-bucket", "object") == ObjectRecord(
+        record = reader.get("read-only-bucket", "object")
+        assert record is not None
+        assert record == ObjectRecord(
+            placement_started_at=record.placement_started_at,
             bucket="read-only-bucket",
             key="object",
             size=7,
@@ -470,7 +474,16 @@ def test_postgres_object_prefix_matches_in_memory_including_nul(
         for catalog in (sqlite, postgres):
             actual = sorted(record.key for record in catalog.list("bucket\0name", prefix))
             assert actual == expected
-            assert catalog.get("bucket\0name", "nul\0key") == memory.get("bucket\0name", "nul\0key")
+            persisted = catalog.get("bucket\0name", "nul\0key")
+            in_memory = memory.get("bucket\0name", "nul\0key")
+            assert persisted is not None and in_memory is not None
+            assert persisted.placement_started_at is not None
+            assert in_memory.placement_started_at is not None
+            # Independent inserts have independent clocks; every other field
+            # still follows the same NUL-safe catalog contract.
+            assert persisted == replace(
+                in_memory, placement_started_at=persisted.placement_started_at,
+            )
     finally:
         sqlite.close()
         postgres.close()
@@ -622,7 +635,10 @@ def test_postgres_catalog_guard_and_scan_fence_parity(postgres_dsn: str) -> None
                 tier="hot",
                 checksum="digest",
             )
-            assert catalog.get("bucket", "object") == ObjectRecord(
+            record = catalog.get("bucket", "object")
+            assert record is not None
+            assert record == ObjectRecord(
+                placement_started_at=record.placement_started_at,
                 bucket="bucket",
                 key="object",
                 size=4,
@@ -837,7 +853,10 @@ def test_imports_normalized_sqlite_catalog_into_postgres(
     with SQLCatalog(postgres_dsn) as destination:
         report = import_sqlite_catalog(source_path, destination, batch_size=1)
         assert (report.objects, report.placements, report.move_jobs) == (1, 1, 1)
-        assert destination.get("bucket\0name", "object\0key") == ObjectRecord(
+        record = destination.get("bucket\0name", "object\0key")
+        assert record is not None
+        assert record == ObjectRecord(
+            placement_started_at=record.placement_started_at,
             bucket="bucket\0name",
             key="object\0key",
             size=17,
@@ -1353,12 +1372,19 @@ def test_postgres_migration_downgrade_and_reupgrade_preserves_catalog_data(
             assert connection.execute(
                 sa.text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
             ).scalar_one()
+        # The legacy schema has no placement clock. Re-upgrading represents
+        # that missing history explicitly instead of inventing a new start.
+        old_job, old_record, old_transitions, old_keys = move_snapshot
+        assert old_record is not None
+        expected_after_upgrade = (
+            old_job, replace(old_record, placement_started_at=None), old_transitions, old_keys,
+        )
         assert (
             catalog.get_move_job("move\0job"),
             catalog.get("bucket\0name", "objects/item\0.bin"),
             catalog.list_move_job_transitions("move\0job"),
             [job.idempotency_key for job in catalog.list_move_jobs(idempotency_prefix="move\0")],
-        ) == move_snapshot
+        ) == expected_after_upgrade
 
 
 def test_postgres_downgrade_refuses_unrepresentable_normalized_state(

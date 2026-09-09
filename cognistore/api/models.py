@@ -15,6 +15,8 @@ from pydantic import (
     model_validator,
 )
 
+from cognistore.core.placement_controls import ImportanceTag, MovementConstraints
+
 JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JsonValue
 RetrievalSignalValue: TypeAlias = Literal["metadata", "keyword", "vector"]
@@ -234,8 +236,30 @@ class EmbeddingPolicyRuleConfig(APIModel):
         return self
 
 
+ImportanceLevel: TypeAlias = Literal["low", "normal", "high", "critical"]
+
+
+def _default_importance_tiers() -> dict[ImportanceLevel, list[str]]:
+    return {"high": ["hot", "warm"], "critical": ["hot"]}
+
+
+class MovementConstraintsConfig(APIModel):
+    minimum_residency_seconds: dict[
+        Tier, Annotated[int, Field(ge=0, le=315360000)]
+    ] = Field(default_factory=dict)
+    importance_tiers: dict[
+        ImportanceLevel, Annotated[list[Tier], Field(max_length=32)]
+    ] = Field(default_factory=_default_importance_tiers)
+
+    @model_validator(mode="after")
+    def _validate_domain(self) -> MovementConstraintsConfig:
+        MovementConstraints.from_mapping(self.model_dump())
+        return self
+
+
 class PolicyConfig(APIModel):
     policy: Literal["simple", "content", "llm"] = "simple"
+    movement_constraints: MovementConstraintsConfig | None = None
     threshold: Annotated[int, Field(ge=0, le=2**63 - 1)] = 1_048_576
     llm_threshold: Annotated[int, Field(ge=0, le=2**63 - 1)] | None = None
     allowed_tiers: Annotated[list[Tier], Field(min_length=1, max_length=32)] = Field(
@@ -319,6 +343,27 @@ class PolicyEvaluationRequest(APIModel):
     bucket: Bucket
     key: ObjectKey
     config: PolicyConfig = Field(default_factory=PolicyConfig)
+
+
+class ImportanceChangeRequest(APIModel):
+    bucket: Bucket
+    key: ObjectKey
+    level: ImportanceLevel | None
+    actor_id: Annotated[str, Field(min_length=1, max_length=256)]
+    provenance: Annotated[str, Field(min_length=1, max_length=1024)]
+    config: PolicyConfig = Field(default_factory=PolicyConfig)
+
+    @model_validator(mode="after")
+    def _validate_tag(self) -> ImportanceChangeRequest:
+        # Clearing requires the same validated attribution as setting a tag.
+        ImportanceTag(
+            level=self.level or "normal",
+            actor_type="user",
+            actor_id=self.actor_id,
+            provenance=self.provenance,
+            updated_at="2000-01-01T00:00:00Z",
+        )
+        return self
 
 
 PolicyFeatureStateValue: TypeAlias = Literal[
@@ -459,6 +504,7 @@ class PolicyEvaluationResponse(APIModel):
     destination_tier: Tier | None = None
     reason: str
     features: PolicyFeaturesResponse | None = None
+    constraints: dict[str, JSONValue] = Field(default_factory=dict)
 
 
 class CatalogScanRequest(APIModel):

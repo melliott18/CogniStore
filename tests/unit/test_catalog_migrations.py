@@ -303,7 +303,7 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
     database = tmp_path / "audit-migration.sqlite3"
     with SQLCatalog(database) as catalog:
         catalog.upsert("bucket", "object", size=7, tier="hot")
-        assert manager.current(catalog.engine) == "0008_access_events"
+        assert manager.current(catalog.engine) == "0009_placement_controls"
         assert sa.inspect(catalog.engine).has_table(audit_events.name)
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
@@ -313,7 +313,8 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
         assert not sa.inspect(catalog.engine).has_table(audit_events.name)
         assert not sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert not sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
-        assert catalog.get("bucket", "object") is not None
+        with catalog.engine.connect() as connection:
+            assert connection.execute(sa.select(objects.c.object_id)).first() is not None
 
         manager.upgrade(catalog.engine)
         assert manager.is_at_head(catalog.engine)
@@ -343,7 +344,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
             tier="hot",
             metadata={"sha256": "untrusted-first-mebibyte-sample"},
         )
-        assert manager.current(catalog.engine) == "0008_access_events"
+        assert manager.current(catalog.engine) == "0009_placement_controls"
         assert all(
             sa.inspect(catalog.engine).has_table(table.name)
             for table in content_tables
@@ -353,12 +354,12 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
         manager.downgrade(catalog.engine, "0003_audit_events")
         assert manager.current(catalog.engine) == "0003_audit_events"
         assert all(not sa.inspect(catalog.engine).has_table(table.name) for table in content_tables)
-        legacy = catalog.get("bucket", "legacy-scan")
-        assert legacy is not None
-        assert legacy.metadata == {"sha256": "untrusted-first-mebibyte-sample"}
+        with catalog.engine.connect() as connection:
+            legacy_metadata = connection.execute(sa.select(objects.c.metadata)).scalar_one()
+        assert legacy_metadata == {"sha256": "untrusted-first-mebibyte-sample"}
 
         manager.upgrade(catalog.engine)
-        assert manager.current(catalog.engine) == "0008_access_events"
+        assert manager.current(catalog.engine) == "0009_placement_controls"
         assert all(sa.inspect(catalog.engine).has_table(table.name) for table in content_tables)
         assert catalog.get_object_content("bucket", "legacy-scan") is None
 
@@ -378,7 +379,7 @@ def test_embedding_migration_is_reversible_and_uses_portable_vector_storage(
 
     with SQLCatalog(tmp_path / "embedding-migration.sqlite3") as catalog:
         inspector = sa.inspect(catalog.engine)
-        assert manager.current(catalog.engine) == "0008_access_events"
+        assert manager.current(catalog.engine) == "0009_placement_controls"
         assert all(inspector.has_table(table.name) for table in embedding_tables)
         mapping_primary_key = inspector.get_pk_constraint(object_embedding_documents.name)[
             "constrained_columns"
@@ -399,7 +400,7 @@ def test_embedding_migration_is_reversible_and_uses_portable_vector_storage(
 
         manager.upgrade(catalog.engine)
         inspector = sa.inspect(catalog.engine)
-        assert manager.current(catalog.engine) == "0008_access_events"
+        assert manager.current(catalog.engine) == "0009_placement_controls"
         assert all(inspector.has_table(table.name) for table in embedding_tables)
         vector_column = next(
             column
@@ -475,9 +476,9 @@ def test_content_identity_downgrade_removes_the_mapping_projection(
         assert before.metadata["content_identity"] == content.to_metadata()
 
         manager.downgrade(catalog.engine, "0003_audit_events")
-        downgraded = catalog.get("bucket", "object")
-        assert downgraded is not None
-        assert downgraded.metadata == {
+        with catalog.engine.connect() as connection:
+            downgraded_metadata = connection.execute(sa.select(objects.c.metadata)).scalar_one()
+        assert downgraded_metadata == {
             "classification": "retain",
             "sha256": content.sha256,
         }
@@ -485,7 +486,7 @@ def test_content_identity_downgrade_removes_the_mapping_projection(
         manager.upgrade(catalog.engine)
         reupgraded = catalog.get("bucket", "object")
         assert reupgraded is not None
-        assert reupgraded.metadata == downgraded.metadata
+        assert reupgraded.metadata == downgraded_metadata
         assert catalog.get_object_content("bucket", "object") is None
 
 

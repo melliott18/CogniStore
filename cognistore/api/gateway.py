@@ -7,7 +7,7 @@ import json
 import re
 from collections.abc import Callable, Generator, Iterator, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Protocol, cast
 from uuid import UUID
 
@@ -21,9 +21,12 @@ from cognistore.core.audit import (
     stable_audit_event_id,
 )
 from cognistore.core.catalog import CatalogStore, ObjectRecord
+from cognistore.core.mover import Mover
+from cognistore.core.placement_controls import ImportanceTag, MovementConstraints
 from cognistore.core.policy import EmbeddingPolicyRule
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_features import CatalogPolicyFeatureLoader
+from cognistore.core.policy_runner import PolicyRunner
 from cognistore.drivers.observed import (
     AccessRecorder,
     ObservedStorageDriver,
@@ -53,6 +56,7 @@ from .models import (
     CatalogObjectPage,
     CatalogScanRequest,
     GeneratedAnswerResponse,
+    ImportanceChangeRequest,
     JobState,
     JobStatusResponse,
     JSONValue,
@@ -65,7 +69,6 @@ from .models import (
     PolicyConfig,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
-    PolicyFeaturesResponse,
     PolicyRunRequest,
     ProviderDiagnosticResponse,
     RetrievalResultResponse,
@@ -158,6 +161,10 @@ class APIGateway(Protocol):
 
     def evaluate_policy(
         self, request: PolicyEvaluationRequest
+    ) -> PolicyEvaluationResponse: ...
+
+    def set_importance(
+        self, request: ImportanceChangeRequest, *, correlation_id: str
     ) -> PolicyEvaluationResponse: ...
 
     async def submit_catalog_scan(
@@ -678,6 +685,15 @@ class CogniStoreGateway:
                 f"unknown allowed tier(s): {', '.join(unknown)}"
             )
 
+        if config.movement_constraints is not None:
+            unknown_residency = sorted(
+                set(config.movement_constraints.minimum_residency_seconds).difference(self.drivers)
+            )
+            if unknown_residency:
+                raise RequestContractError(
+                    f"unknown residency tier(s): {', '.join(unknown_residency)}"
+                )
+
     @staticmethod
     def _embedding_rules(
         config: PolicyConfig,
@@ -708,38 +724,54 @@ class CogniStoreGateway:
             embedding_rules=CogniStoreGateway._embedding_rules(config),
         )
 
+    @staticmethod
+    def _movement_constraints(config: PolicyConfig) -> MovementConstraints | None:
+        return (
+            None if config.movement_constraints is None
+            else MovementConstraints.from_mapping(config.movement_constraints.model_dump())
+        )
+
+    def _policy_runner(
+        self, config: PolicyConfig, *, audit_context: AuditContext | None = None
+    ) -> PolicyRunner:
+        self._validate_policy_tiers(config)
+        drivers: dict[str, StorageDriver] = dict(self.drivers)
+        return PolicyRunner(
+            self.catalog, drivers, Mover(drivers, self.catalog),
+            self._policy(config), allowed_tiers=config.allowed_tiers,
+            policy_name=config.policy, feature_loader=self.feature_loader,
+            movement_constraints=self._movement_constraints(config),
+            audit_context=audit_context,
+        )
+
     def evaluate_policy(
         self, request: PolicyEvaluationRequest
     ) -> PolicyEvaluationResponse:
-        self._validate_policy_tiers(request.config)
-        record = self._catalog_record(request.bucket, request.key)
-        policy = self._policy(request.config)
-        requests = tuple(getattr(policy, "feature_requests", ()))
-        projections = self.feature_loader.load((record,), requests)
-        try:
-            features = projections[(record.bucket, record.key)]
-        except KeyError as exc:
-            raise RuntimeError(
-                f"policy feature loader omitted {record.bucket}/{record.key}"
-            ) from exc
-        evaluate_features = getattr(policy, "evaluate_features", None)
-        evaluate_record = getattr(policy, "evaluate_record", None)
-        if callable(evaluate_features):
-            decision = evaluate_features(record, features)
-        elif callable(evaluate_record):
-            decision = evaluate_record(record)
-        else:
-            decision = policy.evaluate(record.tier, record.size)
-        return PolicyEvaluationResponse(
-            bucket=record.bucket,
-            key=record.key,
-            current_tier=record.tier,
-            size=record.size,
-            action=decision.action,
-            destination_tier=decision.dst_tier,
-            reason=decision.reason,
-            features=PolicyFeaturesResponse.model_validate(features.to_dict()),
+        self._catalog_record(request.bucket, request.key)
+        evaluation = self._policy_runner(request.config).evaluate_once(
+            request.bucket, request.key
         )
+        return PolicyEvaluationResponse.model_validate(evaluation.to_mapping())
+
+    def set_importance(
+        self, request: ImportanceChangeRequest, *, correlation_id: str
+    ) -> PolicyEvaluationResponse:
+        self._catalog_record(request.bucket, request.key)
+        context = AuditContext(
+            correlation_id=correlation_id, actor_type="user", actor_id=request.actor_id
+        )
+        runner = self._policy_runner(request.config, audit_context=context)
+        now = datetime.now(timezone.utc)
+        tag = None if request.level is None else ImportanceTag(
+            level=request.level, actor_type="user", actor_id=request.actor_id,
+            provenance=request.provenance, updated_at=now.isoformat(),
+        )
+        updated = self.catalog.set_importance(
+            request.bucket, request.key, tag, audit_context=context, occurred_at=now,
+            provenance=request.provenance
+        )
+        evaluation = runner.reevaluate_record(updated, as_of=now)
+        return PolicyEvaluationResponse.model_validate(evaluation.to_mapping())
 
     def _queue(self) -> JobQueue:
         if self.queue is None:
@@ -834,6 +866,7 @@ class CogniStoreGateway:
             warm_mime_prefixes=config.warm_mime_prefixes,
             cold_mime_prefixes=config.cold_mime_prefixes,
             embedding_rules=self._embedding_rules(config),
+            movement_constraints=self._movement_constraints(config),
         )
         job = JobEnvelope.create(
             POLICY_RUN_JOB,

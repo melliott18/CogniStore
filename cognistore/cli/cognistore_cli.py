@@ -44,10 +44,16 @@ from cognistore.core.audit import (
 	AuditOutcome,
 	AuditRetentionPolicy,
 )
-from cognistore.core.catalog import Catalog, CatalogStore
+from cognistore.core.catalog import Catalog, CatalogStore, ObjectRecord
 from cognistore.core.content_references import DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
 from cognistore.core.mover import Mover
+from cognistore.core.placement_controls import (
+	ImportanceTag,
+	MovementConstraintError,
+	MovementConstraints,
+	assert_move_allowed,
+)
 from cognistore.core.policy import (
 	MAX_EMBEDDING_RULES,
 	EmbeddingPolicyRule,
@@ -138,6 +144,7 @@ _COMMAND_NAMES = frozenset(
 		"policy-run",
 		"policy-dataset-export",
 		"policy-dataset-validate",
+		"importance-set",
 		"worker",
 		"scheduler",
 		"dead-letter-redrive",
@@ -622,6 +629,34 @@ def _schedule_recovery_preconditions(run: ScheduledRunRecord) -> dict[str, objec
 	}
 
 
+def _preview_move_constraints(
+	catalog: CatalogStore,
+	src_tier: str,
+	dst_tier: str,
+	bucket: str,
+	key: str,
+	job: MoveJob | None = None,
+) -> dict[str, object]:
+	"""Read the same authoritative controls used before uncommitted moves."""
+
+	if job is not None and job.state not in {
+		MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
+	}:
+		return {"movement_required": False}
+	record = catalog.get(bucket, key)
+	if record is None:
+		record = ObjectRecord(bucket=bucket, key=key, size=0, tier=src_tier)
+	elif record.tier != src_tier:
+		raise MovementConstraintError("source placement changed since the move was selected")
+	tier = catalog.get_tier(src_tier)
+	controls = None if job is None else job.source_metadata.get("cognistore_movement_constraints")
+	return assert_move_allowed(
+		record, dst_tier, controls,
+		tier_metadata=None if tier is None else tier.metadata,
+		as_of=datetime.now(timezone.utc),
+	)
+
+
 def _move_resume_preconditions(job: MoveJob) -> dict[str, object]:
 	"""Describe exactly what a read-only recovery preview did and did not prove."""
 
@@ -1080,6 +1115,8 @@ def _render_actions(
 		}
 		if dry_run and action.features is not None:
 			payload["features"] = action.features.to_dict()
+		if dry_run and action.constraints:
+			payload["constraints"] = action.constraints
 		action_payloads.append(payload)
 	human = [
 		(
@@ -1103,12 +1140,16 @@ def _render_actions(
 				sort_keys=True,
 				separators=(",", ":"),
 			)
+			constraint_json = json.dumps(
+				evaluation.constraints, ensure_ascii=True, allow_nan=False,
+				sort_keys=True, separators=(",", ":"),
+			)
 			destination = evaluation.destination_tier or "-"
 			human.append(
 				f"evaluated {evaluation.bucket}/{evaluation.key} "
 				f"{evaluation.current_tier} action={evaluation.action} "
 				f"destination={destination} : {evaluation.reason} "
-				f"features={feature_json}"
+				f"features={feature_json} constraints={constraint_json}"
 			)
 	summary = "planned_actions" if dry_run else "completed_actions"
 	human.append(f"{summary}={len(actions)}")
@@ -1412,38 +1453,54 @@ def _run_cli(
 	p_auto.add_argument("--cache-dir", default=".cognistore", help="Directory to store cache files (hardware.json, tier_metrics.json)")
 	p_auto.add_argument("--interval", type=int, default=0, help="Seconds between refresh cycles; 0 to run once and exit")
 
-	p_policy = command("policy-run")
-	p_policy.add_argument("bucket")
-	p_policy.add_argument("--prefix", default="")
-	p_policy.add_argument("--threshold", type=int, default=1024*1024, help="Size threshold for policies")
-	p_policy.add_argument("--policy", choices=["simple", "llm", "content"], default="simple")
-	p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
-	p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
-	p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
-	p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
-	p_policy.add_argument("--auto-discover", action="store_true", help="If no metrics/hardware provided, auto-scan devices and profile tiers, using a cache with TTL")
-	p_policy.add_argument("--cache-dir", default=".cognistore", help="Directory to read/write auto-discover cache files")
-	p_policy.add_argument("--cache-ttl", type=int, default=3600, help="Seconds a cache file is considered fresh for auto-discover")
-	# Content-aware options
-	p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
-	p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
-	p_policy.add_argument("--hot-mime", action="append", help="MIME prefix(es) that should go to hot, e.g. text/ or image/")
-	p_policy.add_argument("--warm-mime", action="append", help="MIME prefix(es) that should go to warm, e.g. application/zip")
-	p_policy.add_argument("--cold-name", action="append", help="Glob pattern(s) for keys that should go to cold")
-	p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
-	p_policy.add_argument(
-		"--embedding-rule",
-		action="append",
-		nargs=4,
-		metavar=("NAME", "QUERY", "MIN_SIMILARITY", "DESTINATION_TIER"),
-		help=(
-			"Named embedding classification rule; repeat for deterministic first-match "
-			"ordering (quote QUERY when it contains spaces)"
-		),
-	)
-	p_policy.add_argument("--sync", action="store_true", help="Run writable work inline instead of enqueueing (development only)")
-	p_policy.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
-	p_policy.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
+	p_run = command("policy-run")
+	p_importance = command("importance-set", help="Set an audited importance tag and reevaluate")
+	p_importance.add_argument("--actor", required=True)
+	p_importance.add_argument("--provenance", required=True)
+	for p_policy in (p_run, p_importance):
+		p_policy.add_argument("bucket")
+		if p_policy is p_importance:
+			p_policy.add_argument("key")
+			p_policy.add_argument("level", choices=["low", "normal", "high", "critical", "clear"])
+		p_policy.add_argument("--prefix", default="")
+		p_policy.add_argument("--threshold", type=int, default=1024*1024, help="Size threshold for policies")
+		p_policy.add_argument("--policy", choices=["simple", "llm", "content"], default="simple")
+		p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
+		p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
+		p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
+		p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
+		p_policy.add_argument("--auto-discover", action="store_true", help="If no metrics/hardware provided, auto-scan devices and profile tiers, using a cache with TTL")
+		p_policy.add_argument("--cache-dir", default=".cognistore", help="Directory to read/write auto-discover cache files")
+		p_policy.add_argument("--cache-ttl", type=int, default=3600, help="Seconds a cache file is considered fresh for auto-discover")
+		# Content-aware options
+		p_policy.add_argument("--hot-name", action="append", help="Glob pattern(s) for keys that should go to hot")
+		p_policy.add_argument("--warm-name", action="append", help="Glob pattern(s) for keys that should go to warm")
+		p_policy.add_argument("--hot-mime", action="append", help="MIME prefix(es) that should go to hot, e.g. text/ or image/")
+		p_policy.add_argument("--warm-mime", action="append", help="MIME prefix(es) that should go to warm, e.g. application/zip")
+		p_policy.add_argument("--cold-name", action="append", help="Glob pattern(s) for keys that should go to cold")
+		p_policy.add_argument("--cold-mime", action="append", help="MIME prefix(es) that should go to cold, e.g. application/x-tar")
+		p_policy.add_argument(
+			"--embedding-rule",
+			action="append",
+			nargs=4,
+			metavar=("NAME", "QUERY", "MIN_SIMILARITY", "DESTINATION_TIER"),
+			help=(
+				"Named embedding classification rule; repeat for deterministic first-match "
+				"ordering (quote QUERY when it contains spaces)"
+			),
+		)
+		p_policy.add_argument("--sync", action="store_true", help="Run writable work inline instead of enqueueing (development only)")
+		p_policy.add_argument("--job-id", help="Optional UUID to use as the logical job ID")
+		p_policy.add_argument("--correlation-id", help="Optional request/trace correlation identifier")
+
+		p_policy.add_argument(
+			"--minimum-residency", action="append", nargs=2, metavar=("TIER", "SECONDS"),
+			help="Minimum time in a tier before movement (repeatable by tier)",
+		)
+		p_policy.add_argument(
+			"--importance-tier", action="append", nargs=2, metavar=("LEVEL", "TIER"),
+			help="Allowed destination for an importance level (repeat to allow multiple tiers)",
+		)
 
 	p_dataset_export = command(
 		"policy-dataset-export", help="Export privacy-filtered policy snapshots and outcome labels"
@@ -2071,7 +2128,7 @@ def _run_cli(
 		)
 	policy_allowed = None
 	existing_move_job: MoveJob | None = None
-	if args.cmd == "policy-run":
+	if args.cmd in {"policy-run", "importance-set"}:
 		assert drivers is not None
 		policy_allowed = tuple(
 			dict.fromkeys(t.strip() for t in args.allowed_tiers.split(",") if t.strip())
@@ -2130,6 +2187,36 @@ def _run_cli(
 		except ValueError as exc:
 			parser.error(str(exc))
 		args._embedding_rules = tuple(embedding_rules)
+		try:
+			residency: dict[str, int] = {}
+			importance_tiers: dict[str, list[str]] = {}
+			for tier, seconds in args.minimum_residency or ():
+				if tier in residency:
+					raise ValueError("--minimum-residency tiers must be unique")
+				if tier not in drivers:
+					raise ValueError(f"unknown residency tier: {tier}")
+				residency[tier] = int(seconds)
+			for level, tier in args.importance_tier or ():
+				if tier not in drivers:
+					raise ValueError(f"unknown importance tier: {tier}")
+				importance_tiers.setdefault(level, []).append(tier)
+			controls_config: dict[str, object] = {"minimum_residency_seconds": residency}
+			if importance_tiers:
+				controls_config["importance_tiers"] = importance_tiers
+			args._movement_constraints = (
+				MovementConstraints.from_mapping(controls_config)
+				if args.minimum_residency or args.importance_tier else None
+			)
+			if args.cmd == "importance-set":
+				if not args.catalog_db or not catalog_locator_is_persistent(args.catalog_db):
+					raise ValueError("importance-set requires a persistent --catalog-db")
+				ImportanceTag(
+					level="normal" if args.level == "clear" else args.level,
+					actor_type="user", actor_id=args.actor, provenance=args.provenance,
+					updated_at=datetime.now(timezone.utc).isoformat(),
+				)
+		except (ValueError, TypeError) as exc:
+			parser.error(str(exc))
 	elif args.cmd == "move":
 		assert drivers is not None
 		if args.idempotency_key is not None:
@@ -2204,6 +2291,7 @@ def _run_cli(
 		"move-resume",
 		"catalog-scan",
 		"policy-run",
+		"importance-set",
 	}
 	if (
 		background_submission
@@ -2211,13 +2299,18 @@ def _run_cli(
 		or args.cmd not in catalog_commands
 	):
 		catalog = None
-	elif args.catalog_db and args.cmd == "policy-run" and dry_run:
+	elif args.catalog_db and args.cmd in {"policy-run", "importance-set"} and dry_run:
 		catalog_path = sqlite_catalog_path(args.catalog_db)
 		if catalog_path is not None and not catalog_path.exists():
 			parser.error("--catalog-db must already exist for policy-run --dry-run")
 		catalog = open_sql_catalog(args.catalog_db, read_only=True)
 	elif args.catalog_db and args.cmd in {"move", "move-resume"} and dry_run:
-		catalog = Catalog(audit_retention=audit_retention)
+		if existing_sqlite_catalog_path(args.catalog_db) is not None or catalog_locator_is_postgres(
+			args.catalog_db
+		):
+			catalog = open_sql_catalog(args.catalog_db, read_only=True)
+		else:
+			catalog = Catalog(audit_retention=audit_retention)
 	elif args.cmd == "catalog-scan" and dry_run:
 		catalog = None
 	elif args.catalog_db:
@@ -2387,7 +2480,17 @@ def _run_cli(
 		would_resume = existing_move_job is not None and not already_completed
 		verification = None
 		move_key = args.idempotency_key
+		preview_constraints: dict[str, object] = {}
 		if dry_run:
+			try:
+				preview_constraints = _preview_move_constraints(
+					catalog, args.src, args.dst, args.bucket, args.key, existing_move_job,
+				)
+			except MovementConstraintError as exc:
+				close_catalog(catalog)
+				return _emit_failure(
+					"move", exc, json_output=args.json, dry_run=True, constraints=exc.evidence,
+				)
 			status: Literal["planned", "completed"] = "planned"
 		else:
 			move_key = move_key or str(uuid4())
@@ -2429,6 +2532,7 @@ def _run_cli(
 			dry_run=dry_run,
 			json_output=args.json,
 			extra={
+				**({"constraints": preview_constraints} if dry_run else {}),
 				"idempotency_key": move_key,
 				"would_resume": would_resume,
 				"outcome": (
@@ -2473,6 +2577,17 @@ def _run_cli(
 				job=_move_job_payload(existing_move_job),
 			)
 		if dry_run:
+			try:
+				preview_constraints = _preview_move_constraints(
+					catalog, existing_move_job.src_tier, existing_move_job.dst_tier,
+					existing_move_job.bucket, existing_move_job.key, existing_move_job,
+				)
+			except MovementConstraintError as exc:
+				close_catalog(catalog)
+				return _emit_failure(
+					"move-resume", exc, json_output=args.json, dry_run=True,
+					constraints=exc.evidence,
+				)
 			_emit_result(
 				"move-resume",
 				"planned",
@@ -2489,6 +2604,7 @@ def _run_cli(
 				),
 				job=_move_job_payload(existing_move_job),
 				resume_preconditions=_move_resume_preconditions(existing_move_job),
+				constraints=preview_constraints,
 				verification=None,
 			)
 			close_catalog(catalog)
@@ -2772,7 +2888,7 @@ def _run_cli(
 			render_refresh(*do_refresh())
 			return 0
 
-	if args.cmd == "policy-run":
+	if args.cmd in {"policy-run", "importance-set"}:
 		assert policy_allowed is not None
 		allowed = policy_allowed
 
@@ -2910,6 +3026,7 @@ def _run_cli(
 				warm_mime_prefixes=args.warm_mime or (),
 				cold_mime_prefixes=args.cold_mime or (),
 				embedding_rules=args._embedding_rules,
+				movement_constraints=args._movement_constraints,
 			)
 			enqueue_job = JobEnvelope.create(
 				POLICY_RUN_JOB,
@@ -2936,7 +3053,7 @@ def _run_cli(
 		assert catalog is not None
 		run_id = str(uuid4())
 		policy_audit_context: AuditContext | None = None
-		if not dry_run:
+		if not dry_run and args.cmd == "policy-run":
 			policy_audit_context = _record_manual_action(
 				catalog,
 				correlation_id=run_id,
@@ -2944,6 +3061,10 @@ def _run_cli(
 				policy_name=args.policy,
 				policy_version="1",
 				details={"bucket": args.bucket, "prefix": args.prefix},
+			)
+		if args.cmd == "importance-set":
+			policy_audit_context = AuditContext(
+				correlation_id=run_id, actor_type="user", actor_id=args.actor
 			)
 		mv = Mover(drivers, catalog, audit_context=policy_audit_context)
 		runner = PolicyRunner(
@@ -2957,7 +3078,36 @@ def _run_cli(
 			policy_version="1",
 			audit_context=policy_audit_context,
 			feature_loader=load_policy_feature_loader(args.drivers, catalog),
+			movement_constraints=args._movement_constraints,
 		)
+		if args.cmd == "importance-set":
+			record = catalog.get(args.bucket, args.key)
+			if record is None:
+				raise FileNotFoundError(f"catalog object not found: {args.bucket}/{args.key}")
+			importance_now = datetime.now(timezone.utc)
+			tag = None if args.level == "clear" else ImportanceTag(
+				level=args.level, actor_type="user", actor_id=args.actor,
+				provenance=args.provenance, updated_at=importance_now.isoformat(),
+			)
+			if dry_run:
+				record.importance = tag
+				record.importance_revision += 1
+				evaluation = runner.evaluate_record(record, as_of=importance_now)
+			else:
+				assert policy_audit_context is not None
+				updated_importance = catalog.set_importance(
+					args.bucket, args.key, tag, audit_context=policy_audit_context,
+					occurred_at=importance_now, provenance=args.provenance,
+				)
+				evaluation = runner.reevaluate_record(updated_importance, as_of=importance_now)
+			_emit_result(
+				"importance-set", "planned" if dry_run else "completed",
+				json_output=args.json, dry_run=dry_run,
+				human=f"{args.bucket}/{args.key} importance={args.level}: {evaluation.reason}",
+				evaluation=evaluation.to_mapping(),
+			)
+			close_catalog(catalog)
+			return 0
 		evaluations: list[PolicyEvaluationResult] | None = None
 		if args.dry_run:
 			evaluations = runner.preview_once(args.bucket, prefix=args.prefix)
@@ -2970,6 +3120,7 @@ def _run_cli(
 					reason=evaluation.reason,
 					status="planned",
 					features=evaluation.features,
+					constraints=evaluation.constraints,
 				)
 				for evaluation in evaluations
 				if evaluation.action == "move"

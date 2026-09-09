@@ -131,6 +131,11 @@ def test_policy_output_distinguishes_planned_from_completed(
             assert access["recency_seconds"] is None
             feature_projection["access"] = access
             action["features"] = feature_projection
+            constraints = payload["evaluations"][0]["constraints"]
+            assert constraints["minimum_residency_seconds"] == 0
+            assert constraints["importance"] is None
+            assert constraints["residency_active"] is False
+            action["constraints"] = constraints
             expected["evaluations"] = [
                 {
                     "bucket": BUCKET,
@@ -141,6 +146,7 @@ def test_policy_output_distinguishes_planned_from_completed(
                     "destination_tier": "hot",
                     "reason": "small object -> hot tier",
                     "features": feature_projection,
+                    "constraints": constraints,
                 }
             ]
         assert payload == expected

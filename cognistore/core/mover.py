@@ -13,10 +13,17 @@ from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import (
     EXPECTED_SOURCE_SHA256_METADATA_KEY,
     MoveJob,
+    MoveJobConflictError,
     MoveJobFailedError,
     MoveJobLeaseError,
     MoveJobState,
     MoveJobTransition,
+)
+from cognistore.core.placement_controls import (
+    MOVEMENT_CONSTRAINTS_METADATA_KEY,
+    MovementConstraintError,
+    MovementConstraints,
+    assert_move_allowed,
 )
 from cognistore.drivers.storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
@@ -187,7 +194,10 @@ class Mover:
 
         self._drivers_for_move(src_tier, dst_tier)
 
-    def plan(self, src_tier: str, dst_tier: str, bucket: str, key: str) -> MovePlan:
+    def plan(
+        self, src_tier: str, dst_tier: str, bucket: str, key: str, *,
+        movement_constraints: MovementConstraints | None = None,
+    ) -> MovePlan:
         """Validate a move using read-only operations and return its plan.
 
         Destination collisions fail closed. Executions additionally use an
@@ -196,6 +206,7 @@ class Mover:
         """
 
         src, dst = self._drivers_for_move(src_tier, dst_tier)
+        self._check_movement_constraints(src_tier, dst_tier, bucket, key, movement_constraints)
         source_metadata = dict(src.stat_object(bucket, key))
         source_size = source_metadata.get("size")
         if (
@@ -227,6 +238,25 @@ class Mover:
             key=key,
             size=source_size,
             metadata=source_metadata,
+        )
+
+    def _check_movement_constraints(
+        self, src_tier: str, dst_tier: str, bucket: str, key: str,
+        controls: MovementConstraints | None = None,
+    ) -> None:
+        record = self.catalog.get(bucket, key)
+        tier = self.catalog.get_tier(src_tier)
+        if record is None:
+            # An unscanned source has no trustworthy placement start. A tier
+            # timer must still fail closed for direct/manual moves.
+            from cognistore.core.catalog import ObjectRecord
+            record = ObjectRecord(bucket=bucket, key=key, size=0, tier=src_tier)
+        elif record.tier != src_tier:
+            raise MovementConstraintError("source placement changed since the move was selected")
+        assert_move_allowed(
+            record, dst_tier, controls,
+            tier_metadata=None if tier is None else tier.metadata,
+            as_of=self._clock(),
         )
 
     def _verification_result(
@@ -376,6 +406,7 @@ class Mover:
         idempotency_key: str | None = None,
         audit_context: AuditContext | None = None,
         expected_source_sha256: str | None = None,
+        movement_constraints: MovementConstraints | None = None,
     ) -> MoveVerificationResult:
         """Execute or resume one durable, idempotent object move.
 
@@ -397,7 +428,18 @@ class Mover:
         existing = self.catalog.get_move_job(move_key)
         was_new = existing is None
         if existing is None:
-            plan = self.plan(src_tier, dst_tier, bucket, key)
+            plan = self.plan(
+                src_tier, dst_tier, bucket, key,
+                movement_constraints=movement_constraints
+            )
+            # Freeze policy controls into the durable contract for retries and
+            # recovery by a worker that did not perform the original evaluation.
+            plan = MovePlan(
+                src_tier=plan.src_tier, dst_tier=plan.dst_tier,
+                bucket=plan.bucket, key=plan.key, size=plan.size,
+                metadata={**plan.metadata, "cognistore_movement_constraints":
+                          (movement_constraints or MovementConstraints()).to_dict()},
+            )
             if expected_source_sha256 is not None:
                 self._verify_expected_source_content(
                     plan,
@@ -427,6 +469,7 @@ class Mover:
                 plan,
                 expected_source_sha256,
             )
+            self._validate_movement_contract(plan, movement_constraints)
 
         now, lease_expires_at = self._lease_window()
         job = self.catalog.claim_move_job(
@@ -458,6 +501,7 @@ class Mover:
             claimed_plan,
             expected_source_sha256,
         )
+        self._validate_movement_contract(claimed_plan, movement_constraints)
         if was_new:
             self._after_transition(job)
         if job.state == MoveJobState.COMPLETED:
@@ -466,6 +510,17 @@ class Mover:
             raise MoveJobFailedError(job)
         with self._lease_heartbeat(job.idempotency_key):
             return self._resume(job, audit_context=context)
+
+    @staticmethod
+    def _validate_movement_contract(
+        plan: MovePlan, controls: MovementConstraints | None,
+    ) -> None:
+        if controls is None:
+            return
+        raw = plan.metadata.get(MOVEMENT_CONSTRAINTS_METADATA_KEY)
+        recorded = MovementConstraints() if raw is None else MovementConstraints.from_mapping(raw)
+        if recorded.to_dict() != controls.to_dict():
+            raise MoveJobConflictError("Movement constraints differ from the durable move contract")
 
     def _verify_expected_source_content(
         self,
@@ -610,6 +665,15 @@ class Mover:
         if not isinstance(source_generation, str) or not source_generation:
             raise RuntimeError(
                 "move job lacks the source generation required for transfer"
+            )
+
+        if job.state in {
+            MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED
+        }:
+            raw_controls = job.source_metadata.get("cognistore_movement_constraints")
+            controls = None if raw_controls is None else MovementConstraints.from_mapping(raw_controls)
+            self._check_movement_constraints(
+                job.src_tier, job.dst_tier, job.bucket, job.key, controls
             )
 
         while True:
@@ -955,7 +1019,9 @@ class Mover:
         return {
             name: value
             for name, value in source_metadata.items()
-            if name != EXPECTED_SOURCE_SHA256_METADATA_KEY
+            if name not in {
+                EXPECTED_SOURCE_SHA256_METADATA_KEY, MOVEMENT_CONSTRAINTS_METADATA_KEY,
+            }
         }
 
     @staticmethod

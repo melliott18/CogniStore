@@ -60,7 +60,7 @@ class _StaticPolicyFeatureLoader:
         self.features = features
         self.requests: tuple[EmbeddingFeatureRequest, ...] = ()
 
-    def load(self, records, requests=()):
+    def load(self, records, requests=(), *, as_of=None):
         detached_records = tuple(records)
         self.requests = tuple(requests)
         return {
@@ -773,6 +773,10 @@ def test_ask_and_policy_evaluation_contracts(tmp_path: Path) -> None:
         assert access["missing"] is True
         assert access["partial"] is True
         assert access["recency_seconds"] is None
+        constraints = evaluation_body.pop("constraints")
+        assert constraints["importance"] is None
+        assert constraints["residency_active"] is False
+        assert constraints["allowed_destination_tiers"] == ["hot", "warm"]
         assert evaluation_body == {
             "schema_version": 1,
             "bucket": "documents",
@@ -881,7 +885,11 @@ def test_policy_evaluation_exposes_fresh_feature_provenance(
             query="historical archive material",
         ),
     )
-    assert response.json() == {
+    body = response.json()
+    constraints = body.pop("constraints")
+    assert constraints["residency_active"] is False
+    assert constraints["importance"] is None
+    assert body == {
         "schema_version": 1,
         "bucket": "documents",
         "key": "archive.pdf",
@@ -1485,6 +1493,7 @@ def test_openapi_contract_is_deterministic_and_checked_in() -> None:
             "headObject",
             "listCatalogObjects",
             "putObject",
+            "setObjectImportance",
             "submitCatalogScan",
             "submitPolicyRun",
         ]

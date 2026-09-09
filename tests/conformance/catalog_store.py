@@ -186,6 +186,8 @@ class CatalogStoreConformance:
         first = catalog.get(expected.bucket, expected.key)
         second = catalog.get(expected.bucket, expected.key)
 
+        assert first is not None
+        expected.placement_started_at = first.placement_started_at
         assert first == expected
         assert second == expected
         assert first is not second
@@ -200,7 +202,9 @@ class CatalogStoreConformance:
         # Persistence remains available through an explicit mutation method.
         catalog.update_placement(expected.bucket, expected.key, "warm")
         updated = catalog.get(expected.bucket, expected.key)
+        assert updated is not None
         assert updated == ObjectRecord(
+            placement_started_at=updated.placement_started_at,
             bucket=expected.bucket,
             key=expected.key,
             size=expected.size,
@@ -221,7 +225,10 @@ class CatalogStoreConformance:
         )
         scan_metadata["nested"]["embedding"][0] = 1.0  # type: ignore[index]
 
-        assert catalog.get("bucket", "scanned") == ObjectRecord(
+        scanned = catalog.get("bucket", "scanned")
+        assert scanned is not None
+        assert scanned == ObjectRecord(
+            placement_started_at=scanned.placement_started_at,
             bucket="bucket",
             key="scanned",
             size=7,
@@ -261,6 +268,8 @@ class CatalogStoreConformance:
         ]
         first = catalog.list("bucket")
         second = catalog.list("bucket")
+        for wanted, actual in zip(expected, first):
+            wanted.placement_started_at = actual.placement_started_at
 
         assert first == expected
         assert second == expected
@@ -797,3 +806,245 @@ class CatalogStoreConformance:
         assert all(entry.issues == () for entry in first.entries)
         assert catalog.get("bucket", "object") == record_before
         assert catalog.get_object_content("bucket", "object") == content_before
+
+    def test_importance_is_trusted_audited_and_survives_observation_writes(
+        self, catalog: CatalogStore,
+    ) -> None:
+        from cognistore.core.audit import AuditContext, AuditQuery
+        from cognistore.core.placement_controls import ImportanceTag
+
+        context = AuditContext("importance-test", "user", "alice")
+        tag = ImportanceTag("critical", "user", "alice", "incident retention", "2026-01-01T00:00:00Z")
+        with pytest.raises(KeyError):
+            catalog.set_importance("bucket", "missing", tag, audit_context=context)
+        catalog.upsert("bucket", "object", 1, "hot")
+        original = catalog.get("bucket", "object")
+        assert original is not None and original.placement_started_at is not None
+        updated = catalog.set_importance("bucket", "object", tag, audit_context=context)
+        assert updated.importance == tag and updated.importance_revision == 1
+        updated.importance = None
+        updated.importance_revision = 500
+        catalog.upsert("bucket", "object", 1, "hot", {"importance": {"level": "low"}})
+        fence = catalog.capture_scan_fence("bucket", "object")
+        assert catalog.upsert_scan_observation(
+            "bucket", "object", size=1, tier="hot", generation="v1",
+            metadata={"importance": None}, fence=fence,
+        )
+        catalog.upsert_placement("bucket", "object", size=1, tier="hot", checksum="abc")
+        current = catalog.get("bucket", "object")
+        assert current is not None and current.importance == tag
+        assert current.importance_revision == 1
+        assert current.placement_started_at == original.placement_started_at
+        catalog.set_importance(
+            "bucket", "object", None, audit_context=context, provenance="incident resolved",
+        )
+        cleared = catalog.get("bucket", "object")
+        assert cleared is not None and cleared.importance is None
+        assert cleared.importance_revision == 2
+        events = catalog.list_audit_events(AuditQuery(event_types={"importance.changed"}))
+        assert len(events) == 2
+        assert events[-1].actor_id == "alice"
+        assert events[-1].details["previous_importance"]["level"] == "critical"
+        assert events[-1].details["provenance"] == "incident resolved"
+        assert events[-1].details["importance"] is None
+
+    def test_importance_rejects_unattributed_changes_without_mutation(
+        self, catalog: CatalogStore,
+    ) -> None:
+        from cognistore.core.audit import AuditContext
+        from cognistore.core.placement_controls import ImportanceTag
+
+        catalog.upsert("bucket", "object", 1, "hot")
+        previous = catalog.get("bucket", "object")
+        context = AuditContext("importance-test", "user", "alice")
+        mismatched = ImportanceTag("high", "user", "bob", "review", "2026-01-01T00:00:00Z")
+        with pytest.raises(ValueError, match="actor"):
+            catalog.set_importance("bucket", "object", mismatched, audit_context=context)
+        with pytest.raises(ValueError, match="provenance"):
+            catalog.set_importance("bucket", "object", None, audit_context=context)
+        assert catalog.get("bucket", "object") == previous
+        assert catalog.list_audit_events() == []
+
+    def test_placement_clock_tracks_tier_changes_only(self, catalog: CatalogStore) -> None:
+        catalog.upsert("bucket", "object", 1, "hot")
+        original = catalog.get("bucket", "object")
+        assert original is not None and original.placement_started_at is not None
+        catalog.register_pool("hot-a", "hot", active=True, region="west", members=("disk-a",))
+        catalog.register_pool("hot-b", "hot", active=True, region="west", members=("disk-b",))
+        catalog.register_tier("warm")
+        catalog.register_pool("warm-a", "warm", active=True, region="west", members=("disk-c",))
+        catalog.assign_pool("bucket", "object", "hot-a")
+        catalog.assign_pool("bucket", "object", "hot-b")
+        catalog.assign_pool("bucket", "object", None)
+        catalog.update_placement("bucket", "object", "hot")
+        same = catalog.get("bucket", "object")
+        assert same is not None and same.placement_started_at == original.placement_started_at
+        catalog.assign_pool("bucket", "object", "warm-a")
+        changed = catalog.get("bucket", "object")
+        assert changed is not None and changed.placement_started_at > original.placement_started_at
+        assert changed.tier == "warm"
+        catalog.update_placement("bucket", "object", "hot")
+        latest = catalog.get("bucket", "object")
+        assert latest is not None and latest.placement_started_at > changed.placement_started_at
+
+    @pytest.mark.parametrize("invalid", [True, -1, 1.5, "60", None, 315_360_001])
+    def test_tier_residency_configuration_is_validated(
+        self, catalog: CatalogStore, invalid: object,
+    ) -> None:
+        with pytest.raises(ValueError, match="minimum_residency_seconds"):
+            catalog.register_tier("hot", {"minimum_residency_seconds": invalid})
+        assert catalog.get_tier("hot") is None
+
+    def test_catalog_claim_checks_authoritative_residency_and_importance(
+        self, catalog: CatalogStore,
+    ) -> None:
+        from cognistore.core.audit import AuditContext
+        from cognistore.core.placement_controls import ImportanceTag, MovementConstraintError
+
+        catalog.register_tier("hot", {"minimum_residency_seconds": 60})
+        catalog.upsert("bucket", "object", 1, "hot")
+        record = catalog.get("bucket", "object")
+        assert record is not None and record.placement_started_at is not None
+        kwargs = dict(
+            src_tier="hot", dst_tier="cold", bucket="bucket", key="object", expected_size=1,
+            source_metadata={}, owner_id="worker", now=record.placement_started_at,
+            lease_expires_at="2100-01-01T00:01:00.000000Z",
+        )
+        with pytest.raises(MovementConstraintError, match="residency"):
+            catalog.claim_move_job("guarded", **kwargs)
+        assert catalog.get_move_job("guarded") is None
+        catalog.register_tier("hot", {"minimum_residency_seconds": 0})
+        catalog.set_importance(
+            "bucket", "object", ImportanceTag(
+                "high", "user", "alice", "retain", record.placement_started_at,
+            ), audit_context=AuditContext("tag", "user", "alice"),
+        )
+        with pytest.raises(MovementConstraintError, match="importance"):
+            catalog.claim_move_job("guarded", **kwargs)
+        assert catalog.get_move_job("guarded") is None
+        assert catalog.list_move_job_transitions("guarded") == []
+
+    @pytest.mark.parametrize("change", ["importance", "residency", "source-tier"])
+    def test_catalog_commit_rechecks_changes_after_verification(
+        self, catalog: CatalogStore, change: str,
+    ) -> None:
+        from cognistore.core.audit import AuditContext
+        from cognistore.core.placement_controls import ImportanceTag
+
+        catalog.upsert("bucket", "object", 1, "hot")
+        original = catalog.get("bucket", "object")
+        assert original is not None and original.placement_started_at is not None
+        now = original.placement_started_at
+        lease = "2100-01-01T00:01:00.000000Z"
+        catalog.claim_move_job(
+            "guarded", src_tier="hot", dst_tier="cold", bucket="bucket", key="object",
+            expected_size=1, source_metadata={}, owner_id="worker", now=now,
+            lease_expires_at=lease,
+        )
+        for previous, following in (
+            (MoveJobState.PREPARED, MoveJobState.TRANSFERRED),
+            (MoveJobState.TRANSFERRED, MoveJobState.VERIFIED),
+        ):
+            catalog.transition_move_job(
+                "guarded", owner_id="worker", expected_state=previous,
+                to_state=following, reason="verified", now=now, lease_expires_at=lease,
+            )
+        if change == "importance":
+            catalog.set_importance(
+                "bucket", "object", ImportanceTag("critical", "user", "alice", "retain", now),
+                audit_context=AuditContext("tag", "user", "alice"),
+            )
+        elif change == "residency":
+            catalog.register_tier("hot", {"minimum_residency_seconds": 60})
+        else:
+            catalog.update_placement("bucket", "object", "warm")
+        before = catalog.get("bucket", "object")
+        transitions = catalog.list_move_job_transitions("guarded")
+        with pytest.raises(ValueError):
+            catalog.commit_move_job_placement(
+                "guarded", owner_id="worker", size=1, tier="cold", checksum="abc",
+                now=now, lease_expires_at=lease,
+            )
+        assert catalog.get("bucket", "object") == before
+        assert catalog.get_move_job("guarded").state == MoveJobState.VERIFIED
+        assert catalog.list_move_job_transitions("guarded") == transitions
+
+    def test_unknown_object_cannot_bypass_residency_added_before_commit(
+        self, catalog: CatalogStore,
+    ) -> None:
+        from cognistore.core.placement_controls import MovementConstraintError
+
+        now = "2026-01-01T00:00:00.000000Z"
+        lease = "2100-01-01T00:01:00.000000Z"
+        catalog.claim_move_job(
+            "unscanned", src_tier="hot", dst_tier="cold", bucket="bucket", key="object",
+            expected_size=1, source_metadata={}, owner_id="worker", now=now,
+            lease_expires_at=lease,
+        )
+        for previous, following in (
+            (MoveJobState.PREPARED, MoveJobState.TRANSFERRED),
+            (MoveJobState.TRANSFERRED, MoveJobState.VERIFIED),
+        ):
+            catalog.transition_move_job(
+                "unscanned", owner_id="worker", expected_state=previous,
+                to_state=following, reason="verified", now=now, lease_expires_at=lease,
+            )
+        catalog.register_tier("hot", {"minimum_residency_seconds": 60})
+        with pytest.raises(MovementConstraintError, match="unknown"):
+            catalog.commit_move_job_placement(
+                "unscanned", owner_id="worker", size=1, tier="cold", checksum="abc",
+                now=now, lease_expires_at=lease,
+            )
+        assert catalog.get("bucket", "object") is None
+        assert catalog.get_move_job("unscanned").state == MoveJobState.VERIFIED
+        with pytest.raises(MovementConstraintError, match="unknown"):
+            catalog.claim_move_job(
+                "another", src_tier="hot", dst_tier="cold", bucket="bucket", key="object",
+                expected_size=1, source_metadata={}, owner_id="worker", now=now,
+                lease_expires_at=lease,
+            )
+        assert catalog.get_move_job("another") is None
+
+    def test_committed_move_starts_residency_and_recovery_retains_checkpoint(
+        self, catalog: CatalogStore,
+    ) -> None:
+        from cognistore.core.audit import AuditContext
+        from cognistore.core.placement_controls import ImportanceTag
+
+        catalog.upsert("bucket", "object", 1, "hot")
+        original = catalog.get("bucket", "object")
+        assert original is not None and original.placement_started_at is not None
+        now = original.placement_started_at
+        committed_at = "2100-01-01T00:00:00.000000Z"
+        lease = "2100-01-01T00:01:00.000000Z"
+        catalog.claim_move_job(
+            "committed", src_tier="hot", dst_tier="warm", bucket="bucket", key="object",
+            expected_size=1, source_metadata={}, owner_id="worker", now=now,
+            lease_expires_at=lease,
+        )
+        for previous, following in (
+            (MoveJobState.PREPARED, MoveJobState.TRANSFERRED),
+            (MoveJobState.TRANSFERRED, MoveJobState.VERIFIED),
+        ):
+            catalog.transition_move_job(
+                "committed", owner_id="worker", expected_state=previous,
+                to_state=following, reason="verified", now=now, lease_expires_at=lease,
+            )
+        catalog.commit_move_job_placement(
+            "committed", owner_id="worker", size=1, tier="warm", checksum="abc",
+            now=committed_at, lease_expires_at=lease,
+        )
+        committed = catalog.get("bucket", "object")
+        assert committed is not None and committed.placement_started_at == committed_at
+        catalog.register_tier("warm", {"minimum_residency_seconds": 60})
+        catalog.set_importance(
+            "bucket", "object", ImportanceTag("critical", "user", "alice", "retain", now),
+            audit_context=AuditContext("tag", "user", "alice"),
+        )
+        claimed = catalog.claim_move_job(
+            "committed", src_tier="hot", dst_tier="warm", bucket="bucket", key="object",
+            expected_size=1, source_metadata={}, owner_id="worker", now=committed_at,
+            lease_expires_at=lease,
+        )
+        assert claimed.state == MoveJobState.COMMITTED
+        assert catalog.get("bucket", "object").placement_started_at == committed_at

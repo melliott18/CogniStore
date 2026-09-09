@@ -14,6 +14,7 @@ from cognistore.core.move_jobs import (
     MoveJobState,
 )
 from cognistore.core.mover import Mover
+from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import (
     MAX_POLICY_CONFIG_BYTES,
     EmbeddingPolicyRule,
@@ -37,6 +38,7 @@ from cognistore.jobs.handlers import (
 from cognistore.jobs.models import (
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
+    JOB_SCHEMA_VERSION_V3,
     InvalidJobError,
     JobContext,
     JobEnvelope,
@@ -980,3 +982,145 @@ def test_duplicate_with_published_destination_retries_live_move_lease(
         catalog.close()
 
     asyncio.run(scenario())
+
+
+def _placement_payload(constraints: MovementConstraints | None = None) -> dict:
+    return policy_job_payload(
+        bucket="bucket",
+        prefix="",
+        policy="simple",
+        threshold=1024,
+        llm_threshold=None,
+        allowed_tiers=("hot", "warm"),
+        hot_name_patterns=(),
+        warm_name_patterns=(),
+        cold_name_patterns=(),
+        hot_mime_prefixes=(),
+        warm_mime_prefixes=(),
+        cold_mime_prefixes=(),
+        movement_constraints=constraints,
+    )
+
+
+@pytest.mark.parametrize(
+    "constraints",
+    (
+        MovementConstraints(),
+        MovementConstraints(
+            minimum_residency_seconds={"hot": 3600, "warm": 300},
+            importance_tiers={"high": ("warm",), "critical": ("hot",)},
+        ),
+    ),
+)
+def test_policy_job_payload_round_trips_complete_movement_constraints(
+    constraints: MovementConstraints,
+) -> None:
+    payload = _placement_payload(constraints)
+    restored = JobEnvelope.from_bytes(
+        JobEnvelope.create(
+            POLICY_RUN_JOB,
+            payload,
+            schema_version=policy_job_schema_version(payload),
+        ).to_bytes()
+    )
+
+    assert restored.schema_version == JOB_SCHEMA_VERSION_V3
+    assert restored.payload["movement_constraints"] == constraints.to_dict()
+    assert MovementConstraints.from_mapping(restored.payload["movement_constraints"]) == constraints
+    assert policy_job_schema_version({**payload, "embedding_rules": []}) == JOB_SCHEMA_VERSION_V3
+    assert "movement_constraints" not in _placement_payload()
+
+
+@pytest.mark.parametrize("schema_version", (JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2))
+def test_policy_handler_rejects_constraints_in_older_envelopes(
+    schema_version: int, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_policy(*args, **kwargs):
+        pytest.fail("invalid controls must be rejected before policy creation")
+
+    monkeypatch.setattr("cognistore.jobs.handlers.build_policy", unexpected_policy)
+    handler = build_handlers({}, Catalog())[POLICY_RUN_JOB]
+    job = JobEnvelope.create(
+        POLICY_RUN_JOB,
+        _placement_payload(MovementConstraints()),
+        schema_version=schema_version,
+    )
+
+    with pytest.raises(InvalidJobError, match="requires schema_version 3"):
+        asyncio.run(handler(job, _context()))
+
+
+@pytest.mark.parametrize(
+    "raw_constraints",
+    (
+        None,
+        [],
+        {"unknown": 60},
+        {"minimum_residency_seconds": {"hot": True}},
+        {"minimum_residency_seconds": {"hot": -1}},
+        {"minimum_residency_seconds": {"hot": 315360001}},
+        {"importance_tiers": {"urgent": ["hot"]}},
+        {"importance_tiers": {"high": ["hot", "hot"]}},
+    ),
+)
+def test_policy_handler_rejects_invalid_constraints_before_opening_move_resources(
+    raw_constraints: object, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_policy(*args, **kwargs):
+        pytest.fail("invalid controls must be rejected before policy creation")
+
+    monkeypatch.setattr("cognistore.jobs.handlers.build_policy", unexpected_policy)
+    payload = _placement_payload()
+    payload["movement_constraints"] = raw_constraints
+    job = JobEnvelope.create(POLICY_RUN_JOB, payload, schema_version=JOB_SCHEMA_VERSION_V3)
+    handler = build_handlers({}, Catalog())[POLICY_RUN_JOB]
+
+    with pytest.raises(InvalidJobError, match="movement_constraints"):
+        asyncio.run(handler(job, _context()))
+
+
+def test_queued_policy_honors_residency_on_fresh_catalog_placement(tmp_path: Path) -> None:
+    hot = PosixDriver(str(tmp_path / "hot"))
+    warm = PosixDriver(str(tmp_path / "warm"))
+    data = b"small"
+    warm.put_object("bucket", "one.txt", data)
+    catalog = SQLiteCatalog(tmp_path / "catalog.db")
+    try:
+        catalog.upsert("bucket", "one.txt", len(data), "warm")
+        handler = build_handlers({"hot": hot, "warm": warm}, catalog)[POLICY_RUN_JOB]
+        payload = _placement_payload(
+            MovementConstraints(minimum_residency_seconds={"warm": 3600})
+        )
+        job = JobEnvelope.create(POLICY_RUN_JOB, payload, schema_version=JOB_SCHEMA_VERSION_V3)
+
+        asyncio.run(handler(job, _context()))
+        asyncio.run(handler(job, _context()))
+
+        record = catalog.get("bucket", "one.txt")
+        assert record is not None and record.tier == "warm"
+        assert warm.get_object("bucket", "one.txt") == data
+        assert list(hot.list_objects("bucket")) == []
+        assert catalog.list_move_jobs() == []
+        decisions = catalog.list_audit_events(
+            AuditQuery(correlation_id=job.correlation_id, job_id=job.job_id)
+        )
+        assert any("residency" in str(event.details).lower() for event in decisions)
+    finally:
+        catalog.close()
+
+
+def test_policy_handler_rejects_unknown_residency_tier_before_policy_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_policy(*args, **kwargs):
+        pytest.fail("unknown residency tiers must be rejected before policy creation")
+
+    monkeypatch.setattr("cognistore.jobs.handlers.build_policy", unexpected_policy)
+    handler = build_handlers(
+        {tier: PosixDriver(str(tmp_path / tier)) for tier in ("hot", "warm")}, Catalog(),
+    )[POLICY_RUN_JOB]
+    payload = _placement_payload(MovementConstraints(minimum_residency_seconds={"wram": 3600}))
+    job = JobEnvelope.create(POLICY_RUN_JOB, payload, schema_version=JOB_SCHEMA_VERSION_V3)
+
+    with pytest.raises(InvalidJobError, match="unknown residency tier.*wram"):
+        asyncio.run(handler(job, _context()))

@@ -1,6 +1,7 @@
 """PostgreSQL conformance and transactions spanning independent catalog handles."""
 
 from collections.abc import Iterator
+from dataclasses import replace
 
 import pytest
 import sqlalchemy as sa
@@ -102,6 +103,9 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
         )
         with catalog.engine.connect() as connection:
             original_ids = connection.execute(identities).one()
+            placement_updated_at = connection.execute(
+                sa.select(object_placements.c.updated_at)
+            ).scalar_one()
 
         manager.downgrade(catalog.engine, "0006_embeddings")
         assert manager.current(catalog.engine) == "0006_embeddings"
@@ -111,7 +115,7 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
         for upgraded in (False, True):
             if upgraded:
                 manager.upgrade(catalog.engine)
-                assert manager.current(catalog.engine) == "0008_access_events"
+                assert manager.current(catalog.engine) == "0009_placement_controls"
             with catalog.engine.connect() as connection:
                 assert connection.execute(identities).one() == original_ids
                 assert connection.execute(sa.select(
@@ -124,7 +128,12 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
                     connection.execute(sa.update(object_placements).values(tier_name="warm"))
             assert error.value.orig.diag.constraint_name == "fk_object_placements_pool_tier"
 
-        assert catalog.get("bucket", "object") == record
+        assert record is not None
+        # Re-upgrading derives a conservative start from the retained legacy
+        # placement refresh time, which can follow the original tier arrival.
+        assert catalog.get("bucket", "object") == replace(
+            record, placement_started_at=placement_updated_at,
+        )
         pool = catalog.get_pool("pool-a")
         assert pool is not None
         assert (pool.active, pool.region, pool.members, pool.localities, pool.attributes) == (

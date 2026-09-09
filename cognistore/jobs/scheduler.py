@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import yaml
 
+from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import EmbeddingPolicyRule
 
 from .handlers import (
@@ -63,6 +64,7 @@ _POLICY_RUN_FIELDS = frozenset(
         "warm_mime_prefixes",
         "cold_mime_prefixes",
         "embedding_rules",
+        "movement_constraints",
     }
 )
 _TERMINAL_RUN_STATES = frozenset(
@@ -373,6 +375,26 @@ def _normalize_policy_payload(
             "policy.run payload.embedding_rules contain disallowed destination tier(s): "
             + ", ".join(unknown_rule_tiers)
         )
+    movement_constraints = None
+    if "movement_constraints" in payload:
+        raw_constraints = _mapping(
+            payload["movement_constraints"], "policy.run payload.movement_constraints"
+        )
+        try:
+            movement_constraints = MovementConstraints.from_mapping(raw_constraints)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid policy.run payload.movement_constraints: {exc}"
+            ) from exc
+        if known_tiers is not None:
+            unknown_residency = sorted(
+                set(movement_constraints.minimum_residency_seconds).difference(known_tiers)
+            )
+            if unknown_residency:
+                raise ValueError(
+                    "policy.run payload.movement_constraints contains unknown residency tier(s): "
+                    + ", ".join(unknown_residency)
+                )
     assert threshold is not None
     return policy_job_payload(
         bucket=bucket,
@@ -400,6 +422,7 @@ def _normalize_policy_payload(
             payload.get("cold_mime_prefixes"), "policy.run payload.cold_mime_prefixes"
         ),
         embedding_rules=embedding_rules,
+        movement_constraints=movement_constraints,
     )
 
 

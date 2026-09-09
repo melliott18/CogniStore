@@ -42,6 +42,9 @@ from cognistore.core.catalog import (
     Catalog,
     ObjectRecord,
     ScanFence,
+    _assert_catalog_move_allowed,
+    _importance_event,
+    _validate_importance_actor,
     validate_catalog_size,
 )
 from cognistore.core.content_identity import (
@@ -57,10 +60,15 @@ from cognistore.core.content_references import (
 )
 from cognistore.core.move_jobs import (
     MoveJob,
+    MoveJobConflictError,
     MoveJobLeaseError,
     MoveJobState,
     MoveJobTransition,
     validate_move_job_transition,
+)
+from cognistore.core.placement_controls import (
+    ImportanceTag,
+    validate_minimum_residency_seconds,
 )
 from cognistore.core.topology import (
     AttributeValue,
@@ -381,6 +389,7 @@ class SQLCatalog(Catalog):
                     object_placements.c.placement_id,
                     object_placements.c.tier_name,
                     object_placements.c.pool_id,
+                    object_placements.c.placement_started_at,
                 ).where(object_placements.c.object_id == object_id)
             )
             .mappings()
@@ -393,6 +402,7 @@ class SQLCatalog(Catalog):
                     object_id=object_id,
                     tier_name=tier,
                     pool_id=None,
+                    placement_started_at=now,
                     created_at=now,
                     updated_at=now,
                 )
@@ -402,7 +412,13 @@ class SQLCatalog(Catalog):
             connection.execute(
                 sa.update(object_placements)
                 .where(object_placements.c.object_id == object_id)
-                .values(tier_name=tier, pool_id=pool_id, updated_at=now)
+                .values(
+                    tier_name=tier, pool_id=pool_id, updated_at=now,
+                    placement_started_at=(
+                        placement["placement_started_at"]
+                        if placement["tier_name"] == tier else now
+                    ),
+                )
             )
         return object_id
 
@@ -1102,6 +1118,9 @@ class SQLCatalog(Catalog):
             object_placements.c.tier_name,
             objects.c.metadata,
             object_placements.c.pool_id,
+            object_placements.c.placement_started_at,
+            objects.c.importance,
+            objects.c.importance_revision,
         ).select_from(
             objects.join(
                 object_placements,
@@ -1118,6 +1137,12 @@ class SQLCatalog(Catalog):
             tier=row["tier_name"],
             metadata=deepcopy(dict(row["metadata"] or {})),
             pool_id=row["pool_id"],
+            placement_started_at=row["placement_started_at"],
+            importance=(
+                ImportanceTag.from_mapping(row["importance"])
+                if row["importance"] is not None else None
+            ),
+            importance_revision=row["importance_revision"],
         )
 
     def get(self, bucket: str, key: str) -> ObjectRecord | None:
@@ -1128,6 +1153,39 @@ class SQLCatalog(Catalog):
         with self._connection() as connection:
             row = connection.execute(statement).mappings().first()
         return None if row is None else self._record(row)
+
+    def set_importance(
+        self, bucket: str, key: str, tag: ImportanceTag | None, *,
+        audit_context: AuditContext, occurred_at: str | datetime | None = None,
+        provenance: str | None = None,
+    ) -> ObjectRecord:
+        """Store trusted importance and its audit in the same object transaction."""
+
+        _validate_importance_actor(tag, audit_context, provenance)
+        with self._transaction() as connection:
+            self._lock_object(connection, bucket, key)
+            row = connection.execute(self._object_select().where(
+                objects.c.bucket == bucket, objects.c.object_key == key,
+            )).mappings().first()
+            if row is None:
+                raise KeyError(f"Object not found: {bucket}/{key}")
+            record = self._record(row)
+            updated = replace(
+                record, importance=deepcopy(tag),
+                importance_revision=record.importance_revision + 1,
+            )
+            event = self._prepare_audit_event(
+                _importance_event(record, updated, audit_context, occurred_at, provenance)
+            )
+            connection.execute(sa.update(objects).where(
+                objects.c.bucket == bucket, objects.c.object_key == key,
+            ).values(
+                importance=tag.to_dict() if tag is not None else sa.null(),
+                importance_revision=updated.importance_revision,
+                updated_at=_timestamp(),
+            ))
+            self._insert_audit_event(connection, event)
+            return updated
 
     def get_object_content(self, bucket: str, key: str) -> ObjectContent | None:
         statement = (
@@ -1339,6 +1397,7 @@ class SQLCatalog(Catalog):
                     sa.select(
                         object_placements.c.tier_name,
                         object_placements.c.pool_id,
+                        object_placements.c.placement_started_at,
                     ).where(object_placements.c.object_id == object_id)
                 )
                 .mappings()
@@ -1350,7 +1409,13 @@ class SQLCatalog(Catalog):
             connection.execute(
                 sa.update(object_placements)
                 .where(object_placements.c.object_id == object_id)
-                .values(tier_name=tier, pool_id=pool_id, updated_at=now)
+                .values(
+                    tier_name=tier, pool_id=pool_id, updated_at=now,
+                    placement_started_at=(
+                        placement["placement_started_at"]
+                        if placement["tier_name"] == tier else now
+                    ),
+                )
             )
 
     def upsert_placement(
@@ -2013,6 +2078,23 @@ class SQLCatalog(Catalog):
             details=dict(row["details"] or {}),
         )
 
+    def _assert_move_controls(
+        self, connection: Connection, bucket: str, key: str,
+        src_tier: str, dst_tier: str, source_metadata: Mapping[str, Any], now: str,
+    ) -> None:
+        # The caller holds the object fence; topology changes use this lock too.
+        self._lock_topology(connection)
+        row = connection.execute(self._object_select().where(
+            objects.c.bucket == bucket, objects.c.object_key == key,
+        )).mappings().first()
+        tier_metadata = connection.execute(
+            sa.select(tiers.c.metadata).where(tiers.c.name == src_tier)
+        ).scalar_one_or_none()
+        _assert_catalog_move_allowed(
+            None if row is None else self._record(row), src_tier, dst_tier,
+            source_metadata, tier_metadata, now,
+        )
+
     def claim_move_job(
         self,
         idempotency_key: str,
@@ -2035,6 +2117,18 @@ class SQLCatalog(Catalog):
             self._lock_move_key(connection, idempotency_key)
             self._lock_object(connection, bucket, key)
             existing = self._select_move_job(connection, idempotency_key, for_update=True)
+            if existing is not None:
+                Catalog._assert_same_move(
+                    existing, src_tier=src_tier, dst_tier=dst_tier,
+                    bucket=bucket, key=key, source_metadata=source_metadata,
+                )
+            if existing is None or existing.state in {
+                MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
+            }:
+                self._assert_move_controls(
+                    connection, bucket, key, src_tier, dst_tier,
+                    existing.source_metadata if existing is not None else source_metadata, now,
+                )
             transition: MoveJobTransition | None = None
             retry_from: MoveJob | None = None
             if existing is None:
@@ -2064,14 +2158,6 @@ class SQLCatalog(Catalog):
                     now,
                 )
             else:
-                Catalog._assert_same_move(
-                    existing,
-                    src_tier=src_tier,
-                    dst_tier=dst_tier,
-                    bucket=bucket,
-                    key=key,
-                    source_metadata=source_metadata,
-                )
                 if existing.state.terminal:
                     return existing
                 if (
@@ -2303,6 +2389,11 @@ class SQLCatalog(Catalog):
                 owner_id,
                 MoveJobState.VERIFIED,
             )
+            if tier != job.dst_tier:
+                raise MoveJobConflictError("Committed tier must match move destination")
+            self._assert_move_controls(
+                connection, job.bucket, job.key, job.src_tier, tier, job.source_metadata, now,
+            )
             existing = connection.execute(
                 sa.select(objects.c.metadata).where(
                     objects.c.bucket == job.bucket,
@@ -2392,6 +2483,8 @@ class SQLCatalog(Catalog):
         *,
         active: bool = True,
     ) -> None:
+        if metadata is not None and "minimum_residency_seconds" in metadata:
+            validate_minimum_residency_seconds(metadata["minimum_residency_seconds"])
         definition = Tier(name=name, metadata=dict(metadata or {}), active=active)
         now = _timestamp()
         with self._transaction() as connection:
@@ -2577,7 +2670,10 @@ class SQLCatalog(Catalog):
             self._lock_object(connection, bucket, key)
             self._lock_topology(connection)
             row = connection.execute(
-                sa.select(objects.c.object_id, object_placements.c.tier_name)
+                sa.select(
+                    objects.c.object_id, object_placements.c.tier_name,
+                    object_placements.c.placement_started_at,
+                )
                 .select_from(objects.join(object_placements))
                 .where(objects.c.bucket == bucket, objects.c.object_key == key)
             ).mappings().first()
@@ -2598,7 +2694,12 @@ class SQLCatalog(Catalog):
             connection.execute(
                 sa.update(object_placements)
                 .where(object_placements.c.object_id == row["object_id"])
-                .values(tier_name=tier, pool_id=pool_id, updated_at=now)
+                .values(
+                    tier_name=tier, pool_id=pool_id, updated_at=now,
+                    placement_started_at=(
+                        row["placement_started_at"] if row["tier_name"] == tier else now
+                    ),
+                )
             )
 
     @staticmethod
