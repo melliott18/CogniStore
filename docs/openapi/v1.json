@@ -743,6 +743,87 @@
         "title": "ErrorEnvelope",
         "type": "object"
       },
+      "EstimateComponentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "lower": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "uncertainty": {
+            "enum": [
+              "bounded",
+              "unquantified"
+            ],
+            "title": "Uncertainty",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "state",
+          "value",
+          "lower",
+          "upper",
+          "uncertainty",
+          "reasons"
+        ],
+        "title": "EstimateComponentResponse",
+        "type": "object"
+      },
       "EstimatedAccessWindowResponse": {
         "additionalProperties": false,
         "properties": {
@@ -815,6 +896,87 @@
           }
         },
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ImpactTotalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateComponentResponse"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "known_subtotal": {
+            "title": "Known Subtotal",
+            "type": "string"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "uncertainty": {
+            "enum": [
+              "bounded",
+              "unquantified"
+            ],
+            "title": "Uncertainty",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "unit",
+          "state",
+          "value",
+          "known_subtotal",
+          "lower",
+          "upper",
+          "uncertainty",
+          "components"
+        ],
+        "title": "ImpactTotalResponse",
         "type": "object"
       },
       "JobStatusResponse": {
@@ -1043,6 +1205,33 @@
         "title": "ObjectCitationResponse",
         "type": "object"
       },
+      "ObjectPlacementEstimatesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/PlacementEstimateResponse"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/PlacementEstimateResponse"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "current",
+          "candidates"
+        ],
+        "title": "ObjectPlacementEstimatesResponse",
+        "type": "object"
+      },
       "ObjectResource": {
         "additionalProperties": false,
         "properties": {
@@ -1259,6 +1448,136 @@
           "raw_score"
         ],
         "title": "PassageMatchResponse",
+        "type": "object"
+      },
+      "PlacementEstimateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend"
+          },
+          "carbon": {
+            "$ref": "#/components/schemas/ImpactTotalResponse"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/ImpactTotalResponse"
+          },
+          "formulas": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Formulas",
+            "type": "object"
+          },
+          "pool_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pool Id"
+          },
+          "profile_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Version"
+          },
+          "rates": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Rates",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "workload": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Workload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schema_version",
+          "formulas",
+          "tier",
+          "pool_id",
+          "region",
+          "backend",
+          "profile_version",
+          "as_of",
+          "workload",
+          "cost",
+          "carbon",
+          "rates",
+          "reasons"
+        ],
+        "title": "PlacementEstimateResponse",
         "type": "object"
       },
       "PolicyConfig": {
@@ -1563,6 +1882,16 @@
           },
           "mime": {
             "$ref": "#/components/schemas/MimePolicyFeatureResponse"
+          },
+          "placement_estimates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectPlacementEstimatesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "schema_version": {
             "const": 1,

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,16 @@ from .access import (
 )
 from .audit import AuditOutcome, audit_text_identity, canonical_audit_timestamp
 from .catalog import ObjectRecord
+from .estimation import (
+    RATE_UNITS,
+    EstimationProfile,
+    EstimationWorkload,
+    ObjectPlacementEstimates,
+    PlacementEstimate,
+    RateAssumption,
+    StorageImpactEstimator,
+    formula_manifest,
+)
 from .policy import ContentAwarePolicy, EmbeddingPolicyRule, LLMPolicy, PolicyDecision, SimplePolicy
 from .policy_factory import ThresholdProvider
 from .policy_features import (
@@ -33,6 +44,7 @@ from .policy_features import (
     PolicyFeatureProvenance,
     PolicyFeatures,
 )
+from .topology import Pool
 
 POLICY_SNAPSHOT_SCHEMA_VERSION = 1
 _CONTENT_LISTS = (
@@ -222,8 +234,83 @@ def _access_from_dict(value: object) -> AccessFeatures:
     return feature
 
 
+def _placement_estimate_from_dict(value: object) -> PlacementEstimate:
+    data = _object(
+        value,
+        {
+            "schema_version", "formulas", "tier", "pool_id", "region", "backend",
+            "profile_version", "as_of", "workload", "cost", "carbon", "rates", "reasons",
+        },
+        "placement estimate",
+    )
+    _version(data["schema_version"], "placement estimate")
+    if data["formulas"] != formula_manifest():
+        raise ValueError("unsupported placement estimate formulas")
+    for name in ("tier", "pool_id", "region", "backend", "profile_version"):
+        _text(data[name], f"placement estimate {name}", nullable=True)
+    as_of = _timestamp(data["as_of"], "placement estimate as_of")
+    workload = EstimationWorkload.from_mapping(data["workload"])
+    if not isinstance(data["rates"], list) or len(data["rates"]) != len(RATE_UNITS):
+        raise ValueError("placement estimate must retain every rate")
+    assumptions = {}
+    calibration = {}
+    origins = []
+    for name, value in zip(RATE_UNITS, data["rates"]):
+        rate = _object(
+            value,
+            {
+                "name", "unit", "state", "origin", "value", "lower", "upper",
+                "assumption", "calibration", "reasons",
+            },
+            "estimated rate",
+        )
+        if rate["name"] != name or rate["origin"] not in {"profile", "topology"}:
+            raise ValueError("invalid placement estimate rate name or origin")
+        if rate["origin"] == "topology" and name not in {"storage_price", "carbon_intensity"}:
+            raise ValueError("unsupported topology rate origin")
+        origins.append(rate["origin"])
+        if rate["assumption"] is not None:
+            assumptions[name] = RateAssumption.from_mapping(rate["assumption"])
+        if rate["calibration"] is not None:
+            calibration[name] = RateAssumption.from_mapping(rate["calibration"])
+    # Recompute only from frozen evidence: this validates derived states,
+    # decimal totals and bounds without looking up live topology or profiles.
+    profile = EstimationProfile("snapshot", "snapshot", assumptions, calibration)
+    pool = Pool("snapshot", "snapshot", region="snapshot", members=("snapshot",))
+    estimate = StorageImpactEstimator({pool.pool_id: profile}).estimate(
+        pool, workload, as_of=as_of
+    )
+    estimate = replace(
+        estimate,
+        **{name: data[name] for name in ("tier", "pool_id", "region", "backend", "profile_version")},
+        rates=tuple(replace(rate, origin=origin) for rate, origin in zip(estimate.rates, origins)),
+        reasons=tuple(_strings(data["reasons"], "placement estimate reasons")),
+    )
+    if estimate.to_dict() != data:
+        raise ValueError("placement estimate derived fields are inconsistent")
+    return estimate
+
+
+def _placement_estimates_from_dict(value: object) -> ObjectPlacementEstimates:
+    data = _object(value, {"schema_version", "current", "candidates"}, "placement estimates")
+    _version(data["schema_version"], "placement estimates")
+    if not isinstance(data["candidates"], list):
+        raise ValueError("placement estimate candidates must be a list")
+    current = _placement_estimate_from_dict(data["current"])
+    candidates = tuple(_placement_estimate_from_dict(item) for item in data["candidates"])
+    if any(
+        candidate.as_of != current.as_of or candidate.workload != current.workload
+        for candidate in candidates
+    ):
+        raise ValueError("placement estimates must share a workload and as_of")
+    return ObjectPlacementEstimates(current, candidates)
+
+
 def _features_from_dict(value: object) -> PolicyFeatures:
-    data = _object(value, {"schema_version", "mime", "embeddings"}, "features", {"access"})
+    data = _object(
+        value, {"schema_version", "mime", "embeddings"}, "features",
+        {"access", "placement_estimates"},
+    )
     _version(data["schema_version"], "policy feature")
 
     def provenance(value: object) -> PolicyFeatureProvenance:
@@ -255,6 +342,10 @@ def _features_from_dict(value: object) -> PolicyFeatures:
         ),
         embeddings=tuple(embeddings),
         access=_access_from_dict(data["access"]) if "access" in data else None,
+        placement_estimates=(
+            _placement_estimates_from_dict(data["placement_estimates"])
+            if "placement_estimates" in data else None
+        ),
     )
 
 
@@ -365,6 +456,14 @@ def _validate_policy_snapshot(value: object) -> dict[str, Any]:
     _text(record["pool_id"], "pool_id", nullable=True)
     _number(record["size"], "object size", integer=True)
     features = _features_from_dict(data["features"])
+    if features.placement_estimates is not None:
+        current = features.placement_estimates.current
+        if _timestamp(current.as_of, "placement estimate as_of") > decision_at:
+            raise ValueError("placement estimate as_of cannot be after decision_at")
+        if current.workload.stored_bytes != record["size"] or (
+            current.tier, current.pool_id
+        ) != (record["tier"], record["pool_id"]):
+            raise ValueError("placement estimates must identify the snapshot object")
     if features.access is not None:
         if _timestamp(features.access.as_of, "access as_of") > decision_at:
             raise ValueError("access as_of cannot be after decision_at")

@@ -395,11 +395,58 @@ class AccessPolicyFeatureResponse(APIModel):
     reason: str | None = None
 
 
+class EstimateComponentResponse(APIModel):
+    name: str
+    unit: str
+    state: Literal["available", "unavailable"]
+    value: str | None
+    lower: str | None
+    upper: str | None
+    uncertainty: Literal["bounded", "unquantified"]
+    reasons: list[str]
+
+
+class ImpactTotalResponse(APIModel):
+    unit: str
+    state: Literal["available", "unavailable"]
+    value: str | None
+    known_subtotal: str
+    lower: str | None
+    upper: str | None
+    uncertainty: Literal["bounded", "unquantified"]
+    components: list[EstimateComponentResponse]
+
+
+class PlacementEstimateResponse(APIModel):
+    schema_version: Literal[1]
+    formulas: dict[str, JSONValue]
+    tier: str | None
+    pool_id: str | None
+    region: str | None
+    backend: str | None
+    profile_version: str | None
+    as_of: str
+    workload: dict[str, str | None]
+    cost: ImpactTotalResponse
+    carbon: ImpactTotalResponse
+    rates: list[dict[str, JSONValue]]
+    reasons: list[str]
+
+
+class ObjectPlacementEstimatesResponse(APIModel):
+    schema_version: Literal[1]
+    current: PlacementEstimateResponse
+    candidates: list[PlacementEstimateResponse]
+
+
 class PolicyFeaturesResponse(APIModel):
     schema_version: Literal[1]
     mime: MimePolicyFeatureResponse
     embeddings: Annotated[list[EmbeddingPolicyFeatureResponse], Field(max_length=100)]
     access: AccessPolicyFeatureResponse | None = None
+    placement_estimates: ObjectPlacementEstimatesResponse | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class PolicyEvaluationResponse(APIModel):

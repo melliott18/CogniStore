@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -23,6 +23,12 @@ from .embedding_index import (
     SimilaritySearchFilters,
     SimilaritySearchResult,
 )
+from .estimation import (
+    EstimationWorkload,
+    ObjectPlacementEstimates,
+    StorageImpactEstimator,
+)
+from .topology import PlacementConstraints
 
 POLICY_FEATURE_SCHEMA_VERSION = 1
 POLICY_FEATURE_SOURCE_VERSION = 1
@@ -356,6 +362,7 @@ class PolicyFeatures:
     embeddings: tuple[EmbeddingPolicyFeature, ...] = ()
     schema_version: int = POLICY_FEATURE_SCHEMA_VERSION
     access: AccessFeatures | None = None
+    placement_estimates: ObjectPlacementEstimates | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -370,6 +377,10 @@ class PolicyFeatures:
             raise ValueError("policy MIME feature must be MimePolicyFeature")
         if self.access is not None and not isinstance(self.access, AccessFeatures):
             raise ValueError("policy access feature must be AccessFeatures")
+        if self.placement_estimates is not None and not isinstance(
+            self.placement_estimates, ObjectPlacementEstimates
+        ):
+            raise ValueError("policy placement estimates must be ObjectPlacementEstimates")
         embeddings = tuple(self.embeddings)
         if any(not isinstance(item, EmbeddingPolicyFeature) for item in embeddings):
             raise ValueError("policy embeddings must contain EmbeddingPolicyFeature values")
@@ -391,6 +402,8 @@ class PolicyFeatures:
         }
         if self.access is not None:
             result["access"] = self.access.to_dict()
+        if self.placement_estimates is not None:
+            result["placement_estimates"] = self.placement_estimates.to_dict()
         return result
 
 
@@ -636,7 +649,11 @@ def _mime_feature(record: ObjectRecord) -> MimePolicyFeature:
 
 
 class CatalogPolicyFeatureLoader:
-    """Project catalog snapshots with observed access and optional embeddings."""
+    """Project catalog snapshots with access, embeddings, and optional estimates.
+
+    Impact estimates require an explicit workload factory. Observed access
+    history is never silently promoted into a prediction of future demand.
+    """
 
     def __init__(
         self,
@@ -644,10 +661,32 @@ class CatalogPolicyFeatureLoader:
         *,
         access_catalog: CatalogStore | None = None,
         access_config: AccessConfig | None = None,
+        impact_estimator: StorageImpactEstimator | None = None,
+        estimation_catalog: CatalogStore | None = None,
+        estimation_workload_factory: Callable[[ObjectRecord], EstimationWorkload] | None = None,
+        estimation_constraints: PlacementConstraints | None = None,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.access_catalog = access_catalog
         self.access_config = access_config or AccessConfig()
+        estimation_inputs = (impact_estimator, estimation_catalog, estimation_workload_factory)
+        if any(value is not None for value in estimation_inputs) and any(
+            value is None for value in estimation_inputs
+        ):
+            raise ValueError(
+                "impact estimates require an estimator, catalog, and workload factory"
+            )
+        if estimation_workload_factory is not None and not callable(estimation_workload_factory):
+            raise ValueError("estimation_workload_factory must be callable")
+        if estimation_constraints is not None:
+            if not isinstance(estimation_constraints, PlacementConstraints):
+                raise ValueError("estimation_constraints must be PlacementConstraints")
+            if impact_estimator is None:
+                raise ValueError("estimation_constraints require an impact estimator")
+        self.impact_estimator = impact_estimator
+        self.estimation_catalog = estimation_catalog
+        self.estimation_workload_factory = estimation_workload_factory
+        self.estimation_constraints = estimation_constraints
 
     def load(
         self,
@@ -694,9 +733,29 @@ class CatalogPolicyFeatureLoader:
                     config=self.access_config,
                     as_of=evaluated_at,
                 ),
+                placement_estimates=self._placement_estimates(record, as_of=evaluated_at),
             )
             for record in ordered_records
         }
+
+    def _placement_estimates(
+        self,
+        record: ObjectRecord,
+        *,
+        as_of: str | datetime,
+    ) -> ObjectPlacementEstimates | None:
+        if self.impact_estimator is None:
+            return None
+        assert self.estimation_catalog is not None
+        assert self.estimation_workload_factory is not None
+        workload = self.estimation_workload_factory(record)
+        return self.impact_estimator.estimate_object(
+            self.estimation_catalog,
+            record,
+            workload,
+            constraints=self.estimation_constraints,
+            as_of=as_of,
+        )
 
     def _embedding_features(
         self,

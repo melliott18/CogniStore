@@ -1,0 +1,88 @@
+{
+  "description": "Hand-calculated synthetic rates, not vendor prices or measured emissions. One month is 730 hours and one GiB is 1073741824 bytes.",
+  "as_of": "2026-09-09T12:00:00Z",
+  "effective_from": "2026-09-01T00:00:00Z",
+  "effective_until": "2026-09-30T23:59:59Z",
+  "workload": {
+    "stored_bytes": 2147483648,
+    "duration_hours": "730",
+    "read_requests": 1000,
+    "write_requests": 200,
+    "transfer_bytes": 1073741824,
+    "retrieval_bytes": 536870912
+  },
+  "rates": {
+    "storage_price": {"value": "0.023", "lower": "0.0184", "upper": "0.0276", "unit": "USD/GiB-month"},
+    "read_request_price": {"value": "0.0000004", "lower": "0.00000032", "upper": "0.00000048", "unit": "USD/request"},
+    "write_request_price": {"value": "0.000005", "lower": "0.000004", "upper": "0.000006", "unit": "USD/request"},
+    "transfer_price": {"value": "0.09", "lower": "0.072", "upper": "0.108", "unit": "USD/GiB"},
+    "retrieval_price": {"value": "0.01", "lower": "0.008", "upper": "0.012", "unit": "USD/GiB"},
+    "storage_energy": {"value": "0.1", "lower": "0.08", "upper": "0.12", "unit": "kWh/GiB-month"},
+    "read_request_energy": {"value": "0.000001", "lower": "0.0000008", "upper": "0.0000012", "unit": "kWh/request"},
+    "write_request_energy": {"value": "0.000005", "lower": "0.000004", "upper": "0.000006", "unit": "kWh/request"},
+    "transfer_energy": {"value": "0.02", "lower": "0.016", "upper": "0.024", "unit": "kWh/GiB"},
+    "retrieval_energy": {"value": "0.01", "lower": "0.008", "upper": "0.012", "unit": "kWh/GiB"},
+    "carbon_intensity": {"value": "400", "lower": "300", "upper": "500", "unit": "gCO2e/kWh"}
+  },
+  "cases": [
+    {
+      "name": "synthetic-s3-base",
+      "backend": "s3",
+      "calibration": {},
+      "arithmetic": "Cost = 2*0.023 + 1000*0.0000004 + 200*0.000005 + 1*0.09 + 0.5*0.01. Carbon = (2*0.1 + 1000*0.000001 + 200*0.000005 + 1*0.02 + 0.5*0.01)*400. Cost bounds use 0.8 and 1.2 rate factors; carbon bounds use those factors and intensities 300/500.",
+      "expected": {
+        "cost": {
+          "value": "0.1424", "lower": "0.11392", "upper": "0.17088", "unit": "USD",
+          "components": {
+            "storage": {"value": "0.046", "lower": "0.0368", "upper": "0.0552"},
+            "read_requests": {"value": "0.0004", "lower": "0.00032", "upper": "0.00048"},
+            "write_requests": {"value": "0.001", "lower": "0.0008", "upper": "0.0012"},
+            "transfer": {"value": "0.09", "lower": "0.072", "upper": "0.108"},
+            "retrieval": {"value": "0.005", "lower": "0.004", "upper": "0.006"}
+          }
+        },
+        "carbon": {
+          "value": "90.8", "lower": "54.48", "upper": "136.2", "unit": "gCO2e",
+          "components": {
+            "storage": {"value": "80", "lower": "48", "upper": "120"},
+            "read_requests": {"value": "0.4", "lower": "0.24", "upper": "0.6"},
+            "write_requests": {"value": "0.4", "lower": "0.24", "upper": "0.6"},
+            "transfer": {"value": "8", "lower": "4.8", "upper": "12"},
+            "retrieval": {"value": "2", "lower": "1.2", "upper": "3"}
+          }
+        }
+      }
+    },
+    {
+      "name": "synthetic-posix-calibrated",
+      "backend": "posix",
+      "calibration": {
+        "retrieval_price": {"value": "2", "lower": "1.5", "upper": "2.5", "unit": "multiplier"},
+        "storage_energy": {"value": "1.5", "lower": "1", "upper": "2", "unit": "multiplier"}
+      },
+      "arithmetic": "Base retrieval cost 0.005 is multiplied by 2, adding 0.005 to cost. Base storage emissions 80 are multiplied by 1.5, adding 40 to carbon. Retrieval cost bounds 0.004/0.006 are multiplied by 1.5/2.5; storage carbon bounds 48/120 are multiplied by 1/2.",
+      "expected": {
+        "cost": {
+          "value": "0.1474", "lower": "0.11592", "upper": "0.17988", "unit": "USD",
+          "components": {
+            "storage": {"value": "0.046", "lower": "0.0368", "upper": "0.0552"},
+            "read_requests": {"value": "0.0004", "lower": "0.00032", "upper": "0.00048"},
+            "write_requests": {"value": "0.001", "lower": "0.0008", "upper": "0.0012"},
+            "transfer": {"value": "0.09", "lower": "0.072", "upper": "0.108"},
+            "retrieval": {"value": "0.01", "lower": "0.006", "upper": "0.015"}
+          }
+        },
+        "carbon": {
+          "value": "130.8", "lower": "54.48", "upper": "256.2", "unit": "gCO2e",
+          "components": {
+            "storage": {"value": "120", "lower": "48", "upper": "240"},
+            "read_requests": {"value": "0.4", "lower": "0.24", "upper": "0.6"},
+            "write_requests": {"value": "0.4", "lower": "0.24", "upper": "0.6"},
+            "transfer": {"value": "8", "lower": "4.8", "upper": "12"},
+            "retrieval": {"value": "2", "lower": "1.2", "upper": "3"}
+          }
+        }
+      }
+    }
+  ]
+}

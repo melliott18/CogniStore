@@ -8,8 +8,22 @@ from datetime import datetime, timezone
 import pytest
 
 from cognistore.core.access import AccessConfig, AccessEvent, compute_access_features
-from cognistore.core.audit import AuditEventType, AuditOutcome, AuditQuery
+from cognistore.core.audit import (
+    AuditContext,
+    AuditEvent,
+    AuditEventType,
+    AuditOutcome,
+    AuditQuery,
+    AuditRetentionPolicy,
+)
 from cognistore.core.catalog import Catalog, ObjectRecord
+from cognistore.core.estimation import (
+    RATE_UNITS,
+    EstimationProfile,
+    EstimationWorkload,
+    RateAssumption,
+    StorageImpactEstimator,
+)
 from cognistore.core.mover import Mover
 from cognistore.core.policy import (
     ContentAwarePolicy,
@@ -18,6 +32,7 @@ from cognistore.core.policy import (
     PolicyDecision,
     SimplePolicy,
 )
+from cognistore.core.policy_dataset import export_policy_dataset, validate_policy_dataset
 from cognistore.core.policy_factory import ThresholdProvider
 from cognistore.core.policy_features import (
     EmbeddingPolicyFeature,
@@ -29,10 +44,12 @@ from cognistore.core.policy_features import (
 from cognistore.core.policy_runner import PolicyRunner
 from cognistore.core.policy_snapshot import (
     capture_policy_snapshot,
+    policy_snapshot_features,
     replay_policy_snapshot,
     snapshot_from_audit_details,
     validate_policy_snapshot,
 )
+from cognistore.core.topology import AttributeValue
 from cognistore.drivers.posix_driver import PosixDriver
 
 AS_OF = "2026-09-01T12:00:00.000000Z"
@@ -391,3 +408,121 @@ def test_retry_cannot_turn_first_rejection_into_a_selected_move(tmp_path):
     events = catalog.list_audit_events()
     assert len(events) == 1
     assert events[0].details["dataset"]["decision"]["outcome"] == "rejected"
+
+
+def estimated_projection(scenario="calibrated", *, as_of=AS_OF):
+    catalog = Catalog()
+    catalog.register_tier("warm")
+    catalog.register_pool(
+        "warm-us", "warm", region="us-west-2", members=("storage",),
+        attributes={"price": AttributeValue(
+            3, "USD/GiB-month", "topology-fixture", "configured", AS_OF, 86400,
+        )},
+    )
+    value = "1e100" if scenario == "large" else "1"
+
+    def rate(unit, *, value=value, **kwargs):
+        return RateAssumption(
+            value, unit, "snapshot-fixture", "v1", "2026-08-01T00:00:00Z",
+            "2026-10-01T00:00:00Z", lower=value, upper=value, **kwargs,
+        )
+
+    rates = {name: rate(unit) for name, unit in RATE_UNITS.items()}
+    if scenario == "missing":
+        del rates["retrieval_price"]
+    if scenario == "topology":
+        del rates["storage_price"]
+    if scenario == "future":
+        rates["storage_price"] = replace(
+            rates["storage_price"], effective_from="2026-09-10T00:00:00Z"
+        )
+    profile = EstimationProfile(
+        "snapshot-profile-v1", "fixture-backend", rates,
+        {"storage_price": rate("multiplier", value="2")},
+    )
+    record = ObjectRecord("bk", "report.txt", 10, "warm", pool_id="warm-us")
+    estimates = StorageImpactEstimator({"warm-us": profile}).estimate_object(
+        catalog, record,
+        EstimationWorkload(
+            duration_hours=730, read_requests=value, write_requests=0,
+            transfer_bytes=0, retrieval_bytes=0,
+        ),
+        as_of=as_of,
+    )
+    return record, replace(feature_projection(), placement_estimates=estimates)
+
+
+@pytest.mark.parametrize("scenario", ["calibrated", "missing", "topology", "future", "large"])
+def test_estimate_snapshots_retain_and_restore_all_frozen_evidence(scenario):
+    record, features = estimated_projection(scenario)
+    snapshot = capture(ContentAwarePolicy(), record=record, features=features)
+    frozen = json.loads(json.dumps(snapshot))
+    assert frozen["features"]["placement_estimates"] == features.placement_estimates.to_dict()
+    assert policy_snapshot_features(frozen) == features
+    assert replay_policy_snapshot(frozen).action == snapshot["decision"]["action"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema_version", True),
+    ("rates", []),
+    ("cost", {"value": "0"}),
+    ("formulas", {"version": "unknown-v2"}),
+])
+def test_estimate_snapshot_rejects_missing_tampered_or_unknown_derived_evidence(field, value):
+    record, features = estimated_projection("missing")
+    snapshot = capture(record=record, features=features)
+    snapshot["features"]["placement_estimates"]["current"][field] = value
+    with pytest.raises(ValueError):
+        validate_policy_snapshot(snapshot)
+
+
+def test_estimate_snapshot_rejects_future_and_wrong_object_inputs():
+    record, features = estimated_projection(as_of="2026-09-02T00:00:00.000000Z")
+    with pytest.raises(ValueError, match="after decision_at"):
+        capture(record=record, features=features)
+    record, features = estimated_projection()
+    snapshot = capture(record=record, features=features)
+    for field, value in (("size", 11), ("pool_id", "other-pool"), ("tier", "cold")):
+        changed = copy.deepcopy(snapshot)
+        changed["object"][field] = value
+        with pytest.raises(ValueError, match="identify the snapshot object"):
+            validate_policy_snapshot(changed)
+    changed = copy.deepcopy(snapshot)
+    changed["features"]["placement_estimates"]["candidates"][0]["as_of"] = DECIDED
+    with pytest.raises(ValueError, match="share a workload and as_of"):
+        validate_policy_snapshot(changed)
+
+
+@pytest.mark.parametrize("scenario", ["calibrated", "missing", "topology", "future"])
+def test_policy_dataset_exports_and_validates_estimate_evidence(scenario):
+    record, features = estimated_projection(scenario)
+    snapshot = capture(record=record, features=features)
+    catalog = Catalog(audit_retention=AuditRetentionPolicy(None))
+    catalog.append_audit_event(AuditEvent.create(
+        AuditEventType.POLICY_DECISION, AuditOutcome.SELECTED,
+        AuditContext("estimate-dataset", "worker", "test"),
+        occurred_at=DECIDED, recorded_at=DECIDED,
+        bucket=record.bucket, object_key=record.key,
+        details={"dataset": snapshot}, retention=AuditRetentionPolicy(None),
+    ))
+    dataset = export_policy_dataset(
+        catalog, as_of="2026-09-01T13:00:01Z", observation_seconds=3600,
+    )
+    assert dataset["rows"][0]["snapshot"]["features"]["placement_estimates"] == (
+        features.placement_estimates.to_dict()
+    )
+    assert validate_policy_dataset(json.loads(json.dumps(dataset)), require_labels=False) == []
+    changed = copy.deepcopy(dataset)
+    changed["rows"][0]["snapshot"]["features"]["placement_estimates"]["current"]["cost"][
+        "value"
+    ] = "0"
+    assert any(
+        issue["code"] == "invalid_schema"
+        for issue in validate_policy_dataset(changed, require_labels=False)
+    )
+    excluded = export_policy_dataset(
+        catalog, as_of="2026-09-01T13:00:01Z", observation_seconds=3600,
+        exclude_fields=("placement_estimates",),
+    )
+    assert "placement_estimates" not in excluded["rows"][0]["snapshot"]["features"]
+    assert validate_policy_dataset(excluded, require_labels=False) == []

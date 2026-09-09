@@ -419,11 +419,58 @@ class AccessPolicyFeature(SDKResponse):
     reason: str | None = None
 
 
+class EstimateComponent(SDKResponse):
+    name: str
+    unit: str
+    state: Literal["available", "unavailable"]
+    value: str | None
+    lower: str | None
+    upper: str | None
+    uncertainty: Literal["bounded", "unquantified"]
+    reasons: list[str]
+
+
+class ImpactTotal(SDKResponse):
+    unit: str
+    state: Literal["available", "unavailable"]
+    value: str | None
+    known_subtotal: str
+    lower: str | None
+    upper: str | None
+    uncertainty: Literal["bounded", "unquantified"]
+    components: list[EstimateComponent]
+
+
+class PlacementEstimate(SDKResponse):
+    schema_version: Literal[1]
+    formulas: dict[str, JSONValue]
+    tier: str | None
+    pool_id: str | None
+    region: str | None
+    backend: str | None
+    profile_version: str | None
+    as_of: str
+    workload: dict[str, str | None]
+    cost: ImpactTotal
+    carbon: ImpactTotal
+    rates: list[dict[str, JSONValue]]
+    reasons: list[str]
+
+
+class ObjectPlacementEstimates(SDKResponse):
+    schema_version: Literal[1]
+    current: PlacementEstimate
+    candidates: list[PlacementEstimate]
+
+
 class PolicyFeatures(SDKResponse):
     schema_version: Literal[1]
     mime: MimePolicyFeature
     embeddings: Annotated[list[EmbeddingPolicyFeature], Field(max_length=100)]
     access: AccessPolicyFeature | None = None
+    placement_estimates: ObjectPlacementEstimates | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class PolicyEvaluationResponse(SDKResponse):
@@ -517,5 +564,9 @@ PolicyFeatureProvenanceResponse: TypeAlias = PolicyFeatureProvenance
 MimePolicyFeatureResponse: TypeAlias = MimePolicyFeature
 EmbeddingPolicyFeatureResponse: TypeAlias = EmbeddingPolicyFeature
 AccessPolicyFeatureResponse: TypeAlias = AccessPolicyFeature
+EstimateComponentResponse: TypeAlias = EstimateComponent
+ImpactTotalResponse: TypeAlias = ImpactTotal
+PlacementEstimateResponse: TypeAlias = PlacementEstimate
+ObjectPlacementEstimatesResponse: TypeAlias = ObjectPlacementEstimates
 PolicyFeaturesResponse: TypeAlias = PolicyFeatures
 JobStatusResponse: TypeAlias = JobStatus

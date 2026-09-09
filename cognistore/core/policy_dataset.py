@@ -18,7 +18,7 @@ from cognistore.utils.redaction import redact
 
 from .audit import AuditEvent, AuditEventType, AuditQuery, canonical_audit_timestamp
 from .catalog import CatalogStore
-from .policy_snapshot import snapshot_from_audit_details
+from .policy_snapshot import _placement_estimates_from_dict, snapshot_from_audit_details
 
 POLICY_DATASET_SCHEMA_VERSION = 1
 POLICY_OUTCOME_SCHEMA_VERSION = 1
@@ -49,7 +49,8 @@ _MOVE_TYPES = frozenset(
     }
 )
 _TERMINAL_TYPES = frozenset({"move.completed", "move.failed"})
-_FEATURE_NAMES = frozenset({"schema_version", "mime", "embeddings", "access"})
+_OPTIONAL_FEATURE_NAMES = frozenset({"access", "placement_estimates"})
+_FEATURE_NAMES = frozenset({"schema_version", "mime", "embeddings"}) | _OPTIONAL_FEATURE_NAMES
 _LEAK_NAMES = frozenset(
     {
         "label",
@@ -771,7 +772,8 @@ def _validate_policy_dataset(
         else:
             shape(
                 features,
-                _FEATURE_NAMES if "access" in features else _FEATURE_NAMES - {"access"},
+                (_FEATURE_NAMES - _OPTIONAL_FEATURE_NAMES)
+                | (_OPTIONAL_FEATURE_NAMES & features.keys()),
                 ("snapshot", "features"),
                 path,
             )
@@ -791,6 +793,22 @@ def _validate_policy_dataset(
             feature_times(features, path + ".snapshot.features", start)
             if set(features).difference(_FEATURE_NAMES):
                 issue("unknown_feature", path + ".snapshot.features", "Unknown feature fields")
+            if "placement_estimates" in features:
+                try:
+                    estimates = _placement_estimates_from_dict(features["placement_estimates"])
+                    if isinstance(record, dict) and any(
+                        field in record and actual != record[field]
+                        for field, actual in (
+                            ("size", estimates.current.workload.stored_bytes),
+                            ("tier", estimates.current.tier),
+                            ("pool_id", estimates.current.pool_id),
+                        )
+                    ):
+                        raise ValueError("placement estimates must identify the snapshot object")
+                except ValueError as exc:
+                    issue(
+                        "invalid_schema", path + ".snapshot.features.placement_estimates", str(exc)
+                    )
             access = features.get("access")
             if access is not None:
                 if not isinstance(access, dict):

@@ -14,6 +14,7 @@ nav:
       - Embedding search: embedding_search.md
       - Policy features: policy_features.md
       - Policy datasets: policy_datasets.md
+      - Storage cost and carbon estimates: storage_estimation.md
       - Ask retrieval: ask_retrieval.md
       - Content-search sample: content_search_sample.md
       - REST API v1: rest_api.md
