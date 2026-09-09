@@ -168,10 +168,11 @@ catalog that has not already reached the current migration head. The
 ownership and SQLite cutover.
 
 Some commands impose stronger requirements than the global default. Workers,
-move inspection, move recovery, and `content-reference-report` require a
-persistent SQL catalog. The reference report also requires the catalog to
-already exist and opens it read-only; it requires neither `--drivers` nor
-`--base`. Scheduler state is always SQLite: a PostgreSQL worker requires an
+move inspection, move recovery, `content-reference-report`, and
+`policy-dataset-export` require a persistent SQL catalog. The reference report
+and dataset export require an existing catalog and open it read-only, without
+`--drivers` or `--base`. `policy-dataset-validate` reads a local JSON file or stdin
+and requires no catalog. Scheduler state is always SQLite: a PostgreSQL worker requires an
 explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
 file when `schedule_db` is omitted. A non-preview scheduler requires a
 persistent `schedule_db` or a SQLite `catalog_db` fallback. Tier operations
@@ -285,6 +286,8 @@ their query. The complete command matrix is:
 | `devices-scan` | Performs read-only OS device discovery, but does not write `--hardware-out`. |
 | `auto-refresh` | Reports the cache paths, interval, and tiers without creating the cache directory, discovering devices, profiling storage, writing cache files, or entering the periodic loop. |
 | `policy-run` | Runs policy selection synchronously and returns planned actions without moves, catalog updates, or queue publication. It may read an existing catalog and fresh discovery caches, but never refreshes a missing/stale cache during a preview. |
+| `policy-dataset-export` | Reads an existing catalog and computes the same privacy-filtered dataset, but reports the planned output without writing a file or creating directories. |
+| `policy-dataset-validate` | Read-only. Validates the input JSON and returns the same issue report and exit status. |
 | `worker` | **Unsupported.** Consuming a delivery necessarily owns and settles queue state and may run writable catalog or storage handlers, so there is no faithful side-effect-free worker preview. The command exits with usage status `2`; preview the originating `catalog-scan` or `policy-run` command instead. If a profile enables `dry_run`, pass `--no-dry-run` when starting a worker. |
 | `scheduler` | Loads and validates the drivers and schedule file, then reports every declared schedule. It does not require or open the scheduler catalog, inspect durable due state, connect to NATS, reserve occurrences, or publish jobs; JSON includes `due_state_checked: false`. |
 | `dead-letter-redrive` (`job-redrive`, `dlq-redrive`) | Validates and canonicalizes the dead-letter UUID, then reports a planned redrive. It does not connect to NATS, check whether the entry exists, or republish it; JSON includes `existence_checked: false`. |
@@ -297,6 +300,32 @@ worker uses its own persistent catalog. Passing `--catalog-db` or
 `--catalog-url` explicitly to a background submission is a usage error so an
 operator cannot accidentally target the wrong journal. Other commands that do
 not consume a catalog likewise do not open or create the configured database.
+
+## Policy dataset export and validation
+
+```bash
+cognistore --catalog-db catalog.db policy-dataset-export \
+  --output policy-dataset.json --as-of 2026-09-09T00:00:00Z \
+  --after 2026-09-01T00:00:00Z --before 2026-09-08T00:00:00Z \
+  --sample-rate 0.25 --seed september --observation-seconds 86400 \
+  --exclude-field snapshot.object.pool_id --json
+cognistore policy-dataset-validate --input policy-dataset.json --json
+```
+
+`policy-dataset-export` requires `--output`; all other command options are
+optional. `--as-of` defaults to now, the decision time bounds are unbounded,
+`--sample-rate` defaults to `1`, `--seed` to `0`, and `--observation-seconds` to
+`86400`. Timestamps must include a timezone. Repeat `--exclude-field` for
+additional row-relative dotted paths, using `*` for list elements. Default
+sensitive-field exclusions always apply. The parent output directory must
+exist; the complete JSON file is published atomically.
+
+`policy-dataset-validate` accepts a local `--input` path or reads stdin when
+omitted or set to `-`. It exits `0` if valid and `1` for validation or input
+errors. `--allow-missing-labels` permits incomplete supervised labels while
+retaining other checks. JSON reports contain `valid`, `count`, and `issues`
+with a code, path, and message. See [Policy datasets](policy_datasets.md) for
+versioning, privacy, sampling, replay, and label semantics.
 
 ## Shared-content reference report
 
