@@ -237,7 +237,7 @@ def test_arbitrary_policy_cannot_request_override_in_its_output(tmp_path):
     assert evaluation.constraints["stability_override"] is None
 
 
-def test_numeric_llm_does_not_label_disallowed_destination_as_suppression(tmp_path):
+def test_unconfigured_llm_stays_without_hysteresis_claims(tmp_path):
     catalog = Catalog()
     drivers = {tier: PosixDriver(tmp_path / tier) for tier in ("hot", "warm")}
     runner = PolicyRunner(
@@ -248,7 +248,8 @@ def test_numeric_llm_does_not_label_disallowed_destination_as_suppression(tmp_pa
     evaluation = runner.evaluate_record(moved_record(), as_of=START)
     assert evaluation.action == "stay"
     assert evaluation.constraints["suppression_reason"] is None
-    assert evaluation.constraints["hysteresis"]["suppressed"] is False
+    assert "hysteresis" not in evaluation.constraints
+    assert evaluation.reason == "llm_provider_unavailable"
 
 
 def test_future_preview_uses_one_clock_but_execution_checks_present(tmp_path):

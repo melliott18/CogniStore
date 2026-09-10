@@ -560,6 +560,17 @@ def capture_policy_snapshot(
     if model_version is not None and model_identity is None:
         raise ValueError("model_version requires model_identity")
     implementation, config, model = _policy_description(policy)
+    # Inference snapshots retain only the explicit, already-redacted model
+    # identity. The full prompt/response audit lives beside snapshot v1 in
+    # audit details; provider attributes and credentials are never inspected.
+    if isinstance(decision.llm_audit, Mapping):
+        inferred_identity = decision.llm_audit.get("model")
+        inferred_version = decision.llm_audit.get("model_version")
+        if isinstance(inferred_identity, str) and inferred_identity:
+            model = {
+                "identity": inferred_identity,
+                "version": inferred_version if isinstance(inferred_version, str) else None,
+            }
     if model_identity is not None:
         model = {"identity": model_identity, "version": model_version}
     supported = implementation != "unsupported"

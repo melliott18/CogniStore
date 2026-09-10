@@ -283,7 +283,9 @@ def test_arbitrary_llm_does_not_receive_bands_or_supply_trusted_evidence():
 
     policy = LLMPolicy(Provider(), size_hysteresis_bytes=10)
     decision = policy.evaluate("hot", 100)
-    assert decision.dst_tier == "warm"
+    assert decision.action == "stay"
+    assert decision.dst_tier is None
+    assert decision.reason == "llm_invalid_response"
     assert decision.hysteresis is None
 
 

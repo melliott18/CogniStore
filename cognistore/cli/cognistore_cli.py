@@ -1117,6 +1117,8 @@ def _render_actions(
 			payload["features"] = action.features.to_dict()
 		if dry_run and action.constraints:
 			payload["constraints"] = action.constraints
+		if action.llm_audit is not None:
+			payload["llm_audit"] = action.llm_audit
 		action_payloads.append(payload)
 	human = [
 		(
@@ -1466,7 +1468,7 @@ def _run_cli(
 		p_policy.add_argument("--threshold", type=int, default=1024*1024, help="Size threshold for policies")
 		p_policy.add_argument("--policy", choices=["simple", "llm", "content"], default="simple")
 		p_policy.add_argument("--allowed-tiers", default="hot,warm", help="Comma-separated list of allowed tiers")
-		p_policy.add_argument("--llm-threshold", type=int, help="Optional override threshold when using --policy llm")
+		p_policy.add_argument("--llm-threshold", type=int, help="Deprecated compatibility option; LLM inference does not use a size threshold")
 		p_policy.add_argument("--metrics-in", help="Optional JSON metrics from tier-profile to inform policy")
 		p_policy.add_argument("--hardware-in", help="Optional JSON hardware info from devices-scan for fallback profiles")
 		p_policy.add_argument("--auto-discover", action="store_true", help="If no metrics/hardware provided, auto-scan devices and profile tiers, using a cache with TTL")
@@ -3144,6 +3146,7 @@ def _run_cli(
 					status="planned",
 					features=evaluation.features,
 					constraints=evaluation.constraints,
+					llm_audit=evaluation.llm_audit,
 				)
 				for evaluation in evaluations
 				if evaluation.action == "move"

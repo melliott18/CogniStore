@@ -412,7 +412,7 @@ Notes:
 	- `--importance-tier LEVEL TIER` (repeatable) to configure importance destinations
 	- `--dry-run` to validate and report planned moves without writes
 	- `--json` for one machine-readable result object
-	- `--threshold` (and `--llm-threshold` for the LLM path)
+	- `--threshold` for simple/content size rules (`--llm-threshold` is accepted for compatibility and ignored)
 	- `--metrics-in` to use measured tier metrics (see tier profiling below)
 	- `--hardware-in` to use OS-reported device types with default profiles
 	- `--auto-discover` to scan devices and profile tiers automatically when no inputs are supplied; dry-runs consume only fresh existing caches and never refresh them
@@ -425,7 +425,10 @@ Notes:
 		- `--embedding-rule NAME QUERY MIN_SIMILARITY DESTINATION_TIER` (repeatable) → named max-passage semantic classification; missing/stale providers fail closed
 	  Feature states, provenance, rule ordering, and reindex behavior are defined
 	  in [the policy feature projection contract](docs/policy_features.md).
-	The LLM mode currently uses a threshold-based mock provider; you can swap in a real provider later.
+	The LLM mode uses a configured model service with strict JSON validation and
+	a safe stay on invalid, late, or unavailable responses. See
+	[LLM-assisted placement](docs/llm_placement.md) for configuration, the HTTP
+	contract, Python adapters, and audit behavior.
 
 Observed object reads, writes, and metadata touches also feed configurable
 recency/frequency windows in policy projections. See [access history](docs/access_history.md)

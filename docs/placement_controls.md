@@ -169,9 +169,10 @@ multiple eligible matches. Name and MIME rules retain their ordinary precedence;
 they have no numerical margin. Hysteresis evidence records the numerical input,
 configured margin, effective boundary, and resulting decision.
 
-Size bands apply to the simple policy, content fallback, and built-in threshold
-provider used by `llm`. An external LLM provider has no defined numeric boundary;
-its moves are protected by cooldown, while numeric bands remain inapplicable.
+Size bands apply to the simple policy, content fallback, and explicitly supplied
+historical threshold provider. The schema-validated `llm` policy has no defined
+numeric boundary; its moves are protected by cooldown, while numeric bands
+remain inapplicable. See [LLM-assisted placement](llm_placement.md).
 Suppressed decisions carry a `suppression_reason` of `cooldown` or `hysteresis`
 in their constraint evidence and policy audit record, and produce a structured
 `policy move suppressed` log entry. Read-only previews use their evaluation

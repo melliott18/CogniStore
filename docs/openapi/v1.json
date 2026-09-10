@@ -1921,6 +1921,20 @@
             "title": "Key",
             "type": "string"
           },
+          "llm_audit": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Audit"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"

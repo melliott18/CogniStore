@@ -38,7 +38,8 @@ def test_llm_policy_rejects_disallowed_destination():
 
     assert decision.action == "stay"
     assert decision.dst_tier is None
-    assert decision.reason == "provider ignored constraints"
+    assert decision.reason == "llm_invalid_response"
+    assert decision.llm_audit["fallback_reason"] == "llm_invalid_response"
 
 
 def test_llm_policy_rejects_unknown_destination():

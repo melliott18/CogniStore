@@ -558,6 +558,9 @@ class PolicyEvaluationResponse(SDKResponse):
     reason: str
     features: PolicyFeatures | None = None
     constraints: dict[str, JSONValue] = Field(default_factory=dict)
+    llm_audit: dict[str, JSONValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class JobStatus(SDKResponse):
