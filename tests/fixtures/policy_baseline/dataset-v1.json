@@ -1,0 +1,5083 @@
+{
+  "manifest": {
+    "access_sampling": "per_snapshot; observed operations only",
+    "as_of": "2026-09-08T00:00:00.000000Z",
+    "candidate_count": 60,
+    "eligible_count": 60,
+    "excluded_fields": [
+      "bucket",
+      "cold_name_patterns",
+      "content_sha256",
+      "document_text_sha256",
+      "evidence_content_sha256",
+      "hit_content_sha256",
+      "hot_name_patterns",
+      "key",
+      "passage_text_sha256",
+      "query",
+      "snapshot.decision.reason",
+      "snapshot.features.**.reason",
+      "warm_name_patterns"
+    ],
+    "exported_count": 60,
+    "label_definition": "last causal move state within the closed observation window",
+    "legacy_count": 0,
+    "observation_seconds": 3600,
+    "sampling": {
+      "algorithm": "sha256",
+      "population": "retained_versioned_decisions",
+      "rate": 1.0,
+      "seed": "baseline-v1",
+      "unit": "decision_id"
+    },
+    "schema_version": 1,
+    "selection": {
+      "occurred_after": null,
+      "occurred_before": null
+    },
+    "source": "retained_audit_events"
+  },
+  "rows": [
+    {
+      "correlation_id": "fixture-0",
+      "decision_id": "00000000-0000-0000-0000-000000000001",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000002",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T01:00:00.000000Z",
+        "window_start": "2026-09-01T00:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000002",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-0",
+          "occurred_at": "2026-09-01T00:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T00:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T00:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 100,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-1",
+      "decision_id": "00000000-0000-0000-0000-000000000003",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000004",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T02:00:00.000000Z",
+        "window_start": "2026-09-01T01:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000004",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-1",
+          "occurred_at": "2026-09-01T01:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T01:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T01:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 101,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-2",
+      "decision_id": "00000000-0000-0000-0000-000000000005",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000006",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T03:00:00.000000Z",
+        "window_start": "2026-09-01T02:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000006",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-2",
+          "occurred_at": "2026-09-01T02:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T02:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T02:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 102,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-3",
+      "decision_id": "00000000-0000-0000-0000-000000000007",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000008",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T04:00:00.000000Z",
+        "window_start": "2026-09-01T03:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000008",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-3",
+          "occurred_at": "2026-09-01T03:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T03:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T03:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 103,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-4",
+      "decision_id": "00000000-0000-0000-0000-000000000009",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000000a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T05:00:00.000000Z",
+        "window_start": "2026-09-01T04:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000000a",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-4",
+          "occurred_at": "2026-09-01T04:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T04:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T04:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 104,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-5",
+      "decision_id": "00000000-0000-0000-0000-00000000000b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000000c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T06:00:00.000000Z",
+        "window_start": "2026-09-01T05:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000000c",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-5",
+          "occurred_at": "2026-09-01T05:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T05:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T05:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 105,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-6",
+      "decision_id": "00000000-0000-0000-0000-00000000000d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000000e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T07:00:00.000000Z",
+        "window_start": "2026-09-01T06:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000000e",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-6",
+          "occurred_at": "2026-09-01T06:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T06:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T06:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 106,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-7",
+      "decision_id": "00000000-0000-0000-0000-00000000000f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000010",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T08:00:00.000000Z",
+        "window_start": "2026-09-01T07:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000010",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-7",
+          "occurred_at": "2026-09-01T07:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T07:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T07:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 107,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-8",
+      "decision_id": "00000000-0000-0000-0000-000000000011",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000012",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T09:00:00.000000Z",
+        "window_start": "2026-09-01T08:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000012",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-8",
+          "occurred_at": "2026-09-01T08:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T08:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T08:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 108,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-9",
+      "decision_id": "00000000-0000-0000-0000-000000000013",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000014",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-01T10:00:00.000000Z",
+        "window_start": "2026-09-01T09:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000014",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-9",
+          "occurred_at": "2026-09-01T09:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-01T09:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T09:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 109,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-10",
+      "decision_id": "00000000-0000-0000-0000-000000000015",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000016",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T11:00:00.000000Z",
+        "window_start": "2026-09-01T10:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000016",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-10",
+          "occurred_at": "2026-09-01T10:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T10:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T10:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10000,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-11",
+      "decision_id": "00000000-0000-0000-0000-000000000017",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000018",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T12:00:00.000000Z",
+        "window_start": "2026-09-01T11:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000018",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-11",
+          "occurred_at": "2026-09-01T11:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T11:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T11:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10001,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-12",
+      "decision_id": "00000000-0000-0000-0000-000000000019",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000001a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T13:00:00.000000Z",
+        "window_start": "2026-09-01T12:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000001a",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-12",
+          "occurred_at": "2026-09-01T12:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T12:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T12:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10002,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-13",
+      "decision_id": "00000000-0000-0000-0000-00000000001b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000001c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T14:00:00.000000Z",
+        "window_start": "2026-09-01T13:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000001c",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-13",
+          "occurred_at": "2026-09-01T13:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T13:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T13:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10003,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-14",
+      "decision_id": "00000000-0000-0000-0000-00000000001d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000001e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T15:00:00.000000Z",
+        "window_start": "2026-09-01T14:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000001e",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-14",
+          "occurred_at": "2026-09-01T14:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T14:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T14:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10004,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-15",
+      "decision_id": "00000000-0000-0000-0000-00000000001f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000020",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T16:00:00.000000Z",
+        "window_start": "2026-09-01T15:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000020",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-15",
+          "occurred_at": "2026-09-01T15:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T15:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T15:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10005,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-16",
+      "decision_id": "00000000-0000-0000-0000-000000000021",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000022",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T17:00:00.000000Z",
+        "window_start": "2026-09-01T16:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000022",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-16",
+          "occurred_at": "2026-09-01T16:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T16:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T16:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10006,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-17",
+      "decision_id": "00000000-0000-0000-0000-000000000023",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000024",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T18:00:00.000000Z",
+        "window_start": "2026-09-01T17:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000024",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-17",
+          "occurred_at": "2026-09-01T17:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T17:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T17:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10007,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-18",
+      "decision_id": "00000000-0000-0000-0000-000000000025",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000026",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T19:00:00.000000Z",
+        "window_start": "2026-09-01T18:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000026",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-18",
+          "occurred_at": "2026-09-01T18:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T18:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T18:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10008,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-19",
+      "decision_id": "00000000-0000-0000-0000-000000000027",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000028",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-01T20:00:00.000000Z",
+        "window_start": "2026-09-01T19:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000028",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-19",
+          "occurred_at": "2026-09-01T19:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-01T19:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-01T19:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10009,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-20",
+      "decision_id": "00000000-0000-0000-0000-000000000029",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000002a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T01:00:00.000000Z",
+        "window_start": "2026-09-03T00:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000002a",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-20",
+          "occurred_at": "2026-09-03T00:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T00:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T00:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 100,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-21",
+      "decision_id": "00000000-0000-0000-0000-00000000002b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000002c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T02:00:00.000000Z",
+        "window_start": "2026-09-03T01:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000002c",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-21",
+          "occurred_at": "2026-09-03T01:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T01:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T01:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 101,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-22",
+      "decision_id": "00000000-0000-0000-0000-00000000002d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000002e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T03:00:00.000000Z",
+        "window_start": "2026-09-03T02:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000002e",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-22",
+          "occurred_at": "2026-09-03T02:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T02:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T02:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 102,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-23",
+      "decision_id": "00000000-0000-0000-0000-00000000002f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000030",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T04:00:00.000000Z",
+        "window_start": "2026-09-03T03:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000030",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-23",
+          "occurred_at": "2026-09-03T03:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T03:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T03:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 103,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-24",
+      "decision_id": "00000000-0000-0000-0000-000000000031",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000032",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T05:00:00.000000Z",
+        "window_start": "2026-09-03T04:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000032",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-24",
+          "occurred_at": "2026-09-03T04:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T04:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T04:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 104,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-25",
+      "decision_id": "00000000-0000-0000-0000-000000000033",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000034",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T06:00:00.000000Z",
+        "window_start": "2026-09-03T05:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000034",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-25",
+          "occurred_at": "2026-09-03T05:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T05:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T05:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 105,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-26",
+      "decision_id": "00000000-0000-0000-0000-000000000035",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000036",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T07:00:00.000000Z",
+        "window_start": "2026-09-03T06:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000036",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-26",
+          "occurred_at": "2026-09-03T06:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T06:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T06:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 106,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-27",
+      "decision_id": "00000000-0000-0000-0000-000000000037",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000038",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T08:00:00.000000Z",
+        "window_start": "2026-09-03T07:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000038",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-27",
+          "occurred_at": "2026-09-03T07:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T07:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T07:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 107,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-28",
+      "decision_id": "00000000-0000-0000-0000-000000000039",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000003a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T09:00:00.000000Z",
+        "window_start": "2026-09-03T08:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000003a",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-28",
+          "occurred_at": "2026-09-03T08:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T08:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T08:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 108,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-29",
+      "decision_id": "00000000-0000-0000-0000-00000000003b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000003c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-03T10:00:00.000000Z",
+        "window_start": "2026-09-03T09:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000003c",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-29",
+          "occurred_at": "2026-09-03T09:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-03T09:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T09:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 109,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-30",
+      "decision_id": "00000000-0000-0000-0000-00000000003d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000003e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T11:00:00.000000Z",
+        "window_start": "2026-09-03T10:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000003e",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-30",
+          "occurred_at": "2026-09-03T10:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T10:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T10:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10000,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-31",
+      "decision_id": "00000000-0000-0000-0000-00000000003f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000040",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T12:00:00.000000Z",
+        "window_start": "2026-09-03T11:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000040",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-31",
+          "occurred_at": "2026-09-03T11:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T11:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T11:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10001,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-32",
+      "decision_id": "00000000-0000-0000-0000-000000000041",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000042",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T13:00:00.000000Z",
+        "window_start": "2026-09-03T12:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000042",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-32",
+          "occurred_at": "2026-09-03T12:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T12:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T12:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10002,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-33",
+      "decision_id": "00000000-0000-0000-0000-000000000043",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000044",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T14:00:00.000000Z",
+        "window_start": "2026-09-03T13:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000044",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-33",
+          "occurred_at": "2026-09-03T13:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T13:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T13:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10003,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-34",
+      "decision_id": "00000000-0000-0000-0000-000000000045",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000046",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T15:00:00.000000Z",
+        "window_start": "2026-09-03T14:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000046",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-34",
+          "occurred_at": "2026-09-03T14:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T14:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T14:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10004,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-35",
+      "decision_id": "00000000-0000-0000-0000-000000000047",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000048",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T16:00:00.000000Z",
+        "window_start": "2026-09-03T15:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000048",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-35",
+          "occurred_at": "2026-09-03T15:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T15:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T15:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10005,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-36",
+      "decision_id": "00000000-0000-0000-0000-000000000049",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000004a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T17:00:00.000000Z",
+        "window_start": "2026-09-03T16:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000004a",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-36",
+          "occurred_at": "2026-09-03T16:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T16:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T16:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10006,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-37",
+      "decision_id": "00000000-0000-0000-0000-00000000004b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000004c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T18:00:00.000000Z",
+        "window_start": "2026-09-03T17:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000004c",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-37",
+          "occurred_at": "2026-09-03T17:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T17:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T17:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10007,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-38",
+      "decision_id": "00000000-0000-0000-0000-00000000004d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000004e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T19:00:00.000000Z",
+        "window_start": "2026-09-03T18:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000004e",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-38",
+          "occurred_at": "2026-09-03T18:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T18:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T18:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10008,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-39",
+      "decision_id": "00000000-0000-0000-0000-00000000004f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000050",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-03T20:00:00.000000Z",
+        "window_start": "2026-09-03T19:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000050",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-39",
+          "occurred_at": "2026-09-03T19:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-03T19:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-03T19:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10009,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-40",
+      "decision_id": "00000000-0000-0000-0000-000000000051",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000052",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T01:00:00.000000Z",
+        "window_start": "2026-09-05T00:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000052",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-40",
+          "occurred_at": "2026-09-05T00:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T00:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T00:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 100,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-41",
+      "decision_id": "00000000-0000-0000-0000-000000000053",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000054",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T02:00:00.000000Z",
+        "window_start": "2026-09-05T01:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000054",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-41",
+          "occurred_at": "2026-09-05T01:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T01:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T01:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 101,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-42",
+      "decision_id": "00000000-0000-0000-0000-000000000055",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000056",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T03:00:00.000000Z",
+        "window_start": "2026-09-05T02:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000056",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-42",
+          "occurred_at": "2026-09-05T02:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T02:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T02:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 102,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-43",
+      "decision_id": "00000000-0000-0000-0000-000000000057",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000058",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T04:00:00.000000Z",
+        "window_start": "2026-09-05T03:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000058",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-43",
+          "occurred_at": "2026-09-05T03:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T03:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T03:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 103,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-44",
+      "decision_id": "00000000-0000-0000-0000-000000000059",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000005a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T05:00:00.000000Z",
+        "window_start": "2026-09-05T04:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000005a",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-44",
+          "occurred_at": "2026-09-05T04:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T04:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T04:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 104,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-45",
+      "decision_id": "00000000-0000-0000-0000-00000000005b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000005c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T06:00:00.000000Z",
+        "window_start": "2026-09-05T05:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000005c",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-45",
+          "occurred_at": "2026-09-05T05:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T05:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T05:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 105,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-46",
+      "decision_id": "00000000-0000-0000-0000-00000000005d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000005e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T07:00:00.000000Z",
+        "window_start": "2026-09-05T06:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000005e",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-46",
+          "occurred_at": "2026-09-05T06:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T06:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T06:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 106,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-47",
+      "decision_id": "00000000-0000-0000-0000-00000000005f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000060",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T08:00:00.000000Z",
+        "window_start": "2026-09-05T07:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000060",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-47",
+          "occurred_at": "2026-09-05T07:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T07:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T07:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 107,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-48",
+      "decision_id": "00000000-0000-0000-0000-000000000061",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000062",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T09:00:00.000000Z",
+        "window_start": "2026-09-05T08:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000062",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-48",
+          "occurred_at": "2026-09-05T08:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T08:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T08:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 108,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-49",
+      "decision_id": "00000000-0000-0000-0000-000000000063",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000064",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 1,
+        "version": 1,
+        "window_end": "2026-09-05T10:00:00.000000Z",
+        "window_start": "2026-09-05T09:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000064",
+          "event_type": "move.completed",
+          "move_id": "fixture-move-49",
+          "occurred_at": "2026-09-05T09:01:00.000000Z",
+          "outcome": "succeeded",
+          "recorded_at": "2026-09-05T09:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "hot",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T09:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 109,
+          "tier": "warm"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-50",
+      "decision_id": "00000000-0000-0000-0000-000000000065",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000066",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T11:00:00.000000Z",
+        "window_start": "2026-09-05T10:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000066",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-50",
+          "occurred_at": "2026-09-05T10:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T10:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T10:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10000,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-51",
+      "decision_id": "00000000-0000-0000-0000-000000000067",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000068",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T12:00:00.000000Z",
+        "window_start": "2026-09-05T11:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000068",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-51",
+          "occurred_at": "2026-09-05T11:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T11:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T11:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10001,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-52",
+      "decision_id": "00000000-0000-0000-0000-000000000069",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000006a",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T13:00:00.000000Z",
+        "window_start": "2026-09-05T12:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000006a",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-52",
+          "occurred_at": "2026-09-05T12:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T12:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T12:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10002,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-53",
+      "decision_id": "00000000-0000-0000-0000-00000000006b",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000006c",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T14:00:00.000000Z",
+        "window_start": "2026-09-05T13:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000006c",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-53",
+          "occurred_at": "2026-09-05T13:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T13:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T13:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10003,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-54",
+      "decision_id": "00000000-0000-0000-0000-00000000006d",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-00000000006e",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T15:00:00.000000Z",
+        "window_start": "2026-09-05T14:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-00000000006e",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-54",
+          "occurred_at": "2026-09-05T14:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T14:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T14:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10004,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-55",
+      "decision_id": "00000000-0000-0000-0000-00000000006f",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000070",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T16:00:00.000000Z",
+        "window_start": "2026-09-05T15:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000070",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-55",
+          "occurred_at": "2026-09-05T15:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T15:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T15:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10005,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-56",
+      "decision_id": "00000000-0000-0000-0000-000000000071",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000072",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T17:00:00.000000Z",
+        "window_start": "2026-09-05T16:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000072",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-56",
+          "occurred_at": "2026-09-05T16:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T16:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T16:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10006,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-57",
+      "decision_id": "00000000-0000-0000-0000-000000000073",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000074",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T18:00:00.000000Z",
+        "window_start": "2026-09-05T17:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000074",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-57",
+          "occurred_at": "2026-09-05T17:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T17:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T17:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10007,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-58",
+      "decision_id": "00000000-0000-0000-0000-000000000075",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000076",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T19:00:00.000000Z",
+        "window_start": "2026-09-05T18:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000076",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-58",
+          "occurred_at": "2026-09-05T18:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T18:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T18:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10008,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "cold_mime_prefixes": [],
+            "embedding_rules": [],
+            "hot_mime_prefixes": [],
+            "size_threshold": 1024,
+            "warm_mime_prefixes": []
+          },
+          "implementation": "content",
+          "model": null,
+          "name": "content",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    },
+    {
+      "correlation_id": "fixture-59",
+      "decision_id": "00000000-0000-0000-0000-000000000077",
+      "job_id": null,
+      "label": {
+        "as_of": "2026-09-08T00:00:00.000000Z",
+        "evidence_event_id": "00000000-0000-0000-0000-000000000078",
+        "name": "move_succeeded",
+        "schema_version": 1,
+        "status": "observed",
+        "value": 0,
+        "version": 1,
+        "window_end": "2026-09-05T20:00:00.000000Z",
+        "window_start": "2026-09-05T19:00:00.000000Z"
+      },
+      "move_id": null,
+      "outcomes": [
+        {
+          "event_id": "00000000-0000-0000-0000-000000000078",
+          "event_type": "move.failed",
+          "move_id": "fixture-move-59",
+          "occurred_at": "2026-09-05T19:01:00.000000Z",
+          "outcome": "failed",
+          "recorded_at": "2026-09-05T19:01:00.000000Z",
+          "schema_version": 1,
+          "sequence": 1
+        }
+      ],
+      "schema_version": 1,
+      "snapshot": {
+        "allowed_tiers": [
+          "hot",
+          "warm"
+        ],
+        "decision": {
+          "action": "move",
+          "destination_tier": "warm",
+          "outcome": "selected"
+        },
+        "decision_at": "2026-09-05T19:00:00.000000Z",
+        "features": {
+          "embeddings": [],
+          "mime": {
+            "provenance": {
+              "details": {},
+              "source": "synthetic-fixture",
+              "source_version": 1
+            },
+            "state": "missing",
+            "value": null
+          },
+          "schema_version": 1
+        },
+        "object": {
+          "pool_id": null,
+          "size": 10009,
+          "tier": "hot"
+        },
+        "policy": {
+          "config": {
+            "allowed_tiers": [
+              "hot",
+              "warm"
+            ],
+            "size_threshold": 1024
+          },
+          "implementation": "simple",
+          "model": null,
+          "name": "simple",
+          "version": "1"
+        },
+        "provenance": {
+          "schema_version": 1,
+          "source": "policy-runner"
+        },
+        "replay": {
+          "reason": "export_redaction",
+          "supported": false
+        },
+        "schema_version": 1
+      }
+    }
+  ],
+  "schema_version": 1
+}

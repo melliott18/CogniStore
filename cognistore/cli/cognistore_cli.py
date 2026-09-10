@@ -59,6 +59,7 @@ from cognistore.core.policy import (
 	EmbeddingPolicyRule,
 	validate_policy_config_size,
 )
+from cognistore.core.policy_baseline import code_version, evaluate_baseline, train_baseline
 from cognistore.core.policy_dataset import export_policy_dataset, validate_policy_dataset
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_runner import ActionResult, PolicyEvaluationResult, PolicyRunner
@@ -144,6 +145,8 @@ _COMMAND_NAMES = frozenset(
 		"policy-run",
 		"policy-dataset-export",
 		"policy-dataset-validate",
+		"policy-baseline-train",
+		"policy-baseline-evaluate",
 		"importance-set",
 		"worker",
 		"scheduler",
@@ -477,6 +480,26 @@ def _write_policy_dataset(path: Path, serialized: str) -> None:
 
 def _reject_json_constant(value: str) -> NoReturn:
 	raise ValueError(f"dataset contains a non-finite JSON value: {value}")
+
+
+def _finite_json_float(value: str) -> float:
+	parsed = float(value)
+	if not math.isfinite(parsed):
+		raise ValueError(f"artifact contains a non-finite JSON value: {value}")
+	return parsed
+
+
+def _read_policy_artifact(path: Path) -> object:
+	with path.open(encoding="utf-8") as stream:
+		return json.load(
+			stream, parse_constant=_reject_json_constant, parse_float=_finite_json_float,
+		)
+
+
+def _paths_alias(first: Path, second: Path) -> bool:
+	return first.resolve() == second.resolve() or (
+		first.exists() and second.exists() and first.samefile(second)
+	)
 
 
 def _move_job_payload(job: MoveJob) -> dict[str, object]:
@@ -1537,6 +1560,18 @@ def _run_cli(
 		"--allow-missing-labels", action="store_true",
 		help="Allow rows without a resolved supervised label; other checks still apply",
 	)
+	p_baseline_train = command(
+		"policy-baseline-train", help="Train a reproducible offline supervised policy baseline"
+	)
+	p_baseline_train.add_argument("--input", required=True, type=Path, help="Exported dataset JSON path")
+	p_baseline_train.add_argument("--training-config", required=True, type=Path, help="Training configuration JSON path")
+	p_baseline_train.add_argument("--output", required=True, type=Path, help="Model artifact JSON output path")
+	p_baseline_evaluate = command(
+		"policy-baseline-evaluate", help="Evaluate a supervised policy baseline offline"
+	)
+	p_baseline_evaluate.add_argument("--input", required=True, type=Path, help="Exported dataset JSON path")
+	p_baseline_evaluate.add_argument("--model", required=True, type=Path, help="Trained model artifact JSON path")
+	p_baseline_evaluate.add_argument("--output", required=True, type=Path, help="Evaluation report JSON output path")
 
 	p_worker = command("worker", help="Run the durable background worker")
 	p_worker.add_argument("--health-host", default="127.0.0.1")
@@ -1706,6 +1741,45 @@ def _run_cli(
 			_render_redrive_error(exc, json_output=args.json)
 			return 1
 		_render_redrive(receipt, json_output=args.json)
+		return 0
+
+	if args.cmd in {"policy-baseline-train", "policy-baseline-evaluate"}:
+		training = args.cmd == "policy-baseline-train"
+		artifact_input = args.training_config if training else args.model
+		protected_inputs = [args.input, artifact_input]
+		if resolution.path is not None:
+			protected_inputs.append(resolution.path)
+		if any(_paths_alias(args.output, path) for path in protected_inputs):
+			parser.error("--output must not overwrite the input dataset, configuration, or model")
+		for locator in (args.catalog_db, args.schedule_db):
+			catalog_path = sqlite_catalog_path(locator) if locator else None
+			if catalog_path is not None and any(
+				_paths_alias(args.output, Path(str(base_path) + suffix))
+				for base_path in (catalog_path, catalog_path.resolve())
+				for suffix in ("", "-wal", "-shm", "-journal")
+			):
+				parser.error("--output must not overwrite the catalog or its journal files")
+		dataset = _read_policy_artifact(args.input)
+		configuration_or_model = _read_policy_artifact(artifact_input)
+		operation = train_baseline if training else evaluate_baseline
+		artifact = operation(dataset, configuration_or_model, code_version=code_version())
+		serialized = json.dumps(
+			artifact, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False,
+		) + "\n"
+		if not dry_run:
+			_write_policy_dataset(args.output, serialized)
+		operation_name = "training" if training else "evaluation"
+		_emit_result(
+			args.cmd, "planned" if dry_run else "success", json_output=args.json,
+			human=f"{'planned' if dry_run else 'completed'} policy baseline {operation_name}: {args.output}",
+			dry_run=dry_run, output=str(args.output),
+			artifact_version=artifact.get("model_version" if training else "report_version"),
+			artifact=artifact,
+			**({} if training else {
+				field: artifact[field] for field in ("metrics", "checks", "promotion")
+				if field in artifact
+			}),
+		)
 		return 0
 
 	if args.cmd == "policy-dataset-validate":

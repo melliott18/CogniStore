@@ -172,7 +172,9 @@ move inspection, move recovery, `content-reference-report`, and
 `policy-dataset-export` require a persistent SQL catalog. The reference report
 and dataset export require an existing catalog and open it read-only, without
 `--drivers` or `--base`. `policy-dataset-validate` reads a local JSON file or stdin
-and requires no catalog. Scheduler state is always SQLite: a PostgreSQL worker requires an
+and requires no catalog. `policy-baseline-train` and `policy-baseline-evaluate`
+read local JSON artifacts and require no catalog, drivers, or queue service.
+Scheduler state is always SQLite: a PostgreSQL worker requires an
 explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
 file when `schedule_db` is omitted. A non-preview scheduler requires a
 persistent `schedule_db` or a SQLite `catalog_db` fallback. Tier operations
@@ -288,6 +290,7 @@ their query. The complete command matrix is:
 | `policy-run` | Runs policy selection synchronously and returns planned actions without moves, catalog updates, or queue publication. It may read an existing catalog and fresh discovery caches, but never refreshes a missing/stale cache during a preview. |
 | `policy-dataset-export` | Reads an existing catalog and computes the same privacy-filtered dataset, but reports the planned output without writing a file or creating directories. |
 | `policy-dataset-validate` | Read-only. Validates the input JSON and returns the same issue report and exit status. |
+| `policy-baseline-train`, `policy-baseline-evaluate` | Compute and validate the same model or evaluation report, but do not write the output file or create directories. JSON includes the computed artifact. |
 | `worker` | **Unsupported.** Consuming a delivery necessarily owns and settles queue state and may run writable catalog or storage handlers, so there is no faithful side-effect-free worker preview. The command exits with usage status `2`; preview the originating `catalog-scan` or `policy-run` command instead. If a profile enables `dry_run`, pass `--no-dry-run` when starting a worker. |
 | `scheduler` | Loads and validates the drivers and schedule file, then reports every declared schedule. It does not require or open the scheduler catalog, inspect durable due state, connect to NATS, reserve occurrences, or publish jobs; JSON includes `due_state_checked: false`. |
 | `dead-letter-redrive` (`job-redrive`, `dlq-redrive`) | Validates and canonicalizes the dead-letter UUID, then reports a planned redrive. It does not connect to NATS, check whether the entry exists, or republish it; JSON includes `existence_checked: false`. |
@@ -326,6 +329,14 @@ errors. `--allow-missing-labels` permits incomplete supervised labels while
 retaining other checks. JSON reports contain `valid`, `count`, and `issues`
 with a code, path, and message. See [Policy datasets](policy_datasets.md) for
 versioning, privacy, sampling, replay, and label semantics.
+
+`policy-baseline-train --input DATASET --training-config CONFIG --output MODEL`
+trains an offline baseline from an exported snapshot.
+`policy-baseline-evaluate --input DATASET --model MODEL --output REPORT`
+compares it with the recorded rules on time-based holdouts. Both support
+`--json` and `--dry-run`; output directories must already exist for publication.
+See the [supervised baseline guide](policy_baseline.md) for reproducible examples,
+model provenance, leakage checks, metrics, and promotion requirements.
 
 ## Shared-content reference report
 
