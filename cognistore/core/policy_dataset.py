@@ -18,6 +18,7 @@ from cognistore.utils.redaction import redact
 
 from .audit import AuditEvent, AuditEventType, AuditQuery, canonical_audit_timestamp
 from .catalog import CatalogStore
+from .policy_reasons import reason_from_audit_details, validate_policy_reason
 from .policy_snapshot import _placement_estimates_from_dict, snapshot_from_audit_details
 
 POLICY_DATASET_SCHEMA_VERSION = 1
@@ -288,6 +289,7 @@ def export_policy_dataset(
         if snapshot is None:
             legacy_count += 1
             continue
+        structured_reason = reason_from_audit_details(event.details)
         start = _instant(snapshot["decision_at"])
         if start > cutoff:
             continue
@@ -359,7 +361,19 @@ def export_policy_dataset(
                 snapshot, outcomes, as_of=cutoff, observation_seconds=observation_seconds
             ),
         }
+        # Reasons have their own versioned contract beside snapshot v1. Older
+        # retained decisions have no such evidence; do not manufacture it.
+        if structured_reason is not None:
+            row["structured_reason"] = structured_reason
         safe = _filter_fields(redact(row), exclusions)
+        if "structured_reason" in safe and safe["structured_reason"] != structured_reason:
+            # A partially filtered reason is no longer a valid reason-v1
+            # contract. Whole-field exclusion remains available for callers
+            # with stricter privacy needs without inventing a lossy schema.
+            raise ValueError(
+                "partial structured_reason exclusions are unsupported; "
+                "exclude structured_reason as a whole"
+            )
         if safe.get("snapshot") != snapshot:
             if not isinstance(safe.get("snapshot"), dict):
                 raise ValueError("exclusions cannot remove the snapshot contract")
@@ -633,6 +647,16 @@ def _validate_policy_dataset(
         walk(row, (), path)
         if redact(row) != row:
             issue("sensitive_value", path, "Row contains an unredacted credential pattern")
+        structured_reason = None
+        if "structured_reason" in row:
+            try:
+                structured_reason = validate_policy_reason(row["structured_reason"])
+            except ValueError:
+                issue(
+                    "invalid_structured_reason",
+                    path + ".structured_reason",
+                    "Structured reason must satisfy its complete versioned contract",
+                )
         identifier = row.get("decision_id")
         if not isinstance(identifier, str) or not identifier:
             issue("invalid_schema", path + ".decision_id", "Missing decision identity")
@@ -852,6 +876,31 @@ def _validate_policy_dataset(
             issue("invalid_schema", path + ".snapshot.decision", "Invalid decision outcome")
             continue
         action, destination = decision.get("action"), decision.get("destination_tier")
+        if structured_reason is not None:
+            if isinstance(policy, dict) and any(
+                name in policy and structured_reason["policy"][name] != policy[name]
+                for name in ("name", "version", "model")
+            ):
+                issue(
+                    "invalid_structured_reason",
+                    path + ".structured_reason.policy",
+                    "Reason policy identity differs from its feature snapshot",
+                )
+            # Snapshot v1 classifies every non-move action as stayed. Reason
+            # v1 can explicitly reject an invalid action without rewriting
+            # that historical snapshot contract.
+            expected_dispositions = (
+                {"move"} if decision["outcome"] == "selected"
+                else {"rejected"} if decision["outcome"] == "rejected"
+                or action not in ("stay", "move")
+                else {"stay", "suppressed"}
+            )
+            if structured_reason["disposition"] not in expected_dispositions:
+                issue(
+                    "invalid_structured_reason",
+                    path + ".structured_reason.disposition",
+                    "Reason disposition differs from its recorded decision",
+                )
         if (
             not isinstance(action, str)
             or not action

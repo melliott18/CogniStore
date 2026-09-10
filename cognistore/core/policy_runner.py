@@ -5,7 +5,7 @@ import json
 import logging
 from collections.abc import Callable, Mapping
 from copy import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Literal, Sequence
 from uuid import uuid4
@@ -30,6 +30,7 @@ from .placement_controls import (
 from .policy import ContentAwarePolicy, LLMPolicy, Policy, PolicyDecision, SimplePolicy
 from .policy_factory import ThresholdProvider
 from .policy_features import CatalogPolicyFeatureLoader, PolicyFeatures
+from .policy_reasons import capture_policy_reason
 from .policy_snapshot import (
     capture_policy_snapshot,
     policy_snapshot_features,
@@ -71,6 +72,8 @@ class PolicyEvaluationResult:
     features: PolicyFeatures
     constraints: dict[str, object] = field(default_factory=dict)
     llm_audit: dict[str, object] | None = None
+    reason_code: str | None = None
+    decisive_signals: list[dict[str, object]] = field(default_factory=list)
 
     def to_mapping(self) -> dict[str, object]:
         return {
@@ -154,7 +157,16 @@ class PolicyRunner:
 
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
-        evaluated = self._evaluate_records(records, as_of=as_of)
+        recorded: dict[tuple[str, str], AuditEvent] = {}
+
+        def retain(record: ObjectRecord, evaluation: PolicyEvaluationResult) -> None:
+            recorded[(record.bucket, record.key)] = self._record_evaluation(
+                record, evaluation, plan_move=True,
+            )
+
+        evaluated = self._evaluate_records(
+            records, as_of=as_of, on_evaluated=None if dry_run else retain,
+        )
         for rec, evaluation in zip(records, evaluated):
             features = evaluation.features
             decision = PolicyDecision(
@@ -162,43 +174,11 @@ class PolicyRunner:
                 dst_tier=evaluation.destination_tier,
                 reason=evaluation.reason,
                 llm_audit=evaluation.llm_audit,
+                reason_code=evaluation.reason_code,
+                decisive_signals=evaluation.decisive_signals,
             )
-            actionable = self._is_actionable(rec, decision)
-            outcome = (
-                AuditOutcome.SELECTED
-                if actionable
-                else AuditOutcome.REJECTED
-                if decision.action == "move"
-                else AuditOutcome.STAYED
-            )
-            move_id = (
-                self._move_idempotency_key_for(
-                    rec.bucket,
-                    rec.key,
-                    rec.tier,
-                    decision.dst_tier or "",
-                )
-                if actionable
-                else None
-            )
-            decision_event = None
-            if not dry_run:
-                decision_event = self._record_decision(
-                    record=rec,
-                    features=evaluation.features,
-                    decision=decision,
-                    bucket=rec.bucket,
-                    key=rec.key,
-                    current_tier=rec.tier,
-                    size=rec.size,
-                    action=decision.action,
-                    destination=decision.dst_tier,
-                    outcome=outcome,
-                    move_id=move_id,
-                    importance_revision=rec.importance_revision,
-                    constraints=evaluation.constraints,
-                    reason=evaluation.reason,
-                )
+            decision_event = recorded.get((rec.bucket, rec.key))
+            if decision_event is not None:
                 snapshot = snapshot_from_audit_details(decision_event.details)
                 if snapshot is not None:
                     persisted = snapshot["decision"]
@@ -229,14 +209,6 @@ class PolicyRunner:
             if decision.dst_tier not in self.allowed_tiers:
                 continue
             from_tier = rec.tier
-            # Validate the entire batch before any move executes. A known
-            # collision or invalid path must reject the run without partially
-            # applying earlier decisions.
-            self.mover.plan(
-                from_tier, decision.dst_tier, rec.bucket, rec.key,
-                movement_constraints=self.movement_constraints,
-                as_of=str(evaluation.constraints["as_of"]) if dry_run else None,
-            )
             status: Literal["planned", "completed"] = (
                 "planned" if dry_run else "completed"
             )
@@ -261,6 +233,14 @@ class PolicyRunner:
                 )
             )
 
+        # Persist every evaluated object before storage preflight can fail.
+        # The complete batch still validates before any bytes are moved.
+        for result in results:
+            self.mover.plan(
+                result.from_tier, result.to_tier, result.bucket, result.key,
+                movement_constraints=self.movement_constraints,
+                as_of=str(result.constraints["as_of"]) if dry_run else None,
+            )
         return results
 
     def preview_once(
@@ -315,11 +295,21 @@ class PolicyRunner:
         """Audit the exact committed tag revision, even if a later update races it."""
 
         evaluation = self._evaluate_records((record,), as_of=as_of)[0]
+        self._record_evaluation(record, evaluation)
+        return evaluation
+
+    def _record_evaluation(
+        self, record: ObjectRecord, evaluation: PolicyEvaluationResult,
+        *, plan_move: bool = False,
+    ) -> AuditEvent:
         decision = PolicyDecision(
             evaluation.action, evaluation.reason, evaluation.destination_tier,
             llm_audit=evaluation.llm_audit,
+            reason_code=evaluation.reason_code,
+            decisive_signals=evaluation.decisive_signals,
         )
-        self._record_decision(
+        actionable = self._is_actionable(record, decision)
+        return self._record_decision(
             record=record,
             features=evaluation.features,
             decision=decision,
@@ -330,17 +320,20 @@ class PolicyRunner:
             action=decision.action,
             destination=decision.dst_tier,
             outcome=(
-                AuditOutcome.SELECTED if self._is_actionable(record, decision)
+                AuditOutcome.SELECTED if actionable
                 else AuditOutcome.REJECTED
                 if decision.action == "move"
                 else AuditOutcome.STAYED
             ),
-            move_id=None,
+            move_id=(
+                self._move_idempotency_key_for(
+                    record.bucket, record.key, record.tier, decision.dst_tier or "",
+                ) if plan_move and actionable else None
+            ),
             importance_revision=record.importance_revision,
             constraints=evaluation.constraints,
             reason=evaluation.reason,
         )
-        return evaluation
 
     def evaluate_record(
         self, record: ObjectRecord, *, as_of: str | datetime | None = None,
@@ -354,6 +347,7 @@ class PolicyRunner:
         records: Sequence[ObjectRecord],
         *,
         as_of: str | datetime | None = None,
+        on_evaluated: Callable[[ObjectRecord, PolicyEvaluationResult], None] | None = None,
     ) -> List[PolicyEvaluationResult]:
         evaluated_at = self.clock() if as_of is None else as_of
         constraints: dict[tuple[str, str], dict[str, object]] = {}
@@ -460,7 +454,12 @@ class PolicyRunner:
                         if callable(evaluate_record)
                         else policy.evaluate(rec.tier, rec.size)
                     )
-                hysteresis = getattr(decision, "hysteresis", None)
+                hysteresis = (
+                    decision.hysteresis
+                    if type(policy) in {SimplePolicy, ContentAwarePolicy}
+                    or type(policy) is LLMPolicy and type(policy.provider) is ThresholdProvider
+                    else None
+                )
                 if hysteresis is not None:
                     evidence["hysteresis"] = hysteresis
                     suppressed = hysteresis.get("suppressed") and decision.action == "stay"
@@ -485,17 +484,24 @@ class PolicyRunner:
                         if "hysteresis" not in decision.reason:
                             decision.reason = f"hysteresis holds current tier; {decision.reason}"
                 allowed_destinations = evidence["importance_allowed_tiers"]
+                proposed_destination = (
+                    decision.dst_tier if decision.action == "move"
+                    else decision.proposed_dst_tier
+                    if type(policy) in {SimplePolicy, ContentAwarePolicy, LLMPolicy} else None
+                )
                 if (
-                    decision.action == "move"
-                    and decision.dst_tier != rec.tier
+                    proposed_destination is not None
+                    and proposed_destination != rec.tier
                     and isinstance(allowed_destinations, list)
-                    and decision.dst_tier not in allowed_destinations
+                    and proposed_destination not in allowed_destinations
                 ):
                     reason = "movement constraints forbid policy destination"
                     evidence["blocked_reason"] = reason
-                    evidence["rejected_destination_tier"] = decision.dst_tier
-                    decision = PolicyDecision("stay", reason, llm_audit=decision.llm_audit)
+                    evidence["rejected_destination_tier"] = proposed_destination
+                    decision = replace(decision, action="stay", reason=reason, dst_tier=None)
                     evidence["suppression_reason"] = None
+                elif decision.reason_code == "destination_not_allowed" and proposed_destination:
+                    evidence["rejected_destination_tier"] = proposed_destination
             if decision.llm_audit is not None:
                 # Preserve the provider's proposal and explain the actual
                 # outcome after every runner guardrail. Redaction also detaches
@@ -526,8 +532,14 @@ class PolicyRunner:
                     features=features,
                     constraints=evidence,
                     llm_audit=decision.llm_audit,
+                    reason_code=decision.reason_code,
+                    decisive_signals=decision.decisive_signals,
                 )
             )
+            if on_evaluated is not None:
+                # Retain completed evaluations even if a later custom policy
+                # raises. Read-only callers supply no persistence callback.
+                on_evaluated(rec, results[-1])
         return results
 
     def _is_actionable(
@@ -690,6 +702,17 @@ class PolicyRunner:
             snapshot_policy.allowed_tiers = set(snapshot_policy.allowed_tiers).intersection(
                 self.allowed_tiers
             )
+        # Provider/custom prose may contain raw sensitive content that ordinary
+        # credential redaction cannot recognize. Persist a static description.
+        external = type(self.policy) not in {SimplePolicy, ContentAwarePolicy} and not (
+            type(self.policy) is LLMPolicy and type(self.policy.provider) is ThresholdProvider
+        )
+        if external:
+            safe_reason = (
+                "external provider decision" if type(self.policy) is LLMPolicy
+                else "custom policy decision"
+            )
+            decision = replace(decision, reason=safe_reason)
         snapshot = capture_policy_snapshot(
             record=record,
             features=features,
@@ -702,6 +725,20 @@ class PolicyRunner:
             decision_at=decision_at,
             model_identity=self.model_identity,
             model_version=self.model_version,
+        )
+        structured_reason = capture_policy_reason(
+            code=decision.reason_code,
+            signals=decision.decisive_signals,
+            constraints=constraints or {},
+            policy_metadata=snapshot["policy"],
+            action=action,
+            destination=destination,
+            current_tier=current_tier,
+            trusted_policy=type(self.policy) in {SimplePolicy, ContentAwarePolicy, LLMPolicy},
+            embedding_rule_names=(
+                tuple(rule.name for rule in self.policy.embedding_rules)
+                if type(self.policy) is ContentAwarePolicy else ()
+            ),
         )
         if snapshot["replay"]["supported"] and (
             stable_constraints.get("minimum_residency_seconds")
@@ -736,6 +773,7 @@ class PolicyRunner:
                 "destination_tier": safe_destination,
                 "size": size,
                 "dataset": snapshot,
+                "structured_reason": structured_reason,
                 "importance_revision": importance_revision,
                 "reason": safe_reason,
                 # The evaluation instant changes on retries; eligibility and
