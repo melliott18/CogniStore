@@ -4,7 +4,9 @@ Writable policy runs save the inputs actually evaluated alongside each
 `policy.decision` audit event. The offline dataset exporter joins those immutable
 snapshots to observed move outcomes, applies privacy exclusions and deterministic
 sampling, and emits one versioned JSON document. It supports placement evaluation
-and supervised baseline experiments; it does not train or update a model.
+and supervised baseline experiments; the exporter does not train or update a
+model. Use the separate [offline supervised baseline](policy_baseline.md)
+commands to train an execution-success gate and compare it with recorded rules.
 
 ## Export and validate
 
@@ -127,6 +129,14 @@ evidence must follow the decision, lie within its observation window, and not
 exceed the export cutoff. Outcome and label fields must not leak into the input
 feature snapshot. Keep feature inputs and supervised targets separate when
 building downstream training matrices.
+
+The [baseline train/evaluate commands](policy_baseline.md) apply these checks
+automatically and split observed labels by decision time. They also purge
+examples whose observation windows or recorded outcome evidence reach the next
+partition, check class imbalance, and retain model, code, and dataset identities
+with evaluation metrics. Their target remains execution success; unavailable
+optimal-tier, full-constraint, and flapping evidence prevents production
+promotion.
 
 Audit events expire under the configured retention policy, normally 30 days.
 Pruning can remove decision snapshots or their move evidence. Export the required

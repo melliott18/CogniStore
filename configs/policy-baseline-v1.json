@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "train_before": "2026-09-03T00:00:00Z",
+  "validation_before": "2026-09-05T00:00:00Z",
+  "min_leaf_samples": 2,
+  "min_class_count": 5,
+  "max_class_ratio": 20.0,
+  "success_threshold": 0.5,
+  "promotion_min_balanced_accuracy_gain": 0.05
+}

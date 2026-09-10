@@ -440,6 +440,13 @@ move outcomes and `policy-dataset-validate` to check schema, labels, and time
 ordering. See [policy datasets](docs/policy_datasets.md) for sampling, exclusions,
 retention, and the limits of execution-success labels.
 
+Use `policy-baseline-train` and `policy-baseline-evaluate` for reproducible
+offline experiments on those exports. The
+[supervised baseline guide](docs/policy_baseline.md) covers chronological splits,
+leakage and imbalance checks, comparison with recorded rules, and promotion
+criteria. The baseline predicts move execution success and leaves runtime
+policies unchanged.
+
 ### Durable background workers
 
 CogniStore uses file-backed NATS JetStream and a durable pull consumer for
