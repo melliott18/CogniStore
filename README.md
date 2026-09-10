@@ -447,6 +447,11 @@ leakage and imbalance checks, comparison with recorded rules, and promotion
 criteria. The baseline predicts move execution success and leaves runtime
 policies unchanged.
 
+Every persisted placement decision also includes [structured policy reasons](docs/policy_reasons.md):
+versioned reason codes, decisive signals, constraint evidence, and policy/model
+versions for moves, stays, and suppressed decisions, linked to the resulting
+move history. Dataset exports retain these reasons alongside the feature snapshot.
+
 ### Durable background workers
 
 CogniStore uses file-backed NATS JetStream and a durable pull consumer for

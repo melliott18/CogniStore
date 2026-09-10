@@ -55,6 +55,11 @@ exports while retaining schema, privacy, leakage, and temporal checks.
 
 The dataset envelope has `schema_version`, `manifest`, and `rows`. Each row
 contains a versioned snapshot, audit identifiers, observed outcomes, and a label.
+New decisions also carry an optional versioned `structured_reason`, including
+codes, decisive signals, constraints, policy/model versions, and explicit
+confidence availability. It is separate from snapshot v1. Legacy records omit
+it, and readers reject malformed reasons rather than inferring replacements.
+See [structured policy reasons](policy_reasons.md) for the full contract.
 The snapshot records:
 
 - The object's bucket, key, size, tier, and pool at evaluation time.
@@ -150,6 +155,10 @@ Default exclusions remove object bucket/key coordinates, free-text queries,
 filename patterns, decision reasons, and content digests from nested snapshot
 paths. Existing audit redaction also removes credential-like values at ingestion.
 Do not put credentials in policy names, rule names, identifiers, or metadata.
+
+The structured reason already excludes raw content and free-text explanations.
+To omit it, use `--exclude-field structured_reason`. Partial nested exclusions
+within a retained reason are rejected because all its schema fields are required.
 
 Repeat `--exclude-field` to add row-relative dotted paths. Use `*` for array
 elements, for example `snapshot.features.embeddings.*.name`; `**` matches any

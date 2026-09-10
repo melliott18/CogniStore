@@ -32,6 +32,11 @@ monotonic move sequence serializes every decision, manual resume, retry, and
 transition for one move, so the terminal event's causation path includes the
 whole operational history even when timestamps tie.
 
+Policy decision details include a versioned `structured_reason` beside the
+feature snapshot in `dataset`. See [structured policy reasons](policy_reasons.md)
+for the reason vocabulary, privacy rules, and queries that follow a decision
+through its move outcome. Older audit events may have neither payload.
+
 The catalog retains each move's latest sequence and event ID separately from
 the prunable event rows. Pruning can therefore leave a causation pointer whose
 event has expired, but it cannot reuse a sequence number or fork later history.

@@ -3,7 +3,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from numbers import Real
 from typing import Iterable, Mapping, Protocol, Sequence, cast
 
@@ -36,6 +36,51 @@ class PolicyDecision:
     dst_tier: str | None = None
     hysteresis: dict[str, object] | None = None
     llm_audit: dict[str, object] | None = None
+    reason_code: str | None = field(default=None, compare=False)
+    decisive_signals: list[dict[str, object]] = field(default_factory=list, compare=False)
+    proposed_dst_tier: str | None = field(default=None, compare=False)
+
+
+def _signal(
+    name: str,
+    value: bool | int | float | str | None,
+    *,
+    operator: str | None = None,
+    threshold: int | float | None = None,
+    rule_index: int | None = None,
+) -> dict[str, object]:
+    """Build evidence from known policy signals, never raw matching content."""
+
+    return {
+        "name": name,
+        "value": value,
+        "operator": operator,
+        "threshold": threshold,
+        "rule_index": rule_index,
+    }
+
+
+def _finite_number(value: object) -> int | float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
+
+
+def _size_signals(size: int, threshold: int) -> list[dict[str, object]]:
+    value = _finite_number(size)
+    boundary = _finite_number(threshold)
+    if value is None or boundary is None:
+        return []
+    return [_signal(
+        "size_bytes",
+        value,
+        operator="<=" if size <= threshold else ">",
+        threshold=boundary,
+    )]
 
 
 class Policy(Protocol):
@@ -77,6 +122,8 @@ class SimplePolicy(NumericalHysteresis):
             return PolicyDecision(
                 action="move", dst_tier="hot", reason="small object -> hot tier",
                 hysteresis=evidence,
+                reason_code="size_threshold",
+                decisive_signals=_size_signals(size, threshold),
             )
         if (
             size > threshold
@@ -86,11 +133,20 @@ class SimplePolicy(NumericalHysteresis):
             return PolicyDecision(
                 action="move", dst_tier="warm", reason="large object -> warm tier",
                 hysteresis=evidence,
+                reason_code="size_threshold",
+                decisive_signals=_size_signals(size, threshold),
             )
         reason = "meets tier policy"
         if evidence and evidence["suppressed"]:
             reason = f"size hysteresis holds current tier at {threshold} bytes"
-        return PolicyDecision("stay", reason, hysteresis=evidence)
+        target = "hot" if size <= threshold else "warm"
+        blocked = target != current_tier and target not in self.allowed_tiers
+        return PolicyDecision(
+            "stay", reason, hysteresis=evidence,
+            reason_code="destination_not_allowed" if blocked else "size_threshold",
+            decisive_signals=_size_signals(size, threshold),
+            proposed_dst_tier=target if blocked else None,
+        )
 
 
 class LLMPolicy(NumericalHysteresis):
@@ -158,12 +214,25 @@ class LLMPolicy(NumericalHysteresis):
             current_tier=current_tier, size=size,
             allowed_tiers=sorted(self.allowed_tiers),
         )
+        fallback = result.audit.get("fallback_reason")
+        if fallback is None:
+            reason_code = "provider_decision"
+        elif fallback == "llm_invalid_response":
+            reason_code = "provider_invalid_response"
+        elif fallback == "llm_invalid_input":
+            reason_code = "provider_invalid_input"
+        else:
+            reason_code = "provider_error"
         return PolicyDecision(
             result.action, result.reason, result.dst_tier, llm_audit=result.audit,
+            reason_code=reason_code,
         )
 
     def _evaluate_threshold(self, current_tier: str, size: int) -> PolicyDecision:
         """Preserve explicit historical snapshot replay; never a default fallback."""
+        from .policy_factory import ThresholdProvider
+
+        assert type(self.provider) is ThresholdProvider
         payload = {
             "current_tier": current_tier,
             "size": size,
@@ -172,12 +241,20 @@ class LLMPolicy(NumericalHysteresis):
         if self.size_hysteresis_bytes:
             payload["size_hysteresis_bytes"] = self.size_hysteresis_bytes
         try:
-            result = cast(PolicyLLMProvider, self.provider).decide(payload) or {}
+            result = self.provider.decide(payload)
         except Exception as error:  # defensive
             return PolicyDecision(
                 action="stay",
                 dst_tier=None,
                 reason=f"provider_error:{type(error).__name__}",
+                reason_code="provider_error",
+            )
+
+        if not isinstance(result, dict):
+            return PolicyDecision(
+                action="stay",
+                reason="llm policy no reason provided",
+                reason_code="provider_invalid_response",
             )
 
         action = result.get("action")
@@ -192,10 +269,46 @@ class LLMPolicy(NumericalHysteresis):
         if not isinstance(evidence, dict):
             evidence = None
 
-        if action == "move" and isinstance(dst, str) and dst in self.allowed_tiers and dst != current_tier:
-            return PolicyDecision(action="move", dst_tier=dst, reason=reason, hysteresis=evidence)
+        valid_move = (
+            action == "move" and isinstance(dst, str)
+            and dst in self.allowed_tiers and dst != current_tier
+        )
+        valid_stay = action == "stay" and (dst is None or isinstance(dst, str))
+        reason_code = (
+            "provider_decision"
+            if valid_move or valid_stay
+            else "provider_invalid_response"
+        )
+        signals: list[dict[str, object]] = []
+        proposed_dst_tier = None
+        if action in {"move", "stay"}:
+            threshold, _ = size_boundary(
+                threshold=self.provider.threshold,
+                band=self.size_hysteresis_bytes,
+                current_tier=current_tier,
+                size=int(size),
+                allowed_tiers=self.provider.allowed_tiers,
+            )
+            reason_code = "size_threshold"
+            signals = _size_signals(int(size), threshold)
+            target = "hot" if int(size) <= threshold else "warm"
+            if target != current_tier and (
+                target not in self.provider.allowed_tiers or target not in self.allowed_tiers
+            ):
+                reason_code = "destination_not_allowed"
+                proposed_dst_tier = target
+
+        if valid_move:
+            return PolicyDecision(
+                action="move", dst_tier=dst, reason=reason, hysteresis=evidence,
+                reason_code=reason_code, decisive_signals=signals,
+            )
         # default safe behavior
-        return PolicyDecision(action="stay", dst_tier=None, reason=reason, hysteresis=evidence)
+        return PolicyDecision(
+            action="stay", dst_tier=None, reason=reason, hysteresis=evidence,
+            reason_code=reason_code, decisive_signals=signals,
+            proposed_dst_tier=proposed_dst_tier,
+        )
 
 
 class PolicyLLMProvider(Protocol):  # pragma: no cover - interface
@@ -426,6 +539,8 @@ class ContentAwarePolicy(NumericalHysteresis):
                 action="stay",
                 reason="required policy features unavailable: features not evaluated",
                 dst_tier=None,
+                reason_code="required_features_unavailable",
+                decisive_signals=[_signal("features_evaluated", False)],
             )
         return self._evaluate_size(current_tier, size)
 
@@ -438,13 +553,28 @@ class ContentAwarePolicy(NumericalHysteresis):
             allowed_tiers=self.allowed,
         )
         if size <= threshold and current_tier != "hot" and "hot" in self.allowed:
-            return PolicyDecision("move", f"<= {threshold} bytes", "hot", evidence)
+            return PolicyDecision(
+                "move", f"<= {threshold} bytes", "hot", evidence,
+                reason_code="size_threshold",
+                decisive_signals=_size_signals(size, threshold),
+            )
         if size > threshold and current_tier != "warm" and "warm" in self.allowed:
-            return PolicyDecision("move", f"> {threshold} bytes", "warm", evidence)
+            return PolicyDecision(
+                "move", f"> {threshold} bytes", "warm", evidence,
+                reason_code="size_threshold",
+                decisive_signals=_size_signals(size, threshold),
+            )
         reason = "meets content policy by size"
         if evidence and evidence["suppressed"]:
             reason = f"size hysteresis holds current tier at {threshold} bytes"
-        return PolicyDecision("stay", reason, hysteresis=evidence)
+        target = "hot" if size <= threshold else "warm"
+        blocked = target != current_tier and target not in self.allowed
+        return PolicyDecision(
+            "stay", reason, hysteresis=evidence,
+            reason_code="destination_not_allowed" if blocked else "size_threshold",
+            decisive_signals=_size_signals(size, threshold),
+            proposed_dst_tier=target if blocked else None,
+        )
 
     # Record-aware evaluation used by PolicyRunner when available
     def evaluate_record(self, rec: "ObjectRecord") -> PolicyDecision:
@@ -475,15 +605,30 @@ class ContentAwarePolicy(NumericalHysteresis):
         key = rec.key
 
         # 1) Stable catalog identity rules do not depend on indexing providers.
+        name_index = 0
         for patterns, destination, label in (
             (self.hot_name_patterns, "hot", "name pattern -> hot"),
             (self.warm_name_patterns, "warm", "name pattern -> warm"),
             (self.cold_name_patterns, "cold", "name pattern -> cold"),
         ):
-            if key and patterns and any(fnmatch.fnmatch(key, pattern) for pattern in patterns):
-                if destination in self.allowed and destination != current_tier:
-                    return PolicyDecision("move", label, destination)
-                return PolicyDecision("stay", f"{label}; already constrained", None)
+            for pattern in patterns:
+                if key and fnmatch.fnmatch(key, pattern):
+                    signals = [_signal("name_match", True, rule_index=name_index)]
+                    if destination in self.allowed and destination != current_tier:
+                        return PolicyDecision(
+                            "move", label, destination, reason_code="name_rule",
+                            decisive_signals=signals,
+                        )
+                    return PolicyDecision(
+                        "stay", f"{label}; already constrained", None,
+                        reason_code=(
+                            "name_rule" if destination == current_tier
+                            else "destination_not_allowed"
+                        ),
+                        decisive_signals=signals,
+                        proposed_dst_tier=destination if destination != current_tier else None,
+                    )
+                name_index += 1
 
         # 2) MIME selection consumes the versioned projection, not catalog JSON.
         mime_rules = (
@@ -500,18 +645,34 @@ class ContentAwarePolicy(NumericalHysteresis):
                         "required policy features unavailable: "
                         f"mime={features.mime.state.value}"
                     ),
+                    reason_code="required_features_unavailable",
+                    decisive_signals=[_signal("mime_state", features.mime.state.value)],
                 )
             assert features.mime.value is not None
+            mime_index = 0
             for prefixes, destination in mime_rules:
-                if prefixes and any(
-                    features.mime.value.startswith(prefix) for prefix in prefixes
-                ):
-                    reason = f"mime {features.mime.value} -> {destination}"
-                    if destination in self.allowed and destination != current_tier:
-                        return PolicyDecision("move", reason, destination)
-                    return PolicyDecision(
-                        "stay", f"{reason}; already constrained", None
-                    )
+                for prefix in prefixes:
+                    if features.mime.value.startswith(prefix):
+                        signals = [
+                            _signal("mime_state", FeatureState.FRESH.value),
+                            _signal("mime_match", True, rule_index=mime_index),
+                        ]
+                        reason = f"mime {features.mime.value} -> {destination}"
+                        if destination in self.allowed and destination != current_tier:
+                            return PolicyDecision(
+                                "move", reason, destination, reason_code="mime_rule",
+                                decisive_signals=signals,
+                            )
+                        return PolicyDecision(
+                            "stay", f"{reason}; already constrained", None,
+                            reason_code=(
+                                "mime_rule" if destination == current_tier
+                                else "destination_not_allowed"
+                            ),
+                            decisive_signals=signals,
+                            proposed_dst_tier=destination if destination != current_tier else None,
+                        )
+                    mime_index += 1
 
         # 3) Named semantic rules are evaluated in configured order.
         semantic_features = {feature.name: feature for feature in features.embeddings}
@@ -535,7 +696,7 @@ class ContentAwarePolicy(NumericalHysteresis):
             }
             return decision
 
-        for rule in self.embedding_rules:
+        for rule_index, rule in enumerate(self.embedding_rules):
             feature = semantic_features.get(rule.name)
             if feature is None or feature.state is not FeatureState.FRESH:
                 state = FeatureState.MISSING if feature is None else feature.state
@@ -546,6 +707,10 @@ class ContentAwarePolicy(NumericalHysteresis):
                         "required policy features unavailable: "
                         f"embedding:{rule.name}={state.value}"
                     ),
+                    reason_code="required_features_unavailable",
+                    decisive_signals=[_signal(
+                        "embedding_state", state.value, rule_index=rule_index,
+                    )],
                 ))
             similarity = feature.similarity
             # Retaining the current tier has the lower exit boundary; entering
@@ -573,6 +738,14 @@ class ContentAwarePolicy(NumericalHysteresis):
                     "effective_match": similarity is not None and similarity >= threshold,
                 })
             if similarity is not None and similarity >= threshold:
+                signals = [
+                    _signal("embedding_state", FeatureState.FRESH.value, rule_index=rule_index),
+                    _signal(
+                        "embedding_similarity", _finite_number(similarity),
+                        operator=">=", threshold=_finite_number(threshold),
+                        rule_index=rule_index,
+                    ),
+                ]
                 reason = (
                     f"embedding {rule.name} similarity {similarity:.6f} "
                     f">= {threshold:.6f} -> {rule.destination_tier}"
@@ -585,9 +758,22 @@ class ContentAwarePolicy(NumericalHysteresis):
                         "move",
                         reason,
                         rule.destination_tier,
+                        reason_code="embedding_rule",
+                        decisive_signals=signals,
                     ))
                 return with_similarity_evidence(
-                    PolicyDecision("stay", f"{reason}; already constrained", None)
+                    PolicyDecision(
+                        "stay", f"{reason}; already constrained", None,
+                        reason_code=(
+                            "embedding_rule" if rule.destination_tier == current_tier
+                            else "destination_not_allowed"
+                        ),
+                        decisive_signals=signals,
+                        proposed_dst_tier=(
+                            rule.destination_tier
+                            if rule.destination_tier != current_tier else None
+                        ),
+                    )
                 )
 
         # 4) Every configured signal was fresh but non-matching.
