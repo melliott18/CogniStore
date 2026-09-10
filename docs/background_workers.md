@@ -108,9 +108,11 @@ microsecond precision and cannot exceed 100 years. A `catalog.scan` payload requ
 `policy.run` payload requires `bucket`, `policy` (`simple`, `llm`, or
 `content`), a non-negative `threshold`, and a non-empty list of unique
 `allowed_tiers`.
-It also accepts `prefix`, `llm_threshold`, and the content-policy lists
+It also accepts `prefix`, the legacy ignored `llm_threshold`, and the content-policy lists
 `hot_name_patterns`, `warm_name_patterns`, `cold_name_patterns`,
 `hot_mime_prefixes`, `warm_mime_prefixes`, and `cold_mime_prefixes`.
+For `llm`, configure the evaluating worker's model service environment as
+described in [LLM-assisted placement](llm_placement.md); jobs carry no credentials.
 Embedding-rule policy jobs use schema v2. Upgrade and drain or stop every older
 worker sharing the durable consumer before enabling those rules in schedules or
 other producers; older workers terminally reject v2 jobs. Policy jobs without

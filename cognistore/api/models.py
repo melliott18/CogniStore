@@ -532,6 +532,9 @@ class PolicyEvaluationResponse(APIModel):
     reason: str
     features: PolicyFeaturesResponse | None = None
     constraints: dict[str, JSONValue] = Field(default_factory=dict)
+    llm_audit: dict[str, JSONValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class CatalogScanRequest(APIModel):

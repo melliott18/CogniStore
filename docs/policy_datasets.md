@@ -65,14 +65,17 @@ The snapshot records:
 - Capture provenance and whether offline replay is supported.
 
 Stored snapshots support deterministic replay of the built-in simple and content
-policies and the threshold mock used by `--policy llm`. Replay uses the frozen
+policies and the explicitly selected historical threshold provider. Replay uses the frozen
 record, policy configuration, and projected features; it does not reload current
 catalog metadata or rerun embedding queries. Custom policies and external model
 providers are recorded as unsupported for deterministic replay. A policy name or
 model name alone is not enough to recreate arbitrary provider behavior. Custom
 provider callers can pass `model_identity` and `model_version` to `PolicyRunner`
 to retain an explicit model revision; the version requires an identity. Built-in
-embedding projections also retain their model provenance.
+embedding projections also retain their model provenance. Schema-validated
+[LLM-assisted placement](llm_placement.md) automatically records provider/model
+metadata and redacted inference evidence, but does not support deterministic
+replay or rerun a model while replaying snapshots.
 
 For example, replay a retained audit event without reading the current object:
 

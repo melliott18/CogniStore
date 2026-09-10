@@ -11,7 +11,7 @@ from typing import Dict, Iterable, List, Literal, Sequence
 from uuid import uuid4
 
 from cognistore.drivers.storage_driver import StorageDriver
-from cognistore.utils.redaction import redact_text
+from cognistore.utils.redaction import redact, redact_text
 
 from .audit import (
     AuditContext,
@@ -54,6 +54,7 @@ class ActionResult:
     expected_source_sha256: str | None = None
     constraints: dict[str, object] = field(default_factory=dict)
     movement_constraints: MovementConstraints | None = None
+    llm_audit: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class PolicyEvaluationResult:
     reason: str
     features: PolicyFeatures
     constraints: dict[str, object] = field(default_factory=dict)
+    llm_audit: dict[str, object] | None = None
 
     def to_mapping(self) -> dict[str, object]:
         return {
@@ -81,6 +83,7 @@ class PolicyEvaluationResult:
             "reason": self.reason,
             "features": self.features.to_dict(),
             "constraints": self.constraints,
+            **({"llm_audit": self.llm_audit} if self.llm_audit is not None else {}),
         }
 
 
@@ -158,6 +161,7 @@ class PolicyRunner:
                 action=evaluation.action,
                 dst_tier=evaluation.destination_tier,
                 reason=evaluation.reason,
+                llm_audit=evaluation.llm_audit,
             )
             actionable = self._is_actionable(rec, decision)
             outcome = (
@@ -198,10 +202,24 @@ class PolicyRunner:
                 snapshot = snapshot_from_audit_details(decision_event.details)
                 if snapshot is not None:
                     persisted = snapshot["decision"]
+                    # A fresh failed inference is authoritative for this run.
+                    # Never let an older selected snapshot turn that fail-closed
+                    # result into a move, including on a concurrent retry.
+                    if (
+                        evaluation.llm_audit is not None
+                        and evaluation.llm_audit.get("fallback_reason") is not None
+                    ):
+                        continue
+                    persisted_llm_audit = decision_event.details.get("llm_audit")
                     decision = PolicyDecision(
                         persisted["action"],
                         persisted["reason"],
                         persisted["destination_tier"],
+                        llm_audit=(
+                            dict(persisted_llm_audit)
+                            if isinstance(persisted_llm_audit, Mapping)
+                            else None
+                        ),
                     )
                     features = policy_snapshot_features(snapshot)
                     if persisted["outcome"] != AuditOutcome.SELECTED.value:
@@ -239,6 +257,7 @@ class PolicyRunner:
                     ),
                     constraints=evaluation.constraints,
                     movement_constraints=self.movement_constraints,
+                    llm_audit=decision.llm_audit,
                 )
             )
 
@@ -297,7 +316,8 @@ class PolicyRunner:
 
         evaluation = self._evaluate_records((record,), as_of=as_of)[0]
         decision = PolicyDecision(
-            evaluation.action, evaluation.reason, evaluation.destination_tier
+            evaluation.action, evaluation.reason, evaluation.destination_tier,
+            llm_audit=evaluation.llm_audit,
         )
         self._record_decision(
             record=record,
@@ -410,7 +430,10 @@ class PolicyRunner:
                 policy = self.policy
                 if isinstance(policy, (SimplePolicy, ContentAwarePolicy, LLMPolicy)):
                     policy = copy(policy)
-                    eligible_tiers = evidence["importance_allowed_tiers"]
+                    eligible_tiers = evidence[
+                        "allowed_destination_tiers" if isinstance(policy, LLMPolicy)
+                        else "importance_allowed_tiers"
+                    ]
                     if isinstance(eligible_tiers, list):
                         policy.allowed_tiers = set(eligible_tiers).intersection(policy.allowed_tiers)
                     bypass = self.movement_constraints.stability_override is not None
@@ -471,8 +494,26 @@ class PolicyRunner:
                     reason = "movement constraints forbid policy destination"
                     evidence["blocked_reason"] = reason
                     evidence["rejected_destination_tier"] = decision.dst_tier
-                    decision = PolicyDecision("stay", reason)
+                    decision = PolicyDecision("stay", reason, llm_audit=decision.llm_audit)
                     evidence["suppression_reason"] = None
+            if decision.llm_audit is not None:
+                # Preserve the provider's proposal and explain the actual
+                # outcome after every runner guardrail. Redaction also detaches
+                # this evidence from mutable provider-owned dictionaries.
+                llm_audit = redact(decision.llm_audit)
+                llm_audit["final_decision"] = {
+                    "action": redact_text(decision.action),
+                    "destination_tier": (
+                        redact_text(decision.dst_tier) if decision.dst_tier is not None else None
+                    ),
+                    "reason": redact_text(decision.reason),
+                    "outcome": (
+                        AuditOutcome.SELECTED.value if self._is_actionable(rec, decision)
+                        else AuditOutcome.REJECTED.value if decision.action == "move"
+                        else AuditOutcome.STAYED.value
+                    ),
+                }
+                decision.llm_audit = llm_audit
             results.append(
                 PolicyEvaluationResult(
                     bucket=rec.bucket,
@@ -484,6 +525,7 @@ class PolicyRunner:
                     reason=decision.reason,
                     features=features,
                     constraints=evidence,
+                    llm_audit=decision.llm_audit,
                 )
             )
         return results
@@ -615,14 +657,43 @@ class PolicyRunner:
         )
         # A retried batch may load newer feature evidence. The immutable first
         # observation owns this logical decision's snapshot and timestamps.
+        inference_retry_of = None
         existing = self.catalog.get_audit_event(event_id)
         if existing is not None:
-            return existing
+            safe_llm_audit = redact(decision.llm_audit)
+            if (
+                isinstance(safe_llm_audit, dict)
+                and safe_llm_audit.get("fallback_reason") is not None
+                and existing.details.get("llm_audit") != safe_llm_audit
+            ):
+                # A retry's new inference failure must remain auditable even
+                # when its stay shares the first decision's identity. Keep
+                # this attempt evidence separate from hard-constraint identity
+                # and deduplicate only identical redacted failures.
+                inference_retry_of = existing.event_id
+                inference_identity = hashlib.sha256(json.dumps(
+                    safe_llm_audit, sort_keys=True, ensure_ascii=False,
+                    separators=(",", ":"), allow_nan=False,
+                ).encode("utf-8")).hexdigest()
+                event_id = stable_audit_event_id(
+                    "policy-inference-fallback", event_id, inference_identity
+                )
+                existing = self.catalog.get_audit_event(event_id)
+                if existing is not None:
+                    return existing
+            else:
+                return existing
         decision_at = datetime.now(timezone.utc)
+        snapshot_policy = self.policy
+        if isinstance(snapshot_policy, LLMPolicy):
+            snapshot_policy = copy(snapshot_policy)
+            snapshot_policy.allowed_tiers = set(snapshot_policy.allowed_tiers).intersection(
+                self.allowed_tiers
+            )
         snapshot = capture_policy_snapshot(
             record=record,
             features=features,
-            policy=self.policy,
+            policy=snapshot_policy,
             allowed_tiers=sorted(self.allowed_tiers),
             decision=decision,
             outcome=outcome,
@@ -671,6 +742,10 @@ class PolicyRunner:
                 # its stable source evidence describe the logical decision.
                 "constraints": stable_constraints,
                 "stability_override": stable_constraints.get("stability_override"),
+                **({"llm_audit": redact(decision.llm_audit)}
+                   if decision.llm_audit is not None else {}),
+                **({"inference_retry_of": inference_retry_of}
+                   if inference_retry_of is not None else {}),
             },
         )
         try:
@@ -688,9 +763,26 @@ class PolicyRunner:
             return persisted
         except ValueError:
             # A concurrent retry can win between the read and append. Preserve
-            # that first persisted snapshot rather than replace its evidence.
+            # its immutable snapshot, while routing a distinct failed inference
+            # through the same supplemental evidence path used above.
             existing = self.catalog.get_audit_event(event_id)
             if existing is not None:
+                if (
+                    decision.llm_audit is not None
+                    and decision.llm_audit.get("fallback_reason") is not None
+                    and existing.details.get("llm_audit") != redact(decision.llm_audit)
+                ):
+                    # The next call observes the immutable winner and derives
+                    # an ID from this failure's evidence. A conflict on that
+                    # derived ID has identical evidence and returns normally.
+                    return self._record_decision(
+                        record=record, features=features, decision=decision,
+                        bucket=bucket, key=key, current_tier=current_tier,
+                        size=size, action=action, destination=destination,
+                        outcome=outcome, move_id=move_id,
+                        importance_revision=importance_revision,
+                        constraints=constraints, reason=reason,
+                    )
                 return existing
             raise
 

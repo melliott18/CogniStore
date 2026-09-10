@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import math
 from dataclasses import dataclass
 from numbers import Real
-from typing import Iterable, Mapping, Protocol, Sequence
+from typing import Iterable, Mapping, Protocol, Sequence, cast
+
+from cognistore.utils.redaction import redact
 
 from .catalog import ObjectRecord
+from .placement_llm import (
+    CallablePlacementProvider,
+    PlacementInference,
+    PlacementLLMProvider,
+)
 from .policy_features import (
     CatalogPolicyFeatureLoader,
     EmbeddingFeatureRequest,
@@ -27,6 +35,7 @@ class PolicyDecision:
     reason: str
     dst_tier: str | None = None
     hysteresis: dict[str, object] | None = None
+    llm_audit: dict[str, object] | None = None
 
 
 class Policy(Protocol):
@@ -85,40 +94,85 @@ class SimplePolicy(NumericalHysteresis):
 
 
 class LLMPolicy(NumericalHysteresis):
-    """Policy that delegates decision-making to an LLM Provider.
+    """Schema-validated, bounded inference with an auditable stay fallback.
 
-    The provider receives a structured payload and must return a dict with keys:
-      {"action": "move"|"stay", "dst_tier": Optional[str], "reason": str}
-    Unknown or invalid outputs default to a safe "stay" decision.
+    Deployment adapters implement ``PlacementLLMProvider``. The historical
+    ``decide(dict)`` interface remains supported through the same validator;
+    its optional stay destination is normalized to JSON null. Only explicit
+    historical ThresholdProvider instances retain their numerical replay path.
     """
 
     def __init__(
         self,
-        provider: "PolicyLLMProvider",
+        provider: PlacementLLMProvider | PolicyLLMProvider | None = None,
         allowed_tiers: Sequence[str] = ("hot", "warm"),
         *,
         size_hysteresis_bytes: int = 0,
+        inference: PlacementInference | None = None,
+        timeout_seconds: float = 10,
+        max_attempts: int = 2,
     ):
-        self.provider = provider
+        if provider is not None and inference is not None:
+            raise ValueError("supply either provider or inference")
+        self.provider = provider if inference is None else inference.provider
         self.allowed_tiers = set(allowed_tiers)
         self.size_hysteresis_bytes = size_hysteresis_bytes
         self.similarity_hysteresis = 0
+        self.inference = inference or PlacementInference(
+            cast(PlacementLLMProvider | None, provider),
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
 
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
-        # Only the built-in deterministic provider has a numerical boundary.
-        # An arbitrary provider cannot claim trusted hysteresis evidence.
         from .policy_factory import ThresholdProvider
 
-        numeric_provider = type(self.provider) is ThresholdProvider
+        if type(self.provider) is ThresholdProvider:
+            return self._evaluate_threshold(current_tier, size)
+        inference = self.inference
+        if self.provider is not None and not callable(getattr(self.provider, "complete", None)):
+            # Compatibility adapts only the old wire format, never model output
+            # into a valid move. No catalog identity/content crosses this boundary.
+            inputs = redact({
+                "current_tier": current_tier,
+                "size": size,
+                "allowed_tiers": sorted(self.allowed_tiers),
+            })
+            legacy = cast(PolicyLLMProvider, self.provider)
+
+            def complete(prompt: str, schema: dict, timeout_seconds: float) -> str:
+                result = legacy.decide(inputs)
+                if isinstance(result, dict) and result.get("action") == "stay":
+                    result = {"dst_tier": None, **result}
+                return json.dumps(result, allow_nan=False)
+
+            inference = PlacementInference(
+                CallablePlacementProvider(
+                    complete, provider_id="legacy-decide",
+                    model=type(self.provider).__name__, version="1",
+                ),
+                timeout_seconds=self.inference.timeout_seconds,
+                max_attempts=self.inference.max_attempts,
+            )
+        result = inference.evaluate(
+            current_tier=current_tier, size=size,
+            allowed_tiers=sorted(self.allowed_tiers),
+        )
+        return PolicyDecision(
+            result.action, result.reason, result.dst_tier, llm_audit=result.audit,
+        )
+
+    def _evaluate_threshold(self, current_tier: str, size: int) -> PolicyDecision:
+        """Preserve explicit historical snapshot replay; never a default fallback."""
         payload = {
             "current_tier": current_tier,
             "size": size,
             "allowed_tiers": sorted(self.allowed_tiers),
         }
-        if numeric_provider and self.size_hysteresis_bytes:
+        if self.size_hysteresis_bytes:
             payload["size_hysteresis_bytes"] = self.size_hysteresis_bytes
         try:
-            result = self.provider.decide(payload) or {}
+            result = cast(PolicyLLMProvider, self.provider).decide(payload) or {}
         except Exception as error:  # defensive
             return PolicyDecision(
                 action="stay",
@@ -134,7 +188,7 @@ class LLMPolicy(NumericalHysteresis):
             if isinstance(provider_reason, str) and provider_reason
             else "llm policy no reason provided"
         )
-        evidence = result.get("hysteresis") if numeric_provider else None
+        evidence = result.get("hysteresis")
         if not isinstance(evidence, dict):
             evidence = None
 
