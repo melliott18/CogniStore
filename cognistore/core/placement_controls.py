@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from numbers import Real
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -95,6 +97,32 @@ def _default_importance_tiers() -> dict[str, tuple[str, ...]]:
 
 
 @dataclass(frozen=True)
+class StabilityOverride:
+    """An attributable exception to stability guards, never to hard constraints.
+
+    The policy or move audit context supplies the actor; reasons cannot be
+    supplied by a policy provider or inferred from an importance tag.
+    """
+
+    kind: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, str) or self.kind not in {"emergency", "compliance"}:
+            raise ValueError("stability override kind must be emergency or compliance")
+        _text(self.reason, "stability override reason", 2048)
+
+    def to_dict(self) -> dict[str, object]:
+        return {"kind": self.kind, "reason": self.reason}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, object]) -> StabilityOverride:
+        if not isinstance(value, Mapping) or set(value) != {"kind", "reason"}:
+            raise ValueError("stability override requires kind and reason")
+        return cls(**value)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
 class MovementConstraints:
     """Hard constraints; unspecified importance levels allow every destination.
 
@@ -104,8 +132,29 @@ class MovementConstraints:
 
     minimum_residency_seconds: Mapping[str, int] = field(default_factory=dict)
     importance_tiers: Mapping[str, tuple[str, ...]] = field(default_factory=_default_importance_tiers)
+    cooldown_seconds: int = 0
+    size_hysteresis_bytes: int = 0
+    similarity_hysteresis: float = 0.0
+    stability_override: StabilityOverride | None = None
 
     def __post_init__(self) -> None:
+        for name, maximum in (
+            ("cooldown_seconds", MAX_MINIMUM_RESIDENCY_SECONDS),
+            ("size_hysteresis_bytes", 2**63 - 1),
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum:
+                raise ValueError(f"{name} must be an integer between 0 and {maximum}")
+        band = self.similarity_hysteresis
+        if (
+            isinstance(band, bool) or not isinstance(band, Real)
+            or not 0 <= band <= 2 or not math.isfinite(float(band))
+        ):
+            raise ValueError("similarity_hysteresis must be a finite number between 0 and 2")
+        object.__setattr__(self, "similarity_hysteresis", float(band))
+        override = self.stability_override
+        if override is not None and not isinstance(override, StabilityOverride):
+            object.__setattr__(self, "stability_override", StabilityOverride.from_mapping(override))
         if not isinstance(self.minimum_residency_seconds, Mapping):
             raise ValueError("minimum_residency_seconds must map tier names to durations")
         if len(self.minimum_residency_seconds) > 100:
@@ -132,17 +181,28 @@ class MovementConstraints:
         object.__setattr__(self, "importance_tiers", MappingProxyType(mappings))
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "minimum_residency_seconds": dict(sorted(self.minimum_residency_seconds.items())),
             "importance_tiers": {
                 level: list(tiers) for level, tiers in sorted(self.importance_tiers.items())
             },
         }
+        # Preserve old durable move contracts when the new guards are disabled.
+        if self.cooldown_seconds:
+            result["cooldown_seconds"] = self.cooldown_seconds
+        if self.size_hysteresis_bytes:
+            result["size_hysteresis_bytes"] = self.size_hysteresis_bytes
+        if self.similarity_hysteresis:
+            result["similarity_hysteresis"] = self.similarity_hysteresis
+        if self.stability_override is not None:
+            result["stability_override"] = self.stability_override.to_dict()
+        return result
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, object]) -> MovementConstraints:
         if not isinstance(value, Mapping) or set(value).difference(
-            {"minimum_residency_seconds", "importance_tiers"}
+            {"minimum_residency_seconds", "importance_tiers", "cooldown_seconds",
+             "size_hysteresis_bytes", "similarity_hysteresis", "stability_override"}
         ):
             raise ValueError("movement constraints contain unknown fields or are not a mapping")
         return cls(**value)  # type: ignore[arg-type]
@@ -206,6 +266,24 @@ def evaluate_movement_constraints(
     if importance is not None and not isinstance(importance, ImportanceTag):
         importance = ImportanceTag.from_mapping(importance)
     tiers = None if importance is None else config.importance_tiers.get(importance.level)
+    cooldown_expires_at: str | None = None
+    cooldown_active = False
+    cooldown_reason: str | None = None
+    if config.cooldown_seconds and record.last_tier_move_at is not None:
+        move_at = datetime.fromisoformat(
+            canonical_audit_timestamp(record.last_tier_move_at).replace("Z", "+00:00")
+        )
+        try:
+            cooldown_expires_at = canonical_audit_timestamp(
+                move_at + timedelta(seconds=config.cooldown_seconds)
+            )
+        except OverflowError:
+            cooldown_active = True
+            cooldown_reason = "post-move cooldown blocks movement: expiry exceeds timestamp range"
+        else:
+            cooldown_active = evaluated_at < cooldown_expires_at
+            if cooldown_active:
+                cooldown_reason = f"post-move cooldown blocks movement until {cooldown_expires_at}"
     return {
         "as_of": evaluated_at,
         "placement_started_at": placement_started_at,
@@ -216,6 +294,16 @@ def evaluate_movement_constraints(
         "importance": None if importance is None else importance.to_dict(),
         "importance_revision": record.importance_revision,
         "allowed_destination_tiers": None if tiers is None else list(tiers),
+        "last_tier_move_at": record.last_tier_move_at,
+        "cooldown_seconds": config.cooldown_seconds,
+        "cooldown_expires_at": cooldown_expires_at,
+        "cooldown_active": cooldown_active,
+        "cooldown_reason": cooldown_reason,
+        "size_hysteresis_bytes": config.size_hysteresis_bytes,
+        "similarity_hysteresis": config.similarity_hysteresis,
+        "stability_override": (
+            None if config.stability_override is None else config.stability_override.to_dict()
+        ),
     }
 
 
@@ -241,4 +329,6 @@ def assert_move_allowed(
         raise MovementConstraintError(
             f"importance constraint forbids movement to tier {destination}", evidence
         )
+    if evidence["cooldown_active"] and evidence["stability_override"] is None:
+        raise MovementConstraintError(str(evidence["cooldown_reason"]), evidence)
     return evidence

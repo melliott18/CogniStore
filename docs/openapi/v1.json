@@ -1171,6 +1171,13 @@
       "MovementConstraintsConfig": {
         "additionalProperties": false,
         "properties": {
+          "cooldown_seconds": {
+            "default": 0,
+            "maximum": 315360000.0,
+            "minimum": 0.0,
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
           "importance_tiers": {
             "additionalProperties": {
               "items": {
@@ -1204,6 +1211,30 @@
             },
             "title": "Minimum Residency Seconds",
             "type": "object"
+          },
+          "similarity_hysteresis": {
+            "default": 0.0,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Similarity Hysteresis",
+            "type": "number"
+          },
+          "size_hysteresis_bytes": {
+            "default": 0,
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Size Hysteresis Bytes",
+            "type": "integer"
+          },
+          "stability_override": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StabilityOverrideConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "MovementConstraintsConfig",
@@ -2188,6 +2219,32 @@
           "contribution"
         ],
         "title": "ScoreComponentResponse",
+        "type": "object"
+      },
+      "StabilityOverrideConfig": {
+        "additionalProperties": false,
+        "description": "An attributable exception to cooldown and numerical hysteresis.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "emergency",
+              "compliance"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "title": "StabilityOverrideConfig",
         "type": "object"
       },
       "ValidationIssue": {

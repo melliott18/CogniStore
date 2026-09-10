@@ -533,6 +533,7 @@ object_placements = sa.Table(
     ),
     sa.Column("pool_id", NulSafeText(), nullable=True),
     sa.Column("placement_started_at", sa.Text(), nullable=True),
+    sa.Column("last_tier_move_at", sa.Text(), nullable=True),
     sa.Column("created_at", sa.Text(), nullable=False),
     sa.Column("updated_at", sa.Text(), nullable=False),
     sa.ForeignKeyConstraint(

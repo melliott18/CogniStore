@@ -91,6 +91,7 @@ from .models import (
     RetrievedPassageResponse,
     ScoreComponent,
     ScoreComponentResponse,
+    StabilityOverrideConfig,
     ValidationIssue,
 )
 
@@ -182,6 +183,7 @@ __all__ = [
     "ScoreComponentResponse",
     "ServerError",
     "ServiceUnavailableError",
+    "StabilityOverrideConfig",
     "TERMINAL_JOB_STATES",
     "TransportError",
     "ValidationError",

@@ -504,6 +504,8 @@ def _copy_legacy_catalog(
         batch_size=batch_size,
     )
 
+    imported_at = _content_reference_timestamp()
+
     def placement_values(row: sqlite3.Row) -> dict[str, Any]:
         object_id = _legacy_uuid("object", row["bucket"], row["key"])
         return {
@@ -511,6 +513,7 @@ def _copy_legacy_catalog(
             "object_id": object_id,
             "tier_name": row["tier"],
             "pool_id": None,
+            "last_tier_move_at": imported_at,
             "created_at": _MIGRATED_AT,
             "updated_at": _MIGRATED_AT,
         }
@@ -577,6 +580,21 @@ def _import_placement_start(row: sqlite3.Row) -> str | None:
         raise SQLiteCatalogImportError(f"invalid source placement start: {exc}") from exc
     if canonical != value:
         raise SQLiteCatalogImportError("source placement start must use canonical UTC")
+    return canonical
+
+
+def _import_last_tier_move(row: sqlite3.Row, imported_at: str) -> str | None:
+    if "last_tier_move_at" not in row.keys():
+        return _import_placement_start(row) or imported_at
+    value = row["last_tier_move_at"]
+    if value is None:
+        return None
+    try:
+        canonical = canonical_audit_timestamp(value, "last_tier_move_at")
+    except ValueError as exc:
+        raise SQLiteCatalogImportError(f"invalid source last tier move: {exc}") from exc
+    if canonical != value:
+        raise SQLiteCatalogImportError("source last tier move must use canonical UTC")
     return canonical
 
 
@@ -717,6 +735,14 @@ def _copy_normalized_catalog(
     )
     if has_controls != ("placement_started_at" in placement_columns):
         raise SQLiteCatalogImportError("source has partial placement controls columns")
+    has_stability = "last_tier_move_at" in placement_columns
+    if has_stability and not has_controls:
+        raise SQLiteCatalogImportError("source has partial tier stability columns")
+    if "alembic_version" in _source_tables(source):
+        revision = source.execute("SELECT version_num FROM alembic_version").fetchone()
+        if revision and revision[0] == "0010_tier_stability" and not has_stability:
+            raise SQLiteCatalogImportError("source has partial tier stability columns")
+    imported_at = _content_reference_timestamp()
     placement_count = _copy_rows(
         source,
         destination,
@@ -725,6 +751,7 @@ def _copy_normalized_catalog(
         lambda row: {
             "placement_id": _uuid(row["placement_id"], "object_placements.placement_id"),
             "placement_started_at": _import_placement_start(row),
+            "last_tier_move_at": _import_last_tier_move(row, imported_at),
             "object_id": _uuid(row["object_id"], "object_placements.object_id"),
             "tier_name": row["tier_name"],
             "pool_id": row["pool_id"],

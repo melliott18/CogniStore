@@ -1,9 +1,12 @@
-# Importance and minimum residency
+# Importance, residency, and tier stability
 
 CogniStore applies importance and minimum residency as hard movement constraints
 before policy preferences. They use authoritative catalog state and apply to
 synchronous evaluations, background policy jobs, and durable moves. Dry-runs and
 API evaluations expose the same constraint evidence without changing placement.
+Optional cooldown and numerical hysteresis reduce repeated tier changes when
+policy inputs fluctuate around a boundary. These stability controls default to
+zero, preserving existing behavior when they are not configured.
 
 ## Object importance
 
@@ -126,6 +129,123 @@ catalog.register_tier("warm", metadata={"minimum_residency_seconds": 86400})
 Pass any other desired tier metadata in the same mapping because registration
 replaces supplied metadata.
 
+## Cooldown and hysteresis
+
+The same `movement_constraints` object accepts these stability settings:
+
+| Setting | Default | Accepted values | Effect |
+| --- | --- | --- | --- |
+| `cooldown_seconds` | `0` | Integer, 0–315,360,000 | Delay another tier change after the last authoritative tier change. |
+| `size_hysteresis_bytes` | `0` | Integer, 0–9,223,372,036,854,775,807 | Require a size change beyond a margin around the policy's size threshold. |
+| `similarity_hysteresis` | `0.0` | Finite number, 0–2 | Require a similarity change beyond a margin around an embedding rule's threshold. |
+| `stability_override` | `null` | Object with `kind` and `reason` | Apply an explicit emergency or compliance exception to stability controls. |
+
+Booleans and numeric strings are rejected. Integer settings reject fractional
+values. Stability controls apply to synchronous policy runs, HTTP previews,
+queued jobs, scheduled runs, and durable move recovery.
+
+Cooldown uses the catalog's persisted `last_tier_move_at`, independently of
+`placement_started_at` and the object's ordinary update timestamp. A newly
+cataloged object has no previous tier change and starts without a cooldown.
+Authoritative changes to a different tier reset the movement clock; same-tier
+scans, metadata refreshes, and content writes preserve it. A policy dry-run,
+blocked decision, or move that fails before placement commit does not start a cooldown. Movement is eligible
+at the exact cooldown expiry, subject to the other constraints. A future clock
+stays active until its expiry. Cooldown evidence reports its anchor, duration,
+expiry, and whether it blocked the candidate movement.
+Migration conservatively initializes existing placements from their saved
+placement start, or migration time when that start is unknown.
+
+For a size threshold `T` and margin `B`, an object in `hot` moves to `warm`
+only when its size is strictly greater than `T + B`. An object in `warm` moves
+to `hot` when its size is at most `T - B`. Thus a 100-byte threshold and 10-byte
+margin retain `hot` through 110 bytes and retain `warm` above 90 bytes. Objects
+outside `hot` and `warm` use the ordinary size threshold for initial placement.
+
+For an embedding threshold `T` and margin `H`, a rule targeting the current tier
+remains eligible at similarity `T - H` or higher. A rule targeting another tier
+requires similarity `T + H` or higher. The existing rule ordering still resolves
+multiple eligible matches. Name and MIME rules retain their ordinary precedence;
+they have no numerical margin. Hysteresis evidence records the numerical input,
+configured margin, effective boundary, and resulting decision.
+
+Size bands apply to the simple policy, content fallback, and built-in threshold
+provider used by `llm`. An external LLM provider has no defined numeric boundary;
+its moves are protected by cooldown, while numeric bands remain inapplicable.
+Suppressed decisions carry a `suppression_reason` of `cooldown` or `hysteresis`
+in their constraint evidence and policy audit record, and produce a structured
+`policy move suppressed` log entry. Read-only previews use their evaluation
+instant; executing a previewed action rechecks cooldown at the current time.
+
+For example, a REST policy preview accepts:
+
+```json
+{
+  "bucket": "demo-bucket",
+  "key": "reports/current.txt",
+  "config": {
+    "policy": "simple",
+    "threshold": 1048576,
+    "movement_constraints": {
+      "cooldown_seconds": 3600,
+      "size_hysteresis_bytes": 65536,
+      "similarity_hysteresis": 0.05
+    }
+  }
+}
+```
+
+This is a `POST /v1/policies/evaluate` request. For
+`POST /v1/actions/policy-runs`, replace `key` with the desired `prefix`.
+The SDK exposes the same typed fields:
+
+```python
+from cognistore.sdk import MovementConstraintsConfig, PolicyConfig
+
+config = PolicyConfig(
+    threshold=1048576,
+    movement_constraints=MovementConstraintsConfig(
+        cooldown_seconds=3600,
+        size_hysteresis_bytes=65536,
+        similarity_hysteresis=0.05,
+    ),
+)
+```
+
+The CLI exposes these settings on `policy-run` and `importance-set`:
+
+```bash
+cognistore --drivers drivers.yaml --catalog-db catalog.sqlite3 \
+  policy-run demo-bucket --dry-run --json \
+  --cooldown-seconds 3600 --size-hysteresis-bytes 65536 \
+  --similarity-hysteresis 0.05
+```
+
+## Emergency and compliance exceptions
+
+An explicit exception can bypass cooldown and numerical hysteresis. It never
+bypasses minimum residency, importance restrictions, or allowed-tier checks.
+Set `movement_constraints.stability_override` to an object such as:
+
+```json
+{
+  "kind": "emergency",
+  "reason": "Relocate incident response records under incident 45"
+}
+```
+
+`kind` must be `emergency` or `compliance`. `reason` must be nonempty UTF-8 text
+without outer whitespace or control characters, and at most 2,048 UTF-8 bytes.
+The SDK exports `StabilityOverrideConfig` for constructing this object.
+The exception and its reason appear in decision evidence and in audit records
+for executed policy decisions and moves. Actor and correlation attribution use
+the existing audit context. Previews expose the exception without writing an
+audit event. Durable jobs and move retries retain the originally supplied
+exception, including its reason.
+On the CLI, use `--stability-override emergency` or
+`--stability-override compliance` together with
+`--stability-override-reason 'Approved request 45'`; both options are required.
+
 ## Direct catalog and policy APIs
 
 Use `ImportanceTag` and `CatalogStore.set_importance` to change trusted
@@ -179,14 +299,14 @@ and timestamp to reproduce boundary decisions. See
 [Policy features](policy_features.md) for MIME, embedding, and access evidence.
 
 Writable decisions also retain the versioned dataset snapshot introduced by #46.
-Snapshot v1 does not encode importance or residency inputs for offline replay;
+Snapshot v1 does not encode importance, residency, or stability inputs for offline replay;
 decisions influenced by these guards therefore report replay as unsupported
 with `movement_constraints_not_in_snapshot_v1`. Their audit events retain the
 constraint evidence, and their decision/outcome records remain exportable.
 
 Before transfer and authoritative placement commit, moves recheck current
 catalog constraints. Their durable source contract retains configured controls,
-so retries and recovery preserve residency and importance enforcement. Changes
+so retries and recovery preserve residency, importance, and stability enforcement. Changes
 after planning therefore cannot silently reuse an obsolete permission to move.
 Recovery of an already committed placement can still finish its cleanup.
 
@@ -208,6 +328,9 @@ jobs:
       allowed_tiers: [hot, warm]
       movement_constraints:
         minimum_residency_seconds: {hot: 3600, warm: 86400}
+        cooldown_seconds: 3600
+        size_hysteresis_bytes: 65536
+        similarity_hysteresis: 0.05
         importance_tiers:
           high: [hot, warm]
           critical: [hot]
@@ -221,7 +344,7 @@ embedding rules. Current workers still enforce authoritative importance and
 tier metadata defaults on these older payloads.
 
 Upgrade and drain or stop older workers sharing a durable consumer before
-enabling importance or residency, including catalog defaults. Older workers do
+enabling importance, residency, or stability controls, including catalog defaults. Older workers do
 not enforce those defaults on v1 jobs, and reject unsupported v3 envelopes.
 Scheduled occurrences persist their complete normalized controls and schema;
 publication recovery and dead-letter redrive retain the original envelope even

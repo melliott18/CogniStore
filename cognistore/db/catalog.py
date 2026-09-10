@@ -390,6 +390,7 @@ class SQLCatalog(Catalog):
                     object_placements.c.tier_name,
                     object_placements.c.pool_id,
                     object_placements.c.placement_started_at,
+                    object_placements.c.last_tier_move_at,
                 ).where(object_placements.c.object_id == object_id)
             )
             .mappings()
@@ -416,6 +417,10 @@ class SQLCatalog(Catalog):
                     tier_name=tier, pool_id=pool_id, updated_at=now,
                     placement_started_at=(
                         placement["placement_started_at"]
+                        if placement["tier_name"] == tier else now
+                    ),
+                    last_tier_move_at=(
+                        placement["last_tier_move_at"]
                         if placement["tier_name"] == tier else now
                     ),
                 )
@@ -1119,6 +1124,7 @@ class SQLCatalog(Catalog):
             objects.c.metadata,
             object_placements.c.pool_id,
             object_placements.c.placement_started_at,
+            object_placements.c.last_tier_move_at,
             objects.c.importance,
             objects.c.importance_revision,
         ).select_from(
@@ -1138,6 +1144,7 @@ class SQLCatalog(Catalog):
             metadata=deepcopy(dict(row["metadata"] or {})),
             pool_id=row["pool_id"],
             placement_started_at=row["placement_started_at"],
+            last_tier_move_at=row["last_tier_move_at"],
             importance=(
                 ImportanceTag.from_mapping(row["importance"])
                 if row["importance"] is not None else None
@@ -1398,6 +1405,7 @@ class SQLCatalog(Catalog):
                         object_placements.c.tier_name,
                         object_placements.c.pool_id,
                         object_placements.c.placement_started_at,
+                        object_placements.c.last_tier_move_at,
                     ).where(object_placements.c.object_id == object_id)
                 )
                 .mappings()
@@ -1413,6 +1421,10 @@ class SQLCatalog(Catalog):
                     tier_name=tier, pool_id=pool_id, updated_at=now,
                     placement_started_at=(
                         placement["placement_started_at"]
+                        if placement["tier_name"] == tier else now
+                    ),
+                    last_tier_move_at=(
+                        placement["last_tier_move_at"]
                         if placement["tier_name"] == tier else now
                     ),
                 )
@@ -2411,6 +2423,14 @@ class SQLCatalog(Catalog):
                 metadata=metadata,
                 now=now,
             )
+            if job.src_tier != tier:
+                # A direct catalog checkpoint may retain the same tier; only
+                # actual movement starts a cooldown, including unscanned sources.
+                connection.execute(
+                    sa.update(object_placements)
+                    .where(object_placements.c.object_id == object_id)
+                    .values(last_tier_move_at=now)
+                )
             invalidated = self._invalidate_object_content_if_mismatched(
                 connection,
                 object_id,
@@ -2673,6 +2693,7 @@ class SQLCatalog(Catalog):
                 sa.select(
                     objects.c.object_id, object_placements.c.tier_name,
                     object_placements.c.placement_started_at,
+                    object_placements.c.last_tier_move_at,
                 )
                 .select_from(objects.join(object_placements))
                 .where(objects.c.bucket == bucket, objects.c.object_key == key)
@@ -2698,6 +2719,9 @@ class SQLCatalog(Catalog):
                     tier_name=tier, pool_id=pool_id, updated_at=now,
                     placement_started_at=(
                         row["placement_started_at"] if row["tier_name"] == tier else now
+                    ),
+                    last_tier_move_at=(
+                        row["last_tier_move_at"] if row["tier_name"] == tier else now
                     ),
                 )
             )
@@ -2797,6 +2821,12 @@ class SQLCatalog(Catalog):
             "dst_tier": job.dst_tier,
             "expected_size": job.expected_size,
         }
+        controls = job.source_metadata.get("cognistore_movement_constraints")
+        if isinstance(controls, Mapping):
+            details["movement_constraints"] = deepcopy(dict(controls))
+            override = controls.get("stability_override")
+            if override is not None:
+                details["stability_override"] = deepcopy(override)
         for name, value in (updates or {}).items():
             if name in _ALLOWED_MOVE_UPDATES:
                 details[name] = list(value) if isinstance(value, tuple) else value

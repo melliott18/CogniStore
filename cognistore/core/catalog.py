@@ -82,6 +82,7 @@ class ObjectRecord:
 	placement_started_at: str | None = None
 	importance: ImportanceTag | None = None
 	importance_revision: int = 0
+	last_tier_move_at: str | None = None
 
 
 MoveJobScanFingerprint = tuple[
@@ -555,6 +556,7 @@ class Catalog(CatalogStore):
 					raise ValueError(f"Pool or tier is inactive: {pool_id}")
 				if record.tier != pool.tier:
 					record.placement_started_at = _content_reference_timestamp()
+					record.last_tier_move_at = record.placement_started_at
 				record.tier = pool.tier
 			record.pool_id = pool_id
 
@@ -683,6 +685,7 @@ class Catalog(CatalogStore):
 			self._ensure_active_tier(tier)
 			existing = self._objects.get(object_key)
 			self._replace_object_content(object_key, None)
+			now = _content_reference_timestamp()
 			rec = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -692,7 +695,12 @@ class Catalog(CatalogStore):
 				pool_id=existing.pool_id if existing and existing.tier == tier else None,
 				placement_started_at=(
 					existing.placement_started_at if existing and existing.tier == tier
-					else _content_reference_timestamp()
+					else now
+				),
+				last_tier_move_at=(
+					None if existing is None else (
+						existing.last_tier_move_at if existing.tier == tier else now
+					)
 				),
 				importance=deepcopy(existing.importance) if existing else None,
 				importance_revision=existing.importance_revision if existing else 0,
@@ -782,6 +790,7 @@ class Catalog(CatalogStore):
 				merged_metadata["sha256"] = content.sha256
 				merged_metadata["content_identity"] = content.to_metadata()
 			self._replace_object_content(object_key, content)
+			now = _content_reference_timestamp()
 			self._objects[object_key] = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -791,7 +800,12 @@ class Catalog(CatalogStore):
 				pool_id=existing.pool_id if existing and existing.tier == tier else None,
 				placement_started_at=(
 					existing.placement_started_at if existing and existing.tier == tier
-					else _content_reference_timestamp()
+					else now
+				),
+				last_tier_move_at=(
+					None if existing is None else (
+						existing.last_tier_move_at if existing.tier == tier else now
+					)
 				),
 				importance=deepcopy(existing.importance) if existing else None,
 				importance_revision=existing.importance_revision if existing else 0,
@@ -872,6 +886,7 @@ class Catalog(CatalogStore):
 			if rec.tier != tier:
 				rec.pool_id = None
 				rec.placement_started_at = _content_reference_timestamp()
+				rec.last_tier_move_at = rec.placement_started_at
 			rec.tier = tier
 
 	def upsert_placement(
@@ -902,6 +917,7 @@ class Catalog(CatalogStore):
 				if checksum is None:
 					metadata.pop("sha256", None)
 				self._replace_object_content((bucket, key), None)
+			now = _content_reference_timestamp()
 			self._objects[(bucket, key)] = ObjectRecord(
 				bucket=bucket,
 				key=key,
@@ -911,7 +927,12 @@ class Catalog(CatalogStore):
 				pool_id=rec.pool_id if rec and rec.tier == tier else None,
 				placement_started_at=(
 					rec.placement_started_at if rec and rec.tier == tier
-					else _content_reference_timestamp()
+					else now
+				),
+				last_tier_move_at=(
+					None if rec is None else (
+						rec.last_tier_move_at if rec.tier == tier else now
+					)
 				),
 				importance=deepcopy(rec.importance) if rec else None,
 				importance_revision=rec.importance_revision if rec else 0,
@@ -1504,6 +1525,9 @@ class Catalog(CatalogStore):
 			)
 			if previous_object is None or previous_object.tier != tier:
 				self._objects[object_key].placement_started_at = now
+			if job.src_tier != tier:
+				# Even an unscanned source has undergone a verified tier move.
+				self._objects[object_key].last_tier_move_at = now
 			updated = self._replace_move_job(
 				job,
 				state=MoveJobState.COMMITTED,
@@ -1730,6 +1754,12 @@ class Catalog(CatalogStore):
 			"dst_tier": job.dst_tier,
 			"expected_size": job.expected_size,
 		}
+		controls = job.source_metadata.get("cognistore_movement_constraints")
+		if isinstance(controls, Mapping):
+			details["movement_constraints"] = deepcopy(dict(controls))
+			override = controls.get("stability_override")
+			if override is not None:
+				details["stability_override"] = deepcopy(override)
 		for name, value in (updates or {}).items():
 			if name in {
 				"transferred_size",

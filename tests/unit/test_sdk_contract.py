@@ -88,6 +88,7 @@ _MODEL_SCHEMA_PAIRS = {
     "EmbeddingPolicyRuleConfig": "EmbeddingPolicyRuleConfig",
     "PolicyConfig": "PolicyConfig",
     "MovementConstraintsConfig": "MovementConstraintsConfig",
+    "StabilityOverrideConfig": "StabilityOverrideConfig",
     "ImportanceChangeRequest": "ImportanceChangeRequest",
     "PolicyEvaluationRequest": "PolicyEvaluationRequest",
     "PolicyFeatureProvenanceResponse": "PolicyFeatureProvenance",
