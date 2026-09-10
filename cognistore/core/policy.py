@@ -13,6 +13,7 @@ from .policy_features import (
     FeatureState,
     PolicyFeatures,
 )
+from .policy_stability import NumericalHysteresis, size_boundary
 
 MAX_EMBEDDING_RULE_NAME_BYTES = 256
 MAX_EMBEDDING_RULE_QUERY_BYTES = 16 * 1024
@@ -25,6 +26,7 @@ class PolicyDecision:
     action: str  # e.g., "stay", "move"
     reason: str
     dst_tier: str | None = None
+    hysteresis: dict[str, object] | None = None
 
 
 class Policy(Protocol):
@@ -32,7 +34,7 @@ class Policy(Protocol):
         ...
 
 
-class SimplePolicy:
+class SimplePolicy(NumericalHysteresis):
     """A placeholder policy: small files -> hot, else warm.
 
     In the future this will be replaced or augmented by LLM-based reasoning.
@@ -42,27 +44,47 @@ class SimplePolicy:
         self,
         size_threshold: int = 1024 * 1024,
         allowed_tiers: Sequence[str] = ("hot", "warm"),
+        *,
+        size_hysteresis_bytes: int = 0,
     ):
         self.size_threshold = size_threshold
         self.allowed_tiers = frozenset(allowed_tiers)
+        self.size_hysteresis_bytes = size_hysteresis_bytes
+        self.similarity_hysteresis = 0
 
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
+        threshold, evidence = size_boundary(
+            threshold=self.size_threshold,
+            band=self.size_hysteresis_bytes,
+            current_tier=current_tier,
+            size=size,
+            allowed_tiers=self.allowed_tiers,
+        )
         if (
-            size <= self.size_threshold
+            size <= threshold
             and current_tier != "hot"
             and "hot" in self.allowed_tiers
         ):
-            return PolicyDecision(action="move", dst_tier="hot", reason="small object -> hot tier")
+            return PolicyDecision(
+                action="move", dst_tier="hot", reason="small object -> hot tier",
+                hysteresis=evidence,
+            )
         if (
-            size > self.size_threshold
+            size > threshold
             and current_tier != "warm"
             and "warm" in self.allowed_tiers
         ):
-            return PolicyDecision(action="move", dst_tier="warm", reason="large object -> warm tier")
-        return PolicyDecision(action="stay", dst_tier=None, reason="meets tier policy")
+            return PolicyDecision(
+                action="move", dst_tier="warm", reason="large object -> warm tier",
+                hysteresis=evidence,
+            )
+        reason = "meets tier policy"
+        if evidence and evidence["suppressed"]:
+            reason = f"size hysteresis holds current tier at {threshold} bytes"
+        return PolicyDecision("stay", reason, hysteresis=evidence)
 
 
-class LLMPolicy:
+class LLMPolicy(NumericalHysteresis):
     """Policy that delegates decision-making to an LLM Provider.
 
     The provider receives a structured payload and must return a dict with keys:
@@ -70,16 +92,31 @@ class LLMPolicy:
     Unknown or invalid outputs default to a safe "stay" decision.
     """
 
-    def __init__(self, provider: "PolicyLLMProvider", allowed_tiers: Sequence[str] = ("hot", "warm")):
+    def __init__(
+        self,
+        provider: "PolicyLLMProvider",
+        allowed_tiers: Sequence[str] = ("hot", "warm"),
+        *,
+        size_hysteresis_bytes: int = 0,
+    ):
         self.provider = provider
         self.allowed_tiers = set(allowed_tiers)
+        self.size_hysteresis_bytes = size_hysteresis_bytes
+        self.similarity_hysteresis = 0
 
     def evaluate(self, current_tier: str, size: int) -> PolicyDecision:
+        # Only the built-in deterministic provider has a numerical boundary.
+        # An arbitrary provider cannot claim trusted hysteresis evidence.
+        from .policy_factory import ThresholdProvider
+
+        numeric_provider = type(self.provider) is ThresholdProvider
         payload = {
             "current_tier": current_tier,
             "size": size,
             "allowed_tiers": sorted(self.allowed_tiers),
         }
+        if numeric_provider and self.size_hysteresis_bytes:
+            payload["size_hysteresis_bytes"] = self.size_hysteresis_bytes
         try:
             result = self.provider.decide(payload) or {}
         except Exception as error:  # defensive
@@ -97,11 +134,14 @@ class LLMPolicy:
             if isinstance(provider_reason, str) and provider_reason
             else "llm policy no reason provided"
         )
+        evidence = result.get("hysteresis") if numeric_provider else None
+        if not isinstance(evidence, dict):
+            evidence = None
 
         if action == "move" and isinstance(dst, str) and dst in self.allowed_tiers and dst != current_tier:
-            return PolicyDecision(action="move", dst_tier=dst, reason=reason)
+            return PolicyDecision(action="move", dst_tier=dst, reason=reason, hysteresis=evidence)
         # default safe behavior
-        return PolicyDecision(action="stay", dst_tier=None, reason=reason)
+        return PolicyDecision(action="stay", dst_tier=None, reason=reason, hysteresis=evidence)
 
 
 class PolicyLLMProvider(Protocol):  # pragma: no cover - interface
@@ -230,7 +270,7 @@ def validate_policy_config_size(
         )
 
 
-class ContentAwarePolicy:
+class ContentAwarePolicy(NumericalHysteresis):
     """Policy that uses content metadata to decide placement.
 
     Rules are evaluated in the following order (first match wins):
@@ -254,8 +294,12 @@ class ContentAwarePolicy:
         hot_mime_prefixes: Iterable[str] | None = None,
         warm_mime_prefixes: Iterable[str] | None = None,
         embedding_rules: Iterable[EmbeddingPolicyRule] | None = None,
+        size_hysteresis_bytes: int = 0,
+        similarity_hysteresis: float = 0,
     ) -> None:
         self.size_threshold = size_threshold
+        self.size_hysteresis_bytes = size_hysteresis_bytes
+        self.similarity_hysteresis = similarity_hysteresis
         # ``allowed`` predates the public ``allowed_tiers`` spelling and is
         # intentionally mutable for callers that add runtime content rules.
         self.allowed = set(allowed_tiers)
@@ -332,11 +376,21 @@ class ContentAwarePolicy:
         return self._evaluate_size(current_tier, size)
 
     def _evaluate_size(self, current_tier: str, size: int) -> PolicyDecision:
-        if size <= self.size_threshold and current_tier != "hot" and "hot" in self.allowed:
-            return PolicyDecision(action="move", dst_tier="hot", reason=f"<= {self.size_threshold} bytes")
-        if size > self.size_threshold and current_tier != "warm" and "warm" in self.allowed:
-            return PolicyDecision(action="move", dst_tier="warm", reason=f"> {self.size_threshold} bytes")
-        return PolicyDecision(action="stay", reason="meets content policy by size", dst_tier=None)
+        threshold, evidence = size_boundary(
+            threshold=self.size_threshold,
+            band=self.size_hysteresis_bytes,
+            current_tier=current_tier,
+            size=size,
+            allowed_tiers=self.allowed,
+        )
+        if size <= threshold and current_tier != "hot" and "hot" in self.allowed:
+            return PolicyDecision("move", f"<= {threshold} bytes", "hot", evidence)
+        if size > threshold and current_tier != "warm" and "warm" in self.allowed:
+            return PolicyDecision("move", f"> {threshold} bytes", "warm", evidence)
+        reason = "meets content policy by size"
+        if evidence and evidence["suppressed"]:
+            reason = f"size hysteresis holds current tier at {threshold} bytes"
+        return PolicyDecision("stay", reason, hysteresis=evidence)
 
     # Record-aware evaluation used by PolicyRunner when available
     def evaluate_record(self, rec: "ObjectRecord") -> PolicyDecision:
@@ -407,34 +461,80 @@ class ContentAwarePolicy:
 
         # 3) Named semantic rules are evaluated in configured order.
         semantic_features = {feature.name: feature for feature in features.embeddings}
+        similarity_checks: list[dict[str, object]] = []
+
+        def with_similarity_evidence(decision: PolicyDecision) -> PolicyDecision:
+            if not similarity_checks:
+                return decision
+            size_evidence = decision.hysteresis or {}
+            size_checks = size_evidence.get("checks", [])
+            assert isinstance(size_checks, list)
+            decision.hysteresis = {
+                "checks": [*similarity_checks, *size_checks],
+                # This describes a held classification. The runner compares
+                # complete baseline/guarded decisions because a later rule
+                # may still select a move after an earlier entry was held.
+                "suppressed": bool(size_evidence.get("suppressed")) or any(
+                    check["baseline_match"] != check["effective_match"]
+                    for check in similarity_checks
+                ),
+            }
+            return decision
+
         for rule in self.embedding_rules:
             feature = semantic_features.get(rule.name)
             if feature is None or feature.state is not FeatureState.FRESH:
                 state = FeatureState.MISSING if feature is None else feature.state
-                return PolicyDecision(
+                return with_similarity_evidence(PolicyDecision(
                     action="stay",
                     dst_tier=None,
                     reason=(
                         "required policy features unavailable: "
                         f"embedding:{rule.name}={state.value}"
                     ),
-                )
+                ))
             similarity = feature.similarity
-            if similarity is not None and similarity >= rule.minimum_similarity:
+            # Retaining the current tier has the lower exit boundary; entering
+            # any other tier has the higher entry boundary. Do not clamp these
+            # boundaries to [-1, 1]: an unreachable entry is intentional.
+            threshold = rule.minimum_similarity
+            if self.similarity_hysteresis:
+                threshold += (
+                    -self.similarity_hysteresis
+                    if rule.destination_tier == current_tier
+                    else self.similarity_hysteresis
+                )
+            if self.similarity_hysteresis:
+                similarity_checks.append({
+                    "kind": "similarity",
+                    "rule": rule.name,
+                    "destination_tier": rule.destination_tier,
+                    "configured_band": self.similarity_hysteresis,
+                    "baseline_threshold": rule.minimum_similarity,
+                    "effective_threshold": threshold,
+                    "value": similarity,
+                    "baseline_match": (
+                        similarity is not None and similarity >= rule.minimum_similarity
+                    ),
+                    "effective_match": similarity is not None and similarity >= threshold,
+                })
+            if similarity is not None and similarity >= threshold:
                 reason = (
                     f"embedding {rule.name} similarity {similarity:.6f} "
-                    f">= {rule.minimum_similarity:.6f} -> {rule.destination_tier}"
+                    f">= {threshold:.6f} -> {rule.destination_tier}"
                 )
                 if (
                     rule.destination_tier in self.allowed
                     and rule.destination_tier != current_tier
                 ):
-                    return PolicyDecision(
+                    return with_similarity_evidence(PolicyDecision(
                         "move",
                         reason,
                         rule.destination_tier,
-                    )
-                return PolicyDecision("stay", f"{reason}; already constrained", None)
+                    ))
+                return with_similarity_evidence(
+                    PolicyDecision("stay", f"{reason}; already constrained", None)
+                )
 
         # 4) Every configured signal was fresh but non-matching.
-        return self._evaluate_size(current_tier, rec.size)
+        return with_similarity_evidence(self._evaluate_size(current_tier, rec.size))

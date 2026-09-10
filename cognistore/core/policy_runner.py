@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Callable, Mapping
 from copy import copy
 from dataclasses import dataclass, field
@@ -27,12 +28,15 @@ from .placement_controls import (
     normalize_movement_constraints,
 )
 from .policy import ContentAwarePolicy, LLMPolicy, Policy, PolicyDecision, SimplePolicy
+from .policy_factory import ThresholdProvider
 from .policy_features import CatalogPolicyFeatureLoader, PolicyFeatures
 from .policy_snapshot import (
     capture_policy_snapshot,
     policy_snapshot_features,
     snapshot_from_audit_details,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -213,6 +217,7 @@ class PolicyRunner:
             self.mover.plan(
                 from_tier, decision.dst_tier, rec.bucket, rec.key,
                 movement_constraints=self.movement_constraints,
+                as_of=str(evaluation.constraints["as_of"]) if dry_run else None,
             )
             status: Literal["planned", "completed"] = (
                 "planned" if dry_run else "completed"
@@ -261,6 +266,7 @@ class PolicyRunner:
                 self.mover.plan(
                     rec.tier, decision.dst_tier, rec.bucket, rec.key,
                     movement_constraints=self.movement_constraints,
+                    as_of=str(evaluation.constraints["as_of"]),
                 )
         return evaluations
 
@@ -340,6 +346,14 @@ class PolicyRunner:
                 tier_metadata=None if tier is None else tier.metadata,
                 as_of=evaluated_at,
             )
+            evidence["size_hysteresis_bytes"] = max(
+                self.movement_constraints.size_hysteresis_bytes,
+                getattr(self.policy, "size_hysteresis_bytes", 0),
+            )
+            evidence["similarity_hysteresis"] = max(
+                self.movement_constraints.similarity_hysteresis,
+                getattr(self.policy, "similarity_hysteresis", 0.0),
+            )
             configured_destinations = evidence["allowed_destination_tiers"]
             evidence["importance_allowed_tiers"] = configured_destinations
             allowed = self.allowed_tiers
@@ -351,6 +365,13 @@ class PolicyRunner:
                 else "importance constraint permits no other destination tier"
                 if isinstance(configured_destinations, list)
                 and not set(configured_destinations).difference({rec.tier})
+                else evidence["cooldown_reason"]
+                if evidence["cooldown_active"] and evidence["stability_override"] is None
+                else None
+            )
+            evidence["suppression_reason"] = (
+                "cooldown" if evidence["blocked_reason"] == evidence["cooldown_reason"]
+                and evidence["cooldown_active"] and evidence["stability_override"] is None
                 else None
             )
             constraints[(rec.bucket, rec.key)] = evidence
@@ -392,6 +413,20 @@ class PolicyRunner:
                     eligible_tiers = evidence["importance_allowed_tiers"]
                     if isinstance(eligible_tiers, list):
                         policy.allowed_tiers = set(eligible_tiers).intersection(policy.allowed_tiers)
+                    bypass = self.movement_constraints.stability_override is not None
+                    policy.size_hysteresis_bytes = (
+                        0 if bypass else max(
+                            self.movement_constraints.size_hysteresis_bytes,
+                            policy.size_hysteresis_bytes,
+                        )
+                    )
+                    if isinstance(policy, ContentAwarePolicy):
+                        policy.similarity_hysteresis = (
+                            0.0 if bypass else max(
+                                self.movement_constraints.similarity_hysteresis,
+                                policy.similarity_hysteresis,
+                            )
+                        )
                 evaluate_features = getattr(policy, "evaluate_features", None)
                 if callable(evaluate_features):
                     decision = evaluate_features(rec, features)
@@ -402,6 +437,30 @@ class PolicyRunner:
                         if callable(evaluate_record)
                         else policy.evaluate(rec.tier, rec.size)
                     )
+                hysteresis = getattr(decision, "hysteresis", None)
+                if hysteresis is not None:
+                    evidence["hysteresis"] = hysteresis
+                    suppressed = hysteresis.get("suppressed") and decision.action == "stay"
+                    if type(policy) in {SimplePolicy, ContentAwarePolicy} or (
+                        type(policy) is LLMPolicy and type(policy.provider) is ThresholdProvider
+                    ):
+                        baseline = copy(policy)
+                        assert isinstance(baseline, (SimplePolicy, ContentAwarePolicy, LLMPolicy))
+                        baseline.size_hysteresis_bytes = 0
+                        baseline.similarity_hysteresis = 0.0
+                        candidate = (
+                            baseline.evaluate_features(rec, features)
+                            if isinstance(baseline, ContentAwarePolicy)
+                            else baseline.evaluate(rec.tier, rec.size)
+                        )
+                        hysteresis["candidate_action"] = candidate.action
+                        hysteresis["candidate_destination_tier"] = candidate.dst_tier
+                        suppressed = self._is_actionable(rec, candidate) and decision.action == "stay"
+                        hysteresis["suppressed"] = suppressed
+                    if suppressed:
+                        evidence["suppression_reason"] = "hysteresis"
+                        if "hysteresis" not in decision.reason:
+                            decision.reason = f"hysteresis holds current tier; {decision.reason}"
                 allowed_destinations = evidence["importance_allowed_tiers"]
                 if (
                     decision.action == "move"
@@ -413,6 +472,7 @@ class PolicyRunner:
                     evidence["blocked_reason"] = reason
                     evidence["rejected_destination_tier"] = decision.dst_tier
                     decision = PolicyDecision("stay", reason)
+                    evidence["suppression_reason"] = None
             results.append(
                 PolicyEvaluationResult(
                     bucket=rec.bucket,
@@ -531,6 +591,7 @@ class PolicyRunner:
             name: value for name, value in stable_constraints.items()
             if name not in {
                 "allowed_destination_tiers", "blocked_reason", "rejected_destination_tier",
+                "hysteresis", "suppression_reason",
             }
         }
         evidence_identity = hashlib.sha256(json.dumps(
@@ -574,6 +635,10 @@ class PolicyRunner:
         if snapshot["replay"]["supported"] and (
             stable_constraints.get("minimum_residency_seconds")
             or stable_constraints.get("importance_allowed_tiers") is not None
+            or stable_constraints.get("cooldown_seconds")
+            or stable_constraints.get("size_hysteresis_bytes")
+            or stable_constraints.get("similarity_hysteresis")
+            or stable_constraints.get("stability_override") is not None
         ):
             # Snapshot v1 has no fields for these hard inputs. Preserve the
             # observed result for datasets without claiming an exact replay
@@ -605,10 +670,22 @@ class PolicyRunner:
                 # The evaluation instant changes on retries; eligibility and
                 # its stable source evidence describe the logical decision.
                 "constraints": stable_constraints,
+                "stability_override": stable_constraints.get("stability_override"),
             },
         )
         try:
-            return self.catalog.append_audit_event(event)
+            persisted = self.catalog.append_audit_event(event)
+            if stable_constraints.get("suppression_reason") is not None:
+                LOGGER.info(
+                    "policy move suppressed",
+                    extra={
+                        "event_id": persisted.event_id,
+                        "correlation_id": self.audit_context.correlation_id,
+                        "policy_name": self.policy_name,
+                        "suppression_reason": stable_constraints["suppression_reason"],
+                    },
+                )
+            return persisted
         except ValueError:
             # A concurrent retry can win between the read and append. Preserve
             # that first persisted snapshot rather than replace its evidence.

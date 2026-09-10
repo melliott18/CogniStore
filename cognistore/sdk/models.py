@@ -135,6 +135,18 @@ def _default_importance_tiers() -> dict[ImportanceLevel, list[str]]:
     return {"high": ["hot", "warm"], "critical": ["hot"]}
 
 
+class StabilityOverrideConfig(SDKRequest):
+    """An attributable exception to cooldown and numerical hysteresis."""
+
+    kind: Literal["emergency", "compliance"]
+    reason: Annotated[str, Field(min_length=1, max_length=2048)]
+
+    @model_validator(mode="after")
+    def _validate_reason(self) -> StabilityOverrideConfig:
+        _validate_control_text(self.reason, "override reason", 2048)
+        return self
+
+
 class MovementConstraintsConfig(SDKRequest):
     minimum_residency_seconds: dict[
         Tier, Annotated[int, Field(ge=0, le=315360000)]
@@ -142,6 +154,12 @@ class MovementConstraintsConfig(SDKRequest):
     importance_tiers: dict[
         ImportanceLevel, Annotated[list[Tier], Field(max_length=32)]
     ] = Field(default_factory=_default_importance_tiers)
+    cooldown_seconds: Annotated[int, Field(ge=0, le=315360000)] = 0
+    size_hysteresis_bytes: Annotated[int, Field(ge=0, le=2**63 - 1)] = 0
+    similarity_hysteresis: Annotated[
+        float, Field(ge=0, le=2, allow_inf_nan=False)
+    ] = 0.0
+    stability_override: StabilityOverrideConfig | None = None
 
     @model_validator(mode="after")
     def _validate_constraints(self) -> MovementConstraintsConfig:

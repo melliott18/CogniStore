@@ -563,6 +563,16 @@ def capture_policy_snapshot(
     if model_identity is not None:
         model = {"identity": model_identity, "version": model_version}
     supported = implementation != "unsupported"
+    replay_reason = None if supported else "unsupported_policy_or_provider"
+    # Snapshot v1 predates numerical entry/exit bands. Preserve its schema and
+    # disable replay instead of reconstructing a zero-band policy whose result
+    # can disagree with a directly configured built-in policy.
+    if supported and (
+        bool(getattr(policy, "size_hysteresis_bytes", 0))
+        or implementation == "content" and bool(getattr(policy, "similarity_hysteresis", 0))
+    ):
+        supported = False
+        replay_reason = "hysteresis_not_in_snapshot_v1"
     snapshot: dict[str, Any] = {
         "schema_version": POLICY_SNAPSHOT_SCHEMA_VERSION,
         "decision_at": canonical_audit_timestamp(
@@ -593,7 +603,7 @@ def capture_policy_snapshot(
         "provenance": {"source": "policy-runner", "schema_version": 1},
         "replay": {
             "supported": supported,
-            "reason": None if supported else "unsupported_policy_or_provider",
+            "reason": replay_reason,
         },
     }
     safe = redact(snapshot)

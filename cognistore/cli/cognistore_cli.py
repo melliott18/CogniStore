@@ -1501,6 +1501,16 @@ def _run_cli(
 			"--importance-tier", action="append", nargs=2, metavar=("LEVEL", "TIER"),
 			help="Allowed destination for an importance level (repeat to allow multiple tiers)",
 		)
+		p_policy.add_argument("--cooldown-seconds", type=int, default=0,
+				help="Minimum time after a tier move before another automatic move")
+		p_policy.add_argument("--size-hysteresis-bytes", type=int, default=0,
+				help="Half-width of the size threshold hysteresis band")
+		p_policy.add_argument("--similarity-hysteresis", type=float, default=0.0,
+				help="Half-width of each embedding similarity threshold band")
+		p_policy.add_argument("--stability-override", choices=["emergency", "compliance"],
+				help="Bypass stability guards with an audited reason; hard constraints still apply")
+		p_policy.add_argument("--stability-override-reason",
+				help="Required explanation for --stability-override")
 
 	p_dataset_export = command(
 		"policy-dataset-export", help="Export privacy-filtered policy snapshots and outcome labels"
@@ -2203,9 +2213,22 @@ def _run_cli(
 			controls_config: dict[str, object] = {"minimum_residency_seconds": residency}
 			if importance_tiers:
 				controls_config["importance_tiers"] = importance_tiers
+			controls_config.update(
+				cooldown_seconds=args.cooldown_seconds,
+				size_hysteresis_bytes=args.size_hysteresis_bytes,
+				similarity_hysteresis=args.similarity_hysteresis,
+			)
+			if (args.stability_override is None) != (args.stability_override_reason is None):
+				raise ValueError("--stability-override and --stability-override-reason require each other")
+			if args.stability_override:
+				controls_config["stability_override"] = {
+					"kind": args.stability_override, "reason": args.stability_override_reason,
+				}
+			validated_controls = MovementConstraints.from_mapping(controls_config)
 			args._movement_constraints = (
-				MovementConstraints.from_mapping(controls_config)
-				if args.minimum_residency or args.importance_tier else None
+				validated_controls if args.minimum_residency or args.importance_tier
+				or args.cooldown_seconds or args.size_hysteresis_bytes
+				or args.similarity_hysteresis or args.stability_override else None
 			)
 			if args.cmd == "importance-set":
 				if not args.catalog_db or not catalog_locator_is_persistent(args.catalog_db):

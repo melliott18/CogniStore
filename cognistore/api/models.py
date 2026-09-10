@@ -243,6 +243,27 @@ def _default_importance_tiers() -> dict[ImportanceLevel, list[str]]:
     return {"high": ["hot", "warm"], "critical": ["hot"]}
 
 
+class StabilityOverrideConfig(APIModel):
+    """An attributable exception to cooldown and numerical hysteresis."""
+
+    kind: Literal["emergency", "compliance"]
+    reason: Annotated[str, Field(min_length=1, max_length=2048)]
+
+    @model_validator(mode="after")
+    def _validate_reason(self) -> StabilityOverrideConfig:
+        if self.reason != self.reason.strip():
+            raise ValueError("override reason must not have outer whitespace")
+        if any(ord(character) < 32 or ord(character) == 127 for character in self.reason):
+            raise ValueError("override reason must not contain control characters")
+        try:
+            length = len(self.reason.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise ValueError("override reason must be valid UTF-8") from exc
+        if length > 2048:
+            raise ValueError("override reason must be at most 2048 UTF-8 bytes")
+        return self
+
+
 class MovementConstraintsConfig(APIModel):
     minimum_residency_seconds: dict[
         Tier, Annotated[int, Field(ge=0, le=315360000)]
@@ -250,6 +271,12 @@ class MovementConstraintsConfig(APIModel):
     importance_tiers: dict[
         ImportanceLevel, Annotated[list[Tier], Field(max_length=32)]
     ] = Field(default_factory=_default_importance_tiers)
+    cooldown_seconds: Annotated[int, Field(ge=0, le=315360000)] = 0
+    size_hysteresis_bytes: Annotated[int, Field(ge=0, le=2**63 - 1)] = 0
+    similarity_hysteresis: Annotated[
+        float, Field(ge=0, le=2, allow_inf_nan=False)
+    ] = 0.0
+    stability_override: StabilityOverrideConfig | None = None
 
     @model_validator(mode="after")
     def _validate_domain(self) -> MovementConstraintsConfig:

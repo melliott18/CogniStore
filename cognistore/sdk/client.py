@@ -431,6 +431,12 @@ class CogniStoreClient:
         config = payload.get("config")
         if isinstance(config, dict) and not config.get("embedding_rules"):
             config.pop("embedding_rules", None)
+        if isinstance(config, dict):
+            controls = config.get("movement_constraints")
+            if isinstance(controls, dict):
+                for name in ("cooldown_seconds", "size_hysteresis_bytes", "similarity_hysteresis"):
+                    if controls.get(name) == 0:
+                        controls.pop(name, None)
         return payload
 
     @staticmethod

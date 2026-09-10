@@ -9,6 +9,7 @@ from .policy import (
     Policy,
     SimplePolicy,
 )
+from .policy_stability import size_boundary, validate_size_hysteresis_bytes
 
 
 class ThresholdProvider:
@@ -19,27 +20,44 @@ class ThresholdProvider:
     def decide(self, inputs: dict) -> dict:
         size = int(inputs.get("size", 0))
         current = inputs.get("current_tier")
+        band = validate_size_hysteresis_bytes(inputs.get("size_hysteresis_bytes", 0))
+        threshold, evidence = size_boundary(
+            threshold=self.threshold,
+            band=band,
+            current_tier=current if isinstance(current, str) else "",
+            size=size,
+            allowed_tiers=self.allowed_tiers,
+        )
         if (
-            size <= self.threshold
+            size <= threshold
             and "hot" in self.allowed_tiers
             and current != "hot"
         ):
             return {
                 "action": "move",
                 "dst_tier": "hot",
-                "reason": f"<= {self.threshold} bytes",
+                "reason": f"<= {threshold} bytes",
+                **({"hysteresis": evidence} if evidence is not None else {}),
             }
         if (
-            size > self.threshold
+            size > threshold
             and "warm" in self.allowed_tiers
             and current != "warm"
         ):
             return {
                 "action": "move",
                 "dst_tier": "warm",
-                "reason": f"> {self.threshold} bytes",
+                "reason": f"> {threshold} bytes",
+                **({"hysteresis": evidence} if evidence is not None else {}),
             }
-        return {"action": "stay", "reason": "already optimal"}
+        reason = "already optimal"
+        if evidence and evidence["suppressed"]:
+            reason = f"size hysteresis holds current tier at {threshold} bytes"
+        return {
+            "action": "stay",
+            "reason": reason,
+            **({"hysteresis": evidence} if evidence is not None else {}),
+        }
 
 
 def build_policy(

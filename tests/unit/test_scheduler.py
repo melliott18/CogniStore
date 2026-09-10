@@ -1924,12 +1924,20 @@ def test_scheduled_constraints_survive_normalization_and_publication_recovery(
         _policy_job("place-reports")
         + "      movement_constraints:\n"
         + "        minimum_residency_seconds: {hot: 3600, warm: 300}\n"
+        + "        cooldown_seconds: 1200\n"
+        + "        size_hysteresis_bytes: 65536\n"
+        + "        similarity_hysteresis: 0.05\n"
+        + "        stability_override: {kind: compliance, reason: 'Approved request 45'}\n"
         + "        importance_tiers: {high: [warm], critical: [hot]}\n",
     )
     schedules = _load(config_path)
     expected = {
         "minimum_residency_seconds": {"hot": 3600, "warm": 300},
         "importance_tiers": {"high": ["warm"], "critical": ["hot"]},
+        "cooldown_seconds": 1200,
+        "size_hysteresis_bytes": 65536,
+        "similarity_hysteresis": 0.05,
+        "stability_override": {"kind": "compliance", "reason": "Approved request 45"},
     }
     assert schedules[0].payload["movement_constraints"] == expected
     clock = MutableClock()

@@ -197,6 +197,7 @@ class Mover:
     def plan(
         self, src_tier: str, dst_tier: str, bucket: str, key: str, *,
         movement_constraints: MovementConstraints | None = None,
+        as_of: str | datetime | None = None,
     ) -> MovePlan:
         """Validate a move using read-only operations and return its plan.
 
@@ -206,7 +207,9 @@ class Mover:
         """
 
         src, dst = self._drivers_for_move(src_tier, dst_tier)
-        self._check_movement_constraints(src_tier, dst_tier, bucket, key, movement_constraints)
+        self._check_movement_constraints(
+            src_tier, dst_tier, bucket, key, movement_constraints, as_of=as_of
+        )
         source_metadata = dict(src.stat_object(bucket, key))
         source_size = source_metadata.get("size")
         if (
@@ -243,6 +246,7 @@ class Mover:
     def _check_movement_constraints(
         self, src_tier: str, dst_tier: str, bucket: str, key: str,
         controls: MovementConstraints | None = None,
+        *, as_of: str | datetime | None = None,
     ) -> None:
         record = self.catalog.get(bucket, key)
         tier = self.catalog.get_tier(src_tier)
@@ -256,7 +260,7 @@ class Mover:
         assert_move_allowed(
             record, dst_tier, controls,
             tier_metadata=None if tier is None else tier.metadata,
-            as_of=self._clock(),
+            as_of=self._clock() if as_of is None else as_of,
         )
 
     def _verification_result(

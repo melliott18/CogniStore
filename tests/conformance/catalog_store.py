@@ -205,6 +205,7 @@ class CatalogStoreConformance:
         assert updated is not None
         assert updated == ObjectRecord(
             placement_started_at=updated.placement_started_at,
+            last_tier_move_at=updated.placement_started_at,
             bucket=expected.bucket,
             key=expected.key,
             size=expected.size,
@@ -879,13 +880,16 @@ class CatalogStoreConformance:
         catalog.update_placement("bucket", "object", "hot")
         same = catalog.get("bucket", "object")
         assert same is not None and same.placement_started_at == original.placement_started_at
+        assert original.last_tier_move_at is None and same.last_tier_move_at is None
         catalog.assign_pool("bucket", "object", "warm-a")
         changed = catalog.get("bucket", "object")
         assert changed is not None and changed.placement_started_at > original.placement_started_at
         assert changed.tier == "warm"
+        assert changed.last_tier_move_at == changed.placement_started_at
         catalog.update_placement("bucket", "object", "hot")
         latest = catalog.get("bucket", "object")
         assert latest is not None and latest.placement_started_at > changed.placement_started_at
+        assert latest.last_tier_move_at == latest.placement_started_at
 
     @pytest.mark.parametrize("invalid", [True, -1, 1.5, "60", None, 315_360_001])
     def test_tier_residency_configuration_is_validated(
@@ -1036,6 +1040,7 @@ class CatalogStoreConformance:
         )
         committed = catalog.get("bucket", "object")
         assert committed is not None and committed.placement_started_at == committed_at
+        assert committed.last_tier_move_at == committed_at
         catalog.register_tier("warm", {"minimum_residency_seconds": 60})
         catalog.set_importance(
             "bucket", "object", ImportanceTag("critical", "user", "alice", "retain", now),
@@ -1048,3 +1053,4 @@ class CatalogStoreConformance:
         )
         assert claimed.state == MoveJobState.COMMITTED
         assert catalog.get("bucket", "object").placement_started_at == committed_at
+        assert catalog.get("bucket", "object").last_tier_move_at == committed_at
