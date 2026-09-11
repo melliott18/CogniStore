@@ -7,6 +7,9 @@ It is captured with the original decision and remains unchanged when the same
 logical decision is retried. It does not reconstruct an explanation from the
 object's current metadata.
 
+The [placement explanations API and UI](placement_explanations.md) expose these
+reasons beside frozen placement diffs and separately derived execution status.
+
 Normal planning persists every evaluated decision, including moves, stays,
 constraint suppressions, and rejected destinations, before storage preflight.
 Each completed evaluation is retained immediately, so an exception in a later

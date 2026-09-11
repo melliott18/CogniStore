@@ -104,6 +104,12 @@ _MODEL_SCHEMA_PAIRS = {
     "ObjectPlacementEstimatesResponse": "ObjectPlacementEstimates",
     "PolicyFeaturesResponse": "PolicyFeatures",
     "PolicyEvaluationResponse": "PolicyEvaluationResponse",
+    "PolicyReason": "PolicyReason",
+    "DecisionPlacement": "DecisionPlacement",
+    "DecisionExplanation": "DecisionExplanation",
+    "DecisionExecution": "DecisionExecution",
+    "PolicyDecisionResource": "PolicyDecision",
+    "PolicyDecisionPage": "PolicyDecisionPage",
     "CatalogScanRequest": "CatalogScanRequest",
     "PolicyRunRequest": "PolicyRunRequest",
     "JobStatusResponse": "JobStatus",
@@ -1319,6 +1325,15 @@ def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> N
             "post",
             "/v1/policies/evaluate",
             "evaluate_policy",
+        ),
+        "previewPolicyDecision": (
+            "post", "/v1/policies/preview", "preview_policy_decision",
+        ),
+        "listPolicyDecisions": (
+            "get", "/v1/policy-decisions", "list_policy_decisions",
+        ),
+        "getPolicyDecision": (
+            "get", "/v1/policy-decisions/{decision_id}", "get_policy_decision",
         ),
         "submitCatalogScan": (
             "post",

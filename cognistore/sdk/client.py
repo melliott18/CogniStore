@@ -48,6 +48,8 @@ from .models import (
     JobStatus,
     ObjectDownload,
     ObjectResource,
+    PolicyDecision,
+    PolicyDecisionPage,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     PolicyRunRequest,
@@ -68,8 +70,11 @@ SUPPORTED_OPERATION_IDS = frozenset(
         "getHealth",
         "getJobStatus",
         "getObject",
+        "getPolicyDecision",
         "headObject",
         "listCatalogObjects",
+        "listPolicyDecisions",
+        "previewPolicyDecision",
         "putObject",
         "setObjectImportance",
         "submitCatalogScan",
@@ -707,6 +712,50 @@ class CogniStoreClient:
             json=payload, headers={"Accept": "application/json"},
         )
         return self._parse_model(response, PolicyEvaluationResponse)
+
+    def preview_policy_decision(self, request: PolicyEvaluationRequest) -> PolicyDecision:
+        """Preview structured placement evidence without creating a job or moving data."""
+
+        response = self._send(
+            "POST", "/v1/policies/preview", expected_statuses={200},
+            json=self._policy_request_json(request),
+            headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, PolicyDecision)
+
+    def list_policy_decisions(
+        self,
+        *,
+        bucket: str | None = None,
+        key: str | None = None,
+        job_id: UUID | str | None = None,
+        correlation_id: UUID | str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> PolicyDecisionPage:
+        """Read retained decisions, scoped by object, job or correlation identity."""
+
+        params: dict[str, QueryValue] = {"limit": limit}
+        for name, value in (
+            ("bucket", bucket), ("key", key), ("job_id", job_id),
+            ("correlation_id", correlation_id), ("cursor", cursor),
+        ):
+            if value is not None:
+                params[name] = str(value)
+        response = self._send(
+            "GET", "/v1/policy-decisions", expected_statuses={200},
+            params=params, headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, PolicyDecisionPage)
+
+    def get_policy_decision(self, decision_id: str) -> PolicyDecision:
+        """Read one retained decision and its latest available execution outcome."""
+
+        response = self._send(
+            "GET", f"/v1/policy-decisions/{self._quote_segment(decision_id)}",
+            expected_statuses={200}, headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, PolicyDecision)
 
     def _remember_poll_interval(self, response: httpx.Response, job: JobStatus) -> None:
         retry_after = self._retry_after(response)

@@ -8,9 +8,10 @@
     <title>CogniStore · Discover</title>
     <link rel="stylesheet" href="/ui/styles.css">
     <script src="/ui/app.js" defer></script>
+    <script src="/ui/decisions.js" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#workspace">Skip to search</a>
+    <a class="skip-link" href="#workspace">Skip to workspace</a>
 
     <header class="app-header">
       <a class="brand" href="/ui/" aria-label="CogniStore content discovery home">
@@ -39,7 +40,7 @@
           Search extracted document content with a ranked keyword or vector query.
         </p>
 
-        <div class="view-tabs" role="tablist" aria-label="Discovery view">
+        <div class="view-tabs" role="tablist" aria-label="Workspace view">
           <button
             id="search-tab"
             class="view-tab is-active"
@@ -57,11 +58,22 @@
             type="button"
             role="tab"
             aria-selected="false"
+            tabindex="-1"
             aria-controls="query-view"
             data-view="ask"
           >
             <span aria-hidden="true">✦</span> Ask
           </button>
+          <button
+            id="placements-tab"
+            class="view-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            tabindex="-1"
+            aria-controls="placement-view"
+            data-view="placements"
+          >Placement</button>
         </div>
 
         <form id="query-form" novalidate>
@@ -189,9 +201,42 @@
             </details>
           </div>
         </form>
+
+        <div id="placement-view" role="tabpanel" aria-labelledby="placements-tab" hidden>
+          <form id="decision-form" class="decision-form">
+            <label>
+              <span>Inspect placement</span>
+              <select id="decision-mode">
+                <option value="object">Object decision history</option>
+                <option value="job">Job decision history</option>
+                <option value="preview">Dry-run preview</option>
+              </select>
+            </label>
+            <div id="decision-object-fields" class="decision-fields">
+              <label>
+                <span>Bucket</span>
+                <input id="decision-bucket" required maxlength="1024" placeholder="documents">
+              </label>
+              <label>
+                <span>Object key</span>
+                <input id="decision-key" required maxlength="8192" placeholder="operations/restore.md">
+              </label>
+            </div>
+            <label id="decision-job-field" hidden>
+              <span>Job ID</span>
+              <input id="decision-job" maxlength="256" disabled placeholder="Policy run job ID">
+            </label>
+            <label id="decision-config-field" hidden>
+              <span>Preview policy <small>JSON configuration</small></span>
+              <textarea id="decision-config" rows="7" maxlength="65536" spellcheck="false" disabled>{"policy":"simple","threshold":1048576,"allowed_tiers":["hot","warm"]}</textarea>
+            </label>
+            <p id="decision-help" class="query-help">Inspect retained decisions and their latest execution outcomes.</p>
+            <button id="submit-decision" class="submit-button" type="submit">Inspect history</button>
+          </form>
+        </div>
       </section>
 
-      <section class="results-panel" aria-labelledby="results-heading">
+      <section id="search-results-panel" class="results-panel" aria-labelledby="results-heading">
         <div class="results-heading-row">
           <div>
             <div class="eyebrow">Ranked evidence</div>
@@ -210,10 +255,24 @@
         <div id="answer-region" class="answer-region"></div>
         <ol id="results-list" class="results-list" aria-label="Ranked content results"></ol>
       </section>
+
+      <section id="placement-results-panel" class="results-panel" aria-labelledby="placement-heading" hidden>
+        <div class="results-heading-row">
+          <div>
+            <div class="eyebrow">Policy evidence</div>
+            <h2 id="placement-heading">Placement explanations</h2>
+          </div>
+        </div>
+        <div id="decision-status" class="decision-status" role="status" aria-live="polite">
+          Choose an object or job to inspect why placement changed, stayed, or was suppressed.
+        </div>
+        <ol id="decision-results" class="results-list" aria-label="Placement decisions"></ol>
+        <button id="decision-more" class="decision-link" type="button" hidden>Load older decisions</button>
+      </section>
     </main>
 
     <footer>
-      <span>CogniStore M2 · Source-backed discovery</span>
+      <span>CogniStore · Discovery and placement evidence</span>
       <span>API v1</span>
     </footer>
   </body>

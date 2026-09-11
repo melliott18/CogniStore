@@ -448,6 +448,31 @@ class AuditQuery:
     occurred_before: str | None = None
     limit: int = 100
     ascending: bool = True
+    # Exclusive chronological boundary, including the UUID tie-breaker. This
+    # remains a "before" filter regardless of the requested result ordering.
+    before_event: tuple[str, str] | None = None
+
+    @classmethod
+    def from_event(
+        cls, event: AuditEvent, *, event_types: frozenset[str] | None = None,
+        limit: int = 100, ascending: bool = True,
+    ) -> AuditQuery:
+        """Query a retained event's execution identities, including pseudonyms.
+
+        Public query construction continues to reject the reserved namespace.
+        This path accepts an AuditEvent, never caller-supplied query identities;
+        normal identities are redacted and already-retained pseudonyms survive.
+        """
+        if not isinstance(event, AuditEvent):
+            raise ValueError("event must be an AuditEvent")
+        query = cls(event_types=event_types, limit=limit, ascending=ascending)
+        for name in ("correlation_id", "job_id", "move_id", "bucket", "object_key"):
+            value = getattr(event, name)
+            object.__setattr__(
+                query, name,
+                None if value is None else audit_text_identity(value, _allow_pseudonym=True),
+            )
+        return query
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -510,6 +535,14 @@ class AuditQuery:
             raise ValueError("limit must be an integer between 1 and 10000")
         if not isinstance(self.ascending, bool):
             raise ValueError("ascending must be a boolean")
+        if self.before_event is not None:
+            if not isinstance(self.before_event, tuple) or len(self.before_event) != 2:
+                raise ValueError("before_event must be a timestamp and event ID tuple")
+            timestamp, event_id = self.before_event
+            object.__setattr__(self, "before_event", (
+                _canonical_timestamp(timestamp, "before_event timestamp"),
+                _canonical_uuid(event_id, "before_event event ID"),
+            ))
 
 
 def stable_audit_event_id(*parts: str) -> str:

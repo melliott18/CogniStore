@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from cognistore.core.placement_controls import ImportanceTag, MovementConstraints
+from cognistore.core.policy_reasons import PolicyReason
 
 JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JsonValue
@@ -577,6 +578,55 @@ class JobStatusResponse(APIModel):
     @field_serializer("created_at", "updated_at")
     def _serialize_timestamp(self, value: datetime) -> str:
         return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+class DecisionPlacement(APIModel):
+    """A tier frozen at evaluation time; null means evidence is unavailable."""
+
+    tier: Tier | None
+
+
+class DecisionExplanation(APIModel):
+    state: Literal["available", "legacy", "unavailable"]
+    structured_reason: PolicyReason | None
+    model_details: Literal["available", "not_applicable", "unavailable"]
+
+
+class DecisionExecution(APIModel):
+    """Observed execution evidence, independent from the proposed placement."""
+
+    mode: Literal["preview", "persisted"]
+    state: Literal[
+        "dry_run", "not_requested", "planned", "running", "retrying",
+        "completed", "failed", "unavailable",
+    ]
+    job_id: str | None = None
+    correlation_id: str | None = None
+    move_id: str | None = None
+    job: JobStatusResponse | None = None
+    event_id: str | None = None
+    updated_at: str | None = None
+
+
+class PolicyDecisionResource(APIModel):
+    schema_version: Literal[1] = 1
+    decision_id: str | None
+    bucket: Bucket
+    key: ObjectKey
+    evaluated_at: str
+    action: Literal["move", "stay"] | None
+    disposition: Literal["move", "stay", "suppressed", "rejected", "unavailable"]
+    current: DecisionPlacement
+    proposed: DecisionPlacement
+    changed_fields: list[Literal["tier"]]
+    explanation: DecisionExplanation
+    execution: DecisionExecution
+
+
+class PolicyDecisionPage(APIModel):
+    schema_version: Literal[1] = 1
+    items: list[PolicyDecisionResource]
+    page: PageMetadata
 
 
 class HealthResponse(APIModel):

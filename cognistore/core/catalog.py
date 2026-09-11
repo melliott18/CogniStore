@@ -1279,6 +1279,8 @@ class Catalog(CatalogStore):
 				or event.occurred_at >= query.occurred_after,
 				query.occurred_before is None
 				or event.occurred_at < query.occurred_before,
+				query.before_event is None
+				or (event.occurred_at, event.event_id) < query.before_event,
 			)
 		)
 

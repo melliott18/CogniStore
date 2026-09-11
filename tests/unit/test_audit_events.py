@@ -166,6 +166,49 @@ def test_append_get_filter_and_stable_order_are_backend_neutral(
 
 
 @pytest.mark.parametrize("backend", ["memory", "sqlite"])
+def test_audit_keyset_pages_preserve_timestamp_ties_during_inserts(
+    backend: str,
+    tmp_path: Path,
+) -> None:
+    events = [_event(number, occurred_seconds=number // 3) for number in range(1, 8)]
+    with _open_catalog(backend, tmp_path) as catalog:
+        for event in events:
+            catalog.append_audit_event(event)
+        first = catalog.list_audit_events(AuditQuery(limit=2, ascending=False))
+        assert first == events[-2:][::-1]
+        boundary = (first[-1].occurred_at, first[-1].event_id)
+        catalog.append_audit_event(_event(8, occurred_seconds=3))
+        catalog.append_audit_event(_event(9, occurred_seconds=2, bucket="other"))
+        remaining = []
+        while page := catalog.list_audit_events(AuditQuery(
+            bucket="bucket", before_event=boundary, ascending=False, limit=2,
+        )):
+            remaining.extend(page)
+            boundary = (page[-1].occurred_at, page[-1].event_id)
+        assert first + remaining == events[::-1]
+        # A before boundary is chronological, even for ascending reads.
+        assert catalog.list_audit_events(AuditQuery(
+            before_event=(events[2].occurred_at, events[2].event_id),
+        )) == events[:2]
+
+
+@pytest.mark.parametrize("boundary", [
+    (), ("2026-09-11",), ("invalid", str(UUID(int=1))),
+    (_timestamp(0), "invalid"), [_timestamp(0), str(UUID(int=1))],
+])
+def test_audit_keyset_boundary_rejects_malformed_values(boundary: Any) -> None:
+    with pytest.raises(ValueError, match="before_event"):
+        AuditQuery(before_event=boundary)
+
+
+def test_audit_keyset_boundary_normalizes_timestamp_and_uuid() -> None:
+    query = AuditQuery(before_event=(
+        "2026-08-29T05:00:00-07:00", "00000000000000000000000000000001",
+    ))
+    assert query.before_event == (_timestamp(0), str(UUID(int=1)))
+
+
+@pytest.mark.parametrize("backend", ["memory", "sqlite"])
 def test_v1_and_future_additive_event_schemas_remain_readable(
     backend: str,
     tmp_path: Path,

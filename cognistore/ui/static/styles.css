@@ -1189,6 +1189,154 @@ footer {
   font-size: 0.65rem;
 }
 
+.decision-form,
+.decision-fields,
+.decision-form label {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.decision-form {
+  gap: 1.15rem;
+}
+
+.decision-form label > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.decision-form small {
+  font-weight: 400;
+}
+
+.decision-form input,
+.decision-form select,
+.decision-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.8rem;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 0.8rem;
+}
+
+.decision-form textarea {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.6;
+}
+
+.decision-form .submit-button {
+  min-height: 50px;
+}
+
+.decision-status {
+  margin: 1.25rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.decision-link {
+  margin-top: 1rem;
+  padding: 0.45rem 0;
+  color: var(--pine);
+  border: 0;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.decision-card {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.decision-card h3 {
+  font-size: 1rem;
+}
+
+.decision-state {
+  display: inline-block;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 7px;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.decision-preview {
+  color: #6b4a14;
+  border: 1px dashed #ba8841;
+  background: var(--amber-soft);
+}
+
+.decision-recorded {
+  color: var(--pine-deep);
+  background: var(--mint-soft);
+}
+
+.decision-time,
+.decision-change {
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+.placement-diff {
+  width: 100%;
+  margin-top: 1.1rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.76rem;
+}
+
+.placement-diff caption {
+  margin-bottom: 0.6rem;
+  text-align: left;
+  font-weight: 700;
+}
+
+.placement-diff th,
+.placement-diff td {
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.placement-diff thead,
+.placement-changed {
+  background: var(--surface-alt);
+}
+
+.decision-section-title {
+  margin: 1.4rem 0 0.55rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.77rem;
+}
+
+.decision-signals {
+  padding-left: 1.25rem;
+}
+
+.decision-constraints dt,
+.decision-trace dt,
+.decision-constraints dd,
+.decision-trace dd {
+  font-size: 0.68rem;
+}
+
+.decision-trace {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
 [hidden] {
   display: none !important;
 }
@@ -1250,6 +1398,8 @@ footer {
   .view-tab {
     justify-content: center;
     flex: 1;
+    min-width: 0;
+    padding-inline: 0.7rem;
   }
 
   .mode-selector,

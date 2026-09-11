@@ -585,6 +585,133 @@ class JobStatus(SDKResponse):
     error_type: str | None = None
 
 
+class DecisiveSignal(SDKResponse):
+    name: Literal[
+        "size_bytes", "name_match", "mime_match", "mime_state", "embedding_state",
+        "features_evaluated", "embedding_similarity",
+    ]
+    value: (
+        Annotated[int | float, Field(allow_inf_nan=False)]
+        | bool | Literal["fresh", "stale", "missing", "unavailable"] | None
+    )
+    operator: Literal["<=", ">", ">=", "=="] | None
+    threshold: Annotated[int | float, Field(allow_inf_nan=False)] | None
+    rule_index: Annotated[int, Field(ge=0)] | None
+
+
+class HysteresisCheck(SDKResponse):
+    kind: Literal["size", "similarity"]
+    configured_band: Annotated[int | float, Field(allow_inf_nan=False)]
+    baseline_threshold: Annotated[int | float, Field(allow_inf_nan=False)]
+    effective_threshold: Annotated[int | float, Field(allow_inf_nan=False)]
+    value: Annotated[int | float, Field(allow_inf_nan=False)] | None
+    rule_index: Annotated[int, Field(ge=0)] | None
+
+
+class ReasonConstraints(SDKResponse):
+    evaluated_at: str
+    importance_level: ImportanceLevel | None
+    importance_revision: Annotated[int, Field(ge=0)]
+    importance_allowed_tiers: list[Annotated[str, Field(min_length=1)]] | None
+    allowed_destination_tiers: list[Annotated[str, Field(min_length=1)]]
+    placement_started_at: str | None
+    minimum_residency_seconds: Annotated[int, Field(ge=0)]
+    residency_expires_at: str | None
+    residency_active: bool
+    last_tier_move_at: str | None
+    cooldown_seconds: Annotated[int, Field(ge=0)]
+    cooldown_expires_at: str | None
+    cooldown_active: bool
+    size_hysteresis_bytes: Annotated[int, Field(ge=0)]
+    similarity_hysteresis: Annotated[float, Field(ge=0, le=2)]
+    stability_override_kind: Literal["emergency", "compliance"] | None
+    rejected_destination_tier: Annotated[str, Field(min_length=1)] | None
+    candidate_action: Literal["move", "stay"] | None
+    candidate_destination_tier: Annotated[str, Field(min_length=1)] | None
+    hysteresis_checks: list[HysteresisCheck]
+
+
+class ReasonModel(SDKResponse):
+    identity: Annotated[str, Field(min_length=1)]
+    version: Annotated[str, Field(min_length=1)] | None
+
+
+class ReasonPolicy(SDKResponse):
+    name: Annotated[str, Field(min_length=1)]
+    version: Annotated[str, Field(min_length=1)]
+    model: ReasonModel | None
+
+
+class ReasonConfidence(SDKResponse):
+    value: None
+    source: Literal["not_reported", "not_applicable"]
+
+
+class PolicyReason(SDKResponse):
+    schema_version: Literal[1]
+    code: Literal[
+        "size_threshold", "name_rule", "mime_rule", "embedding_rule",
+        "required_features_unavailable", "provider_decision", "provider_error",
+        "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
+        "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
+        "destination_missing", "already_in_tier", "invalid_action",
+    ]
+    disposition: Literal["move", "stay", "suppressed", "rejected"]
+    decisive_signals: list[DecisiveSignal]
+    constraints: ReasonConstraints
+    policy: ReasonPolicy
+    confidence: ReasonConfidence
+
+
+class DecisionPlacement(SDKResponse):
+    """A tier frozen at evaluation time; null means evidence is unavailable."""
+
+    tier: Tier | None
+
+
+class DecisionExplanation(SDKResponse):
+    state: Literal["available", "legacy", "unavailable"]
+    structured_reason: PolicyReason | None
+    model_details: Literal["available", "not_applicable", "unavailable"]
+
+
+class DecisionExecution(SDKResponse):
+    """Observed execution evidence, independent from the proposed placement."""
+
+    mode: Literal["preview", "persisted"]
+    state: Literal[
+        "dry_run", "not_requested", "planned", "running", "retrying",
+        "completed", "failed", "unavailable",
+    ]
+    job_id: str | None = None
+    correlation_id: str | None = None
+    move_id: str | None = None
+    job: JobStatus | None = None
+    event_id: str | None = None
+    updated_at: str | None = None
+
+
+class PolicyDecision(SDKResponse):
+    schema_version: Literal[1] = 1
+    decision_id: str | None
+    bucket: Bucket
+    key: ObjectKey
+    evaluated_at: str
+    action: Literal["move", "stay"] | None
+    disposition: Literal["move", "stay", "suppressed", "rejected", "unavailable"]
+    current: DecisionPlacement
+    proposed: DecisionPlacement
+    changed_fields: list[Literal["tier"]]
+    explanation: DecisionExplanation
+    execution: DecisionExecution
+
+
+class PolicyDecisionPage(SDKResponse):
+    schema_version: Literal[1] = 1
+    items: list[PolicyDecision]
+    page: PageMetadata
+
+
 class ValidationIssue(SDKResponse):
     location: str
     message: str
@@ -648,3 +775,4 @@ PlacementEstimateResponse: TypeAlias = PlacementEstimate
 ObjectPlacementEstimatesResponse: TypeAlias = ObjectPlacementEstimates
 PolicyFeaturesResponse: TypeAlias = PolicyFeatures
 JobStatusResponse: TypeAlias = JobStatus
+PolicyDecisionResource: TypeAlias = PolicyDecision
