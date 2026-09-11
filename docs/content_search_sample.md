@@ -54,6 +54,12 @@ Filters are exact and share the Ask v1 contract: bucket, key prefix, tier, MIME
 type, size, content SHA-256, scalar object metadata, and allowlisted document
 metadata. The UI displays metadata truncation explicitly.
 
+The **Placement** view also supports [policy explanations](placement_explanations.md):
+preview a policy against a catalog object, inspect its retained decisions, or
+follow a policy job's decisions through execution. Proposed placement changes
+are labeled separately from completed moves. Previews work without a worker;
+execution history requires retained policy decisions from actual policy runs.
+
 ## Corpus provenance and duplicate content
 
 The packaged manifest lives in

@@ -1818,6 +1818,15 @@ class SQLCatalog(Catalog):
             statement = statement.where(audit_events.c.occurred_at >= criteria.occurred_after)
         if criteria.occurred_before is not None:
             statement = statement.where(audit_events.c.occurred_at < criteria.occurred_before)
+        if criteria.before_event is not None:
+            timestamp, event_id = criteria.before_event
+            statement = statement.where(sa.or_(
+                audit_events.c.occurred_at < timestamp,
+                sa.and_(
+                    audit_events.c.occurred_at == timestamp,
+                    audit_events.c.event_id < UUID(event_id),
+                ),
+            ))
         order = (
             (audit_events.c.occurred_at.asc(), audit_events.c.event_id.asc())
             if criteria.ascending

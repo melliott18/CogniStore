@@ -598,6 +598,265 @@
         "title": "CatalogScanRequest",
         "type": "object"
       },
+      "DecisionExecution": {
+        "additionalProperties": false,
+        "description": "Observed execution evidence, independent from the proposed placement.",
+        "properties": {
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobStatusResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "mode": {
+            "enum": [
+              "preview",
+              "persisted"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "move_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Move Id"
+          },
+          "state": {
+            "enum": [
+              "dry_run",
+              "not_requested",
+              "planned",
+              "running",
+              "retrying",
+              "completed",
+              "failed",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "mode",
+          "state"
+        ],
+        "title": "DecisionExecution",
+        "type": "object"
+      },
+      "DecisionExplanation": {
+        "additionalProperties": false,
+        "properties": {
+          "model_details": {
+            "enum": [
+              "available",
+              "not_applicable",
+              "unavailable"
+            ],
+            "title": "Model Details",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "legacy",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "structured_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "structured_reason",
+          "model_details"
+        ],
+        "title": "DecisionExplanation",
+        "type": "object"
+      },
+      "DecisionPlacement": {
+        "additionalProperties": false,
+        "description": "A tier frozen at evaluation time; null means evidence is unavailable.",
+        "properties": {
+          "tier": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "required": [
+          "tier"
+        ],
+        "title": "DecisionPlacement",
+        "type": "object"
+      },
+      "DecisiveSignal": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "enum": [
+              "size_bytes",
+              "name_match",
+              "mime_match",
+              "mime_state",
+              "embedding_state",
+              "features_evaluated",
+              "embedding_similarity"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "enum": [
+                  "<=",
+                  ">",
+                  ">=",
+                  "=="
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator"
+          },
+          "rule_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Index"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": [
+                  "fresh",
+                  "stale",
+                  "missing",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "operator",
+          "threshold",
+          "rule_index"
+        ],
+        "title": "DecisiveSignal",
+        "type": "object"
+      },
       "EmbeddingPolicyFeatureResponse": {
         "additionalProperties": false,
         "properties": {
@@ -896,6 +1155,88 @@
           }
         },
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HysteresisCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Baseline Threshold"
+          },
+          "configured_band": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Configured Band"
+          },
+          "effective_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Effective Threshold"
+          },
+          "kind": {
+            "enum": [
+              "size",
+              "similarity"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rule_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Index"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "configured_band",
+          "baseline_threshold",
+          "effective_threshold",
+          "value",
+          "rule_index"
+        ],
+        "title": "HysteresisCheck",
         "type": "object"
       },
       "ImpactTotalResponse": {
@@ -1836,6 +2177,132 @@
         "title": "PolicyConfig",
         "type": "object"
       },
+      "PolicyDecisionPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDecisionResource"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMetadata"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "PolicyDecisionPage",
+        "type": "object"
+      },
+      "PolicyDecisionResource": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "move",
+                  "stay"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "bucket": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bucket",
+            "type": "string"
+          },
+          "changed_fields": {
+            "items": {
+              "const": "tier",
+              "type": "string"
+            },
+            "title": "Changed Fields",
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/DecisionPlacement"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "disposition": {
+            "enum": [
+              "move",
+              "stay",
+              "suppressed",
+              "rejected",
+              "unavailable"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "evaluated_at": {
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/DecisionExecution"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/DecisionExplanation"
+          },
+          "key": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/DecisionPlacement"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision_id",
+          "bucket",
+          "key",
+          "evaluated_at",
+          "action",
+          "disposition",
+          "current",
+          "proposed",
+          "changed_fields",
+          "explanation",
+          "execution"
+        ],
+        "title": "PolicyDecisionResource",
+        "type": "object"
+      },
       "PolicyEvaluationRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2068,6 +2535,77 @@
         "title": "PolicyFeaturesResponse",
         "type": "object"
       },
+      "PolicyReason": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "size_threshold",
+              "name_rule",
+              "mime_rule",
+              "embedding_rule",
+              "required_features_unavailable",
+              "provider_decision",
+              "provider_error",
+              "provider_invalid_response",
+              "provider_invalid_input",
+              "custom_policy",
+              "minimum_residency",
+              "importance_restriction",
+              "cooldown",
+              "hysteresis",
+              "destination_not_allowed",
+              "destination_missing",
+              "already_in_tier",
+              "invalid_action"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/ReasonConfidence"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/ReasonConstraints"
+          },
+          "decisive_signals": {
+            "items": {
+              "$ref": "#/components/schemas/DecisiveSignal"
+            },
+            "title": "Decisive Signals",
+            "type": "array"
+          },
+          "disposition": {
+            "enum": [
+              "move",
+              "stay",
+              "suppressed",
+              "rejected"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/ReasonPolicy"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "code",
+          "disposition",
+          "decisive_signals",
+          "constraints",
+          "policy",
+          "confidence"
+        ],
+        "title": "PolicyReason",
+        "type": "object"
+      },
       "PolicyRunRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2134,6 +2672,301 @@
           "state"
         ],
         "title": "ProviderDiagnosticResponse",
+        "type": "object"
+      },
+      "ReasonConfidence": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "not_reported",
+              "not_applicable"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "null"
+          }
+        },
+        "required": [
+          "value",
+          "source"
+        ],
+        "title": "ReasonConfidence",
+        "type": "object"
+      },
+      "ReasonConstraints": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_destination_tiers": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Allowed Destination Tiers",
+            "type": "array"
+          },
+          "candidate_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "move",
+                  "stay"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Action"
+          },
+          "candidate_destination_tier": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Destination Tier"
+          },
+          "cooldown_active": {
+            "title": "Cooldown Active",
+            "type": "boolean"
+          },
+          "cooldown_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Expires At"
+          },
+          "cooldown_seconds": {
+            "minimum": 0.0,
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "evaluated_at": {
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "hysteresis_checks": {
+            "items": {
+              "$ref": "#/components/schemas/HysteresisCheck"
+            },
+            "title": "Hysteresis Checks",
+            "type": "array"
+          },
+          "importance_allowed_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Allowed Tiers"
+          },
+          "importance_level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "normal",
+                  "high",
+                  "critical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Level"
+          },
+          "importance_revision": {
+            "minimum": 0.0,
+            "title": "Importance Revision",
+            "type": "integer"
+          },
+          "last_tier_move_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Tier Move At"
+          },
+          "minimum_residency_seconds": {
+            "minimum": 0.0,
+            "title": "Minimum Residency Seconds",
+            "type": "integer"
+          },
+          "placement_started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Started At"
+          },
+          "rejected_destination_tier": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected Destination Tier"
+          },
+          "residency_active": {
+            "title": "Residency Active",
+            "type": "boolean"
+          },
+          "residency_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residency Expires At"
+          },
+          "similarity_hysteresis": {
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Similarity Hysteresis",
+            "type": "number"
+          },
+          "size_hysteresis_bytes": {
+            "minimum": 0.0,
+            "title": "Size Hysteresis Bytes",
+            "type": "integer"
+          },
+          "stability_override_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "emergency",
+                  "compliance"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stability Override Kind"
+          }
+        },
+        "required": [
+          "evaluated_at",
+          "importance_level",
+          "importance_revision",
+          "importance_allowed_tiers",
+          "allowed_destination_tiers",
+          "placement_started_at",
+          "minimum_residency_seconds",
+          "residency_expires_at",
+          "residency_active",
+          "last_tier_move_at",
+          "cooldown_seconds",
+          "cooldown_expires_at",
+          "cooldown_active",
+          "size_hysteresis_bytes",
+          "similarity_hysteresis",
+          "stability_override_kind",
+          "rejected_destination_tier",
+          "candidate_action",
+          "candidate_destination_tier",
+          "hysteresis_checks"
+        ],
+        "title": "ReasonConstraints",
+        "type": "object"
+      },
+      "ReasonModel": {
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "minLength": 1,
+            "title": "Identity",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "identity",
+          "version"
+        ],
+        "title": "ReasonModel",
+        "type": "object"
+      },
+      "ReasonPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "model"
+        ],
+        "title": "ReasonPolicy",
         "type": "object"
       },
       "RetrievalResultResponse": {
@@ -5159,6 +5992,688 @@
           }
         },
         "summary": "Evaluate Policy",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/v1/policies/preview": {
+      "post": {
+        "description": "Evaluate without persisting a decision or executing a move. The diff is a proposal only.",
+        "operationId": "previewPolicyDecision",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDecisionResource"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Authentication required by the configured authorization hook",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request forbidden by the configured authorization hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request body is too large",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Preview Policy",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/v1/policy-decisions": {
+      "get": {
+        "description": "Newest retained decisions first. Placement is frozen at evaluation; execution is observed separately.",
+        "operationId": "listPolicyDecisions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bucket"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 8192,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Correlation Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16384,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDecisionPage"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Authentication required by the configured authorization hook",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request forbidden by the configured authorization hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List Policy Decisions",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/v1/policy-decisions/{decision_id}": {
+      "get": {
+        "operationId": "getPolicyDecision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDecisionResource"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Authentication required by the configured authorization hook",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request forbidden by the configured authorization hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Policy Decision",
         "tags": [
           "policies"
         ]

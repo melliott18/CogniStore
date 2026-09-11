@@ -75,6 +75,7 @@ function initialize() {
   updateModeDetails();
   updateFilterCount();
   checkHealth();
+  initializeDecisions();
 }
 
 function handleTabKeydown(event) {
@@ -82,16 +83,19 @@ function handleTabKeydown(event) {
     return;
   }
   event.preventDefault();
-  const next = state.view === "search" ? "ask" : "search";
+  const views = ["search", "ask", "placements"];
+  const direction = event.key === "ArrowRight" ? 1 : -1;
+  const next = views[(views.indexOf(state.view) + direction + views.length) % views.length];
   setView(next);
   document.querySelector(`[data-view="${next}"]`).focus();
 }
 
 function setView(view) {
-  if (!['search', 'ask'].includes(view) || view === state.view) {
+  if (!['search', 'ask', 'placements'].includes(view) || view === state.view) {
     return;
   }
   cancelPendingRequest();
+  cancelDecisionRequest();
   state.view = view;
   document.querySelectorAll("[data-view]").forEach((tab) => {
     const selected = tab.dataset.view === view;
@@ -103,9 +107,14 @@ function setView(view) {
     "aria-labelledby",
     view === "search" ? "search-tab" : "ask-tab",
   );
+  const placements = view === "placements";
+  ui.form.hidden = placements;
+  byId("placement-view").hidden = !placements;
+  byId("search-results-panel").hidden = placements;
+  byId("placement-results-panel").hidden = !placements;
   updateModeDetails();
   showIdle();
-  ui.query.focus();
+  (placements ? byId("decision-mode") : ui.query).focus();
 }
 
 function cancelPendingRequest() {
@@ -119,6 +128,10 @@ function cancelPendingRequest() {
 }
 
 function updateModeDetails() {
+  if (state.view === "placements") {
+    ui.description.textContent = "Inspect policy reasons and before/after placement, or preview a policy without moving data.";
+    return;
+  }
   const isAsk = state.view === "ask";
   ui.searchModes.hidden = isAsk;
   ui.queryLabel.textContent = isAsk ? "Ask a grounded question" : "Search your content";
@@ -568,6 +581,10 @@ function renderResult(result, rank) {
   open.append(createElement("span", "", "↗"));
   footer.append(open, renderObjectDetails(citation));
   item.append(footer);
+  const explain = createElement("button", "decision-link", "Explain placement");
+  explain.type = "button";
+  explain.addEventListener("click", () => inspectObjectDecisions(citation));
+  item.append(explain);
   return item;
 }
 

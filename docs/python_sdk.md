@@ -157,6 +157,9 @@ method. The two convenience methods do not add server endpoints.
 | `get_catalog_object(bucket, key)` | `GET /v1/catalog/objects/{bucket}/{key}` | `CatalogObject` |
 | `ask(request)` | `POST /v1/ask` | `AskResponse` |
 | `evaluate_policy(request)` | `POST /v1/policies/evaluate` | `PolicyEvaluationResponse` |
+| `preview_policy_decision(request)` | `POST /v1/policies/preview` | `PolicyDecision` |
+| `list_policy_decisions(...)` | `GET /v1/policy-decisions` | `PolicyDecisionPage` |
+| `get_policy_decision(decision_id)` | `GET /v1/policy-decisions/{decision_id}` | `PolicyDecision` |
 | `submit_catalog_scan(request)` | `POST /v1/actions/catalog-scans` | `JobStatus` |
 | `submit_policy_run(request)` | `POST /v1/actions/policy-runs` | `JobStatus` |
 | `get_job_status(job_id)` | `GET /v1/jobs/{job_id}` | `JobStatus` |

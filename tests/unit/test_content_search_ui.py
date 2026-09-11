@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from cognistore.api import create_app
@@ -20,15 +25,17 @@ def test_content_search_ui_is_served_from_same_origin_with_security_headers() ->
         canonical = client.get("/ui")
         index = client.get("/ui/")
         script = client.get("/ui/app.js")
+        decisions_script = client.get("/ui/decisions.js")
         styles = client.get("/ui/styles.css")
 
     assert root.status_code == canonical.status_code == 307
     assert root.headers["location"] == canonical.headers["location"] == "/ui/"
     assert index.status_code == script.status_code == styles.status_code == 200
+    assert decisions_script.status_code == 200
     assert index.headers["content-type"].startswith("text/html")
     assert script.headers["content-type"].startswith("text/javascript")
     assert styles.headers["content-type"].startswith("text/css")
-    for response in (root, canonical, index, script, styles):
+    for response in (root, canonical, index, script, decisions_script, styles):
         assert response.headers["x-content-type-options"] == "nosniff"
         assert response.headers["x-frame-options"] == "DENY"
         assert "default-src 'self'" in response.headers["content-security-policy"]
@@ -39,6 +46,7 @@ def test_ui_contract_covers_search_ask_filters_citations_and_explicit_states() -
     with _client() as client:
         html = client.get("/ui/").text
         javascript = client.get("/ui/app.js").text
+        decisions = client.get("/ui/decisions.js").text
 
     for marker in (
         'data-view="search"',
@@ -48,6 +56,10 @@ def test_ui_contract_covers_search_ask_filters_citations_and_explicit_states() -
         'id="filter-bucket"',
         'id="filter-document-metadata"',
         'id="results-list"',
+        'data-view="placements"',
+        'id="decision-form"',
+        'id="decision-config"',
+        'id="decision-results"',
     ):
         assert marker in html
     for behavior in (
@@ -62,6 +74,22 @@ def test_ui_contract_covers_search_ask_filters_citations_and_explicit_states() -
         assert behavior in javascript
     # Every server value is written through textContent rather than parsed as markup.
     assert ".innerHTML" not in javascript
+    assert ".innerHTML" not in decisions
+
+
+def test_placement_ui_behavior_renders_evidence_and_tracks_requests() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to execute the dependency-free UI behavior harness")
+    result = subprocess.run(
+        [node, str(Path(__file__).with_name("content_search_ui_behavior.js"))],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Placement UI behavior passed" in result.stdout
 
 
 def test_ui_routes_do_not_change_the_versioned_openapi_contract() -> None:

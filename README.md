@@ -451,6 +451,9 @@ Every persisted placement decision also includes [structured policy reasons](doc
 versioned reason codes, decisive signals, constraint evidence, and policy/model
 versions for moves, stays, and suppressed decisions, linked to the resulting
 move history. Dataset exports retain these reasons alongside the feature snapshot.
+The **Placement** view at `/ui/` renders [placement explanations and diffs](docs/placement_explanations.md)
+for object or job history and side-effect-free previews. Versioned API resources
+share the same decision schema, with execution and job status shown separately.
 
 ### Durable background workers
 

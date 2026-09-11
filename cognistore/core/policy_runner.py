@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping
 from copy import copy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Sequence
+from typing import Any, Dict, Iterable, List, Literal, Sequence
 from uuid import uuid4
 
 from cognistore.drivers.storage_driver import StorageDriver
@@ -278,6 +278,29 @@ class PolicyRunner:
         if record is None:
             raise KeyError(f"object not found: {bucket}/{key}")
         return self._evaluate_records((record,), as_of=as_of)[0]
+
+    def preview_decision(
+        self, bucket: str, key: str, *, as_of: str | datetime | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Capture the same decision evidence as execution without any writes."""
+
+        record = self.catalog.get(bucket, key)
+        if record is None:
+            raise KeyError(f"object not found: {bucket}/{key}")
+        evaluation = self._evaluate_records((record,), as_of=as_of)[0]
+        decision = PolicyDecision(
+            evaluation.action, evaluation.reason, evaluation.destination_tier,
+            llm_audit=evaluation.llm_audit,
+            reason_code=evaluation.reason_code,
+            decisive_signals=evaluation.decisive_signals,
+        )
+        return self._capture_decision_evidence(
+            record, evaluation.features, decision,
+            AuditOutcome.SELECTED if self._is_actionable(record, decision)
+            else AuditOutcome.REJECTED if decision.action == "move"
+            else AuditOutcome.STAYED,
+            evaluation.constraints, str(evaluation.constraints["as_of"]),
+        )
 
     def reevaluate_object(
         self, bucket: str, key: str, *, as_of: str | datetime | None = None,
@@ -612,6 +635,59 @@ class PolicyRunner:
         ).encode("utf-8")
         return f"{self.idempotency_namespace}:{hashlib.sha256(identity).hexdigest()}"
 
+    def _capture_decision_evidence(
+        self, record: ObjectRecord, features: PolicyFeatures,
+        decision: PolicyDecision, outcome: AuditOutcome,
+        constraints: Mapping[str, object], decision_at: str | datetime,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Share redacted reason capture across previews and retained decisions."""
+
+        snapshot_policy = self.policy
+        if isinstance(snapshot_policy, LLMPolicy):
+            snapshot_policy = copy(snapshot_policy)
+            snapshot_policy.allowed_tiers = set(snapshot_policy.allowed_tiers).intersection(
+                self.allowed_tiers
+            )
+        # Provider/custom prose may contain raw sensitive content that ordinary
+        # credential redaction cannot recognize. Persist a static description.
+        external = type(self.policy) not in {SimplePolicy, ContentAwarePolicy} and not (
+            type(self.policy) is LLMPolicy and type(self.policy.provider) is ThresholdProvider
+        )
+        if external:
+            safe_reason = (
+                "external provider decision" if type(self.policy) is LLMPolicy
+                else "custom policy decision"
+            )
+            decision = replace(decision, reason=safe_reason)
+        snapshot = capture_policy_snapshot(
+            record=record,
+            features=features,
+            policy=snapshot_policy,
+            allowed_tiers=sorted(self.allowed_tiers),
+            decision=decision,
+            outcome=outcome,
+            policy_name=self.policy_name,
+            policy_version=self.policy_version,
+            decision_at=decision_at,
+            model_identity=self.model_identity,
+            model_version=self.model_version,
+        )
+        structured_reason = capture_policy_reason(
+            code=decision.reason_code,
+            signals=decision.decisive_signals,
+            constraints=constraints,
+            policy_metadata=snapshot["policy"],
+            action=decision.action,
+            destination=decision.dst_tier,
+            current_tier=record.tier,
+            trusted_policy=type(self.policy) in {SimplePolicy, ContentAwarePolicy, LLMPolicy},
+            embedding_rule_names=(
+                tuple(rule.name for rule in self.policy.embedding_rules)
+                if type(self.policy) is ContentAwarePolicy else ()
+            ),
+        )
+        return snapshot, structured_reason
+
     def _record_decision(
         self,
         *,
@@ -696,50 +772,10 @@ class PolicyRunner:
             else:
                 return existing
         decision_at = datetime.now(timezone.utc)
-        snapshot_policy = self.policy
-        if isinstance(snapshot_policy, LLMPolicy):
-            snapshot_policy = copy(snapshot_policy)
-            snapshot_policy.allowed_tiers = set(snapshot_policy.allowed_tiers).intersection(
-                self.allowed_tiers
-            )
-        # Provider/custom prose may contain raw sensitive content that ordinary
-        # credential redaction cannot recognize. Persist a static description.
-        external = type(self.policy) not in {SimplePolicy, ContentAwarePolicy} and not (
-            type(self.policy) is LLMPolicy and type(self.policy.provider) is ThresholdProvider
+        snapshot, structured_reason = self._capture_decision_evidence(
+            record, features, decision, outcome, constraints or {}, decision_at,
         )
-        if external:
-            safe_reason = (
-                "external provider decision" if type(self.policy) is LLMPolicy
-                else "custom policy decision"
-            )
-            decision = replace(decision, reason=safe_reason)
-        snapshot = capture_policy_snapshot(
-            record=record,
-            features=features,
-            policy=snapshot_policy,
-            allowed_tiers=sorted(self.allowed_tiers),
-            decision=decision,
-            outcome=outcome,
-            policy_name=self.policy_name,
-            policy_version=self.policy_version,
-            decision_at=decision_at,
-            model_identity=self.model_identity,
-            model_version=self.model_version,
-        )
-        structured_reason = capture_policy_reason(
-            code=decision.reason_code,
-            signals=decision.decisive_signals,
-            constraints=constraints or {},
-            policy_metadata=snapshot["policy"],
-            action=action,
-            destination=destination,
-            current_tier=current_tier,
-            trusted_policy=type(self.policy) in {SimplePolicy, ContentAwarePolicy, LLMPolicy},
-            embedding_rule_names=(
-                tuple(rule.name for rule in self.policy.embedding_rules)
-                if type(self.policy) is ContentAwarePolicy else ()
-            ),
-        )
+        safe_reason = str(snapshot["decision"]["reason"])
         if snapshot["replay"]["supported"] and (
             stable_constraints.get("minimum_residency_seconds")
             or stable_constraints.get("importance_allowed_tiers") is not None

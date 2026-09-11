@@ -52,6 +52,9 @@ health remains observable through its own service probes.
 | `POST /v1/ask` | Run the version 1 retrieval/Ask contract and retain provider diagnostics, score components, and citations. An optional mode can request metadata, keyword, vector, or full hybrid retrieval. |
 | `POST /v1/catalog/importance` | Set or clear attributed importance, audit the change, and return a policy reevaluation. |
 | `POST /v1/policies/evaluate` | Evaluate a policy against one current catalog record without moving it. |
+| `POST /v1/policies/preview` | Preview a decision with structured reasons, guardrails, and proposed placement changes. |
+| `GET /v1/policy-decisions` | Page retained decisions by object, job, or correlation ID, with execution evidence. |
+| `GET /v1/policy-decisions/{decision_id}` | Inspect a retained decision and its linked execution outcome. |
 | `POST /v1/actions/catalog-scans` | Queue a catalog scan and return `202 Accepted`. |
 | `POST /v1/actions/policy-runs` | Queue a policy run and return `202 Accepted`. |
 | `GET /v1/jobs/{job_id}` | Read durable queued, running, retrying, succeeded, or failed status. |
@@ -82,6 +85,12 @@ Configured non-fresh signals fail closed before size fallback. See the
 semantics. [Importance and minimum residency](placement_controls.md) describes
 `config.movement_constraints`, trusted classification changes, and the
 constraint evidence returned by evaluation.
+
+The [placement explanations](placement_explanations.md) resources use one
+decision schema for previews and retained decisions. Placement diffs describe
+the proposal; execution mode, per-decision state, and durable job status remain
+separate. The `/ui/` Placement view renders these resources, including retained
+rule and guardrail reasons when model details are unavailable.
 
 Public object and catalog metadata excludes storage paths, generations, parser
 state, extraction text, and content-identity internals. The remaining mapping

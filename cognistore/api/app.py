@@ -49,6 +49,8 @@ from .models import (
     ImportanceChangeRequest,
     JobStatusResponse,
     ObjectResource,
+    PolicyDecisionPage,
+    PolicyDecisionResource,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     PolicyRunRequest,
@@ -63,6 +65,7 @@ _JSON_BODY_PATHS = frozenset(
         "/v1/actions/policy-runs",
         "/v1/ask",
         "/v1/policies/evaluate",
+        "/v1/policies/preview",
         "/v1/catalog/importance",
     }
 )
@@ -767,6 +770,61 @@ def create_app(
         request: PolicyEvaluationRequest,
     ) -> PolicyEvaluationResponse:
         return services.evaluate_policy(request)
+
+    @router.post(
+        "/policies/preview",
+        response_model=PolicyDecisionResource,
+        operation_id="previewPolicyDecision",
+        tags=["policies"],
+        description="Evaluate without persisting a decision or executing a move. The diff is a proposal only.",
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            404: _NOT_FOUND_RESPONSE,
+            **_JSON_ERROR_RESPONSES,
+        },
+    )
+    def preview_policy(request: PolicyEvaluationRequest) -> PolicyDecisionResource:
+        return services.preview_policy(request)
+
+    @router.get(
+        "/policy-decisions",
+        response_model=PolicyDecisionPage,
+        operation_id="listPolicyDecisions",
+        tags=["policies"],
+        description="Newest retained decisions first. Placement is frozen at evaluation; execution is observed separately.",
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
+    def list_policy_decisions(
+        bucket: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        key: Annotated[str | None, Query(min_length=1, max_length=8192)] = None,
+        job_id: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        correlation_id: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        cursor: Annotated[str | None, Query(min_length=1, max_length=16384)] = None,
+    ) -> PolicyDecisionPage:
+        return services.list_policy_decisions(
+            bucket=bucket, key=key, job_id=job_id, correlation_id=correlation_id,
+            limit=limit, cursor=cursor,
+        )
+
+    @router.get(
+        "/policy-decisions/{decision_id}",
+        response_model=PolicyDecisionResource,
+        operation_id="getPolicyDecision",
+        tags=["policies"],
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            404: _NOT_FOUND_RESPONSE,
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
+    def get_policy_decision(
+        decision_id: Annotated[str, Path(pattern=_UUID)],
+    ) -> PolicyDecisionResource:
+        return services.get_policy_decision(decision_id)
 
     @router.post(
         "/actions/catalog-scans",

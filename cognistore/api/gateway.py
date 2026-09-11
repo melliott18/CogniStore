@@ -55,6 +55,7 @@ from .models import (
     CatalogObject,
     CatalogObjectPage,
     CatalogScanRequest,
+    DecisionExecution,
     GeneratedAnswerResponse,
     ImportanceChangeRequest,
     JobState,
@@ -67,6 +68,8 @@ from .models import (
     PassageMatchResponse,
     PassageSignalValue,
     PolicyConfig,
+    PolicyDecisionPage,
+    PolicyDecisionResource,
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     PolicyRunRequest,
@@ -77,6 +80,7 @@ from .models import (
     ScoreComponentResponse,
 )
 from .pagination import CursorError, decode_cursor, encode_cursor
+from .policy_decisions import persisted_execution, project_decision
 
 _CATALOG_CURSOR_RESOURCE = "catalog.objects"
 _BYTE_RANGE = re.compile(r"^bytes=(\d*)-(\d*)$", re.ASCII)
@@ -162,6 +166,17 @@ class APIGateway(Protocol):
     def evaluate_policy(
         self, request: PolicyEvaluationRequest
     ) -> PolicyEvaluationResponse: ...
+
+    def preview_policy(
+        self, request: PolicyEvaluationRequest
+    ) -> PolicyDecisionResource: ...
+
+    def get_policy_decision(self, decision_id: str) -> PolicyDecisionResource: ...
+
+    def list_policy_decisions(
+        self, *, bucket: str | None, key: str | None, job_id: str | None,
+        correlation_id: str | None, limit: int, cursor: str | None,
+    ) -> PolicyDecisionPage: ...
 
     def set_importance(
         self, request: ImportanceChangeRequest, *, correlation_id: str
@@ -752,6 +767,82 @@ class CogniStoreGateway:
             request.bucket, request.key
         )
         return PolicyEvaluationResponse.model_validate(evaluation.to_mapping())
+
+    def preview_policy(
+        self, request: PolicyEvaluationRequest
+    ) -> PolicyDecisionResource:
+        self._catalog_record(request.bucket, request.key)
+        snapshot, reason = self._policy_runner(request.config).preview_decision(
+            request.bucket, request.key
+        )
+        return project_decision(
+            bucket=request.bucket, key=request.key,
+            evaluated_at=snapshot["decision_at"],
+            details={"dataset": snapshot, "structured_reason": reason},
+            execution=DecisionExecution(mode="preview", state="dry_run"),
+        )
+
+    def _policy_decision_resource(self, event: AuditEvent) -> PolicyDecisionResource:
+        if event.bucket is None or event.object_key is None:
+            raise RuntimeError("policy decision is missing object identity")
+        return project_decision(
+            bucket=event.bucket, key=event.object_key,
+            evaluated_at=event.occurred_at, decision_id=event.event_id,
+            details={**event.details, "outcome": event.outcome},
+            execution=persisted_execution(self.catalog, event, self.get_job),
+        )
+
+    def get_policy_decision(self, decision_id: str) -> PolicyDecisionResource:
+        event = self.catalog.get_audit_event(decision_id)
+        if event is None or event.event_type != AuditEventType.POLICY_DECISION.value:
+            raise ResourceNotFoundError("policy decision", decision_id)
+        return self._policy_decision_resource(event)
+
+    def list_policy_decisions(
+        self, *, bucket: str | None = None, key: str | None = None,
+        job_id: str | None = None, correlation_id: str | None = None,
+        limit: int = 50, cursor: str | None = None,
+    ) -> PolicyDecisionPage:
+        if key is not None and bucket is None:
+            raise RequestContractError("key requires bucket")
+        filters = {
+            "bucket": bucket, "key": key, "job_id": job_id,
+            "correlation_id": correlation_id,
+        }
+        try:
+            last_key = decode_cursor(cursor, resource="policy-decisions", filters=filters)
+        except CursorError as exc:
+            raise RequestContractError(str(exc), code="invalid_cursor") from exc
+        before_event = None
+        if last_key is not None:
+            try:
+                boundary = json.loads(last_key)
+                if not isinstance(boundary, list) or len(boundary) != 2:
+                    raise ValueError("invalid boundary")
+                before_event = AuditQuery(before_event=tuple(boundary)).before_event
+            except (TypeError, ValueError) as exc:
+                raise RequestContractError("cursor is malformed", code="invalid_cursor") from exc
+        try:
+            query = AuditQuery(
+                bucket=bucket, object_key=key, job_id=job_id,
+                correlation_id=correlation_id, before_event=before_event,
+                event_types=frozenset({AuditEventType.POLICY_DECISION.value}),
+                ascending=False, limit=limit + 1,
+            )
+        except ValueError as exc:
+            raise RequestContractError(str(exc)) from exc
+        events = self.catalog.list_audit_events(query)
+        next_cursor = None
+        if len(events) > limit:
+            last = events[limit - 1]
+            next_cursor = encode_cursor(
+                resource="policy-decisions", filters=filters,
+                last_key=json.dumps([last.occurred_at, last.event_id]),
+            )
+        return PolicyDecisionPage(
+            items=[self._policy_decision_resource(event) for event in events[:limit]],
+            page=PageMetadata(limit=limit, next_cursor=next_cursor),
+        )
 
     def set_importance(
         self, request: ImportanceChangeRequest, *, correlation_id: str

@@ -63,3 +63,7 @@ def register_content_search_ui(app: FastAPI) -> None:
     @app.get("/ui/styles.css", include_in_schema=False)
     def content_search_styles() -> Response:
         return _asset("styles.css", "text/css", cache_control="no-cache")
+
+    @app.get("/ui/decisions.js", include_in_schema=False)
+    def placement_explanations_javascript() -> Response:
+        return _asset("decisions.js", "text/javascript", cache_control="no-cache")
