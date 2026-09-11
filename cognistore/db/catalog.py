@@ -38,12 +38,16 @@ from cognistore.core.audit import (
     redact_audit_event,
     stable_audit_event_id,
 )
+from cognistore.core.budgets import BudgetConstraintError, BudgetDefinition
 from cognistore.core.catalog import (
     Catalog,
     ObjectRecord,
     ScanFence,
     _assert_catalog_move_allowed,
+    _budget_configuration_event,
+    _budget_reservation_event,
     _importance_event,
+    _prepare_budget_reservations,
     _validate_importance_actor,
     validate_catalog_size,
 )
@@ -87,6 +91,8 @@ from .schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    budget_definitions,
+    budget_reservations,
     content_blobs,
     content_manifest_chunks,
     content_manifests,
@@ -304,6 +310,105 @@ class SQLCatalog(Catalog):
         if connection.dialect.name == "postgresql":
             statement = statement.with_for_update()
         connection.execute(statement).one()
+
+    @staticmethod
+    def _lock_budgets(connection: Connection) -> None:
+        """Serialize scope lookup and reservation across different objects.
+
+        A single admission lock also fences definition installation, so a
+        concurrently registered scope cannot be skipped between lookup and
+        admission. Always acquire this after move/object/topology locks.
+        """
+        if connection.dialect.name == "postgresql":
+            connection.exec_driver_sql("SELECT pg_advisory_xact_lock(1129270870)")
+        else:
+            connection.execute(sa.update(budget_definitions).where(sa.false()).values(
+                created_at=budget_definitions.c.created_at,
+            ))
+
+    def configure_budget(
+        self, definition: BudgetDefinition, *, audit_context: AuditContext,
+        occurred_at: str | datetime | None = None,
+    ) -> BudgetDefinition:
+        if not isinstance(definition, BudgetDefinition):
+            raise ValueError("definition must be a BudgetDefinition")
+        if not isinstance(audit_context, AuditContext) or audit_context.actor_type != "user":
+            raise ValueError("budget configuration requires a user audit context")
+        event = self._prepare_audit_event(
+            _budget_configuration_event(definition, audit_context, occurred_at)
+        )
+        with self._transaction() as connection:
+            self._lock_budgets(connection)
+            existing = connection.execute(sa.select(budget_definitions.c.definition).where(
+                budget_definitions.c.budget_id == definition.budget_id,
+            )).scalar_one_or_none()
+            if existing is not None:
+                if existing != definition.to_dict():
+                    raise BudgetConstraintError("budget definitions are immutable; use a new budget id")
+                return BudgetDefinition.from_mapping(existing)
+            active_jobs = connection.execute(sa.select(move_jobs.c.bucket, move_jobs.c.object_key).where(
+                move_jobs.c.state.not_in([MoveJobState.COMPLETED.value, MoveJobState.FAILED.value]),
+            ))
+            if any(definition.matches(row.bucket, row.object_key) for row in active_jobs):
+                raise BudgetConstraintError("cannot install a budget while matching moves are in flight")
+            connection.execute(sa.insert(budget_definitions).values(
+                budget_id=definition.budget_id, definition=definition.to_dict(),
+                created_at=event.occurred_at,
+            ))
+            self._insert_audit_event(connection, event)
+        return BudgetDefinition.from_mapping(definition.to_dict())
+
+    def list_budgets(self) -> List[BudgetDefinition]:
+        with self._connection() as connection:
+            values = connection.execute(sa.select(budget_definitions.c.definition)).scalars().all()
+        return sorted((BudgetDefinition.from_mapping(value) for value in values),
+                      key=lambda item: item.budget_id)
+
+    def list_budget_reservations(self, budget_id: str | None = None) -> List[dict[str, Any]]:
+        statement = sa.select(budget_reservations.c.reservation)
+        if budget_id is not None:
+            statement = statement.where(budget_reservations.c.budget_id == budget_id)
+        with self._connection() as connection:
+            values = connection.execute(statement).scalars().all()
+        return sorted((deepcopy(value) for value in values),
+                      key=lambda item: (item["budget_id"], item["move_id"], item["attempt"]))
+
+    def _reserve_move_budgets(
+        self, connection: Connection, *, move_id: str, bucket: str, key: str,
+        src_tier: str, dst_tier: str, size: int, source_metadata: Mapping[str, Any],
+        now: str, owner_id: str, audit_context: AuditContext | None, trusted_override: bool,
+    ) -> dict[str, Any]:
+        self._lock_budgets(connection)
+        definitions = [BudgetDefinition.from_mapping(value) for value in connection.execute(
+            sa.select(budget_definitions.c.definition)
+        ).scalars()]
+        previous = list(connection.execute(sa.select(budget_reservations.c.reservation)).scalars())
+        pools_by_id = {row["pool_id"]: self._pool_record(row) for row in connection.execute(
+            sa.select(pools)
+        ).mappings()}
+        record_row = connection.execute(self._object_select().where(
+            objects.c.bucket == bucket, objects.c.object_key == key,
+        )).mappings().first()
+        prepared, metadata = _prepare_budget_reservations(
+            definitions, previous, pools_by_id,
+            None if record_row is None else self._record(record_row),
+            move_id=move_id, bucket=bucket, key=key, src_tier=src_tier, dst_tier=dst_tier,
+            size=size, source_metadata=source_metadata, now=now,
+            audit_context=audit_context, trusted_override=trusted_override,
+        )
+        context = self._move_audit_context(
+            move_id, owner_id=owner_id, audit_context=audit_context,
+            causation_id=None if audit_context is None else audit_context.causation_id,
+        )
+        for reservation in prepared:
+            connection.execute(sa.insert(budget_reservations).values(
+                budget_id=reservation["budget_id"], move_id=move_id, attempt=reservation["attempt"],
+                reservation=reservation, created_at=now,
+            ))
+            self._insert_audit_event(connection, self._prepare_audit_event(
+                _budget_reservation_event(reservation, context)
+            ))
+        return metadata
 
     @staticmethod
     def _lock_topology(connection: Connection, *, exclusive: bool = False) -> None:
@@ -2143,6 +2248,9 @@ class SQLCatalog(Catalog):
                     existing, src_tier=src_tier, dst_tier=dst_tier,
                     bucket=bucket, key=key, source_metadata=source_metadata,
                 )
+            if existing is not None:
+                if existing.state.terminal:
+                    return existing
             if existing is None or existing.state in {
                 MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
             }:
@@ -2150,6 +2258,17 @@ class SQLCatalog(Catalog):
                     connection, bucket, key, src_tier, dst_tier,
                     existing.source_metadata if existing is not None else source_metadata, now,
                 )
+            if existing is not None and (existing.owner_id not in (None, owner_id)
+                and existing.lease_expires_at is not None and existing.lease_expires_at > now):
+                raise MoveJobLeaseError(f"Move job {idempotency_key!r} is leased by {existing.owner_id!r}")
+            source_metadata = self._reserve_move_budgets(
+                connection, move_id=idempotency_key, bucket=bucket, key=key,
+                src_tier=src_tier, dst_tier=dst_tier,
+                size=existing.expected_size if existing else expected_size,
+                source_metadata=existing.source_metadata if existing else source_metadata,
+                now=now, owner_id=owner_id, audit_context=audit_context,
+                trusted_override=existing is not None,
+            )
             transition: MoveJobTransition | None = None
             retry_from: MoveJob | None = None
             if existing is None:
@@ -2197,6 +2316,7 @@ class SQLCatalog(Catalog):
                         owner_id=owner_id,
                         lease_expires_at=lease_expires_at,
                         updated_at=now,
+                        source_metadata=dict(source_metadata),
                     )
                 )
                 retry_from = existing
@@ -2415,6 +2535,13 @@ class SQLCatalog(Catalog):
             self._assert_move_controls(
                 connection, job.bucket, job.key, job.src_tier, tier, job.source_metadata, now,
             )
+            pool_id = job.source_metadata.get("cognistore_destination_pool_id")
+            if pool_id is not None:
+                bound_pool = connection.execute(sa.select(pools.c.tier_name, pools.c.active).where(
+                    pools.c.pool_id == pool_id,
+                )).mappings().first()
+                if bound_pool is None or not bound_pool["active"] or bound_pool["tier_name"] != tier:
+                    raise BudgetConstraintError("budget destination pool is no longer available")
             existing = connection.execute(
                 sa.select(objects.c.metadata).where(
                     objects.c.bucket == job.bucket,
@@ -2432,6 +2559,10 @@ class SQLCatalog(Catalog):
                 metadata=metadata,
                 now=now,
             )
+            if pool_id is not None:
+                connection.execute(sa.update(object_placements).where(
+                    object_placements.c.object_id == object_id,
+                ).values(pool_id=pool_id))
             if job.src_tier != tier:
                 # A direct catalog checkpoint may retain the same tier; only
                 # actual movement starts a cooldown, including unscanned sources.

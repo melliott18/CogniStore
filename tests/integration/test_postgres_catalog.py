@@ -63,6 +63,8 @@ _CATALOG_TABLES = {
     "audit_events",
     "audit_move_heads",
     "audit_event_tombstones",
+    "budget_definitions",
+    "budget_reservations",
     "catalog_schema_features",
     "content_blobs",
     "content_manifest_chunks",
@@ -637,8 +639,10 @@ def test_postgres_catalog_guard_and_scan_fence_parity(postgres_dsn: str) -> None
             )
             record = catalog.get("bucket", "object")
             assert record is not None
+            assert record.last_tier_move_at is not None
             assert record == ObjectRecord(
                 placement_started_at=record.placement_started_at,
+                last_tier_move_at=record.last_tier_move_at,
                 bucket="bucket",
                 key="object",
                 size=4,
@@ -901,7 +905,10 @@ def test_imports_the_prototype_sqlite_catalog_into_postgres(
             report.move_job_transitions,
             report.audit_events,
         ) == ("legacy", 2, 0, 1, 1, 1, 2, 2)
-        assert destination.get("bucket", "reports/annual.pdf") == ObjectRecord(
+        imported_record = destination.get("bucket", "reports/annual.pdf")
+        assert imported_record is not None and imported_record.last_tier_move_at is not None
+        assert imported_record == ObjectRecord(
+            last_tier_move_at=imported_record.last_tier_move_at,
             bucket="bucket",
             key="reports/annual.pdf",
             size=41,
@@ -1352,7 +1359,9 @@ def test_postgres_migration_downgrade_and_reupgrade_preserves_catalog_data(
 
     with SQLCatalog(postgres_dsn, migrate=False) as catalog:
         record = catalog.get(bucket, key)
+        assert record is not None and record.last_tier_move_at is not None
         assert record == ObjectRecord(
+            last_tier_move_at=record.last_tier_move_at,
             bucket=bucket,
             key=key,
             size=23,
@@ -1376,8 +1385,13 @@ def test_postgres_migration_downgrade_and_reupgrade_preserves_catalog_data(
         # that missing history explicitly instead of inventing a new start.
         old_job, old_record, old_transitions, old_keys = move_snapshot
         assert old_record is not None
+        upgraded_move_record = catalog.get("bucket\0name", "objects/item\0.bin")
+        assert upgraded_move_record is not None
+        assert upgraded_move_record.last_tier_move_at is not None
         expected_after_upgrade = (
-            old_job, replace(old_record, placement_started_at=None), old_transitions, old_keys,
+            old_job, replace(old_record, placement_started_at=None,
+                             last_tier_move_at=upgraded_move_record.last_tier_move_at),
+            old_transitions, old_keys,
         )
         assert (
             catalog.get_move_job("move\0job"),

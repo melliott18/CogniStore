@@ -22,7 +22,7 @@ ReasonCode = Literal[
     "required_features_unavailable", "provider_decision", "provider_error",
     "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
     "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
-    "destination_missing", "already_in_tier", "invalid_action",
+    "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
 ]
 Number = Annotated[int | float, Field(allow_inf_nan=False)]
 NonnegativeInt = Annotated[int, Field(ge=0)]
@@ -89,6 +89,8 @@ class ReasonConstraints(_Contract):
     candidate_action: Literal["move", "stay"] | None
     candidate_destination_tier: Identity | None
     hysteresis_checks: list[HysteresisCheck]
+    budgets: list[dict[str, Any]] = Field(default_factory=list)
+    objectives: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def valid_times(self) -> ReasonConstraints:
@@ -162,7 +164,9 @@ def capture_policy_reason(
     code = code if trusted_policy and code is not None else "custom_policy"
     signals = signals if trusted_policy else []
     disposition = "move" if action == "move" else "stay"
-    if constraints.get("residency_active"):
+    if constraints.get("suppression_reason") == "budget":
+        code, disposition = "budget_constraint", "suppressed"
+    elif constraints.get("residency_active"):
         code, disposition = "minimum_residency", "suppressed"
     elif constraints.get("blocked_reason") and constraints.get("suppression_reason") != "cooldown":
         code, disposition = "importance_restriction", "suppressed"
@@ -207,6 +211,8 @@ def capture_policy_reason(
         "candidate_action": hysteresis.get("candidate_action"),
         "candidate_destination_tier": hysteresis.get("candidate_destination_tier"),
         "hysteresis_checks": checks,
+        "budgets": constraints.get("budgets", []),
+        "objectives": constraints.get("objectives"),
     })
     return validate_policy_reason(redact({
         "schema_version": POLICY_REASON_SCHEMA_VERSION,

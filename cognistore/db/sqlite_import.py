@@ -27,6 +27,7 @@ from cognistore.core.audit import (
     redact_audit_event,
     stable_audit_event_id,
 )
+from cognistore.core.budgets import BudgetDefinition
 from cognistore.core.content_identity import (
     CHUNKING_ALGORITHM,
     CHUNKING_VERSION,
@@ -35,6 +36,7 @@ from cognistore.core.content_identity import (
     DIGEST_ALGORITHM,
     cas_key_for_sha256,
 )
+from cognistore.core.estimation import _decimal
 from cognistore.core.placement_controls import ImportanceTag
 from cognistore.core.topology import Pool, Tier
 from cognistore.utils.redaction import redact, redact_text
@@ -45,6 +47,8 @@ from .schema import (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    budget_definitions,
+    budget_reservations,
     content_blobs,
     content_manifest_chunks,
     content_manifests,
@@ -78,6 +82,8 @@ def _content_reference_timestamp() -> str:
     )
 
 _DESTINATION_DATA_TABLES = (
+    budget_reservations,
+    budget_definitions,
     access_events,
     embedding_vectors,
     embedding_document_spaces,
@@ -128,6 +134,8 @@ class SQLiteCatalogImportReport:
     content_manifest_chunks: int = 0
     object_contents: int = 0
     access_events: int = 0
+    budget_definitions: int = 0
+    budget_reservations: int = 0
 
 
 def import_sqlite_catalog(
@@ -239,6 +247,7 @@ def import_sqlite_catalog(
                 target_connection,
                 batch_size=batch_size,
             )
+            budget_counts = _copy_budget_state(source_connection, target_connection, batch_size=batch_size)
             report = SQLiteCatalogImportReport(
                 source_layout=report.source_layout,
                 tiers=report.tiers,
@@ -253,10 +262,67 @@ def import_sqlite_catalog(
                 content_manifest_chunks=content_counts[2],
                 object_contents=content_counts[3],
                 access_events=access_count,
+                budget_definitions=budget_counts[0],
+                budget_reservations=budget_counts[1],
             )
 
         source_connection.rollback()
         return report
+
+
+def _copy_budget_state(
+    source: sqlite3.Connection, destination: Connection, *, batch_size: int,
+) -> tuple[int, int]:
+    tables = _source_tables(source)
+    names = {"budget_definitions", "budget_reservations"}
+    present = tables.intersection(names)
+    revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
+                if "alembic_version" in tables else None)
+    if present != names and (present or revision and revision[0] == "0011_policy_budgets"):
+        raise SQLiteCatalogImportError("source has partial budget state tables")
+    if not present:
+        return 0, 0
+    for table in (budget_definitions, budget_reservations):
+        _require_columns(source, table.name, {column.name for column in table.c})
+
+    def definition_values(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            definition = BudgetDefinition.from_mapping(_json_mapping(row["definition"], "budget definition"))
+            if definition.budget_id != row["budget_id"]:
+                raise ValueError("budget id differs from definition")
+            canonical_audit_timestamp(row["created_at"], "budget created_at")
+        except (ValueError, TypeError) as error:
+            raise SQLiteCatalogImportError(f"invalid budget definition: {error}") from error
+        return {"budget_id": definition.budget_id, "definition": definition.to_dict(),
+                "created_at": row["created_at"]}
+
+    def reservation_values(row: sqlite3.Row) -> dict[str, Any]:
+        value = _json_mapping(row["reservation"], "budget reservation")
+        try:
+            if any(value.get(name) != row[name] for name in ("budget_id", "move_id", "attempt", "created_at")):
+                raise ValueError("reservation identity differs from its row")
+            if type(value["attempt"]) is not int or value["attempt"] < 1:
+                raise ValueError("reservation attempt must be a positive integer")
+            for name in ("cost_usd", "carbon_gco2e"):
+                if name not in value:
+                    raise ValueError(f"reservation omits {name}")
+                if value[name] is not None:
+                    _decimal(value[name], name)
+            if not isinstance(value.get("evidence"), dict):
+                raise ValueError("reservation requires its evidence")
+            canonical_audit_timestamp(value["created_at"], "reservation created_at")
+        except (ValueError, TypeError) as error:
+            raise SQLiteCatalogImportError(f"invalid budget reservation: {error}") from error
+        return {"budget_id": row["budget_id"], "move_id": row["move_id"],
+                "attempt": row["attempt"], "reservation": value, "created_at": row["created_at"]}
+
+    return (
+        _copy_rows(source, destination, budget_definitions, "SELECT * FROM budget_definitions ORDER BY budget_id",
+                   definition_values, batch_size=batch_size),
+        _copy_rows(source, destination, budget_reservations,
+                   "SELECT * FROM budget_reservations ORDER BY budget_id, move_id, attempt",
+                   reservation_values, batch_size=batch_size),
+    )
 
 
 def _reject_same_sqlite_catalog(source: Path, destination: SQLCatalog) -> None:
@@ -740,7 +806,7 @@ def _copy_normalized_catalog(
         raise SQLiteCatalogImportError("source has partial tier stability columns")
     if "alembic_version" in _source_tables(source):
         revision = source.execute("SELECT version_num FROM alembic_version").fetchone()
-        if revision and revision[0] == "0010_tier_stability" and not has_stability:
+        if revision and revision[0] in {"0010_tier_stability", "0011_policy_budgets"} and not has_stability:
             raise SQLiteCatalogImportError("source has partial tier stability columns")
     imported_at = _content_reference_timestamp()
     placement_count = _copy_rows(

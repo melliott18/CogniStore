@@ -2557,7 +2557,8 @@
               "destination_not_allowed",
               "destination_missing",
               "already_in_tier",
-              "invalid_action"
+              "invalid_action",
+              "budget_constraint"
             ],
             "title": "Code",
             "type": "string"
@@ -2708,6 +2709,14 @@
             "title": "Allowed Destination Tiers",
             "type": "array"
           },
+          "budgets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Budgets",
+            "type": "array"
+          },
           "candidate_action": {
             "anyOf": [
               {
@@ -2818,6 +2827,18 @@
             "minimum": 0.0,
             "title": "Minimum Residency Seconds",
             "type": "integer"
+          },
+          "objectives": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objectives"
           },
           "placement_started_at": {
             "anyOf": [

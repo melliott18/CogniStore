@@ -39,6 +39,7 @@ class PolicyDecision:
     reason_code: str | None = field(default=None, compare=False)
     decisive_signals: list[dict[str, object]] = field(default_factory=list, compare=False)
     proposed_dst_tier: str | None = field(default=None, compare=False)
+    objective_evidence: dict[str, object] | None = field(default=None, compare=False)
 
 
 def _signal(

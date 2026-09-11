@@ -1478,6 +1478,9 @@ def _run_cli(
 	p_auto.add_argument("--cache-dir", default=".cognistore", help="Directory to store cache files (hardware.json, tier_metrics.json)")
 	p_auto.add_argument("--interval", type=int, default=0, help="Seconds between refresh cycles; 0 to run once and exit")
 
+	from cognistore.cli.budget_commands import add_commands as add_budget_commands
+	add_budget_commands(command)
+
 	p_run = command("policy-run")
 	p_importance = command("importance-set", help="Set an audited importance tag and reevaluate")
 	p_importance.add_argument("--actor", required=True)
@@ -1743,6 +1746,16 @@ def _run_cli(
 			_render_redrive_error(exc, json_output=args.json)
 			return 1
 		_render_redrive(receipt, json_output=args.json)
+		return 0
+
+	if args.cmd in {"budget-configure", "budget-list", "policy-what-if"}:
+		from cognistore.cli.budget_commands import run as run_budget_command
+		result = run_budget_command(args)
+		_emit_result(
+			args.cmd, "planned" if args.cmd == "policy-what-if" or dry_run else "completed",
+			json_output=args.json, dry_run=args.cmd == "policy-what-if" or dry_run,
+			human=json.dumps(result, indent=2, sort_keys=True), **result,
+		)
 		return 0
 
 	if args.cmd in {"policy-baseline-train", "policy-baseline-evaluate"}:

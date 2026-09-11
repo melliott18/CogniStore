@@ -527,6 +527,9 @@ placement assignment, with JSON and YAML configuration examples.
 The [storage estimation guide](docs/storage_estimation.md) covers versioned
 cost and operational carbon estimates, explicit workload forecasts, evidence
 freshness, uncertainty, deterministic replay, and policy feature injection.
+The [policy budgets and what-if guide](docs/policy_budgets.md) covers atomic cost
+and carbon allowances, weighted placement objectives, and catalog-only scenario
+comparisons with explicit forecast assumptions.
 
 The scheduler-state file must be persistent; worker and scheduler commands
 reject `:memory:` because their coordination state must be shared across

@@ -305,6 +305,18 @@ function renderDecisionExplanation(card, explanation) {
     addText(card, "p", "decision-time", `${decisionLabel(check.kind)} hysteresis: value ${decisionValue(check.value)}, baseline ${decisionValue(check.baseline_threshold)}, effective threshold ${decisionValue(check.effective_threshold)}, band ${decisionValue(check.configured_band)}`);
   });
 
+  (constraints.budgets || []).forEach((budget) => {
+    addText(card, "h4", "decision-section-title", `Budget ${decisionValue(budget.budget_id)}`);
+    addText(card, "p", "decision-time", budget.allowed ? (budget.override_applied ? "Explicit budget override applied" : "Within allowance") : "Move blocked by budget");
+    addText(card, "p", "decision-time", `Projected commitments: ${decisionValue(budget.after?.cost_usd)} USD · ${decisionValue(budget.after?.carbon_gco2e)} gCO2e`);
+    if (budget.binding_constraints?.length) {
+      addText(card, "p", "decision-time", `Binding constraints: ${budget.binding_constraints.map(decisionValue).join(", ")}`);
+    }
+    if (budget.override) {
+      addText(card, "p", "decision-time", `Override by ${decisionValue(budget.override.actor_id)}: ${decisionValue(budget.override.reason)}`);
+    }
+  });
+
   addText(card, "h4", "decision-section-title", "Model details");
   if (explanation.model_details === "available" && policy.model) {
     addText(card, "p", "decision-time", `${decisionValue(policy.model.identity)} · Version ${decisionValue(policy.model.version)}`);

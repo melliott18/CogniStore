@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from collections import Counter
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -31,6 +32,14 @@ from .audit import (
 	audit_text_identity,
 	redact_audit_event,
 	stable_audit_event_id,
+)
+from .budgets import (
+	BudgetConstraintError,
+	BudgetDefinition,
+	BudgetOverride,
+	active_budget_definitions,
+	estimate_budget_charge,
+	evaluate_budget,
 )
 from .content_identity import ObjectContent
 from .content_references import (
@@ -198,6 +207,109 @@ def _importance_event(
 	)
 
 
+def _budget_configuration_event(
+	definition: BudgetDefinition, context: AuditContext, now: str | datetime | None,
+) -> AuditEvent:
+	return AuditEvent.create(
+		AuditEventType.BUDGET_CONFIGURED, AuditOutcome.SUCCEEDED, context,
+		event_id=stable_audit_event_id("budget-configured", definition.budget_id),
+		occurred_at=now, recorded_at=now,
+		details={"budget": definition.to_dict()},
+	)
+
+
+def _prepare_budget_reservations(
+	definitions: List[BudgetDefinition], reservations: List[dict[str, Any]],
+	pools_by_id: Mapping[str, Pool], record: ObjectRecord | None,
+	*, move_id: str, bucket: str, key: str, src_tier: str, dst_tier: str,
+	size: int, source_metadata: Mapping[str, Any], now: str,
+	audit_context: AuditContext | None, trusted_override: bool = False,
+) -> tuple[List[dict[str, Any]], dict[str, Any]]:
+	"""Compute all admissions while the caller holds its global budget lock."""
+	raw_override = source_metadata.get("cognistore_budget_override")
+	override = None if raw_override is None else BudgetOverride.from_mapping(raw_override)
+	authorized_before = trusted_override and any(
+		item["move_id"] == move_id
+		and item.get("evidence", {}).get("override") == raw_override
+		for item in reservations
+	)
+	if override is not None and not authorized_before and (
+		audit_context is None or audit_context.actor_type != "user"
+		or audit_context.actor_id != override.actor_id
+	):
+		raise BudgetConstraintError("budget override requires its authenticated user actor")
+	expected_pool = source_metadata.get("cognistore_expected_destination_pool_id")
+	if expected_pool is not None:
+		pool = pools_by_id.get(expected_pool)
+		if pool is None or not pool.active or pool.tier != dst_tier:
+			raise BudgetConstraintError("selected destination pool is unavailable or belongs to another tier")
+	matching = [item for item in definitions if item.matches(bucket, key)]
+	if not matching:
+		metadata = dict(source_metadata)
+		if not trusted_override:
+			metadata.pop("cognistore_source_pool_id", None)
+			metadata.pop("cognistore_destination_pool_id", None)
+		if expected_pool is not None:
+			metadata["cognistore_destination_pool_id"] = expected_pool
+		return [], metadata
+	active = active_budget_definitions(definitions, bucket, key, as_of=now)
+	object_record = ObjectRecord(
+		bucket=bucket, key=key, size=size, tier=src_tier,
+		pool_id=(source_metadata.get("cognistore_source_pool_id", (
+			None if record is None or record.tier != src_tier else record.pool_id
+		)) if trusted_override else None if record is None else record.pool_id),
+	)
+	metadata = dict(source_metadata)
+	metadata["cognistore_source_pool_id"] = object_record.pool_id
+	bindings = {item.tier_pools.get(dst_tier) for item in active}
+	if len(bindings) != 1 or None in bindings:
+		raise BudgetConstraintError("active budgets must agree on the destination pool binding")
+	bound_pool = next(iter(bindings))
+	if expected_pool is not None and expected_pool != bound_pool:
+		raise BudgetConstraintError("selected destination pool differs from the budget binding")
+	if trusted_override and metadata.get("cognistore_destination_pool_id", bound_pool) != bound_pool:
+		raise BudgetConstraintError("destination pool differs from the durable budget contract")
+	metadata["cognistore_destination_pool_id"] = bound_pool
+	prepared: List[dict[str, Any]] = []
+	for definition in sorted(active, key=lambda item: item.budget_id):
+		previous = [item for item in reservations if item["budget_id"] == definition.budget_id]
+		charge = estimate_budget_charge(
+			definition, object_record, dst_tier, pools_by_id, as_of=now,
+		)
+		evidence = evaluate_budget(definition, charge, previous, as_of=now, override=override)
+		if not evidence["allowed"]:
+			raise BudgetConstraintError(
+				f"budget {definition.budget_id!r} blocks move: "
+				+ ", ".join(str(item) for item in evidence["binding_constraints"]),
+				evidence=[evidence],
+			)
+		attempt = 1 + max(
+			(item["attempt"] for item in previous if item["move_id"] == move_id), default=0,
+		)
+		prepared.append({
+			"budget_id": definition.budget_id, "move_id": move_id, "attempt": attempt,
+			"bucket": bucket, "key": key, "created_at": now,
+			"cost_usd": charge["cost_usd"], "carbon_gco2e": charge["carbon_gco2e"],
+			"evidence": evidence,
+		})
+	return prepared, metadata
+
+
+def _budget_reservation_event(
+	reservation: Mapping[str, Any], context: AuditContext,
+) -> AuditEvent:
+	return AuditEvent.create(
+		AuditEventType.BUDGET_RESERVED, AuditOutcome.SUCCEEDED, context,
+		event_id=stable_audit_event_id(
+			"budget-reserved", reservation["budget_id"], reservation["move_id"],
+			str(reservation["attempt"]),
+		),
+		occurred_at=reservation["created_at"], recorded_at=reservation["created_at"],
+		bucket=reservation["bucket"], object_key=reservation["key"],
+		details={"reservation": deepcopy(dict(reservation))},
+	)
+
+
 class CatalogStore(Protocol):
 	"""Backend-neutral persistence contract for catalog state.
 
@@ -208,6 +320,15 @@ class CatalogStore(Protocol):
 	``assign_pool()`` atomically changes both pool and tier; clearing the pool
 	retains the tier. Tier-only writes preserve a pool only within the same tier.
 	"""
+
+	def configure_budget(
+		self, definition: BudgetDefinition, *, audit_context: AuditContext,
+		occurred_at: str | datetime | None = None,
+	) -> BudgetDefinition: ...
+
+	def list_budgets(self) -> List[BudgetDefinition]: ...
+
+	def list_budget_reservations(self, budget_id: str | None = None) -> List[dict[str, Any]]: ...
 
 	def register_tier(
 		self, name: str, metadata: Mapping[str, object] | None = None, *, active: bool = True
@@ -438,6 +559,8 @@ class Catalog(CatalogStore):
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
 		self._tiers: dict[str, Tier] = {}
 		self._pools: dict[str, Pool] = {}
+		self._budgets: dict[str, BudgetDefinition] = {}
+		self._budget_reservations: dict[tuple[str, str, int], dict[str, Any]] = {}
 		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
 		self._content_manifests: Dict[tuple[object, ...], ObjectContent] = {}
 		self._content_blobs: Dict[str, _ContentBlobState] = {}
@@ -453,6 +576,57 @@ class Catalog(CatalogStore):
 		] = {}
 		self.audit_retention = audit_retention or AuditRetentionPolicy()
 		self._lock = threading.RLock()
+
+	def configure_budget(
+		self, definition: BudgetDefinition, *, audit_context: AuditContext,
+		occurred_at: str | datetime | None = None,
+	) -> BudgetDefinition:
+		if not isinstance(definition, BudgetDefinition):
+			raise ValueError("definition must be a BudgetDefinition")
+		if not isinstance(audit_context, AuditContext) or audit_context.actor_type != "user":
+			raise ValueError("budget configuration requires a user audit context")
+		with self._lock:
+			existing = self._budgets.get(definition.budget_id)
+			if existing is not None:
+				if existing.to_dict() != definition.to_dict():
+					raise BudgetConstraintError("budget definitions are immutable; use a new budget id")
+				return BudgetDefinition.from_mapping(existing.to_dict())
+			if any(not job.state.terminal and definition.matches(job.bucket, job.key)
+				for job in self._move_jobs.values()):
+				raise BudgetConstraintError("cannot install a budget while matching moves are in flight")
+			self.append_audit_event(_budget_configuration_event(definition, audit_context, occurred_at))
+			self._budgets[definition.budget_id] = BudgetDefinition.from_mapping(definition.to_dict())
+			return BudgetDefinition.from_mapping(definition.to_dict())
+
+	def list_budgets(self) -> List[BudgetDefinition]:
+		with self._lock:
+			return [BudgetDefinition.from_mapping(item.to_dict()) for item in sorted(
+				self._budgets.values(), key=lambda item: item.budget_id,
+			)]
+
+	def list_budget_reservations(self, budget_id: str | None = None) -> List[dict[str, Any]]:
+		with self._lock:
+			return deepcopy([item for identity, item in sorted(self._budget_reservations.items())
+				if budget_id is None or identity[0] == budget_id])
+
+	@contextmanager
+	def _budget_claim_transaction(self) -> Iterator[None]:
+		with self._lock:
+			if not self._budgets:
+				yield
+				return
+			# Restore the complete atomic admission if any audit append fails.
+			state = (
+				dict(self._budget_reservations), dict(self._move_jobs),
+				{name: list(items) for name, items in self._move_transitions.items()},
+				dict(self._audit_events), dict(self._audit_move_heads),
+			)
+			try:
+				yield
+			except BaseException:
+				(self._budget_reservations, self._move_jobs, self._move_transitions,
+				 self._audit_events, self._audit_move_heads) = state
+				raise
 
 	def _ensure_active_tier(self, name: str) -> None:
 		"""Keep tier-only callers compatible while honoring explicit retirement."""
@@ -1304,13 +1478,16 @@ class Catalog(CatalogStore):
 		if not idempotency_key.strip():
 			raise ValueError("idempotency_key must be a non-empty string")
 		validate_catalog_size(expected_size, field="expected_size")
-		with self._lock:
+		with self._budget_claim_transaction():
 			existing = self._move_jobs.get(idempotency_key)
 			if existing is not None:
 				self._assert_same_move(
 					existing, src_tier=src_tier, dst_tier=dst_tier,
 					bucket=bucket, key=key, source_metadata=source_metadata,
 				)
+			if existing is not None:
+				if existing.state.terminal:
+					return existing
 			if existing is None or existing.state in {
 				MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
 			}:
@@ -1320,6 +1497,24 @@ class Catalog(CatalogStore):
 					existing.source_metadata if existing is not None else source_metadata,
 					tier_definition.metadata if tier_definition else None, now,
 				)
+			if existing is not None and (existing.owner_id not in (None, owner_id)
+				and existing.lease_expires_at is not None and existing.lease_expires_at > now):
+				raise MoveJobLeaseError(f"Move job {idempotency_key!r} is leased by {existing.owner_id!r}")
+			reservations, source_metadata = _prepare_budget_reservations(
+				list(self._budgets.values()), list(self._budget_reservations.values()),
+				self._pools, self._objects.get((bucket, key)),
+				move_id=idempotency_key, bucket=bucket, key=key, src_tier=src_tier,
+				dst_tier=dst_tier, size=existing.expected_size if existing else expected_size,
+				source_metadata=existing.source_metadata if existing else source_metadata,
+				now=now, audit_context=audit_context, trusted_override=existing is not None,
+			)
+			for reservation in reservations:
+				context = self._move_audit_context(
+					idempotency_key, owner_id=owner_id, audit_context=audit_context,
+					causation_id=None if audit_context is None else audit_context.causation_id,
+				)
+				self.append_audit_event(_budget_reservation_event(reservation, context))
+				self._budget_reservations[(reservation["budget_id"], idempotency_key, reservation["attempt"])] = reservation
 			if existing is None:
 				job = MoveJob(
 					idempotency_key=idempotency_key,
@@ -1368,6 +1563,7 @@ class Catalog(CatalogStore):
 				owner_id=owner_id,
 				lease_expires_at=lease_expires_at,
 				updated_at=now,
+				source_metadata=source_metadata,
 			)
 			self._move_jobs[idempotency_key] = claimed
 			try:
@@ -1521,10 +1717,17 @@ class Catalog(CatalogStore):
 				previous_object, job.src_tier, tier, job.source_metadata,
 				tier_definition.metadata if tier_definition else None, now,
 			)
+			pool_id = job.source_metadata.get("cognistore_destination_pool_id")
+			if pool_id is not None:
+				pool = self._pools.get(pool_id)
+				if pool is None or not pool.active or pool.tier != tier:
+					raise BudgetConstraintError("budget destination pool is no longer available")
 			previous_content = self._object_contents.get(object_key)
 			self.upsert_placement(
 				job.bucket, job.key, size=size, tier=tier, checksum=checksum
 			)
+			if pool_id is not None:
+				self._objects[object_key].pool_id = pool_id
 			if previous_object is None or previous_object.tier != tier:
 				self._objects[object_key].placement_started_at = now
 			if job.src_tier != tier:
@@ -1651,6 +1854,9 @@ class Catalog(CatalogStore):
 				f"Idempotency key {job.idempotency_key!r} already identifies "
 				f"{job.src_tier}:{job.bucket}/{job.key} -> {job.dst_tier}"
 			)
+		for name in ("cognistore_budget_override", "cognistore_expected_destination_pool_id"):
+			if name in source_metadata and source_metadata[name] != job.source_metadata.get(name):
+				raise MoveJobConflictError(f"{name} differs from the durable move contract")
 		requested_digest = source_metadata.get(
 			EXPECTED_SOURCE_SHA256_METADATA_KEY
 		)

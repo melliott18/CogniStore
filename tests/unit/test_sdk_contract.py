@@ -178,6 +178,39 @@ def test_sdk_model_schemas_match_the_checked_api_contract(
     ) == _normalized_model_schema(sdk_model.model_json_schema())
 
 
+def test_sdk_budget_reason_preserves_unknown_amounts_and_objective_evidence() -> None:
+    payload = {
+        "schema_version": 1, "code": "budget_constraint", "disposition": "suppressed",
+        "decisive_signals": [],
+        "constraints": {
+            "evaluated_at": "2026-09-11T00:00:00Z", "importance_level": None,
+            "importance_revision": 0, "importance_allowed_tiers": None,
+            "allowed_destination_tiers": ["hot", "warm"], "placement_started_at": None,
+            "minimum_residency_seconds": 0, "residency_expires_at": None,
+            "residency_active": False, "last_tier_move_at": None, "cooldown_seconds": 0,
+            "cooldown_expires_at": None, "cooldown_active": False,
+            "size_hysteresis_bytes": 0, "similarity_hysteresis": 0.0,
+            "stability_override_kind": None, "rejected_destination_tier": "warm",
+            "candidate_action": None, "candidate_destination_tier": None,
+            "hysteresis_checks": [],
+            "budgets": [{
+                "budget_id": "september", "allowed": False,
+                "binding_constraints": ["carbon_gco2e_unavailable"],
+                "after": {"cost_usd": "0.004", "carbon_gco2e": None},
+            }],
+            "objectives": {
+                "weights": {"cost": "1", "carbon": "0", "latency": "0", "locality": "0"},
+                "selected": {"pool_id": "warm-east", "tier": "warm", "score": "0"},
+            },
+        },
+        "policy": {"name": "estimate", "version": "1", "model": None},
+        "confidence": {"value": None, "source": "not_applicable"},
+    }
+    sdk_reason = sdk_models.PolicyReason.model_validate(payload)
+    assert sdk_reason.model_dump(mode="json") == payload
+    assert sdk_reason.constraints.budgets[0]["after"]["carbon_gco2e"] is None
+
+
 def test_default_ask_mode_is_omitted_for_older_strict_v1_servers() -> None:
     request_bodies: list[bytes] = []
 
