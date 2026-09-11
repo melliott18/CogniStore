@@ -20,7 +20,15 @@ from .audit import (
     AuditOutcome,
     stable_audit_event_id,
 )
+from .budgets import (
+    BudgetDefinition,
+    BudgetOverride,
+    active_budget_definitions,
+    estimate_budget_charge,
+    evaluate_budget,
+)
 from .catalog import CatalogStore, ObjectRecord
+from .impact_policy import EstimatePolicy
 from .mover import Mover
 from .placement_controls import (
     MovementConstraints,
@@ -36,6 +44,7 @@ from .policy_snapshot import (
     policy_snapshot_features,
     snapshot_from_audit_details,
 )
+from .topology import PlacementConstraints
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +65,8 @@ class ActionResult:
     constraints: dict[str, object] = field(default_factory=dict)
     movement_constraints: MovementConstraints | None = None
     llm_audit: dict[str, object] | None = None
+    budget_override: BudgetOverride | None = None
+    destination_pool_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -110,10 +121,16 @@ class PolicyRunner:
         model_version: str | None = None,
         movement_constraints: MovementConstraints | Mapping[str, object] | None = None,
         clock: Callable[[], datetime] | None = None,
+        budget_definitions: Sequence[BudgetDefinition] | None = None,
+        budget_override: BudgetOverride | None = None,
+        simulation_only: bool = False,
     ) -> None:
         if model_version is not None and model_identity is None:
             raise ValueError("model_version requires model_identity")
         self.catalog = catalog
+        self.budget_definitions = budget_definitions
+        self.budget_override = budget_override
+        self.simulation_only = simulation_only
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
@@ -135,7 +152,7 @@ class PolicyRunner:
             drivers if allowed_tiers is None else allowed_tiers
         )
         unknown_tiers = self.allowed_tiers.difference(drivers)
-        if unknown_tiers:
+        if unknown_tiers and not simulation_only:
             names = ", ".join(sorted(unknown_tiers))
             raise ValueError(f"Unknown allowed tier(s): {names}")
 
@@ -155,6 +172,8 @@ class PolicyRunner:
     ) -> List[ActionResult]:
         """Validate a complete policy batch without applying its moves."""
 
+        if self.simulation_only and not dry_run:
+            raise ValueError("simulation-only runners cannot execute or audit decisions")
         results: List[ActionResult] = []
         records = self.catalog.list(bucket, prefix=prefix)
         recorded: dict[tuple[str, str], AuditEvent] = {}
@@ -230,12 +249,16 @@ class PolicyRunner:
                     constraints=evaluation.constraints,
                     movement_constraints=self.movement_constraints,
                     llm_audit=decision.llm_audit,
+                    budget_override=self.budget_override,
+                    destination_pool_id=self._selected_pool(evaluation.constraints),
                 )
             )
 
         # Persist every evaluated object before storage preflight can fail.
         # The complete batch still validates before any bytes are moved.
         for result in results:
+            if self.simulation_only:
+                continue
             self.mover.plan(
                 result.from_tier, result.to_tier, result.bucket, result.key,
                 movement_constraints=self.movement_constraints,
@@ -260,7 +283,7 @@ class PolicyRunner:
                 dst_tier=evaluation.destination_tier,
                 reason=evaluation.reason,
             )
-            if self._is_actionable(rec, decision):
+            if self._is_actionable(rec, decision) and not self.simulation_only:
                 assert decision.dst_tier is not None
                 self.mover.plan(
                     rec.tier, decision.dst_tier, rec.bucket, rec.key,
@@ -325,6 +348,8 @@ class PolicyRunner:
         self, record: ObjectRecord, evaluation: PolicyEvaluationResult,
         *, plan_move: bool = False,
     ) -> AuditEvent:
+        if self.simulation_only:
+            raise ValueError("simulation-only runners cannot audit decisions")
         decision = PolicyDecision(
             evaluation.action, evaluation.reason, evaluation.destination_tier,
             llm_audit=evaluation.llm_audit,
@@ -373,6 +398,15 @@ class PolicyRunner:
         on_evaluated: Callable[[ObjectRecord, PolicyEvaluationResult], None] | None = None,
     ) -> List[PolicyEvaluationResult]:
         evaluated_at = self.clock() if as_of is None else as_of
+        budgets = (
+            self.catalog.list_budgets() if self.budget_definitions is None
+            else list(self.budget_definitions)
+        )
+        reservations = {
+            budget.budget_id: self.catalog.list_budget_reservations(budget.budget_id)
+            for budget in budgets
+        }
+        pools = {pool.pool_id: pool for pool in self.catalog.list_pools()} if budgets else {}
         constraints: dict[tuple[str, str], dict[str, object]] = {}
         eligible_records: list[ObjectRecord] = []
         blocked_records: list[ObjectRecord] = []
@@ -467,6 +501,18 @@ class PolicyRunner:
                                 policy.similarity_hysteresis,
                             )
                         )
+                if type(policy) is EstimatePolicy:
+                    policy = copy(policy)
+                    placement = policy.placement_constraints or PlacementConstraints()
+                    estimate_allowed = set(self.allowed_tiers)
+                    importance_allowed = evidence["importance_allowed_tiers"]
+                    if isinstance(importance_allowed, list):
+                        estimate_allowed.intersection_update(importance_allowed)
+                    if placement.allowed_tiers is not None:
+                        estimate_allowed.intersection_update(placement.allowed_tiers)
+                    policy.placement_constraints = replace(
+                        placement, allowed_tiers=tuple(sorted(estimate_allowed)),
+                    )
                 evaluate_features = getattr(policy, "evaluate_features", None)
                 if callable(evaluate_features):
                     decision = evaluate_features(rec, features)
@@ -525,6 +571,47 @@ class PolicyRunner:
                     evidence["suppression_reason"] = None
                 elif decision.reason_code == "destination_not_allowed" and proposed_destination:
                     evidence["rejected_destination_tier"] = proposed_destination
+            if type(self.policy) is EstimatePolicy and decision.objective_evidence is not None:
+                evidence["objectives"] = redact(decision.objective_evidence)
+            if self._is_actionable(rec, decision):
+                assert decision.dst_tier is not None
+                checks = []
+                active_budgets = active_budget_definitions(
+                    budgets, rec.bucket, rec.key, as_of=evaluated_at,
+                )
+                bindings = {budget.tier_pools.get(decision.dst_tier) for budget in active_budgets}
+                selected_pool = self._selected_pool(evidence)
+                binding_conflict = bool(active_budgets) and (
+                    len(bindings) != 1 or None in bindings
+                    or selected_pool is not None and selected_pool not in bindings
+                )
+                for budget in active_budgets:
+                    charge = estimate_budget_charge(
+                        budget, rec, decision.dst_tier, pools, as_of=evaluated_at,
+                    )
+                    check = evaluate_budget(
+                        budget, charge, reservations[budget.budget_id],
+                        as_of=evaluated_at, override=self.budget_override,
+                    )
+                    if binding_conflict:
+                        check["allowed"] = False
+                        check["binding_constraints"].append("destination_pool_binding_conflict")
+                    checks.append(check)
+                if checks:
+                    evidence["budgets"] = checks
+                    if any(not check["allowed"] for check in checks):
+                        evidence["rejected_destination_tier"] = decision.dst_tier
+                        evidence["suppression_reason"] = "budget"
+                        decision = replace(
+                            decision, action="stay", dst_tier=None,
+                            reason="budget guardrail blocks policy destination",
+                            reason_code="budget_constraint",
+                        )
+                    else:
+                        # Reserve only in this detached planning snapshot. Atomic
+                        # catalog admission checks the real balance at execution.
+                        for check in checks:
+                            reservations[check["budget_id"]].append(check["charge"])
             if decision.llm_audit is not None:
                 # Preserve the provider's proposal and explain the actual
                 # outcome after every runner guardrail. Redaction also detaches
@@ -586,9 +673,18 @@ class PolicyRunner:
         # must not replace the identity used to fence a selected move.
         return features.mime.provenance.content_sha256
 
+    @staticmethod
+    def _selected_pool(constraints: Mapping[str, object]) -> str | None:
+        objectives = constraints.get("objectives")
+        selected = objectives.get("selected") if isinstance(objectives, Mapping) else None
+        pool_id = selected.get("pool_id") if isinstance(selected, Mapping) else None
+        return pool_id if isinstance(pool_id, str) else None
+
     def execute(self, result: ActionResult) -> None:
         """Execute one previously validated action."""
 
+        if self.simulation_only:
+            raise ValueError("simulation-only runners cannot execute moves")
         self.mover.move(
             result.from_tier,
             result.to_tier,
@@ -597,6 +693,8 @@ class PolicyRunner:
             idempotency_key=self._move_idempotency_key(result),
             expected_source_sha256=result.expected_source_sha256,
             movement_constraints=result.movement_constraints or self.movement_constraints,
+            budget_override=result.budget_override or self.budget_override,
+            destination_pool_id=result.destination_pool_id,
             audit_context=AuditContext(
                 correlation_id=result.correlation_id or self.audit_context.correlation_id,
                 actor_type=self.audit_context.actor_type,
@@ -783,6 +881,7 @@ class PolicyRunner:
             or stable_constraints.get("size_hysteresis_bytes")
             or stable_constraints.get("similarity_hysteresis")
             or stable_constraints.get("stability_override") is not None
+            or stable_constraints.get("budgets") is not None
         ):
             # Snapshot v1 has no fields for these hard inputs. Preserve the
             # observed result for datasets without claiming an exact replay

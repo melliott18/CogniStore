@@ -17,6 +17,22 @@ metadata = sa.MetaData(naming_convention=NAMING_CONVENTION)
 json_type = sa.JSON()
 uuid_type = sa.Uuid(as_uuid=True)
 
+budget_definitions = sa.Table(
+    "budget_definitions", metadata,
+    sa.Column("budget_id", NulSafeText(), primary_key=True),
+    sa.Column("definition", json_type, nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+)
+
+budget_reservations = sa.Table(
+    "budget_reservations", metadata,
+    sa.Column("budget_id", NulSafeText(), sa.ForeignKey("budget_definitions.budget_id"), primary_key=True),
+    sa.Column("move_id", NulSafeText(), primary_key=True),
+    sa.Column("attempt", sa.Integer(), primary_key=True),
+    sa.Column("reservation", json_type, nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+)
+
 tiers = sa.Table(
     "tiers",
     metadata,

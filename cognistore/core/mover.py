@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Iterator, Literal, Mapping, Protocol
 from uuid import uuid4
 
 from cognistore.core.audit import AuditContext
+from cognistore.core.budgets import BudgetOverride
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import (
     EXPECTED_SOURCE_SHA256_METADATA_KEY,
@@ -411,6 +412,8 @@ class Mover:
         audit_context: AuditContext | None = None,
         expected_source_sha256: str | None = None,
         movement_constraints: MovementConstraints | None = None,
+        budget_override: BudgetOverride | None = None,
+        destination_pool_id: str | None = None,
     ) -> MoveVerificationResult:
         """Execute or resume one durable, idempotent object move.
 
@@ -431,6 +434,15 @@ class Mover:
         context = audit_context or self.audit_context
         existing = self.catalog.get_move_job(move_key)
         was_new = existing is None
+        # Budgeted content verification consumes modeled source reads. Obtain
+        # admission before hashing; a denied action must not read object bytes.
+        guarded_content = expected_source_sha256 is not None or (
+            existing is not None
+            and existing.source_metadata.get(EXPECTED_SOURCE_SHA256_METADATA_KEY) is not None
+        )
+        defer_source_check = guarded_content and any(
+            budget.matches(bucket, key) for budget in self.catalog.list_budgets()
+        )
         if existing is None:
             plan = self.plan(
                 src_tier, dst_tier, bucket, key,
@@ -441,14 +453,22 @@ class Mover:
             plan = MovePlan(
                 src_tier=plan.src_tier, dst_tier=plan.dst_tier,
                 bucket=plan.bucket, key=plan.key, size=plan.size,
-                metadata={**plan.metadata, "cognistore_movement_constraints":
-                          (movement_constraints or MovementConstraints()).to_dict()},
+                metadata={
+                    **self._destination_metadata(plan.metadata),
+                    "cognistore_movement_constraints":
+                        (movement_constraints or MovementConstraints()).to_dict(),
+                    **({"cognistore_budget_override": budget_override.to_dict()}
+                       if budget_override is not None else {}),
+                    **({"cognistore_expected_destination_pool_id": destination_pool_id}
+                       if destination_pool_id is not None else {}),
+                },
             )
             if expected_source_sha256 is not None:
-                self._verify_expected_source_content(
-                    plan,
-                    expected_source_sha256,
-                )
+                if not defer_source_check:
+                    self._verify_expected_source_content(
+                        plan,
+                        expected_source_sha256,
+                    )
                 plan = MovePlan(
                     src_tier=plan.src_tier,
                     dst_tier=plan.dst_tier,
@@ -474,6 +494,14 @@ class Mover:
                 expected_source_sha256,
             )
             self._validate_movement_contract(plan, movement_constraints)
+            if destination_pool_id is not None and (
+                plan.metadata.get("cognistore_expected_destination_pool_id") != destination_pool_id
+            ):
+                raise MoveJobConflictError("Destination pool differs from the durable move contract")
+            if budget_override is not None and (
+                plan.metadata.get("cognistore_budget_override") != budget_override.to_dict()
+            ):
+                raise MoveJobConflictError("Budget override differs from the durable move contract")
 
         now, lease_expires_at = self._lease_window()
         job = self.catalog.claim_move_job(
@@ -506,6 +534,14 @@ class Mover:
             expected_source_sha256,
         )
         self._validate_movement_contract(claimed_plan, movement_constraints)
+        if destination_pool_id is not None and (
+            claimed_plan.metadata.get("cognistore_expected_destination_pool_id") != destination_pool_id
+        ):
+            raise MoveJobConflictError("Destination pool differs from the durable move contract")
+        if budget_override is not None and (
+            claimed_plan.metadata.get("cognistore_budget_override") != budget_override.to_dict()
+        ):
+            raise MoveJobConflictError("Budget override differs from the durable move contract")
         if was_new:
             self._after_transition(job)
         if job.state == MoveJobState.COMPLETED:
@@ -513,6 +549,19 @@ class Mover:
         if job.state == MoveJobState.FAILED:
             raise MoveJobFailedError(job)
         with self._lease_heartbeat(job.idempotency_key):
+            if defer_source_check and job.state == MoveJobState.PREPARED:
+                digest = claimed_plan.metadata.get(EXPECTED_SOURCE_SHA256_METADATA_KEY)
+                if isinstance(digest, str):
+                    try:
+                        self._verify_expected_source_content(claimed_plan, digest)
+                    except MoveSourceContentMismatchError:
+                        self._transition(
+                            job, MoveJobState.FAILED,
+                            "budget-admitted source does not match policy content",
+                            updates={"terminal_reason": "policy content mismatch"},
+                            audit_context=context,
+                        )
+                        raise
             return self._resume(job, audit_context=context)
 
     @staticmethod
@@ -1025,6 +1074,8 @@ class Mover:
             for name, value in source_metadata.items()
             if name not in {
                 EXPECTED_SOURCE_SHA256_METADATA_KEY, MOVEMENT_CONSTRAINTS_METADATA_KEY,
+                "cognistore_budget_override", "cognistore_destination_pool_id",
+                "cognistore_source_pool_id", "cognistore_expected_destination_pool_id",
             }
         }
 

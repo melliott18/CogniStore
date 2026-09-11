@@ -8,7 +8,7 @@ storage-driver implementation details.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -629,6 +629,8 @@ class ReasonConstraints(SDKResponse):
     candidate_action: Literal["move", "stay"] | None
     candidate_destination_tier: Annotated[str, Field(min_length=1)] | None
     hysteresis_checks: list[HysteresisCheck]
+    budgets: list[dict[str, Any]] = Field(default_factory=list)
+    objectives: dict[str, Any] | None = None
 
 
 class ReasonModel(SDKResponse):
@@ -654,7 +656,7 @@ class PolicyReason(SDKResponse):
         "required_features_unavailable", "provider_decision", "provider_error",
         "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
         "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
-        "destination_missing", "already_in_tier", "invalid_action",
+        "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
     ]
     disposition: Literal["move", "stay", "suppressed", "rejected"]
     decisive_signals: list[DecisiveSignal]

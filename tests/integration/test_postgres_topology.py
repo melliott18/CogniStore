@@ -115,7 +115,7 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
         for upgraded in (False, True):
             if upgraded:
                 manager.upgrade(catalog.engine)
-                assert manager.current(catalog.engine) == "0010_tier_stability"
+                assert manager.current(catalog.engine) == "0011_policy_budgets"
             with catalog.engine.connect() as connection:
                 assert connection.execute(identities).one() == original_ids
                 assert connection.execute(sa.select(
