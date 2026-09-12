@@ -1006,12 +1006,8 @@ class SQLiteScheduleStore:
                 raise
 
         LOGGER.info(
-            "recovered fenced stale scheduled run job_id=%s recovery_id=%s "
-            "prior_owner=%s operator=%s",
-            job_id,
-            identifier,
-            expected,
-            actor,
+            "recovered fenced stale scheduled run",
+            extra={"job_id": job_id, "recovery_id": identifier},
         )
         return ScheduledRunRecovery(
             recovery_id=identifier,
@@ -1327,7 +1323,6 @@ class SQLiteScheduleStore:
             LOGGER.error(
                 "scheduled publication has invalid durable state job_id=%s",
                 job_id,
-                exc_info=(type(error), error, error.__traceback__),
             )
         return tuple(claimed)
 
@@ -1711,14 +1706,17 @@ class SQLiteScheduleStore:
         stored = SQLiteScheduleStore._stored_envelope_from_row(row)
 
         extra_metadata = set(job.metadata).difference(stored.metadata)
-        if extra_metadata.difference(_REDRIVE_METADATA):
+        # A producer replaces traceparent at publication; it is transport
+        # context, not part of the durable scheduled operation's identity.
+        transport_metadata = {"traceparent"}
+        if extra_metadata.difference(_REDRIVE_METADATA | transport_metadata):
             raise ScheduledRunStateUnavailableError(
                 "scheduled job contains unsupported metadata"
             )
         base_metadata = {
             key: value
             for key, value in job.metadata.items()
-            if key not in _REDRIVE_METADATA
+            if key not in _REDRIVE_METADATA and key not in transport_metadata
         }
         if (
             job.schema_version != stored.schema_version
@@ -1726,7 +1724,10 @@ class SQLiteScheduleStore:
             or job.created_at != stored.created_at
             or job.correlation_id != stored.correlation_id
             or job.payload != stored.payload
-            or base_metadata != stored.metadata
+            or base_metadata != {
+                key: value for key, value in stored.metadata.items()
+                if key not in transport_metadata
+            }
         ):
             raise ScheduledRunStateUnavailableError(
                 "scheduled delivery does not match its durable envelope"
@@ -1909,10 +1910,8 @@ class PeriodicScheduler:
                 published += 1
         for run, error in publication_errors:
             LOGGER.error(
-                "scheduled publication failed schedule_id=%s job_id=%s",
-                run.schedule_id,
-                run.job.job_id,
-                exc_info=(type(error), error, error.__traceback__),
+                "scheduled publication failed",
+                extra={"job_id": run.job.job_id},
             )
         if publication_errors:
             raise publication_errors[0][1]

@@ -32,6 +32,7 @@ from cognistore.drivers.storage_driver import (
     ReadableStream,
     StorageDriver,
 )
+from cognistore.observability import instrument, record_movement_bytes
 
 CHECKSUM_ALGORITHM = "sha256"
 _LOWERCASE_HEX = frozenset("0123456789abcdef")
@@ -401,6 +402,7 @@ class Mover:
             failure_details=tuple(failures),
         )
 
+    @instrument("movement", "move")
     def move(
         self,
         src_tier: str,
@@ -639,6 +641,7 @@ class Mover:
         if expected_sha256 is not None and durable_expected != expected_sha256:
             raise MoveSourceContentMismatchError(plan)
 
+    @instrument("movement", "recover")
     def recover_incomplete(
         self, *, idempotency_prefix: str | None = None
     ) -> list[MoveVerificationResult]:
@@ -775,6 +778,7 @@ class Mover:
                                     job.source_metadata
                                 ),
                             )
+                            record_movement_bytes(transferred_size)
                             source_size = source.size
                             source_checksum = source.checksum
                         reason = "destination transfer completed"

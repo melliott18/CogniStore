@@ -152,3 +152,62 @@ def test_health_and_readiness_expose_worker_and_bus_status() -> None:
             await server.close()
 
     asyncio.run(scenario())
+
+
+def test_metrics_refreshes_broker_backlog_and_marks_unavailable_values() -> None:
+    async def scenario() -> None:
+        class DepthQueue(IdleQueue):
+            pending = 7
+            in_flight = 3
+
+            async def probe(self) -> QueueHealth:
+                return QueueHealth(
+                    state=BusState.CONNECTED,
+                    ready=self.ready,
+                    jetstream=True,
+                    stream="HEALTH_JOBS",
+                    consumer="health-workers",
+                    pending=self.pending,
+                    ack_pending=self.in_flight,
+                )
+
+        async def handler(job, context) -> None:
+            pass
+
+        queue = DepthQueue()
+        worker = AsyncWorker(queue, {"test": handler}, config=WorkerConfig(fetch_timeout=0.05))
+        await worker.start()
+        server = HealthServer(worker, port=0)
+        await server.start()
+
+        async def scrape() -> tuple[str, str]:
+            reader, writer = await asyncio.open_connection("127.0.0.1", server.bound_port)
+            writer.write(b"GET /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            await writer.drain()
+            response = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            headers, body = response.decode().split("\r\n\r\n", 1)
+            return headers, body
+
+        try:
+            headers, body = await scrape()
+            assert headers.startswith("HTTP/1.1 200")
+            assert "Content-Type: text/plain" in headers
+            assert 'cognistore_job_queue_depth{state="pending"} 7.0' in body
+            assert 'cognistore_job_queue_depth{state="in_flight"} 3.0' in body
+            assert worker.health_snapshot().in_flight == 0
+            queue.pending = 2
+            queue.in_flight = 1
+            _, refreshed = await scrape()
+            assert 'cognistore_job_queue_depth{state="pending"} 2.0' in refreshed
+            assert 'cognistore_job_queue_depth{state="in_flight"} 1.0' in refreshed
+            queue.ready = False
+            _, unavailable = await scrape()
+            assert 'cognistore_job_queue_depth{state="pending"} NaN' in unavailable
+            assert 'cognistore_job_queue_depth{state="in_flight"} NaN' in unavailable
+        finally:
+            await server.close()
+            await worker.shutdown()
+
+    asyncio.run(scenario())

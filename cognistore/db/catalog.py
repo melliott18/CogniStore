@@ -82,6 +82,7 @@ from cognistore.core.topology import (
     Tier,
     eligible_candidates,
 )
+from cognistore.observability import observe
 from cognistore.utils.redaction import redact, redact_text
 
 from .engine import create_catalog_engine
@@ -251,7 +252,7 @@ class SQLCatalog(Catalog):
             if self.backend == "sqlite"
             else contextlib.nullcontext()
         )
-        with lock:
+        with observe("catalog", "transaction", backend=self.backend), lock:
             try:
                 with self._engine.begin() as connection:
                     yield connection
@@ -269,7 +270,7 @@ class SQLCatalog(Catalog):
             if self.backend == "sqlite"
             else contextlib.nullcontext()
         )
-        with lock:
+        with observe("catalog", "read", backend=self.backend), lock:
             with self._engine.connect() as connection:
                 yield connection
 

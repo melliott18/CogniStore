@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Mapping, TypeAlias
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
+from cognistore.observability import current_correlation_id, inject_trace_context
+
 JSONScalar: TypeAlias = None | bool | int | float | str
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
@@ -191,9 +193,11 @@ class JobEnvelope:
             job_id=identifier,
             job_type=job_type,
             created_at=timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-            correlation_id=correlation_id or identifier,
+            correlation_id=correlation_id or current_correlation_id() or identifier,
             payload=payload,
-            metadata=metadata or {},
+            # Trace context uses the existing extensible metadata contract, so
+            # legacy workers and all supported schema versions still decode it.
+            metadata={**inject_trace_context(), **(metadata or {})},
         )
 
     def to_bytes(self) -> bytes:

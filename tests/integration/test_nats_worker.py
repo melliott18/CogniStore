@@ -413,3 +413,108 @@ def test_delayed_retry_exhaustion_dead_letter_and_idempotent_redrive() -> None:
             await publisher.close()
 
     asyncio.run(scenario())
+
+
+def test_trace_context_survives_nats_retry_dead_letter_and_redrive(monkeypatch) -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from opentelemetry.trace import SpanKind, StatusCode
+
+    from cognistore import observability
+    from cognistore.jobs.models import DeadLetterDisposition, InvalidJobError
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(observability, "_tracer", provider.get_tracer("nats-trace-test"))
+
+    async def scenario() -> None:
+        config = _config()
+        publisher = NatsJetStreamQueue(config, consume=False)
+        consumer = NatsJetStreamQueue(config)
+        await publisher.connect()
+        await consumer.connect()
+        original_trace = None
+        observed_correlations = []
+        attempts = 0
+
+        async def handler(job, context) -> None:
+            nonlocal attempts
+            observed_correlations.append(observability.current_correlation_id())
+            attempts += 1
+            with observability.observe("catalog", "read", backend="sqlite"):
+                if attempts == 1:
+                    raise TimeoutError("secret-provider-content")
+                if attempts == 2:
+                    raise InvalidJobError("secret-object-content")
+
+        worker = AsyncWorker(
+            consumer, {"catalog.scan": handler},
+            config=WorkerConfig(
+                heartbeat_interval=0, max_attempts=3, retry_base_delay=0.01,
+                retry_max_delay=0.01, retry_jitter=0,
+            ),
+        )
+        try:
+            with observability.request_context(correlation_id="private-request-identity"):
+                with observability.observe("api", "request", kind="server") as request:
+                    original_trace = request.get_span_context().trace_id
+                    job = JobEnvelope.create("catalog.scan", {"private": "secret-payload-content"})
+                    await publisher.enqueue(job)
+            depth = await consumer.probe()
+            assert depth.pending == 1
+            assert depth.ack_pending == 0
+            first = await consumer.claim(timeout=1)
+            assert first is not None
+            raw = first.raw_data
+            assert first.headers["traceparent"] == first.job.metadata["traceparent"]
+            claimed_depth = await consumer.probe()
+            assert claimed_depth.pending == 0
+            assert claimed_depth.ack_pending == 1
+            await worker._process(first)
+            second = await consumer.claim(timeout=1)
+            assert second is not None
+            assert second.raw_data == raw
+            await worker._process(second)
+            assert worker.health_snapshot().dead_lettered == 1
+            dead_letter = worker._dead_letter_record(
+                second, second.job, InvalidJobError("secret-object-content"),
+                disposition=DeadLetterDisposition.TERMINAL,
+                retryable=False, category="invalid", classification_reason="invalid job",
+            )
+            stored = await publisher.get_dead_letter(dead_letter.dead_letter_id)
+            assert stored.job.metadata["traceparent"] == first.job.metadata["traceparent"]
+            assert stored.job.correlation_id == job.correlation_id
+            await publisher.redrive_dead_letter(stored.dead_letter_id)
+            third = await consumer.claim(timeout=1)
+            assert third is not None
+            assert third.job.correlation_id == job.correlation_id
+            assert third.job.metadata["traceparent"].split("-")[1] == format(original_trace, "032x")
+            await worker._process(third)
+            empty = await consumer.probe()
+            assert empty.pending == 0
+            assert empty.ack_pending == 0
+            assert observed_correlations == [job.correlation_id] * 3
+            spans = exporter.get_finished_spans()
+            assert {span.context.trace_id for span in spans} == {original_trace}
+            consumers = [span for span in spans if span.kind == SpanKind.CONSUMER]
+            assert len(consumers) == 3
+            assert [span.status.status_code for span in consumers] == [StatusCode.ERROR, StatusCode.ERROR, StatusCode.UNSET]
+            redrive = next(span for span in spans if span.name == "queue.redrive")
+            redrive_producer = next(
+                span for span in spans
+                if span.name == "queue.enqueue" and span.parent.span_id == redrive.context.span_id
+            )
+            assert consumers[-1].parent.span_id == redrive_producer.context.span_id
+            assert {"api.request", "queue.enqueue", "queue.dead_letter", "queue.redrive", "catalog.read"}.issubset({span.name for span in spans})
+            assert all(not span.events for span in spans)
+            assert "secret-" not in repr([dict(span.attributes) for span in spans])
+        finally:
+            await consumer.close()
+            await publisher.close()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        provider.shutdown()

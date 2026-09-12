@@ -29,6 +29,14 @@ the [Docker development and integration guide](docs/setup_guide.md) for service
 URLs, credentials, an editable development shell, safe shutdown diagnostics,
 and the explicit data-reset command.
 
+Add the optional [local observability stack](docs/observability.md) for
+Prometheus metrics, provisioned Grafana dashboards, redacted JSON logs, and
+OpenTelemetry traces from API requests through queued work and storage:
+
+```bash
+COGNISTORE_OTEL_ENABLED=true docker compose --profile observability up --build --wait
+```
+
 ### Local Python environment
 
 - Create a virtual environment and install the package with its development

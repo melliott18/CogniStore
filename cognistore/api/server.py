@@ -11,6 +11,7 @@ import uvicorn
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
+from cognistore.observability import configure_observability
 from cognistore.policy_feature_runtime import load_access_config, load_policy_feature_loader
 
 from .app import create_app
@@ -56,6 +57,7 @@ def _nats_servers(values: list[str] | None) -> tuple[str, ...]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    configure_observability()
     if not args.drivers:
         raise SystemExit("--drivers or COGNISTORE_DRIVERS is required")
     if not args.catalog_db:
@@ -91,6 +93,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             host=args.host,
             port=args.port,
             log_level=args.log_level,
+            access_log=False,
+            log_config=(
+                None if os.environ.get("COGNISTORE_LOG_FORMAT", "").lower() == "json"
+                else uvicorn.config.LOGGING_CONFIG
+            ),
         )
     finally:
         close = getattr(catalog, "close", None)

@@ -149,6 +149,10 @@ services:
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
       COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
       COGNISTORE_SCHEDULE_DB: /var/lib/cognistore/schedule.sqlite3
+      COGNISTORE_LOG_FORMAT: ${COGNISTORE_LOG_FORMAT:-json}
+      COGNISTORE_OTEL_ENABLED: ${COGNISTORE_OTEL_ENABLED:-false}
+      COGNISTORE_OTEL_ENDPOINT: ${COGNISTORE_OTEL_ENDPOINT:-http://jaeger:4318/v1/traces}
+      OTEL_SERVICE_NAME: cognistore-worker
       PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
     command:
       - --no-config
@@ -284,6 +288,123 @@ services:
       start_period: 5s
     stop_grace_period: 30s
 
+  # Optional local API, metrics, dashboards, and trace viewer. The API shares
+  # the worker's storage and queue; sample-api uses a separate sample corpus.
+  api:
+    image: cognistore:runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    profiles: [observability]
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      cognistore:
+        condition: service_healthy
+    environment:
+      AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_DRIVERS: /etc/cognistore/drivers.yaml
+      COGNISTORE_CATALOG_DB: postgresql://cognistore@postgres:5432/cognistore
+      COGNISTORE_NATS_URL: nats://nats:4222
+      COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
+      COGNISTORE_MINIO_SECRET_KEY: ${COGNISTORE_MINIO_SECRET_KEY:-cognistore-development-only}
+      COGNISTORE_LOG_FORMAT: ${COGNISTORE_LOG_FORMAT:-json}
+      COGNISTORE_OTEL_ENABLED: ${COGNISTORE_OTEL_ENABLED:-false}
+      COGNISTORE_OTEL_ENDPOINT: ${COGNISTORE_OTEL_ENDPOINT:-http://jaeger:4318/v1/traces}
+      OTEL_SERVICE_NAME: cognistore-api
+      PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
+    entrypoint: [cognistore-api]
+    command: [--host, 0.0.0.0, --port, "8080"]
+    ports:
+      - "127.0.0.1:${COGNISTORE_API_PORT:-8082}:8080"
+    volumes:
+      - cognistore-data:/var/lib/cognistore
+      - ./docker/drivers.yaml:/etc/cognistore/drivers.yaml:ro
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    stop_grace_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    profiles: [observability]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "127.0.0.1:${COGNISTORE_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:9090/-/ready"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  grafana:
+    image: grafana/grafana:13.2.0@sha256:3fd54ae1214669f8355f065ec9f6445d5279a3d77095ab048ca045685272429b
+    profiles: [observability]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: cognistore
+      GF_SECURITY_ADMIN_PASSWORD: ${COGNISTORE_GRAFANA_PASSWORD:-cognistore-development-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    ports:
+      - "127.0.0.1:${COGNISTORE_GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:3000/api/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.20.0@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8
+    profiles: [observability]
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:${COGNISTORE_JAEGER_PORT:-16686}:16686"
+      - "127.0.0.1:${COGNISTORE_OTLP_PORT:-4318}:4318"
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
   integration-tests:
     image: cognistore:development
     build:
@@ -383,3 +504,5 @@ volumes:
   nats-data:
   postgres-data:
   test-results:
+  prometheus-data:
+  grafana-data:

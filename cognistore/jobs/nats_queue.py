@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from dataclasses import dataclass
+import logging
+import re
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -24,6 +26,14 @@ from nats.js.api import (
     StreamConfig,
 )
 from nats.js.errors import APIError, NotFoundError, ServiceUnavailableError
+
+from cognistore.observability import (
+    inject_trace_context,
+    instrument,
+    observe,
+    record_job_event,
+    request_context,
+)
 
 from .models import (
     ATTEMPT_OFFSET_METADATA,
@@ -46,7 +56,9 @@ from .models import (
     RedriveAuditRecord,
     RedriveReceipt,
 )
+from .telemetry import job_operation as _job_operation
 
+LOGGER = logging.getLogger(__name__)
 CORRELATION_HEADER = "CogniStore-Correlation-Id"
 JOB_TYPE_HEADER = "CogniStore-Job-Type"
 DEAD_LETTER_ID_HEADER = "CogniStore-Dead-Letter-Id"
@@ -79,6 +91,11 @@ def _is_utf8_encodable(value: str) -> bool:
 
 async def _ignore_connection_error(_error: Exception) -> None:
     """Suppress nats-py's traceback callback for bounded one-shot commands."""
+
+
+async def _report_connection_error(_error: Exception) -> None:
+    """Keep server addresses, credentials, and broker exceptions out of logs."""
+    LOGGER.warning("NATS connection failed; reconnecting when configured")
 
 
 @dataclass(frozen=True)
@@ -250,9 +267,13 @@ class NatsJetStreamQueue:
     async def connect(self) -> None:
         if self._connection is not None and not self._connection.is_closed:
             return
-        connection_options: dict[str, Any] = {}
-        if not self.config.report_connection_errors:
-            connection_options["error_cb"] = _ignore_connection_error
+        connection_options: dict[str, Any] = {
+            "error_cb": (
+                _report_connection_error
+                if self.config.report_connection_errors
+                else _ignore_connection_error
+            )
+        }
         connection = await nats.connect(
             servers=list(self.config.servers),
             name=self.config.client_name,
@@ -496,11 +517,18 @@ class NatsJetStreamQueue:
 
     @staticmethod
     def _job_headers(job: JobEnvelope, transport_id: str) -> dict[Any, str]:
-        return {
+        headers = {
             Header.MSG_ID: transport_id,
             CORRELATION_HEADER: job.correlation_id,
             JOB_TYPE_HEADER: job.job_type,
         }
+        # Only the W3C trace identifier is exported to transport headers.
+        # Arbitrary metadata, baggage, and tracestate stay out of telemetry.
+        parent = job.metadata.get("traceparent", "")
+        if re.fullmatch(r"00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}", parent):
+            if parent[3:35] != "0" * 32 and parent[36:52] != "0" * 16:
+                headers["traceparent"] = parent
+        return headers
 
     @staticmethod
     def _redrive_intent_headers(
@@ -710,6 +738,25 @@ class NatsJetStreamQueue:
         transport_id: str,
         reserve_redrive_headroom: bool,
     ) -> EnqueueReceipt:
+        parent = job.metadata.get("traceparent") or inject_trace_context().get("traceparent")
+        with request_context(correlation_id=job.correlation_id, traceparent=parent):
+            with observe("queue", "enqueue", kind="producer"):
+                traced_job = replace(job, metadata={**job.metadata, **inject_trace_context()})
+                receipt = await self._publish_job_payload(
+                    traced_job,
+                    transport_id=transport_id,
+                    reserve_redrive_headroom=reserve_redrive_headroom,
+                )
+                record_job_event("enqueued", operation=_job_operation(job.job_type))
+                return receipt
+
+    async def _publish_job_payload(
+        self,
+        job: JobEnvelope,
+        *,
+        transport_id: str,
+        reserve_redrive_headroom: bool,
+    ) -> EnqueueReceipt:
         _, jetstream = self._require_connected()
         payload = job.to_bytes()
         headers = self._job_headers(job, transport_id)
@@ -907,6 +954,7 @@ class NatsJetStreamQueue:
                     f"dead-letter chunk collision for {dead_letter_id}"
                 ) from publish_error
 
+    @instrument("queue", "dead_letter", kind="producer")
     async def publish_dead_letter(
         self, record: DeadLetterRecord
     ) -> DeadLetterReceipt:
@@ -1271,6 +1319,19 @@ class NatsJetStreamQueue:
             record = await self.get_dead_letter(identifier)
             job = record.job_for_redrive()
             pending_record = record
+        with request_context(
+            correlation_id=job.correlation_id,
+            traceparent=job.metadata.get("traceparent"),
+        ):
+            with observe("queue", "redrive", kind="producer"):
+                return await self._redrive_job(identifier, job, pending_record)
+
+    async def _redrive_job(
+        self,
+        identifier: str,
+        job: JobEnvelope,
+        pending_record: DeadLetterRecord | None,
+    ) -> RedriveReceipt:
         redrive_count, audit_chain = self._redrive_intent_context(identifier, job)
         self._validate_redrive_transaction_size(
             identifier,
@@ -1282,11 +1343,15 @@ class NatsJetStreamQueue:
         )
         if pending_record is not None:
             job = await self._persist_redrive_intent(pending_record, job)
+        # The intent remains immutable across retrying the redrive transaction.
+        # Only the transport copy descends from this specific redrive attempt.
+        transport_job = replace(job, metadata={**job.metadata, **inject_trace_context()})
         enqueue_receipt = await self._publish_job(
-            job,
+            transport_job,
             transport_id=f"redrive:{identifier}",
             reserve_redrive_headroom=False,
         )
+        record_job_event("redriven", operation=_job_operation(job.job_type))
         audit = RedriveAuditRecord(
             schema_version=REDRIVE_SCHEMA_VERSION,
             dead_letter_id=identifier,
@@ -1374,7 +1439,7 @@ class NatsJetStreamQueue:
                 consumer = await self._jetstream.consumer_info(
                     self.config.stream, self.config.consumer
                 )
-        except Exception as exc:
+        except Exception:
             return QueueHealth(
                 state=self._bus_state(),
                 ready=False,
@@ -1383,7 +1448,7 @@ class NatsJetStreamQueue:
                 consumer=self.config.consumer,
                 max_messages=self.config.stream_max_messages,
                 max_bytes=self.config.stream_max_bytes,
-                error=f"{type(exc).__name__}: {exc}",
+                error="NATS readiness probe failed",
             )
         stream_config = stream_info.config
         max_messages = getattr(stream_config, "max_msgs", None)

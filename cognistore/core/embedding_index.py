@@ -20,6 +20,8 @@ from types import MappingProxyType
 from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from cognistore.observability import instrument
+
 from .embeddings import (
     EmbeddingProvider,
     EmbeddingRetryPolicy,
@@ -448,6 +450,7 @@ class EmbeddingIndexer:
             sleep=self._sleep,
         )
 
+    @instrument("index", "embed", backend="embedding")
     def index_object(self, bucket: str, key: str, *, force: bool = False) -> EmbeddingIndexReport:
         if not isinstance(force, bool):
             raise ValueError("force must be a boolean")
@@ -498,6 +501,7 @@ class EmbeddingIndexer:
             batches=batches,
         )
 
+    @instrument("index", "search", backend="embedding")
     def search(
         self,
         query: str,
@@ -528,6 +532,7 @@ class EmbeddingIndexer:
             exact=exact,
         )
 
+    @instrument("index", "query", backend="embedding")
     def query_vector(self, query: str) -> tuple[float, ...]:
         """Embed and validate one query in this indexer's exact search space."""
 

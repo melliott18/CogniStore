@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from cognistore.drivers.storage_driver import ReadableStream
+from cognistore.observability import instrument
 
 from .content_identity import ContentIdentityBuilder, ObjectContent
 from .document_extraction import DocumentExtraction, DocumentExtractionPipeline
@@ -58,6 +59,7 @@ class Indexer:
     def max_document_file_bytes(self) -> int:
         return self.document_extractor.limits.max_file_bytes
 
+    @instrument("index", "extract_bytes", backend="document")
     def index_bytes(
         self,
         data: bytes,
@@ -89,6 +91,7 @@ class Indexer:
             document_extraction=document_extraction,
         )
 
+    @instrument("index", "extract_stream", backend="document")
     def index_stream(
         self,
         reader: ReadableStream,

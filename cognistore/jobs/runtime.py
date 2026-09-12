@@ -19,6 +19,15 @@ from cognistore.core.audit import (
     stable_audit_event_id,
 )
 from cognistore.core.catalog import CatalogStore
+from cognistore.observability import (
+    current_correlation_id,
+    mark_current_span_error,
+    observe,
+    record_job_event,
+    record_job_queue_latency,
+    request_context,
+    set_job_queue_depth,
+)
 
 from .models import (
     ATTEMPT_OFFSET_METADATA,
@@ -35,6 +44,7 @@ from .models import (
 )
 from .protocols import JobDelivery, JobQueue
 from .retry import ErrorClassification, RandomSource, RetryPolicy, classify_job_error
+from .telemetry import job_operation
 
 LOGGER = logging.getLogger(__name__)
 JobHandler = Callable[[JobEnvelope, JobContext], Awaitable[None]]
@@ -310,8 +320,8 @@ class AsyncWorker:
                     if not self._stop_requested.is_set():
                         raise
                 except Exception as exc:
-                    self.last_error = f"{type(exc).__name__}: {exc}"
-                    LOGGER.exception("job claim failed")
+                    self.last_error = "job claim failed"
+                    LOGGER.error("job claim failed")
                     if isinstance(exc, JobEnvelopeError):
                         # A legacy/custom queue may parse before returning its
                         # delivery handle. Without that handle the worker cannot
@@ -408,6 +418,40 @@ class AsyncWorker:
         return total
 
     async def _process(self, delivery: JobDelivery) -> None:
+        try:
+            job = delivery.job
+        except Exception:
+            job = None
+        parent = job.metadata.get("traceparent") if job is not None else None
+        operation = job_operation(job.job_type) if job is not None else "other"
+        with request_context(
+            correlation_id=job.correlation_id if job is not None else None,
+            traceparent=parent,
+        ):
+            with observe("job", operation, kind="consumer"):
+                record_job_event("started", operation=operation)
+                published_at = getattr(delivery, "source_published_at", None)
+                if (
+                    isinstance(published_at, datetime)
+                    and published_at.tzinfo is not None
+                    and published_at.utcoffset() is not None
+                ):
+                    record_job_queue_latency(
+                        max(0.0, (self._clock() - published_at).total_seconds()),
+                        operation=operation,
+                    )
+                LOGGER.info(
+                    "job delivery started",
+                    extra={
+                        "job_id": job.job_id if job is not None else None,
+                        "correlation_id": current_correlation_id(),
+                        "operation": operation,
+                        "attempt": delivery.attempt,
+                    },
+                )
+                await self._process_delivery(delivery)
+
+    async def _process_delivery(self, delivery: JobDelivery) -> None:
         job: JobEnvelope | None = None
         execution: JobExecution | None = None
         heartbeat_stop = asyncio.Event()
@@ -472,6 +516,7 @@ class AsyncWorker:
                 outcome=AuditOutcome.SUCCEEDED,
             )
         except asyncio.CancelledError:
+            record_job_event("cancelled", operation=job_operation(job.job_type) if job else "other")
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
             try:
                 if execution is not None and execution.execute:
@@ -496,6 +541,11 @@ class AsyncWorker:
         try:
             await delivery.ack()
             self._completed += 1
+            record_job_event("succeeded", operation=job_operation(job.job_type) if job else "other")
+            LOGGER.info(
+                "job delivery succeeded",
+                extra={"job_id": job.job_id if job else None, "attempt": delivery.attempt},
+            )
         except BaseException as exc:
             # ACK outcome is unknown. Never follow a failed double-ACK with NACK;
             # AckWait redelivery is the only safe recovery.
@@ -672,11 +722,6 @@ class AsyncWorker:
                     "event_type": event_type.value,
                     "stream_sequence": delivery.stream_sequence,
                 },
-                exc_info=(
-                    type(audit_error),
-                    audit_error,
-                    audit_error.__traceback__,
-                ),
             )
             self._set_failure(audit_error)
             raise
@@ -759,6 +804,7 @@ class AsyncWorker:
             await delivery.nack(delay=delay)
             self._nacked += 1
             self._retried += 1
+            record_job_event("retried", operation=job_operation(job.job_type) if job else "other")
         except BaseException as settlement_error:
             self._set_failure(settlement_error)
 
@@ -772,15 +818,12 @@ class AsyncWorker:
         heartbeat_task: asyncio.Task[None] | None,
     ) -> None:
         classification = classify_job_error(exc)
-        job_label = (
-            f"job {job.job_id} ({job.job_type})"
-            if job is not None
-            else f"malformed delivery {delivery.source_stream}:{delivery.stream_sequence}"
-        )
-        self.last_error = f"{job_label} failed: {type(exc).__name__}: {exc}"
+        mark_current_span_error()
+        record_job_event("failed", operation=job_operation(job.job_type) if job else "other")
+        self.last_error = f"job delivery failed ({classification.category.value})"
         log_context = {
             "job_id": job.job_id if job is not None else None,
-            "correlation_id": job.correlation_id if job is not None else None,
+            "correlation_id": current_correlation_id(),
             "attempt": delivery.attempt,
             "category": classification.category.value,
         }
@@ -804,11 +847,6 @@ class AsyncWorker:
                         "job audit persistence failed and its durable owner could "
                         "not be released; leaving delivery unsettled",
                         extra=log_context,
-                        exc_info=(
-                            type(release_error),
-                            release_error,
-                            release_error.__traceback__,
-                        ),
                     )
                     self._set_failure(release_error)
             return
@@ -827,18 +865,12 @@ class AsyncWorker:
                         "job coordination failed and its durable owner could not be "
                         "released; leaving delivery unsettled",
                         extra=log_context,
-                        exc_info=(
-                            type(release_error),
-                            release_error,
-                            release_error.__traceback__,
-                        ),
                     )
                     self._set_failure(release_error)
                     return
             LOGGER.critical(
                 "job coordination state is unavailable; leaving delivery unsettled",
                 extra=log_context,
-                exc_info=(type(exc), exc, exc.__traceback__),
             )
             self._set_failure(exc)
             return
@@ -901,7 +933,6 @@ class AsyncWorker:
                 self._retry_policy.max_attempts,
                 delay,
                 extra={**log_context, "retry_delay": delay},
-                exc_info=(type(exc), exc, exc.__traceback__),
             )
             await self._settle_retry(
                 delivery,
@@ -923,7 +954,6 @@ class AsyncWorker:
         LOGGER.error(
             "job is terminal or exhausted; publishing diagnostic to dead-letter stream",
             extra={**log_context, "disposition": disposition.value},
-            exc_info=(type(exc), exc, exc.__traceback__),
         )
         try:
             record = self._dead_letter_record(
@@ -977,11 +1007,6 @@ class AsyncWorker:
                         "dead-letter handling failed and its durable owner could "
                         "not be released; leaving delivery unsettled",
                         extra=log_context,
-                        exc_info=(
-                            type(release_error),
-                            release_error,
-                            release_error.__traceback__,
-                        ),
                     )
                     self._set_failure(release_error)
                     return
@@ -991,6 +1016,9 @@ class AsyncWorker:
         try:
             await delivery.ack()
             self._dead_lettered += 1
+            record_job_event(
+                "dead_lettered", operation=job_operation(job.job_type) if job else "other"
+            )
             LOGGER.error(
                 "job moved to dead-letter stream dead_letter_id=%s sequence=%s",
                 receipt.dead_letter_id,
@@ -1142,7 +1170,7 @@ class AsyncWorker:
                 try:
                     await execution.renew()
                 except BaseException:
-                    LOGGER.exception(
+                    LOGGER.error(
                         "scheduled execution lease renewal failed while draining handler"
                     )
                 interval = max(0.001, execution.heartbeat_interval)
@@ -1205,7 +1233,8 @@ class AsyncWorker:
             raise results[0]
 
     def _set_failure(self, exc: BaseException) -> None:
-        self.last_error = f"{type(exc).__name__}: {exc}"
+        mark_current_span_error()
+        self.last_error = "worker operation failed"
         self.state = WorkerState.FAILED
         self.accepting_claims = False
         self._update_saturation_state()
@@ -1217,6 +1246,13 @@ class AsyncWorker:
 
     def _record_probe(self, health: QueueHealth) -> None:
         self._last_health = health
+        # Broker consumer statistics, rather than this process's active tasks,
+        # account for backlog and all workers sharing the durable consumer.
+        for state, value in (("pending", health.pending), ("in_flight", health.ack_pending)):
+            set_job_queue_depth(
+                value if health.ready and value is not None else float("nan"),
+                state=state,
+            )
         self._last_probe_at = (
             datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
