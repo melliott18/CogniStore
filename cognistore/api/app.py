@@ -27,9 +27,13 @@ from fastapi import (
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPBearer
+from starlette._utils import get_route_path
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from cognistore.auth.jwt import AuthenticationError, JWTAuthConfig, JWTAuthenticator
+from cognistore.auth.principal import principal_context
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
@@ -91,7 +95,7 @@ _REQUEST_ID_HEADER = {
 _COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
         "model": ErrorEnvelope,
-        "description": "Authentication required by the configured authorization hook",
+        "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
         "headers": {
             "X-Request-ID": _REQUEST_ID_HEADER,
             "WWW-Authenticate": {"schema": {"type": "string"}},
@@ -180,7 +184,7 @@ _ACTION_HEADERS = {
 
 
 def allow_anonymous() -> None:
-    """Default authorization extension hook for the M2 unauthenticated surface."""
+    """Default authorization extension hook; JWT authentication runs separately."""
 
     return None
 
@@ -276,33 +280,44 @@ def _error_response(
 def create_app(
     gateway: APIGateway | None = None,
     *,
+    authentication: JWTAuthConfig | JWTAuthenticator | None = None,
     authorization_hook: Callable[..., Any] | None = None,
 ) -> FastAPI:
     """Create the ASGI application around injected service abstractions."""
 
     services = gateway or cast(APIGateway, UnavailableGateway())
+    owns_authenticator = isinstance(authentication, JWTAuthConfig)
+    authenticator = (
+        JWTAuthenticator(authentication) if isinstance(authentication, JWTAuthConfig)
+        else authentication
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        configure_observability()
-        await services.startup()
         try:
-            yield
+            configure_observability()
+            await services.startup()
+            try:
+                yield
+            finally:
+                await services.shutdown()
         finally:
-            await services.shutdown()
+            if owns_authenticator and authenticator is not None:
+                await asyncio.to_thread(authenticator.close)
 
     app = FastAPI(
         title="CogniStore REST API",
         summary="Versioned object, catalog, Ask, policy, and action operations",
         description=(
-            "Stable version 1 REST interface. Authentication and tenancy are "
-            "deployment extension hooks in M2."
+            "Stable version 1 REST interface. Deployments can require JWT bearer "
+            "authentication with OIDC discovery. Authorization is a separate extension hook."
         ),
         version="1.0.0",
         openapi_version="3.1.0",
         lifespan=lifespan,
     )
     app.state.gateway = services
+    app.state.authenticator = authenticator
 
     @app.middleware("http")
     async def request_identity(request: Request, call_next):
@@ -311,6 +326,33 @@ def create_app(
             request.state.request_id = (
                 supplied if supplied is not None and _REQUEST_ID.fullmatch(supplied) else str(uuid4())
             )
+        request.state.principal = None
+        route_path = get_route_path(request.scope)
+        if authenticator is not None and (route_path == "/v1" or route_path.startswith("/v1/")):
+            authorization = request.headers.getlist("authorization")
+            if not authorization:
+                return _error_response(
+                    request,
+                    status_code=401,
+                    code="authentication_required",
+                    message="A bearer access token is required",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            try:
+                if len(authorization) != 1 or len(authorization[0]) > 16_400:
+                    raise AuthenticationError()
+                scheme, separator, token = authorization[0].partition(" ")
+                if scheme.lower() != "bearer" or not separator or not token or token != token.strip():
+                    raise AuthenticationError()
+                request.state.principal = await asyncio.to_thread(authenticator.authenticate, token)
+            except AuthenticationError:
+                return _error_response(
+                    request,
+                    status_code=401,
+                    code="invalid_token",
+                    message="The bearer access token is invalid",
+                    headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+                )
         operation_id = request.headers.get("idempotency-key", request.state.request_id)
         if _REQUEST_ID.fullmatch(operation_id) is None:
             return _error_response(
@@ -319,7 +361,7 @@ def create_app(
                 code="validation_error",
                 message="Idempotency-Key must contain 1-128 letters, digits, dots, underscores, colons or hyphens",
             )
-        if request.method == "POST" and request.url.path in _JSON_BODY_PATHS:
+        if request.method == "POST" and route_path in _JSON_BODY_PATHS:
             raw_content_length = request.headers.get("content-length")
             if raw_content_length is not None:
                 try:
@@ -379,7 +421,7 @@ def create_app(
                     retryable=exc.retryable,
                     headers=exc.headers,
                 )
-        with access_operation(
+        with principal_context(request.state.principal), access_operation(
             operation_id=operation_id,
             correlation_id=request.state.request_id,
             source="api",
@@ -509,7 +551,12 @@ def create_app(
         )
 
     auth = authorization_hook or allow_anonymous
-    router = APIRouter(prefix="/v1", dependencies=[Depends(auth), Depends(access_headers)])
+    # Authentication happens in middleware before any body parsing or custom
+    # authorization hook. This dependency documents the bearer scheme in OpenAPI.
+    bearer = HTTPBearer(auto_error=False, scheme_name="BearerAuth", bearerFormat="JWT")
+    router = APIRouter(
+        prefix="/v1", dependencies=[Depends(bearer), Depends(auth), Depends(access_headers)]
+    )
     @app.get(
         "/healthz",
         response_model=HealthResponse,

@@ -9,8 +9,9 @@ from collections.abc import Callable, Generator, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, Protocol, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from cognistore.auth.principal import PRINCIPAL_METADATA, current_principal
 from cognistore.core.access import AccessConfig
 from cognistore.core.audit import (
     AuditContext,
@@ -750,6 +751,13 @@ class CogniStoreGateway:
         self, config: PolicyConfig, *, audit_context: AuditContext | None = None
     ) -> PolicyRunner:
         self._validate_policy_tiers(config)
+        principal = current_principal()
+        if audit_context is None and principal is not None:
+            audit_context = AuditContext(
+                correlation_id=str(uuid4()),
+                actor_type=principal.actor_type,
+                actor_id=principal.actor_id,
+            )
         drivers: dict[str, StorageDriver] = dict(self.drivers)
         return PolicyRunner(
             self.catalog, drivers, Mover(drivers, self.catalog),
@@ -848,13 +856,16 @@ class CogniStoreGateway:
         self, request: ImportanceChangeRequest, *, correlation_id: str
     ) -> PolicyEvaluationResponse:
         self._catalog_record(request.bucket, request.key)
+        principal = current_principal()
         context = AuditContext(
-            correlation_id=correlation_id, actor_type="user", actor_id=request.actor_id
+            correlation_id=correlation_id,
+            actor_type=principal.actor_type if principal is not None else "user",
+            actor_id=principal.actor_id if principal is not None else request.actor_id,
         )
         runner = self._policy_runner(request.config, audit_context=context)
         now = datetime.now(timezone.utc)
         tag = None if request.level is None else ImportanceTag(
-            level=request.level, actor_type="user", actor_id=request.actor_id,
+            level=request.level, actor_type=context.actor_type, actor_id=context.actor_id,
             provenance=request.provenance, updated_at=now.isoformat(),
         )
         updated = self.catalog.set_importance(
@@ -877,13 +888,16 @@ class CogniStoreGateway:
         *,
         details: Mapping[str, object],
     ) -> AuditEvent:
+        principal = job.principal
         event = AuditEvent.create(
             event_type,
             outcome,
             AuditContext(
                 correlation_id=job.correlation_id,
-                actor_type="api",
-                actor_id="cognistore-rest-api",
+                actor_type=principal.actor_type if principal is not None else "api",
+                actor_id=(
+                    principal.actor_id if principal is not None else "cognistore-rest-api"
+                ),
                 job_id=job.job_id,
             ),
             event_id=stable_audit_event_id(
@@ -923,6 +937,14 @@ class CogniStoreGateway:
             raise
         return await asyncio.to_thread(self.get_job, job.job_id)
 
+    @staticmethod
+    def _job_metadata() -> dict[str, str]:
+        metadata = {STATUS_TRACKING_METADATA: "1"}
+        principal = current_principal()
+        if principal is not None:
+            metadata[PRINCIPAL_METADATA] = principal.to_json()
+        return metadata
+
     async def submit_catalog_scan(
         self, request: CatalogScanRequest
     ) -> JobStatusResponse:
@@ -934,7 +956,7 @@ class CogniStoreGateway:
                 "bucket": request.bucket,
                 "prefix": request.prefix,
             },
-            metadata={STATUS_TRACKING_METADATA: "1"},
+            metadata=self._job_metadata(),
         )
         return await self._submit(job)
 
@@ -962,7 +984,7 @@ class CogniStoreGateway:
         job = JobEnvelope.create(
             POLICY_RUN_JOB,
             payload,
-            metadata={STATUS_TRACKING_METADATA: "1"},
+            metadata=self._job_metadata(),
             schema_version=policy_job_schema_version(payload),
         )
         return await self._submit(job)

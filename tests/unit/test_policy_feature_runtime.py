@@ -233,7 +233,7 @@ def test_api_server_injects_loader_and_closes_catalog(
     monkeypatch.setattr(server, "load_policy_feature_loader", load_loader)
     monkeypatch.setattr(server, "NatsJetStreamQueue", lambda *args, **kwargs: object())
     monkeypatch.setattr(server, "CogniStoreGateway", gateway)
-    monkeypatch.setattr(server, "create_app", lambda gateway: gateway)
+    monkeypatch.setattr(server, "create_app", lambda gateway, **kwargs: gateway)
     monkeypatch.setattr(server.uvicorn, "run", lambda app, **kwargs: None)
 
     assert server.main(["--drivers", "runtime.yaml", "--catalog-db", "catalog.db"]) == 0

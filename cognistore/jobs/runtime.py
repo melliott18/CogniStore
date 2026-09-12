@@ -6,11 +6,13 @@ import logging
 import random
 import time
 import traceback as traceback_module
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Awaitable, Callable, Mapping, Protocol
 
+from cognistore.auth.principal import principal_context
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -418,40 +420,44 @@ class AsyncWorker:
         return total
 
     async def _process(self, delivery: JobDelivery) -> None:
-        try:
-            job = delivery.job
-        except Exception:
-            job = None
-        parent = job.metadata.get("traceparent") if job is not None else None
-        operation = job_operation(job.job_type) if job is not None else "other"
-        with request_context(
-            correlation_id=job.correlation_id if job is not None else None,
-            traceparent=parent,
-        ):
-            with observe("job", operation, kind="consumer"):
-                record_job_event("started", operation=operation)
-                published_at = getattr(delivery, "source_published_at", None)
-                if (
-                    isinstance(published_at, datetime)
-                    and published_at.tzinfo is not None
-                    and published_at.utcoffset() is not None
-                ):
-                    record_job_queue_latency(
-                        max(0.0, (self._clock() - published_at).total_seconds()),
-                        operation=operation,
-                    )
-                LOGGER.info(
-                    "job delivery started",
-                    extra={
-                        "job_id": job.job_id if job is not None else None,
-                        "correlation_id": current_correlation_id(),
-                        "operation": operation,
-                        "attempt": delivery.attempt,
-                    },
+        # Explicitly clear inherited request/task context for anonymous and
+        # malformed deliveries, and restore it after every settlement path.
+        with ExitStack() as contexts:
+            contexts.enter_context(principal_context(None))
+            try:
+                job = delivery.job
+            except Exception:
+                job = None
+            parent = job.metadata.get("traceparent") if job is not None else None
+            operation = job_operation(job.job_type) if job is not None else "other"
+            contexts.enter_context(request_context(
+                correlation_id=job.correlation_id if job is not None else None,
+                traceparent=parent,
+            ))
+            contexts.enter_context(observe("job", operation, kind="consumer"))
+            record_job_event("started", operation=operation)
+            published_at = getattr(delivery, "source_published_at", None)
+            if (
+                isinstance(published_at, datetime)
+                and published_at.tzinfo is not None
+                and published_at.utcoffset() is not None
+            ):
+                record_job_queue_latency(
+                    max(0.0, (self._clock() - published_at).total_seconds()),
+                    operation=operation,
                 )
-                await self._process_delivery(delivery)
+            LOGGER.info(
+                "job delivery started",
+                extra={
+                    "job_id": job.job_id if job is not None else None,
+                    "correlation_id": current_correlation_id(),
+                    "operation": operation,
+                    "attempt": delivery.attempt,
+                },
+            )
+            await self._process_delivery(delivery, contexts)
 
-    async def _process_delivery(self, delivery: JobDelivery) -> None:
+    async def _process_delivery(self, delivery: JobDelivery, contexts: ExitStack) -> None:
         job: JobEnvelope | None = None
         execution: JobExecution | None = None
         heartbeat_stop = asyncio.Event()
@@ -459,6 +465,8 @@ class AsyncWorker:
 
         try:
             job = delivery.job
+            principal = job.principal
+            contexts.enter_context(principal_context(principal))
             attempt_offset = self._metadata_integer(job, ATTEMPT_OFFSET_METADATA)
             redrive_count = self._metadata_integer(job, REDRIVE_COUNT_METADATA)
             context = JobContext(
@@ -469,6 +477,7 @@ class AsyncWorker:
                 shutdown_requested=self._stop_requested,
                 cumulative_attempt=attempt_offset + delivery.attempt,
                 redrive_count=redrive_count,
+                principal=principal,
             )
             if self._coordinator is not None:
                 execution = await self._coordinator.begin(job, context)
@@ -693,6 +702,7 @@ class AsyncWorker:
             )
         )
         occurred_at = self._clock()
+        principal = job.principal if job is not None else None
         try:
             event = AuditEvent.create(
                 event_type,
@@ -700,8 +710,8 @@ class AsyncWorker:
                 AuditContext(
                     correlation_id=correlation_id,
                     causation_id=causation_id,
-                    actor_type="worker",
-                    actor_id=source_consumer,
+                    actor_type=principal.actor_type if principal is not None else "worker",
+                    actor_id=principal.actor_id if principal is not None else source_consumer,
                     job_id=job.job_id if job is not None else None,
                 ),
                 event_id=event_id,

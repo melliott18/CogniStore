@@ -8,6 +8,7 @@ from collections.abc import Sequence
 
 import uvicorn
 
+from cognistore.auth.jwt import JWTAuthConfig
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
@@ -45,6 +46,26 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
     )
     parser.add_argument("--log-level", default="info")
+    parser.add_argument(
+        "--auth-issuer", default=os.environ.get("COGNISTORE_AUTH_ISSUER"),
+        help="trusted HTTPS token issuer (or COGNISTORE_AUTH_ISSUER)",
+    )
+    parser.add_argument(
+        "--auth-audience", default=os.environ.get("COGNISTORE_AUTH_AUDIENCE"),
+        help="required API audience (or COGNISTORE_AUTH_AUDIENCE)",
+    )
+    parser.add_argument(
+        "--auth-jwks-uri", default=os.environ.get("COGNISTORE_AUTH_JWKS_URI"),
+        help="trusted HTTPS JWKS endpoint; otherwise use OIDC discovery",
+    )
+    parser.add_argument(
+        "--auth-algorithm", action="append",
+        help="allowed asymmetric JWT algorithm; repeat (default RS256 or COGNISTORE_AUTH_ALGORITHMS)",
+    )
+    parser.add_argument(
+        "--auth-required-claim", action="append",
+        help="required claim; repeat (default sub,exp,iat or COGNISTORE_AUTH_REQUIRED_CLAIMS)",
+    )
     return parser
 
 
@@ -53,6 +74,37 @@ def _nats_servers(values: list[str] | None) -> tuple[str, ...]:
         return tuple(values)
     configured = os.environ.get("COGNISTORE_NATS_URL", "nats://127.0.0.1:4222")
     return tuple(item.strip() for item in configured.split(",") if item.strip())
+
+
+def _auth_config(args: argparse.Namespace) -> JWTAuthConfig | None:
+    algorithms_env = os.environ.get("COGNISTORE_AUTH_ALGORITHMS")
+    claims_env = os.environ.get("COGNISTORE_AUTH_REQUIRED_CLAIMS")
+    configured = (
+        args.auth_issuer, args.auth_audience, args.auth_jwks_uri,
+        args.auth_algorithm, args.auth_required_claim, algorithms_env, claims_env,
+    )
+    if all(value is None for value in configured):
+        return None
+    if not args.auth_issuer or not args.auth_audience:
+        raise SystemExit("JWT authentication requires both --auth-issuer and --auth-audience")
+    algorithms = tuple(args.auth_algorithm) if args.auth_algorithm is not None else (
+        tuple(value.strip() for value in algorithms_env.split(","))
+        if algorithms_env is not None else ("RS256",)
+    )
+    required_claims = tuple(args.auth_required_claim) if args.auth_required_claim is not None else (
+        tuple(value.strip() for value in claims_env.split(","))
+        if claims_env is not None else ("sub", "exp", "iat")
+    )
+    try:
+        return JWTAuthConfig(
+            issuer=args.auth_issuer,
+            audience=args.auth_audience,
+            jwks_uri=args.auth_jwks_uri,
+            algorithms=algorithms,
+            required_claims=required_claims,
+        )
+    except ValueError:
+        raise SystemExit("Invalid JWT authentication configuration; check issuer, audience and options") from None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -65,6 +117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not 1 <= args.port <= 65_535:
         raise SystemExit("--port must be between 1 and 65535")
 
+    authentication = _auth_config(args)
     drivers = load_drivers(args.drivers)
     catalog = open_catalog(args.catalog_db)
     try:
@@ -87,7 +140,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             feature_loader=feature_loader,
             access_config=load_access_config(args.drivers),
         )
-        app = create_app(gateway)
+        app = create_app(gateway, authentication=authentication)
         uvicorn.run(
             app,
             host=args.host,

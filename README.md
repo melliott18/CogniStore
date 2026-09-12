@@ -131,6 +131,11 @@ policy evaluation, queued scans and policy runs, and durable job polling under
 `/v1`. See the [REST API reference](docs/rest_api.md) and the checked
 [OpenAPI 3.1 contract](docs/openapi/v1.json).
 
+The local default permits anonymous requests. Set `COGNISTORE_AUTH_ISSUER`
+and `COGNISTORE_AUTH_AUDIENCE` to require JWT access tokens on every `/v1`
+request. [Authentication setup](docs/authentication.md) covers OIDC discovery,
+JWKS rotation, service clients, and token-free job and audit attribution.
+
 ### Python SDK
 
 The typed synchronous SDK covers every REST API v1 operation plus automatic

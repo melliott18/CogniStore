@@ -27,6 +27,15 @@ drivers and catalog database. Catalog consumers use the backend-neutral
 `CatalogStore` contract; the durable `SQLCatalog` implementation accepts
 SQLite or PostgreSQL and owns a short transaction for each operation.
 
+Jobs submitted by an [authenticated API client](authentication.md) carry a
+normalized identity in reserved metadata `cognistore.principal`. Workers restore
+the principal for job execution and audit attribution across retries; no raw
+bearer token or complete claim set is retained. This metadata is trusted
+internal context, not independently signed proof. Restrict broker access and
+publisher credentials to trusted API, scheduler, and operator processes so
+untrusted publishers cannot impersonate an audit actor. Direct CLI and scheduled
+jobs retain their existing local identities.
+
 ```bash
 export COGNISTORE_CATALOG_DB='postgresql://cognistore@db.example/cognistore'
 

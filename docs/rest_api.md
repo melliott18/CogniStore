@@ -21,10 +21,18 @@ cognistore-api --host 127.0.0.1 --port 8080
 The standalone process builds metadata-only Ask retrieval. Deployments that
 configure Tantivy, pgvector, or answer generation should construct
 `CogniStoreGateway` with a fully assembled `AskService` and pass it to
-`create_app`. The same injection boundary accepts test doubles and future
-authentication or tenancy policy. M2's default authorization hook permits the
-request; a deployment can pass `authorization_hook` to `create_app` without
-changing a route.
+`create_app`. Configure JWT/OIDC authentication with
+`COGNISTORE_AUTH_ISSUER` and `COGNISTORE_AUTH_AUDIENCE`, or pass
+`authentication=JWTAuthConfig(...)` to `create_app`. Every `/v1` request then
+requires a valid bearer access token before request body handling. Unconfigured
+local deployments retain anonymous access; partial authentication configuration
+fails startup. See [authentication](authentication.md) for discovery, key
+rotation, service clients, SDK headers, and deployment guidance.
+
+A deployment can pass `authorization_hook` to `create_app` without changing a
+route. It runs after authentication and can inspect `request.state.principal`.
+The default hook permits the request; authentication alone does not enforce
+roles, permissions, or tenant isolation.
 
 Every application created by `create_app` also serves the same-origin content
 discovery interface at `/ui/`; those static routes are deliberately excluded
@@ -37,7 +45,8 @@ Without one, accepted jobs remain durably visible in `queued` state.
 
 Interactive documentation is available at `/docs`; the runtime OpenAPI JSON is
 at `/openapi.json`. `/healthz` reports process-level API availability. Backend
-health remains observable through its own service probes.
+health remains observable through its own service probes. Health, documentation,
+and static UI routes remain public; the UI does not supply an OIDC login flow.
 
 ## Endpoint summary
 
@@ -170,8 +179,12 @@ Object uploads and JSON command bodies over their hard limits return 413.
 Invalid, multiple, or unsatisfiable byte ranges return 416 with
 `Content-Range: bytes */{size}`;
 satisfiable ranges return 206 with exact `Content-Range` and `Content-Length`.
-An authorization hook may additionally return 401 or 403, and challenge
-headers such as `WWW-Authenticate` are preserved.
+Configured authentication returns `401 authentication_required` with
+`WWW-Authenticate: Bearer` for missing credentials, or `401 invalid_token` with
+`WWW-Authenticate: Bearer error="invalid_token"` for invalid credentials or
+unavailable required signing keys. Authentication failures use safe generic
+messages. An authorization hook may additionally return 401 or 403, and
+challenge headers such as `WWW-Authenticate` are preserved.
 
 ## Asynchronous status
 
@@ -187,6 +200,11 @@ Existing retry, failure, and dead-letter evidence supplies retrying and failed
 states. Status therefore survives API and worker restarts and preserves the
 same audit retention policy as other operational evidence. A pruned or unknown
 job returns 404.
+
+Authenticated submissions carry only the normalized principal in reserved job
+metadata, allowing workers to attribute audit events without persisting access
+tokens. Broker publishers are trusted to produce this internal metadata; protect
+broker access accordingly. See [identity propagation](authentication.md#jobs-and-audit-attribution).
 
 ## Contract generation
 
