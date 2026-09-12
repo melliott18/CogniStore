@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from cognistore.core.access import AccessConfig, AccessEvent, AccessKind, access_timestamp
 
-from .storage_driver import ReadableStream, StorageDriver
+from .storage_driver import ReadableStream, StorageDriver, StorageListingPage
 
 
 class AccessEventSink(Protocol):
@@ -215,6 +215,18 @@ class ObservedStorageDriver(StorageDriver):
             self.recorder.persist(event)
 
         return objects()
+
+    def list_objects_page(
+        self,
+        bucket: str,
+        prefix: str = "",
+        *,
+        cursor: str | None = None,
+        limit: int = 1000,
+    ) -> StorageListingPage:
+        """Inventory maintenance never contributes application demand."""
+
+        return self.raw_driver.list_objects_page(bucket, prefix, cursor=cursor, limit=limit)
 
     def stat_object(self, bucket: str, key: str) -> dict[str, Any]:
         event = self._event("touch", bucket, key)

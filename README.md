@@ -401,6 +401,11 @@ Notes:
   reports conservative reclamation eligibility after a configurable grace
   period. It never repairs rows or deletes content; the default grace period is
   seven days.
+- `consistency-scan` compares a tenant-bound catalog scope against storage
+  metadata, full checksums, and move jobs without modifying source data. Scans
+  are rate-limited and resumable; `consistency-export` streams their audited
+  findings as JSONL. See [consistency checks](docs/consistency_checks.md) for
+  trusted namespace bindings, report paths, and dry-run behavior.
 - `importance-set BUCKET KEY LEVEL` records an attributed importance change and
   reevaluates placement; `LEVEL` accepts `low`, `normal`, `high`, `critical`, or
   `clear`. Supply `--actor` and `--provenance`. See

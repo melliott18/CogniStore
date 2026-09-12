@@ -6,6 +6,7 @@ import stat
 import sys
 import threading
 from contextlib import AbstractContextManager, contextmanager, nullcontext
+from heapq import nsmallest
 from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, Generator, Mapping, Optional
@@ -21,6 +22,10 @@ from .storage_driver import (
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    StorageListingPage,
+    decode_listing_cursor,
+    encode_listing_cursor,
+    validate_listing_request,
     validate_object_generation,
 )
 
@@ -630,6 +635,84 @@ class PosixDriver(StorageDriver):
                 rel = os.path.relpath(os.path.join(root, name), base)
                 if rel.startswith(prefix):
                     yield rel
+
+    def list_objects_page(
+        self,
+        bucket: str,
+        prefix: str = "",
+        *,
+        cursor: str | None = None,
+        limit: int = 1000,
+    ) -> StorageListingPage:
+        """Select a bounded keyset page while pruning unrelated subtrees.
+
+        Filesystems have no portable sorted directory cursor. Candidate
+        directories are reread on each call, but only ``limit + 1`` keys are
+        retained, regardless of directory size. Completed subtrees and those
+        outside the literal prefix are skipped without opening them.
+        """
+
+        validate_listing_request(bucket, prefix, cursor, limit)
+        base = self._path(bucket, "", allow_bucket_root=True)
+        backend = f"posix:{self.base}"
+        after = decode_listing_cursor(cursor, backend, bucket, prefix) if cursor else None
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        try:
+            # Anchor every absolute path component, including the tier root's
+            # ancestors. A prior _path check alone cannot prevent a directory
+            # being replaced with a symlink between validation and traversal.
+            descriptor = os.open(base.anchor, flags)
+            try:
+                for part in base.parts[1:]:
+                    child = os.open(part, flags, dir_fd=descriptor)
+                    os.close(descriptor)
+                    descriptor = child
+            except BaseException:
+                os.close(descriptor)
+                raise
+        except FileNotFoundError:
+            if cursor is not None:
+                raise
+            return StorageListingPage((), None)
+
+        def keys(directory: int, parent: str = "") -> Generator[str, None, None]:
+            # scandir propagates permission and I/O failures; os.walk's default
+            # error suppression would misreport these as a complete inventory.
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    key = f"{parent}{entry.name}"
+                    child_prefix = key + "/"
+                    if not key.startswith(prefix) and not prefix.startswith(child_prefix):
+                        continue
+                    if (
+                        after is not None
+                        and child_prefix <= after
+                        and not after.startswith(child_prefix)
+                    ):
+                        continue
+                    mode = entry.stat(follow_symlinks=False).st_mode
+                    if stat.S_ISDIR(mode):
+                        child = os.open(entry.name, flags, dir_fd=directory)
+                        try:
+                            yield from keys(child, child_prefix)
+                        finally:
+                            os.close(child)
+                    elif (
+                        stat.S_ISREG(mode)
+                        and key.startswith(prefix)
+                        and (after is None or key > after)
+                    ):
+                        yield key
+
+        try:
+            selected = nsmallest(limit + 1, keys(descriptor))
+        finally:
+            os.close(descriptor)
+        more = len(selected) > limit
+        page = tuple(selected[:limit])
+        next_cursor = encode_listing_cursor(backend, bucket, prefix, page[-1]) if more else None
+        return StorageListingPage(page, next_cursor)
 
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         path = self._path(bucket, key)

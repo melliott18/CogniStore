@@ -17,6 +17,10 @@ from .storage_driver import (
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    StorageListingPage,
+    decode_listing_cursor,
+    encode_listing_cursor,
+    validate_listing_request,
     validate_object_generation,
 )
 
@@ -456,6 +460,50 @@ class S3Driver(StorageDriver):
         except ClientError as error:
             if not _is_not_found(error):
                 raise
+
+    def list_objects_page(
+        self,
+        bucket: str,
+        prefix: str = "",
+        *,
+        cursor: str | None = None,
+        limit: int = 1000,
+    ) -> StorageListingPage:
+        """Request exactly one native ListObjectsV2 page, with SDK retries.
+
+        Unlike the all-pages listing, even a missing bucket is an error: an
+        inventory scan must not mistake an inaccessible namespace for empty.
+        The caller controls page scheduling and durable checkpointing.
+        """
+
+        validate_listing_request(bucket, prefix, cursor, limit)
+        backend = f"s3:{self.endpoint_url or self.partition}"
+        token = decode_listing_cursor(cursor, backend, bucket, prefix) if cursor else None
+        request: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": limit}
+        if token is not None:
+            request["ContinuationToken"] = token
+        response = self._client.list_objects_v2(**request)
+        contents = response.get("Contents", [])
+        truncated = response.get("IsTruncated")
+        if not isinstance(contents, list) or not isinstance(truncated, bool):
+            raise RuntimeError("S3 returned a malformed inventory page")
+        if len(contents) > limit or any(
+            not isinstance(item, dict)
+            or not isinstance(item.get("Key"), str)
+            or not item["Key"].startswith(prefix)
+            for item in contents
+        ):
+            raise RuntimeError("S3 returned invalid inventory keys")
+        keys = tuple(item["Key"] for item in contents)
+        next_cursor = None
+        if truncated:
+            next_token = response.get("NextContinuationToken")
+            if not isinstance(next_token, str) or not next_token or next_token == token:
+                raise RuntimeError("S3 returned no advancing inventory continuation token")
+            next_cursor = encode_listing_cursor(backend, bucket, prefix, next_token)
+        elif response.get("NextContinuationToken"):
+            raise RuntimeError("S3 returned an inconsistent inventory continuation token")
+        return StorageListingPage(keys, next_cursor)
 
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         try:

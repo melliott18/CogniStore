@@ -2371,6 +2371,41 @@ class SQLCatalog(Catalog):
             ).mappings()
             return [self._move_job_from_row(row) for row in rows]
 
+    def list_move_jobs_page(
+        self,
+        bucket: str,
+        prefix: str = "",
+        *,
+        after_id: str | None = None,
+        limit: int = 100,
+    ) -> List[MoveJob]:
+        """Read a bounded job page for one bucket and literal object-key prefix."""
+
+        if not isinstance(bucket, str) or not bucket:
+            raise ValueError("bucket must be a non-empty string")
+        if not isinstance(prefix, str):
+            raise ValueError("prefix must be a string")
+        if after_id is not None and not isinstance(after_id, str):
+            raise ValueError("after_id must be a string or null")
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        with self._connection() as connection:
+            identity: sa.ColumnElement[Any] = move_jobs.c.idempotency_key
+            if connection.dialect.name == "sqlite":
+                identity = identity.collate("BINARY")
+            # NulSafeText is BYTEA on PostgreSQL, so its native comparison
+            # already follows the same UTF-8 order as Python strings.
+            statement = sa.select(*_MOVE_JOB_COLUMNS).where(
+                move_jobs.c.bucket == bucket,
+                self._literal_prefix(connection, move_jobs.c.object_key, prefix),
+            )
+            if after_id is not None:
+                statement = statement.where(identity > after_id)
+            rows = connection.execute(
+                statement.order_by(identity).limit(limit)
+            ).mappings().all()
+        return [self._move_job_from_row(row) for row in rows]
+
     def list_move_job_transitions(self, idempotency_key: str) -> List[MoveJobTransition]:
         statement = (
             sa.select(move_job_transitions)
