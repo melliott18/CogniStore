@@ -123,7 +123,7 @@ jobs:
             mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37 \
             azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck --silent
 
-          for attempt in {1..30}; do
+          for _attempt in {1..30}; do
             if curl --fail --silent --show-error \
                 "http://127.0.0.1:8222/healthz?js-enabled-only=true" >/dev/null \
               && curl --fail --silent --show-error \
@@ -181,6 +181,52 @@ jobs:
           docker logs --tail 200 cognistore-minio || true
           docker logs --tail 200 cognistore-postgres || true
           docker logs --tail 200 cognistore-azurite || true
+
+  gcs-emulator:
+    name: GCS HTTP emulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COGNISTORE_GCS_EMULATOR_ENDPOINT: http://127.0.0.1:4443
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project and development tools
+        run: python -m pip install --editable ".[dev]"
+
+      - name: Build and start pinned GCS emulator
+        run: |
+          docker compose -f docker-compose.gcs.yml up --detach --build
+          for _attempt in {1..30}; do
+            if curl --fail --silent "http://127.0.0.1:4443/storage/v1/b" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.gcs.yml logs
+          exit 1
+
+      - name: Run GCS integration conformance
+        # One precise strict xfail records the upstream media GET generation
+        # precondition bug. The deterministic protocol suite and opt-in live
+        # validation also exercise that condition without an expected failure.
+        run: python -m pytest tests/integration/test_gcs.py --junitxml=test-results/gcs.xml
+
+      - name: Show emulator logs after a failure
+        if: ${{ failure() }}
+        run: docker compose -f docker-compose.gcs.yml logs --tail 100
+
+      - name: Stop GCS emulator
+        if: ${{ always() }}
+        run: docker compose -f docker-compose.gcs.yml down
 
   default-suite:
     name: Default full test suite
