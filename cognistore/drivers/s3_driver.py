@@ -11,6 +11,8 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from botocore.session import Session as BotocoreSession
 
+from cognistore.observability import instrument
+
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
@@ -225,6 +227,7 @@ class S3Driver(StorageDriver):
         ):
             raise ValueError("S3 multipart_threshold must be a positive integer")
 
+    @instrument("driver", "put_object", backend="s3")
     def put_object(
         self,
         bucket: str,
@@ -279,6 +282,7 @@ class S3Driver(StorageDriver):
             body_position=body_position,
         )
 
+    @instrument("driver", "get_object", backend="s3")
     def get_object(
         self, bucket: str, key: str, range: Optional[str] = None
     ) -> bytes:
@@ -286,6 +290,7 @@ class S3Driver(StorageDriver):
             return body.read()
 
     @contextmanager
+    @instrument("driver", "open_object_reader", backend="s3")
     def open_object_reader(
         self, bucket: str, key: str, range: Optional[str] = None
     ) -> Iterator[ReadableStream]:
@@ -299,6 +304,7 @@ class S3Driver(StorageDriver):
             yield body
 
     @contextmanager
+    @instrument("driver", "open_object_reader_if_generation", backend="s3")
     def open_object_reader_if_generation(
         self,
         bucket: str,
@@ -354,6 +360,7 @@ class S3Driver(StorageDriver):
         finally:
             body.close()
 
+    @instrument("driver", "put_object_stream", backend="s3")
     def put_object_stream(
         self,
         bucket: str,
@@ -402,6 +409,7 @@ class S3Driver(StorageDriver):
             request_options=request_options,
         )
 
+    @instrument("driver", "delete_object", backend="s3")
     def delete_object(self, bucket: str, key: str) -> None:
         try:
             self._client.delete_object(Bucket=bucket, Key=key)
@@ -411,6 +419,7 @@ class S3Driver(StorageDriver):
             if not _is_not_found(error):
                 raise
 
+    @instrument("driver", "delete_object_if_generation", backend="s3")
     def delete_object_if_generation(
         self, bucket: str, key: str, generation: str
     ) -> bool:
@@ -447,6 +456,7 @@ class S3Driver(StorageDriver):
             raise
         return True
 
+    @instrument("driver", "list_objects", backend="s3")
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         paginator = self._client.get_paginator("list_objects_v2")
         request: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
@@ -505,6 +515,7 @@ class S3Driver(StorageDriver):
             raise RuntimeError("S3 returned an inconsistent inventory continuation token")
         return StorageListingPage(keys, next_cursor)
 
+    @instrument("driver", "stat_object", backend="s3")
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         try:
             response = self._client.head_object(Bucket=bucket, Key=key)

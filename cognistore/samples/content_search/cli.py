@@ -15,6 +15,7 @@ from cognistore.api import create_app
 from cognistore.core.embedding_index import EmbeddingBackendUnsupportedError
 from cognistore.db import SQLCatalog, open_catalog
 from cognistore.drivers.driver_loader import load_drivers
+from cognistore.observability import configure_observability
 
 from .manifest import SampleManifestError, read_sample_corpus
 from .runtime import ContentSearchRuntime, SampleLoadError
@@ -161,6 +162,7 @@ def _load(args: argparse.Namespace) -> int:
 
 
 def _serve(args: argparse.Namespace) -> int:
+    configure_observability()
     if not 1 <= args.port <= 65_535:
         raise ValueError("--port must be between 1 and 65535")
     catalog, runtime = _open_runtime(args)
@@ -174,6 +176,11 @@ def _serve(args: argparse.Namespace) -> int:
                 host=args.host,
                 port=args.port,
                 log_level=args.log_level,
+                access_log=False,
+                log_config=(
+                    None if os.environ.get("COGNISTORE_LOG_FORMAT", "").lower() == "json"
+                    else uvicorn.config.LOGGING_CONFIG
+                ),
             )
         return 0
     finally:

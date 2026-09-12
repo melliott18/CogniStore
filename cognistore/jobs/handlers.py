@@ -22,6 +22,7 @@ from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.throughput import ThroughputConfig
 from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.observability import current_correlation_id
 
 from .models import (
     JOB_SCHEMA_VERSION_V1,
@@ -355,7 +356,7 @@ def build_handlers(
             "catalog scan completed",
             extra={
                 "job_id": job.job_id,
-                "correlation_id": job.correlation_id,
+                "correlation_id": current_correlation_id(),
                 "attempt": context.attempt,
                 "objects": len(results),
             },
@@ -507,7 +508,7 @@ def build_handlers(
             "policy run completed",
             extra={
                 "job_id": job.job_id,
-                "correlation_id": job.correlation_id,
+                "correlation_id": current_correlation_id(),
                 "attempt": context.attempt,
                 "actions": len(actions),
             },

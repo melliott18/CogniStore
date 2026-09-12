@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: CogniStore Prometheus
+    uid: cognistore-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 5s
+  - name: CogniStore Jaeger
+    uid: cognistore-jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false

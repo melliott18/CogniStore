@@ -109,6 +109,7 @@ from cognistore.jobs.scheduler import (
 	SQLiteScheduleStore,
 	load_schedule_config,
 )
+from cognistore.observability import StructuredLogFormatter, configure_observability
 from cognistore.policy_feature_runtime import load_policy_feature_loader
 from cognistore.utils.device_info import (
 	discover_device_for_tier,
@@ -348,8 +349,11 @@ def _cli_logging(verbose: bool) -> Iterator[None]:
 	previous_propagate = logger.propagate
 	handler = logging.StreamHandler(sys.stderr)
 	handler.setLevel(logging.DEBUG if verbose else logging.WARNING)
-	handler.addFilter(_RedactingLogFilter())
-	handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+	if os.environ.get("COGNISTORE_LOG_FORMAT", "").lower() == "json":
+		handler.setFormatter(StructuredLogFormatter())
+	else:
+		handler.addFilter(_RedactingLogFilter())
+		handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
 	logger.setLevel(logging.DEBUG if verbose else logging.WARNING)
 	logger.propagate = False
 	logger.addHandler(handler)
@@ -918,6 +922,7 @@ def _render_redrive_error(exc: Exception, *, json_output: bool) -> None:
 async def _serve_worker(
 	args: argparse.Namespace, drivers, catalog: CatalogStore
 ) -> int:
+	configure_observability()
 	policy_feature_loader = load_policy_feature_loader(args.drivers, catalog)
 	throughput = (
 		ThroughputController(

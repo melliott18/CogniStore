@@ -33,6 +33,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
+from cognistore.observability import (
+    configure_observability,
+    metrics_response,
+    register_http_routes,
+)
 from cognistore.ui import register_content_search_ui
 
 from .errors import APIError, PayloadTooLargeError, RequestContractError
@@ -56,6 +61,7 @@ from .models import (
     PolicyRunRequest,
     ValidationIssue,
 )
+from .telemetry import TelemetryMiddleware
 
 MAX_OBJECT_UPLOAD_BYTES = 16 * 1024 * 1024
 MAX_JSON_BODY_BYTES = 256 * 1024
@@ -278,6 +284,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        configure_observability()
         await services.startup()
         try:
             yield
@@ -300,9 +307,10 @@ def create_app(
     @app.middleware("http")
     async def request_identity(request: Request, call_next):
         supplied = request.headers.get("x-request-id")
-        request.state.request_id = (
-            supplied if supplied is not None and _REQUEST_ID.fullmatch(supplied) else str(uuid4())
-        )
+        if not hasattr(request.state, "request_id"):
+            request.state.request_id = (
+                supplied if supplied is not None and _REQUEST_ID.fullmatch(supplied) else str(uuid4())
+            )
         operation_id = request.headers.get("idempotency-key", request.state.request_id)
         if _REQUEST_ID.fullmatch(operation_id) is None:
             return _error_response(
@@ -880,4 +888,14 @@ def create_app(
 
     app.include_router(router)
     register_content_search_ui(app)
+    register_http_routes(
+        getattr(route, "path", "") for route in [*app.routes, *router.routes]
+    )
+
+    @app.get("/metrics", include_in_schema=False)
+    def prometheus_metrics() -> Response:
+        body, content_type = metrics_response()
+        return Response(body, headers={"Content-Type": content_type})
+
+    app.add_middleware(TelemetryMiddleware)
     return app

@@ -1548,3 +1548,135 @@ def test_readiness_requires_running_worker_and_ready_bus() -> None:
         assert worker.health_snapshot().ready is False
 
     asyncio.run(scenario())
+
+
+def test_worker_trace_context_survives_retries_without_exporting_failure_content(
+    monkeypatch, caplog,
+) -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from opentelemetry.trace import SpanKind, StatusCode
+
+    from cognistore import observability
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(observability, "_tracer", provider.get_tracer("worker-test"))
+    parent = "00-11111111111111111111111111111111-2222222222222222-01"
+    job = JobEnvelope.create(
+        "secret-job-type", {"content": "private-object-content"},
+        correlation_id="private-correlation-content", metadata={"traceparent": parent},
+    )
+    raw = job.to_bytes()
+
+    async def scenario() -> None:
+        queue = FakeQueue()
+        observed = []
+
+        async def handler(envelope, context) -> None:
+            observed.append(observability.current_correlation_id())
+            with observability.observe("catalog", "read"):
+                if context.attempt == 1:
+                    raise TimeoutError("secret-provider-token private-object-content")
+
+        worker = AsyncWorker(
+            queue, {job.job_type: handler},
+            config=WorkerConfig(heartbeat_interval=0, retry_jitter=0),
+        )
+        first = FakeDelivery(job)
+        second = FakeDelivery(JobEnvelope.from_bytes(raw), attempt=2)
+        with observability.request_context(correlation_id="outer-unrelated-request"):
+            outer = observability.current_correlation_id()
+            await worker._process(first)
+            assert observability.current_correlation_id() == outer
+            await worker._process(second)
+            assert observability.current_correlation_id() == outer
+        assert first.nack_count == 1
+        assert second.ack_count == 1
+        assert first.raw_data == raw == second.raw_data
+        assert len(set(observed)) == 1
+        assert observed[0] != job.correlation_id
+
+    try:
+        asyncio.run(scenario())
+        spans = exporter.get_finished_spans()
+        consumers = [span for span in spans if span.kind == SpanKind.CONSUMER]
+        assert len(consumers) == 2
+        assert {span.name for span in consumers} == {"job.other"}
+        assert {span.context.trace_id for span in consumers} == {int("1" * 32, 16)}
+        assert {span.parent.span_id for span in consumers} == {int("2" * 16, 16)}
+        assert consumers[0].status.status_code == StatusCode.ERROR
+        assert consumers[1].status.status_code == StatusCode.UNSET
+        assert all(not span.events for span in spans)
+        exported = repr([dict(span.attributes) for span in spans]) + caplog.text
+        for secret in (
+            "secret-job-type", "private-correlation-content", "private-object-content",
+            "secret-provider-token",
+        ):
+            assert secret not in exported
+        assert all(record.exc_info is None for record in caplog.records)
+        metrics, _ = observability.metrics_response()
+        assert b'cognistore_job_events_total{event="retried",operation="other"}' in metrics
+        assert b'cognistore_operations_total{component="job",operation="other",outcome="error"}' in metrics
+    finally:
+        provider.shutdown()
+
+
+def test_concurrent_worker_attempts_keep_distinct_context_in_storage_threads(monkeypatch) -> None:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from cognistore import observability
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(observability, "_tracer", provider.get_tracer("worker-test"))
+
+    async def scenario() -> None:
+        arrived = asyncio.Event()
+        seen = {}
+
+        def storage_read(job_id) -> None:
+            with observability.observe("driver", "get_object", backend="posix"):
+                seen[job_id] = (
+                    observability.current_correlation_id(),
+                    trace.get_current_span().get_span_context().trace_id,
+                )
+
+        async def handler(job, context) -> None:
+            arrived.set()
+            await asyncio.sleep(0)
+            await arrived.wait()
+            await asyncio.to_thread(storage_read, job.job_id)
+
+        first = JobEnvelope.create(
+            "catalog.scan", {},
+            metadata={"traceparent": "00-11111111111111111111111111111111-2222222222222222-01"},
+        )
+        second = JobEnvelope.create(
+            "catalog.scan", {},
+            metadata={"traceparent": "00-33333333333333333333333333333333-4444444444444444-01"},
+        )
+        worker = AsyncWorker(FakeQueue(), {"catalog.scan": handler}, config=WorkerConfig(heartbeat_interval=0))
+        await asyncio.gather(worker._process(FakeDelivery(first)), worker._process(FakeDelivery(second)))
+        assert seen[first.job_id] == (first.correlation_id, int("1" * 32, 16))
+        assert seen[second.job_id] == (second.correlation_id, int("3" * 32, 16))
+        assert observability.current_correlation_id() is None
+        assert not trace.get_current_span().get_span_context().is_valid
+
+    try:
+        asyncio.run(scenario())
+        spans = exporter.get_finished_spans()
+        consumers = {span.context.trace_id: span for span in spans if span.name == "job.scan"}
+        drivers = [span for span in spans if span.name == "driver.get_object"]
+        assert len(consumers) == 2
+        assert len(drivers) == 2
+        for driver in drivers:
+            assert driver.parent.span_id == consumers[driver.context.trace_id].context.span_id
+    finally:
+        provider.shutdown()

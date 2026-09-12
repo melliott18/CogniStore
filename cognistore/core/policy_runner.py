@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Literal, Sequence
 from uuid import uuid4
 
 from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.observability import instrument
 from cognistore.utils.redaction import redact, redact_text
 
 from .audit import (
@@ -166,6 +167,7 @@ class PolicyRunner:
                 self.execute(result)
         return results
 
+    @instrument("policy", "plan")
     def plan_once(
         self, bucket: str, prefix: str = "", dry_run: bool = False,
         *, as_of: str | datetime | None = None,
@@ -390,6 +392,7 @@ class PolicyRunner:
 
         return self._evaluate_records((record,), as_of=as_of)[0]
 
+    @instrument("policy", "evaluate")
     def _evaluate_records(
         self,
         records: Sequence[ObjectRecord],
@@ -680,6 +683,7 @@ class PolicyRunner:
         pool_id = selected.get("pool_id") if isinstance(selected, Mapping) else None
         return pool_id if isinstance(pool_id, str) else None
 
+    @instrument("policy", "execute")
     def execute(self, result: ActionResult) -> None:
         """Execute one previously validated action."""
 

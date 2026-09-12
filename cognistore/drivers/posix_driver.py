@@ -9,12 +9,14 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext
 from heapq import nsmallest
 from io import BytesIO
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Dict, Generator, Mapping, Optional
+from typing import Any, BinaryIO, Callable, Dict, Generator, Iterator, Mapping, Optional
 
 try:
     import fcntl as _fcntl
 except ImportError:  # pragma: no cover - unavailable on non-POSIX platforms
     _fcntl = None  # type: ignore[assignment]
+
+from cognistore.observability import instrument
 
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
@@ -318,6 +320,7 @@ class PosixDriver(StorageDriver):
                 continue
         raise FileExistsError("Could not allocate a unique POSIX staging file")
 
+    @instrument("driver", "put_object", backend="posix")
     def put_object(
         self,
         bucket: str,
@@ -381,39 +384,46 @@ class PosixDriver(StorageDriver):
                 except FileNotFoundError:
                     pass
 
+    @instrument("driver", "get_object", backend="posix")
     def get_object(
         self, bucket: str, key: str, range: Optional[str] = None
     ) -> bytes:
         with self.open_object_reader(bucket, key, range=range) as source:
             return source.read()
 
+    @contextmanager
+    @instrument("driver", "open_object_reader", backend="posix")
     def open_object_reader(
         self,
         bucket: str,
         key: str,
         range: Optional[str] = None,
-    ) -> AbstractContextManager[ReadableStream]:
-        return self._open_object_reader(
+    ) -> Iterator[ReadableStream]:
+        with self._open_object_reader(
             bucket,
             key,
             range=range,
             generation=None,
-        )
+        ) as reader:
+            yield reader
 
+    @contextmanager
+    @instrument("driver", "open_object_reader_if_generation", backend="posix")
     def open_object_reader_if_generation(
         self,
         bucket: str,
         key: str,
         generation: str,
         range: Optional[str] = None,
-    ) -> AbstractContextManager[ReadableStream]:
+    ) -> Iterator[ReadableStream]:
         generation = validate_object_generation(generation)
-        return self._open_object_reader(
+        with self._open_object_reader(
             bucket,
             key,
             range=range,
             generation=generation,
-        )
+        ) as reader:
+            yield reader
 
     def _open_object_reader(
         self,
@@ -496,6 +506,7 @@ class PosixDriver(StorageDriver):
 
         return reader()
 
+    @instrument("driver", "put_object_stream", backend="posix")
     def put_object_stream(
         self,
         bucket: str,
@@ -577,6 +588,7 @@ class PosixDriver(StorageDriver):
             except FileNotFoundError:
                 pass
 
+    @instrument("driver", "delete_object", backend="posix")
     def delete_object(self, bucket: str, key: str) -> None:
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
@@ -587,6 +599,7 @@ class PosixDriver(StorageDriver):
                 return
             self._sync_directory(path.parent)
 
+    @instrument("driver", "delete_object_if_generation", backend="posix")
     def delete_object_if_generation(
         self, bucket: str, key: str, generation: str
     ) -> bool:
@@ -605,6 +618,7 @@ class PosixDriver(StorageDriver):
             self._sync_directory(path.parent)
             return True
 
+    @instrument("driver", "ensure_object_durable", backend="posix")
     def ensure_object_durable(self, bucket: str, key: str) -> None:
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
@@ -621,6 +635,7 @@ class PosixDriver(StorageDriver):
             if staging.exists():
                 self._sync_directory(staging)
 
+    @instrument("driver", "list_objects", backend="posix")
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         base = self._path(bucket, "", allow_bucket_root=True)
         if not base.exists():
@@ -714,6 +729,7 @@ class PosixDriver(StorageDriver):
         next_cursor = encode_listing_cursor(backend, bucket, prefix, page[-1]) if more else None
         return StorageListingPage(page, next_cursor)
 
+    @instrument("driver", "stat_object", backend="posix")
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         path = self._path(bucket, key)
         st = path.stat()

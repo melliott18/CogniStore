@@ -4,6 +4,8 @@ import asyncio
 import json
 from typing import Any
 
+from cognistore.observability import metrics_response
+
 from .runtime import AsyncWorker
 
 
@@ -50,6 +52,8 @@ class HealthServer:
     ) -> None:
         status = 500
         body: dict[str, Any] = {"error": "health check failed"}
+        encoded: bytes | None = None
+        content_type = "application/json"
         probing_readiness = False
         try:
             request = await asyncio.wait_for(
@@ -74,6 +78,15 @@ class HealthServer:
                 )
                 status = 200 if snapshot.ready else 503
                 body = snapshot.to_dict()
+            elif path == "/metrics":
+                # Refresh consumer statistics on every scrape. The queue gauge
+                # reflects durable broker backlog, including other workers.
+                probing_readiness = True
+                await asyncio.wait_for(
+                    self.worker.check_readiness(), timeout=self.request_timeout
+                )
+                encoded, content_type = metrics_response()
+                status = 200
             else:
                 status = 404
                 body = {"error": "not found"}
@@ -87,11 +100,12 @@ class HealthServer:
         except (asyncio.IncompleteReadError, UnicodeError, ValueError) as exc:
             status = 400
             body = {"error": str(exc) or "bad request"}
-        except Exception as exc:
+        except Exception:
             status = 503
-            body = {"error": f"{type(exc).__name__}: {exc}"}
+            body = {"error": "worker probe failed"}
 
-        encoded = json.dumps(body, sort_keys=True).encode("utf-8")
+        if encoded is None:
+            encoded = json.dumps(body, sort_keys=True).encode("utf-8")
         reason = {
             200: "OK",
             400: "Bad Request",
@@ -103,7 +117,7 @@ class HealthServer:
         writer.write(
             (
                 f"HTTP/1.1 {status} {reason}\r\n"
-                "Content-Type: application/json\r\n"
+                f"Content-Type: {content_type}\r\n"
                 f"Content-Length: {len(encoded)}\r\n"
                 "Connection: close\r\n\r\n"
             ).encode("ascii")

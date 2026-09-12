@@ -2004,3 +2004,41 @@ def test_schedule_config_rejects_invalid_movement_constraints(
 
     with pytest.raises(ValueError, match="movement_constraints"):
         _load(config_path)
+
+
+def test_scheduled_delivery_accepts_producer_trace_context_without_weakening_identity(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    from cognistore.jobs.scheduler import ScheduledRunStateUnavailableError
+
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(config_path, _scan_job("scan"))
+    clock = MutableClock()
+
+    async def scenario() -> None:
+        store = SQLiteScheduleStore(tmp_path / "scheduler.db")
+        queue = RecordingQueue()
+        scheduler = PeriodicScheduler(queue, store, _load(config_path), clock=clock)
+        await scheduler.start()
+        try:
+            assert await scheduler.run_due() == 1
+            original = queue.enqueued[0]
+            delivered = replace(
+                original,
+                metadata={**original.metadata, "traceparent": "00-11111111111111111111111111111111-2222222222222222-01"},
+            )
+            coordinator = ScheduledRunCoordinator(store, clock=clock)
+            for tampered in (
+                replace(delivered, payload={**delivered.payload, "bucket": "unapproved"}),
+                replace(delivered, metadata={**delivered.metadata, "unapproved": "metadata"}),
+            ):
+                with pytest.raises(ScheduledRunStateUnavailableError):
+                    await coordinator.begin(tampered, _context())
+            await _succeed_scheduled_job(store, delivered, clock)
+        finally:
+            await scheduler.close()
+            store.close()
+
+    asyncio.run(scenario())

@@ -230,6 +230,63 @@ def _configured_queue(monkeypatch: pytest.MonkeyPatch, *, consume: bool = True):
     )
 
 
+def test_enqueue_carries_producer_context_without_changing_job_contract(monkeypatch) -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from opentelemetry.trace import SpanKind
+
+    from cognistore import observability
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(observability, "_tracer", provider.get_tracer("jobs-test"))
+
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch, consume=False)
+        await queue.connect()
+        try:
+            with observability.request_context(correlation_id="sensitive-request-id"):
+                with observability.observe("api", "request") as request:
+                    job = JobEnvelope.create("catalog.scan", {"content": "private-content"})
+                    original = job.to_bytes()
+                    await queue.enqueue(job)
+                    assert job.to_bytes() == original
+                    published = JobEnvelope.from_bytes(jetstream.published[-1][1])
+                    assert published.schema_version == 1
+                    assert published.correlation_id == observability.current_correlation_id()
+                    assert published.correlation_id != "sensitive-request-id"
+                    assert published.payload == job.payload
+                    assert set(published.metadata) == {"traceparent"}
+                    assert jetstream.published[-1][3]["traceparent"] == published.metadata["traceparent"]
+            spans = exporter.get_finished_spans()
+            producer = next(span for span in spans if span.name == "queue.enqueue")
+            assert producer.kind == SpanKind.PRODUCER
+            assert producer.parent.span_id == request.get_span_context().span_id
+            assert published.metadata["traceparent"].split("-")[2] == format(producer.context.span_id, "016x")
+            assert "private-content" not in repr([dict(span.attributes) for span in spans])
+            assert observability.current_correlation_id() is None
+        finally:
+            await queue.close()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        provider.shutdown()
+
+
+def test_job_transport_headers_do_not_forward_untrusted_trace_metadata() -> None:
+    job = JobEnvelope.create(
+        "catalog.scan", {}, metadata={"traceparent": "secret\r\nAuthorization: secret", "baggage": "secret"}
+    )
+
+    headers = NatsJetStreamQueue._job_headers(job, job.job_id)
+
+    assert "traceparent" not in headers
+    assert "baggage" not in headers
+
+
 def test_publisher_connects_without_creating_worker_consumer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1079,3 +1136,14 @@ def test_malformed_delivery_retains_raw_message_and_settlement_handle(
         await queue.close()
 
     asyncio.run(scenario())
+
+
+def test_nats_connection_error_callback_redacts_driver_exception(caplog) -> None:
+    from cognistore.jobs.nats_queue import _report_connection_error
+
+    asyncio.run(_report_connection_error(ConnectionError("nats://secret:password@host/private")))
+
+    assert "NATS connection failed" in caplog.text
+    assert "secret" not in caplog.text
+    assert "password" not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)

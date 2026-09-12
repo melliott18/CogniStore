@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, BinaryIO, TypeVar
 from uuid import uuid4
 
+from cognistore.observability import instrument
+
 from .keyword import (
     DEFAULT_PASSAGE_CHARS,
     DEFAULT_PASSAGE_OVERLAP_CHARS,
@@ -476,6 +478,7 @@ class TantivyKeywordIndex:
             self._index.reload()
             return result
 
+    @instrument("index", "replace", backend="keyword")
     def replace_object(self, document: KeywordObject) -> int:
         self._validate_document_contract(document)
         indexed = tuple(
@@ -490,6 +493,7 @@ class TantivyKeywordIndex:
 
         return self._mutate(replace)
 
+    @instrument("index", "delete", backend="keyword")
     def delete_object(self, bucket: str, key: str) -> None:
         if not isinstance(bucket, str) or not bucket:
             raise ValueError("bucket must be a non-empty string")
@@ -646,6 +650,7 @@ class TantivyKeywordIndex:
             document_metadata=metadata,
         )
 
+    @instrument("index", "search", backend="keyword")
     def search(self, query: KeywordSearchQuery) -> list[KeywordSearchHit]:
         if not isinstance(query, KeywordSearchQuery):
             raise ValueError("query must be a KeywordSearchQuery")
@@ -741,6 +746,7 @@ class TantivyKeywordIndex:
             shutil.rmtree(generation_path, ignore_errors=True)
             raise
 
+    @instrument("index", "rebuild", backend="keyword")
     def rebuild(self, documents: Iterable[KeywordObject]) -> KeywordRebuildReport:
         with self._lock:
             self._ensure_open()
