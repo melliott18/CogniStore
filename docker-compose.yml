@@ -65,6 +65,43 @@ services:
       start_period: 3s
     stop_grace_period: 30s
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37
+    profiles: [azure, integration, development]
+    user: "1000:1000"
+    working_dir: /tmp
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Public emulator-only account. Never use this key with a cloud account.
+    environment:
+      AZURITE_ACCOUNTS: cognistore:Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=
+    command:
+      - azurite-blob
+      - --blobHost
+      - 0.0.0.0
+      - --location
+      - /tmp/azurite
+      - --silent
+      - --skipApiVersionCheck
+    ports:
+      - "127.0.0.1:${COGNISTORE_AZURITE_PORT:-10000}:10000"
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const s = require('net').connect(10000, '127.0.0.1', () => { s.end(); process.exit(0); }); s.on('error', () => process.exit(1));"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
   postgres:
     image: pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     environment:
@@ -262,6 +299,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
+      azurite:
+        condition: service_healthy
       cognistore:
         condition: service_healthy
       nats:
@@ -272,6 +311,7 @@ services:
         condition: service_healthy
     environment:
       AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://azurite:10000/cognistore;"
       COGNISTORE_NATS_URL: nats://nats:4222
       COGNISTORE_MINIO_ENDPOINT_URL: http://minio:9000
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
@@ -307,6 +347,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
+      azurite:
+        condition: service_healthy
       nats:
         condition: service_healthy
       minio:
@@ -315,6 +357,7 @@ services:
         condition: service_healthy
     environment:
       AWS_EC2_METADATA_DISABLED: "true"
+      COGNISTORE_AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://azurite:10000/cognistore;"
       COGNISTORE_NATS_URL: nats://nats:4222
       COGNISTORE_MINIO_ENDPOINT_URL: http://minio:9000
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}

@@ -13,7 +13,7 @@ development tools:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,azure]"
 ```
 
 2) Run the local quality suite:
@@ -60,7 +60,7 @@ Use Conventional Commits, e.g.:
 - Run unit and conformance tests with
   `python -m pytest tests/unit tests/conformance`.
 - Run integration tests with `python -m pytest tests/integration`. NATS and
-  MinIO cases require the isolated services and environment variables described
+  MinIO and Azure Blob cases require the isolated services and environment variables described
   in their respective documentation; local filesystem integration tests do not.
 - To build the test image and run the complete integration suite entirely in
   containers, use `docker compose --profile integration up --build

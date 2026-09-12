@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -33,6 +34,20 @@ _S3_FIELDS = frozenset(
     }
 )
 
+_AZURE_BLOB_FIELDS = frozenset(
+    {
+        "driver",
+        "account_url",
+        "connection_string",
+        "connection_string_env",
+        "credential",
+        "credential_env",
+        "auto_create_container",
+        "chunk_size",
+        "list_page_size",
+    }
+)
+
 
 def _aliased_value(
     info: Dict[str, Any],
@@ -49,12 +64,12 @@ def _aliased_value(
 
 
 def _credential_value(
-    info: Dict[str, Any], tier: str, field: str
+    info: Dict[str, Any], tier: str, field: str, provider: str = "S3"
 ) -> Optional[str]:
     env_field = f"{field}_env"
     if field in info and env_field in info:
         raise ValueError(
-            f"S3 tier '{tier}' must use only one of '{field}' or '{env_field}'"
+            f"{provider} tier '{tier}' must use only one of '{field}' or '{env_field}'"
         )
     if env_field not in info:
         return info.get(field)
@@ -62,16 +77,31 @@ def _credential_value(
     variable_name = info[env_field]
     if not isinstance(variable_name, str) or not variable_name.strip():
         raise ValueError(
-            f"S3 tier '{tier}' field '{env_field}' must name an environment variable"
+            f"{provider} tier '{tier}' field '{env_field}' must name an environment variable"
         )
     value = os.environ.get(variable_name)
     if not value:
         # Report only the variable name.  Credential values must never appear
         # in configuration errors or logs.
         raise ValueError(
-            f"S3 tier '{tier}' requires environment variable '{variable_name}'"
+            f"{provider} tier '{tier}' requires environment variable '{variable_name}'"
         )
     return value
+
+
+def _azure_credential_value(info: Dict[str, Any], tier: str, field: str) -> Optional[str]:
+    """Resolve Azure secrets without reflecting malformed values in errors."""
+    for name in (field, f"{field}_env"):
+        if name not in info:
+            continue
+        value = info[name]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Azure Blob tier '{tier}' field '{name}' must be a non-empty string")
+        if name.endswith("_env") and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError(
+                f"Azure Blob tier '{tier}' field '{name}' must name an environment variable"
+            )
+    return _credential_value(info, tier, field, provider="Azure Blob")
 
 
 def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
@@ -155,6 +185,29 @@ def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
                 if transfer_field in info:
                     driver_options[transfer_field] = info[transfer_field]
             out[tier] = S3Driver(**driver_options)
+        elif driver_type == "azure_blob":
+            try:
+                from .azure_blob_driver import AzureBlobDriver
+            except ImportError:
+                raise ImportError(
+                    "Azure Blob storage requires the optional 'azure' dependencies; "
+                    "install cognistore[azure]"
+                ) from None
+
+            azure_unknown_fields = set(info) - _AZURE_BLOB_FIELDS
+            if azure_unknown_fields:
+                raise ValueError(f"Azure Blob tier '{tier}' has unsupported configuration fields")
+
+            azure_options: Dict[str, Any] = {
+                "account_url": info.get("account_url"),
+                "connection_string": _azure_credential_value(info, tier, "connection_string"),
+                "credential": _azure_credential_value(info, tier, "credential"),
+                "auto_create_container": info.get("auto_create_container", False),
+                "list_page_size": info.get("list_page_size"),
+            }
+            if "chunk_size" in info:
+                azure_options["chunk_size"] = info["chunk_size"]
+            out[tier] = AzureBlobDriver(**azure_options)
         else:
             raise ValueError(f"Unknown or unsupported driver type: {driver_type}")
 

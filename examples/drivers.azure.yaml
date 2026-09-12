@@ -1,0 +1,12 @@
+# Install with: python -m pip install -e '.[azure]'
+# Supply COGNISTORE_AZURE_CONNECTION_STRING through your process environment.
+tiers:
+  hot:
+    driver: posix
+    path: /tmp/cognistore/hot
+  object:
+    driver: azure_blob
+    connection_string_env: COGNISTORE_AZURE_CONNECTION_STRING
+    auto_create_container: false
+    chunk_size: 8388608
+    list_page_size: 1000

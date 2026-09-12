@@ -77,7 +77,7 @@ RUN python -m venv /opt/cognistore
 COPY pyproject.toml README.md LICENSE ./
 COPY cognistore ./cognistore
 COPY tests ./tests
-RUN python -m pip install --no-compile --editable ".[dev]"
+RUN python -m pip install --no-compile --editable ".[dev,azure]"
 
 FROM python-base AS development
 

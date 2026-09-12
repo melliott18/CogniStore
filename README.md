@@ -38,7 +38,7 @@ and the explicit data-reset command.
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,azure]"
 ```
 
 Content-aware MIME detection uses the native libmagic library. The Docker
@@ -67,7 +67,7 @@ python -m twine check dist/*
 The repository configures collision-safe import identities, so plain
 `python -m pytest` collects and runs the complete default suite. The coverage
 command enforces the repository's 80% minimum. Integration tests that require
-NATS, MinIO, or PostgreSQL skip unless their documented environment variables
+NATS, MinIO, Azurite/Azure Blob, or PostgreSQL skip unless their documented environment variables
 point to isolated test services; filesystem and SQLite catalog coverage runs
 without external services. Install Gitleaks separately and run
 `gitleaks git --redact .` to perform the same secret scan used in CI.
@@ -82,6 +82,8 @@ same harness at reduced scale.
 
 For a runtime-only install, use `python -m pip install .`. The generated
 `cognistore` command and `python -m cognistore.cli` invoke the same CLI.
+Azure Blob storage additionally requires `python -m pip install '.[azure]'`;
+use `'.[dev,azure]'` for its development and conformance tests.
 
 - Try the POSIX driver via CLI
 
@@ -309,6 +311,32 @@ See [`docs/s3_driver.md`](docs/s3_driver.md) for every configuration option,
 credential guidance, AWS/MinIO examples, and the opt-in MinIO integration-test
 command. For a repository-managed MinIO instance, use the
 [Docker integration stack](docs/setup_guide.md#run-the-integration-suite).
+
+### Azure Blob tiers
+
+The optional `azure_blob` driver maps buckets to containers and keys to block
+blobs. Install `'.[azure]'`, then select an account endpoint with Azure identity:
+
+```yaml
+tiers:
+  object:
+    driver: azure_blob
+    account_url: https://example.blob.core.windows.net
+    auto_create_container: false
+    chunk_size: 8388608
+    list_page_size: 1000
+```
+
+Without an explicit credential, the driver uses `DefaultAzureCredential`.
+Alternatively, set `connection_string_env` to the name of an environment
+variable containing a connection string. Moves use bounded block uploads,
+atomic no-overwrite commits, and ETag conditions for source reads and cleanup.
+Failed uploads preserve committed content and leave uncommitted blocks for
+Azure's garbage collection.
+
+See the [Azure Blob driver guide](docs/azure_blob_driver.md) for secret-safe
+configuration, ranged reads, metadata and error behavior, Azurite tests, and
+the explicit opt-in live-cloud validation path.
 
 ### CLI with tiers
 

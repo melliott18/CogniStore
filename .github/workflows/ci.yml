@@ -35,7 +35,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install project and development tools
-        run: python -m pip install --editable ".[dev]"
+        run: python -m pip install --editable ".[dev,azure]"
 
       - name: Run Ruff
         run: python -m ruff check .
@@ -60,6 +60,7 @@ jobs:
       COGNISTORE_MINIO_ACCESS_KEY: minioadmin
       COGNISTORE_MINIO_SECRET_KEY: minioadmin
       COGNISTORE_MINIO_REGION: us-east-1
+      COGNISTORE_AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://127.0.0.1:10000/cognistore;"
       COGNISTORE_TEST_POSTGRES_DSN: postgresql://cognistore:cognistore-test-only@127.0.0.1:55432/postgres
       COGNISTORE_REQUIRE_LIBMAGIC: "1"
     steps:
@@ -77,7 +78,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends libmagic1
 
       - name: Install project and development tools
-        run: python -m pip install --editable ".[dev]"
+        run: python -m pip install --editable ".[dev,azure]"
 
       - name: Run unit and conformance tests
         run: |
@@ -115,13 +116,22 @@ jobs:
             --env POSTGRES_PASSWORD=cognistore-test-only \
             pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
 
+          docker run --detach --rm \
+            --name cognistore-azurite \
+            --publish 127.0.0.1:10000:10000 \
+            --env AZURITE_ACCOUNTS=cognistore:Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk= \
+            mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37 \
+            azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck --silent
+
           for attempt in {1..30}; do
             if curl --fail --silent --show-error \
                 "http://127.0.0.1:8222/healthz?js-enabled-only=true" >/dev/null \
               && curl --fail --silent --show-error \
                 "http://127.0.0.1:9000/minio/health/live" >/dev/null \
               && docker exec cognistore-postgres \
-                pg_isready -U cognistore -d postgres >/dev/null; then
+                pg_isready -U cognistore -d postgres >/dev/null \
+              && docker exec cognistore-azurite node -e \
+                "const s = require('net').connect(10000, '127.0.0.1', () => { s.end(); process.exit(0); }); s.on('error', () => process.exit(1));"; then
               exit 0
             fi
             sleep 1
@@ -131,6 +141,7 @@ jobs:
           docker logs cognistore-nats || true
           docker logs cognistore-minio || true
           docker logs cognistore-postgres || true
+          docker logs cognistore-azurite || true
           exit 1
 
       - name: Run integration tests
@@ -169,6 +180,7 @@ jobs:
           docker logs --tail 200 cognistore-nats || true
           docker logs --tail 200 cognistore-minio || true
           docker logs --tail 200 cognistore-postgres || true
+          docker logs --tail 200 cognistore-azurite || true
 
   default-suite:
     name: Default full test suite
@@ -191,7 +203,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends libmagic1
 
       - name: Install project and development tools
-        run: python -m pip install --editable ".[dev]"
+        run: python -m pip install --editable ".[dev,azure]"
 
       - name: Run documented default full-suite command
         run: python -m pytest
@@ -431,7 +443,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install project and security tools
-        run: python -m pip install --editable ".[dev]"
+        run: python -m pip install --editable ".[dev,azure]"
 
       - name: Audit Python dependencies
         run: python -m pip_audit . --strict --desc --progress-spinner=off
