@@ -23,6 +23,17 @@ tiers:
   #   list_page_size: 1000
   #   multipart_threshold: 8388608
 
+  # Example Google Cloud Storage tier using Application Default Credentials.
+  # See docs/gcs_driver.md for credential-file and anonymous emulator variants.
+  # cloud:
+  #   driver: gcs
+  #   project: example-project
+  #   auto_create_bucket: false
+  #   chunk_size: 8388608
+  #   list_page_size: 1000
+  #   max_retries: 3
+  #   timeout: 60
+
 # Optional policy-similarity runtime. This requires a PostgreSQL catalog with
 # pgvector and uses only embeddings already indexed in the same model space.
 # Keep API keys in the named environment variable, never in this file.

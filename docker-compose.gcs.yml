@@ -1,0 +1,17 @@
+# The pinned upstream source includes conditional GET/DELETE generation fixes
+# newer than v1.56.1. Its recovery protocol is intentionally tested separately
+# by tests/gcs_fake.py: fake-gcs-server does not model status queries faithfully.
+services:
+  gcs:
+    image: cognistore/gcs-emulator:3c29d20789f6
+    build:
+      context: https://github.com/fsouza/fake-gcs-server.git#3c29d20789f6475f65d2554ad6898c4afd7124bb
+    ports:
+      - "127.0.0.1:${COGNISTORE_GCS_EMULATOR_PORT:-4443}:4443"
+    command:
+      - -scheme
+      - http
+      - -backend
+      - memory
+      - -external-url
+      - "http://127.0.0.1:${COGNISTORE_GCS_EMULATOR_PORT:-4443}"

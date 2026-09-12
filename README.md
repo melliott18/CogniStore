@@ -75,9 +75,9 @@ python -m twine check dist/*
 The repository configures collision-safe import identities, so plain
 `python -m pytest` collects and runs the complete default suite. The coverage
 command enforces the repository's 80% minimum. Integration tests that require
-NATS, MinIO, Azurite/Azure Blob, or PostgreSQL skip unless their documented environment variables
-point to isolated test services; filesystem and SQLite catalog coverage runs
-without external services. Install Gitleaks separately and run
+NATS, MinIO, Azurite/Azure Blob, GCS, or PostgreSQL skip unless their documented
+environment variables point to isolated test services; filesystem and SQLite
+catalog coverage runs without external services. Install Gitleaks separately and run
 `gitleaks git --redact .` to perform the same secret scan used in CI.
 
 For deterministic POSIX/S3 throughput, tail-latency, integrity, and injected
@@ -346,6 +346,39 @@ See the [Azure Blob driver guide](docs/azure_blob_driver.md) for secret-safe
 configuration, ranged reads, metadata and error behavior, Azurite tests, and
 the explicit opt-in live-cloud validation path.
 
+### Google Cloud Storage tiers
+
+The `gcs` driver supports Google Cloud Storage with Application Default
+Credentials (ADC), ranged streaming reads, resumable uploads, paginated
+listing, metadata, atomic no-overwrite writes, and generation-fenced cleanup.
+
+```yaml
+tiers:
+  cloud:
+    driver: gcs
+    project: example-project
+    auto_create_bucket: false
+    chunk_size: 8388608
+    list_page_size: 1000
+```
+
+Omit credential fields to use ADC, including `GOOGLE_APPLICATION_CREDENTIALS`
+or an attached workload identity. An explicit `credentials_file` or
+`credentials_file_env` selects a trusted authentication file by path; never
+store credential JSON in YAML. An explicit `emulator_endpoint` enables
+anonymous local emulator access.
+
+Uploads stage and validate the source in a temporary file that spills to disk
+above `chunk_size`. Memory stays bounded by transfer buffers, while temporary
+disk usage can approach the object's size. Interrupted uploads query the
+server's acknowledged offset and resume within a bounded retry budget;
+catchable failures attempt to cancel the session. Sessions are not persisted
+for cross-process resumption.
+
+See the [GCS driver guide](docs/gcs_driver.md) for every configuration option,
+credential setup, error semantics, emulator tests, and opt-in live-cloud
+validation against a disposable bucket.
+
 ### CLI with tiers
 
 ```bash
@@ -390,7 +423,8 @@ was transferred and rechecks the destination generation immediately before the
 conditional delete. If either key changes, the source is retained, the catalog
 is reconciled to it, and the job fails with `MoveGenerationMismatchError`.
 POSIX driver mutations coordinate through per-object locks, while S3 deletion
-uses version IDs and an atomic ETag precondition.
+uses version IDs and an atomic ETag precondition. GCS uses atomic generation
+preconditions for source reads and deletion.
 
 ### Catalog and policy runner via CLI
 

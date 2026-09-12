@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from .gcs_driver import GCSDriver
 from .posix_driver import PosixDriver
 from .s3_driver import S3Driver
 from .storage_driver import StorageDriver
@@ -45,6 +46,22 @@ _AZURE_BLOB_FIELDS = frozenset(
         "auto_create_container",
         "chunk_size",
         "list_page_size",
+    }
+)
+
+
+_GCS_FIELDS = frozenset(
+    {
+        "driver",
+        "project",
+        "credentials_file",
+        "credentials_file_env",
+        "emulator_endpoint",
+        "auto_create_bucket",
+        "chunk_size",
+        "list_page_size",
+        "max_retries",
+        "timeout",
     }
 )
 
@@ -208,6 +225,36 @@ def load_drivers(config_path: str = "drivers.yaml") -> Dict[str, StorageDriver]:
             if "chunk_size" in info:
                 azure_options["chunk_size"] = info["chunk_size"]
             out[tier] = AzureBlobDriver(**azure_options)
+        elif driver_type == "gcs":
+            unknown_fields = sorted(str(field) for field in set(info) - _GCS_FIELDS)
+            if unknown_fields:
+                raise ValueError(
+                    f"GCS tier '{tier}' has unsupported configuration fields: "
+                    + ", ".join(unknown_fields)
+                )
+            if info.get("emulator_endpoint") is not None and (
+                "credentials_file" in info or "credentials_file_env" in info
+            ):
+                raise ValueError(
+                    f"GCS tier '{tier}' cannot combine emulator_endpoint with credentials"
+                )
+            gcs_options: Dict[str, Any] = {
+                "credentials_file": _credential_value(
+                    info, tier, "credentials_file", provider="GCS"
+                ),
+            }
+            for field in (
+                "project",
+                "emulator_endpoint",
+                "auto_create_bucket",
+                "chunk_size",
+                "list_page_size",
+                "max_retries",
+                "timeout",
+            ):
+                if field in info:
+                    gcs_options[field] = info[field]
+            out[tier] = GCSDriver(**gcs_options)
         else:
             raise ValueError(f"Unknown or unsupported driver type: {driver_type}")
 
