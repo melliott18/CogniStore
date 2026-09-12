@@ -84,7 +84,7 @@ docker compose --profile integration up --build \
 ```
 
 The command returns pytest's exit status and stops the other containers after
-the test runner exits. NATS and MinIO tests receive their service URLs and
+the test runner exits. NATS, MinIO, and Azurite tests receive their service URLs and
 disposable credentials from Compose, so they do not silently fall back to host
 services or the ambient AWS credential chain. PostgreSQL catalog tests receive
 an administrative test DSN and create an isolated database for each test. A
@@ -97,6 +97,14 @@ docker compose --profile integration run --rm --no-deps \
   --entrypoint cat integration-tests /test-results/integration.xml \
   > test-results/integration.xml
 ```
+
+Azure Blob integration coverage runs against the opt-in Azurite service
+included in the integration profile. To run the emulator alone, use
+`docker compose --profile azure up -d --wait azurite`; its Blob endpoint is
+`http://127.0.0.1:10000/cognistore`. The development image includes CogniStore's
+`azure` extra. The [Azure Blob guide](azure_blob_driver.md#emulator-and-live-validation)
+documents its disposable connection string, host-side tests, and the separate
+explicit opt-in for live Azure validation.
 
 ## Run the content-search sample
 

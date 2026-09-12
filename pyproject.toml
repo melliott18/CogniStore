@@ -45,6 +45,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+azure = [
+  "azure-storage-blob>=12.25,<13",
+  "azure-identity>=1.19,<2",
+]
 embeddings = [
   "sentence-transformers>=3.0,<7",
 ]
