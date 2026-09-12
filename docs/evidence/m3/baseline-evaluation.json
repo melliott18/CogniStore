@@ -1,0 +1,704 @@
+{
+  "by_recorded_policy": {
+    "test": [
+      {
+        "metrics": {
+          "learned_gate": {
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 525,
+              "proposed_moves": 5,
+              "suppressed_moves": 5
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.5,
+              "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": 0.0
+            },
+            "success_precision": 1.0,
+            "success_recall": 1.0
+          },
+          "recorded_rules": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 5,
+              "true_negative": 0,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 50550,
+              "proposed_moves": 10,
+              "suppressed_moves": 0
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 1.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": null
+            },
+            "success_precision": 0.5,
+            "success_recall": 1.0
+          },
+          "suppress_all": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 5,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 0
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 0,
+              "proposed_moves": 0,
+              "suppressed_moves": 10
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state"
+            },
+            "success_precision": null,
+            "success_recall": 0.0
+          }
+        },
+        "name": "simple",
+        "policy_sha256": "136ba4f5439c79ceea14b7a0e1fceb00277962302b2971187978250577e66fda",
+        "version": "1"
+      },
+      {
+        "metrics": {
+          "learned_gate": {
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 520,
+              "proposed_moves": 5,
+              "suppressed_moves": 5
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.5,
+              "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": 0.0
+            },
+            "success_precision": 1.0,
+            "success_recall": 1.0
+          },
+          "recorded_rules": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 5,
+              "true_negative": 0,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 50540,
+              "proposed_moves": 10,
+              "suppressed_moves": 0
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 1.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": null
+            },
+            "success_precision": 0.5,
+            "success_recall": 1.0
+          },
+          "suppress_all": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 5,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 0
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 0,
+              "proposed_moves": 0,
+              "suppressed_moves": 10
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state"
+            },
+            "success_precision": null,
+            "success_recall": 0.0
+          }
+        },
+        "name": "content",
+        "policy_sha256": "3d1455cbbe1ee76238bfb4d460964c0675173cd9b900377823187c5e04294e99",
+        "version": "1"
+      }
+    ],
+    "validation": [
+      {
+        "metrics": {
+          "learned_gate": {
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 525,
+              "proposed_moves": 5,
+              "suppressed_moves": 5
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.5,
+              "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": 0.0
+            },
+            "success_precision": 1.0,
+            "success_recall": 1.0
+          },
+          "recorded_rules": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 5,
+              "true_negative": 0,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 50550,
+              "proposed_moves": 10,
+              "suppressed_moves": 0
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 1.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": null
+            },
+            "success_precision": 0.5,
+            "success_recall": 1.0
+          },
+          "suppress_all": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 5,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 0
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 0,
+              "proposed_moves": 0,
+              "suppressed_moves": 10
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state"
+            },
+            "success_precision": null,
+            "success_recall": 0.0
+          }
+        },
+        "name": "simple",
+        "policy_sha256": "136ba4f5439c79ceea14b7a0e1fceb00277962302b2971187978250577e66fda",
+        "version": "1"
+      },
+      {
+        "metrics": {
+          "learned_gate": {
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 520,
+              "proposed_moves": 5,
+              "suppressed_moves": 5
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.5,
+              "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": 0.0
+            },
+            "success_precision": 1.0,
+            "success_recall": 1.0
+          },
+          "recorded_rules": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 0,
+              "false_positive": 5,
+              "true_negative": 0,
+              "true_positive": 5
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 50540,
+              "proposed_moves": 10,
+              "suppressed_moves": 0
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 1.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state",
+              "size_noise_gate_flip_rate": null
+            },
+            "success_precision": 0.5,
+            "success_recall": 1.0
+          },
+          "suppress_all": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "confusion_matrix": {
+              "false_negative": 5,
+              "false_positive": 0,
+              "true_negative": 5,
+              "true_positive": 0
+            },
+            "constraints": {
+              "allowed_tier_violations": 0,
+              "residency_cooldown_locality_violations": null
+            },
+            "movement": {
+              "actual_cost_usd": null,
+              "cost_unit": "planned_bytes_proxy",
+              "planned_bytes": 0,
+              "proposed_moves": 0,
+              "suppressed_moves": 10
+            },
+            "rows": 10,
+            "stability": {
+              "move_rate": 0.0,
+              "observed_tier_reversals": null,
+              "reason": "snapshot v1 lacks object identities and complete stability state"
+            },
+            "success_precision": null,
+            "success_recall": 0.0
+          }
+        },
+        "name": "content",
+        "policy_sha256": "3d1455cbbe1ee76238bfb4d460964c0675173cd9b900377823187c5e04294e99",
+        "version": "1"
+      }
+    ]
+  },
+  "checks": {
+    "class_imbalance": {
+      "test": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      },
+      "train": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      },
+      "validation": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      }
+    },
+    "dataset_validation": "passed",
+    "duplicate_move_evidence": "passed",
+    "excluded_rows": {},
+    "feature_allowlist": [
+      "log1p_size_bytes",
+      "mime_fresh",
+      "access_fresh",
+      "access_partial",
+      "log1p_observed_events",
+      "recency_known",
+      "log1p_recency_seconds"
+    ],
+    "object_overlap": {
+      "reason": "export excludes object identities",
+      "status": "unavailable"
+    },
+    "purged_rows": {
+      "test": 0,
+      "train": 0,
+      "validation": 0
+    },
+    "temporal_leakage": "passed",
+    "windows": {
+      "test": {
+        "decision_end": "2026-09-05T19:00:00.000000Z",
+        "decision_start": "2026-09-05T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-05T19:01:00.000000Z",
+        "label_window_end": "2026-09-05T20:00:00.000000Z",
+        "rows": 20
+      },
+      "train": {
+        "decision_end": "2026-09-01T19:00:00.000000Z",
+        "decision_start": "2026-09-01T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-01T19:01:00.000000Z",
+        "label_window_end": "2026-09-01T20:00:00.000000Z",
+        "rows": 20
+      },
+      "validation": {
+        "decision_end": "2026-09-03T19:00:00.000000Z",
+        "decision_start": "2026-09-03T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-03T19:01:00.000000Z",
+        "label_window_end": "2026-09-03T20:00:00.000000Z",
+        "rows": 20
+      }
+    }
+  },
+  "code_version": "git:fe700326f3cc99ba498536afd07b897575709d53;python-source-sha256:d6d75c0ca486789cb87cd74d5138337cee4baab64f36acf9676588f5cdf20b87",
+  "config_sha256": "9a42e14a934c8c61a65466a14ec1689fe8614cafcb4b746c2c22df1732bf6211",
+  "dataset_sha256": "0f326870344ac03067c17964632ce134481981e8223c8e894690a398d20d7ea1",
+  "metrics": {
+    "test": {
+      "learned_gate": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "confusion_matrix": {
+          "false_negative": 0,
+          "false_positive": 0,
+          "true_negative": 10,
+          "true_positive": 10
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 1045,
+          "proposed_moves": 10,
+          "suppressed_moves": 10
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 0.5,
+          "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state",
+          "size_noise_gate_flip_rate": 0.0
+        },
+        "success_precision": 1.0,
+        "success_recall": 1.0
+      },
+      "recorded_rules": {
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "confusion_matrix": {
+          "false_negative": 0,
+          "false_positive": 10,
+          "true_negative": 0,
+          "true_positive": 10
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 101090,
+          "proposed_moves": 20,
+          "suppressed_moves": 0
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 1.0,
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state",
+          "size_noise_gate_flip_rate": null
+        },
+        "success_precision": 0.5,
+        "success_recall": 1.0
+      },
+      "suppress_all": {
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "confusion_matrix": {
+          "false_negative": 10,
+          "false_positive": 0,
+          "true_negative": 10,
+          "true_positive": 0
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 0,
+          "proposed_moves": 0,
+          "suppressed_moves": 20
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 0.0,
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state"
+        },
+        "success_precision": null,
+        "success_recall": 0.0
+      }
+    },
+    "validation": {
+      "learned_gate": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "confusion_matrix": {
+          "false_negative": 0,
+          "false_positive": 0,
+          "true_negative": 10,
+          "true_positive": 10
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 1045,
+          "proposed_moves": 10,
+          "suppressed_moves": 10
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 0.5,
+          "noise_protocol": "fixed rule proposal; size x0.95 and x1.05",
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state",
+          "size_noise_gate_flip_rate": 0.0
+        },
+        "success_precision": 1.0,
+        "success_recall": 1.0
+      },
+      "recorded_rules": {
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "confusion_matrix": {
+          "false_negative": 0,
+          "false_positive": 10,
+          "true_negative": 0,
+          "true_positive": 10
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 101090,
+          "proposed_moves": 20,
+          "suppressed_moves": 0
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 1.0,
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state",
+          "size_noise_gate_flip_rate": null
+        },
+        "success_precision": 0.5,
+        "success_recall": 1.0
+      },
+      "suppress_all": {
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "confusion_matrix": {
+          "false_negative": 10,
+          "false_positive": 0,
+          "true_negative": 10,
+          "true_positive": 0
+        },
+        "constraints": {
+          "allowed_tier_violations": 0,
+          "residency_cooldown_locality_violations": null
+        },
+        "movement": {
+          "actual_cost_usd": null,
+          "cost_unit": "planned_bytes_proxy",
+          "planned_bytes": 0,
+          "proposed_moves": 0,
+          "suppressed_moves": 20
+        },
+        "rows": 20,
+        "stability": {
+          "move_rate": 0.0,
+          "observed_tier_reversals": null,
+          "reason": "snapshot v1 lacks object identities and complete stability state"
+        },
+        "success_precision": null,
+        "success_recall": 0.0
+      }
+    }
+  },
+  "model_version": "sha256:6f2a3a6ce339cfa275d6c61237275b3ff6f5f1dc9caa8f0cfdeb66f818b2c12a",
+  "promotion": {
+    "automatic_promotion": false,
+    "fallback": "existing configured rule policy through PolicyRunner guardrails",
+    "gates": {
+      "test": {
+        "accuracy_no_regression": true,
+        "allowed_tier_violations_zero": true,
+        "balanced_accuracy_gain": true,
+        "class_coverage": true,
+        "movement_bytes_no_increase": true
+      },
+      "validation": {
+        "accuracy_no_regression": true,
+        "allowed_tier_violations_zero": true,
+        "balanced_accuracy_gain": true,
+        "class_coverage": true,
+        "movement_bytes_no_increase": true
+      }
+    },
+    "production_eligible": false,
+    "required_evidence": [
+      "independent placement-quality labels and counterfactual validation",
+      "complete residency, cooldown, hysteresis and locality constraint evidence",
+      "object-level time-series flapping evaluation and measured movement cost",
+      "manual review on a representative untouched dataset"
+    ],
+    "status": "offline_candidate"
+  },
+  "report_version": "sha256:faec256a71e537f08d84df3fe70ded2e0967713d9ed734116691cfad619cb8bd",
+  "schema_version": 1,
+  "target": {
+    "name": "move_succeeded",
+    "version": 1
+  },
+  "training_code_version": "git:fe700326f3cc99ba498536afd07b897575709d53;python-source-sha256:d6d75c0ca486789cb87cd74d5138337cee4baab64f36acf9676588f5cdf20b87",
+  "training_config": {
+    "max_class_ratio": 20.0,
+    "min_class_count": 5,
+    "min_leaf_samples": 2,
+    "promotion_min_balanced_accuracy_gain": 0.05,
+    "schema_version": 1,
+    "success_threshold": 0.5,
+    "train_before": "2026-09-03T00:00:00.000000Z",
+    "validation_before": "2026-09-05T00:00:00.000000Z"
+  }
+}

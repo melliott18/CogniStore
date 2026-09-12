@@ -6,12 +6,14 @@ SQLite remains useful for local operation and as the source format for
 prototype catalog upgrades.
 
 Application components depend on `CatalogStore`, the backend-neutral contract
-for object state, placement, scan fencing, durable move journals, and operational
-audit events.
+for object state, placement, scan fencing, durable move journals, operational
+audit events, access history, placement controls, and budget admission.
 `SQLCatalog` implements that contract with one short database transaction per
 operation. Its normalized schema owns tiers, pools, objects, the single current
 placement for each object, mutation/claim fences, move jobs, and ordered move
-transitions, plus versioned audit history. The in-memory `Catalog` remains
+transitions, plus versioned audit history, access observations, importance tags,
+residency and cooldown clocks, and budget definitions and reservations.
+The in-memory `Catalog` remains
 available for isolated inline work and tests; `SQLiteCatalog` is a compatibility
 wrapper over `SQLCatalog`. See [Operational audit events](audit_events.md) for
 the event/query and retention contract.
@@ -63,9 +65,10 @@ reader from silently operating against a partially upgraded catalog.
 
 ## Migration lifecycle
 
-The migration chain has a legacy baseline, the normalized catalog revision,
-the audit-event revision, the content-identity revision, and the content-
-reference and embedding revisions. The content-identity revision adds global
+The current migration head is `0011_policy_budgets`. The chain includes the
+legacy baseline, normalized catalog, audit events, content identity, content
+references, embeddings, tier topology, access events, placement controls, tier
+stability, and policy budgets. The content-identity revision adds global
 content blobs, versioned chunk manifests, ordered manifest chunks, and each
 logical object's active manifest reference. Existing objects are not backfilled
 from legacy `sha256` metadata because that value may cover only a sample; the
@@ -112,6 +115,21 @@ creating embedding tables so iterative filtered HNSW behavior cannot silently
 degrade. Upgrade the extension deliberately before retrying the catalog
 migration.
 
+The M3 revisions extend the existing catalog without inferring unavailable
+behavioral or topology evidence:
+
+| Revision | Added state and upgrade behavior |
+| --- | --- |
+| `0007_tier_pools` | Region, membership, locality labels, attributes and lifecycle flags. Existing pools become inactive until their topology is explicitly configured. |
+| `0008_access_events` | Access observations, sampling provenance, and expired retry identities. Existing objects start with no observed access history. |
+| `0009_placement_controls` | Trusted importance and its revision, plus `placement_started_at`. Existing placement update times provide conservative residency starts; the prototype epoch sentinel remains unknown. |
+| `0010_tier_stability` | `last_tier_move_at` for cooldowns. Existing rows use their known placement start, or the migration instant when that history is unknown. |
+| `0011_policy_budgets` | Immutable budget definitions and per-move-attempt reservations. No budgets or charges are inferred for existing placements or jobs. |
+
+See [access history](access_history.md),
+[importance, residency, and tier stability](placement_controls.md), and
+[policy budgets](policy_budgets.md) for the corresponding runtime contracts.
+
 Writable `SQLCatalog` construction is the normal upgrade entry point. For a
 controlled deployment or rollback, use the same packaged chain through
 `MigrationManager` and the catalog engine:
@@ -140,8 +158,30 @@ finally:
 ```
 
 Treat downgrade as a planned operator operation: stop writers, back up the
-database, rehearse the target revision, and verify the reconstructed legacy
-object and move data before rollback. The migration refuses to downgrade when
+database, rehearse the target revision, and verify the retained object and move
+data before rollback. Opening a writable catalog with the current application
+after rollback upgrades it again; coordinate the deployed application revision
+with the target schema.
+
+Downgrading below `0011_policy_budgets` is refused while either budget table
+contains rows, including expired definitions or reservations for completed
+moves. An empty budget schema can be removed; a populated one requires a
+separately planned restoration or data migration that preserves its admission
+history. Exporting a report alone does not satisfy this guard.
+Downgrading below `0010_tier_stability` drops the trusted last-move clock.
+Re-upgrading derives a conservative replacement from placement history or the
+new migration time; it cannot recover the original clock.
+Downgrading below `0009_placement_controls` drops trusted importance, its
+revision, and the residency start. Existing audit events remain until the
+audit revision is removed, but re-upgrading does not reconstruct live tags or
+their original clocks from those events. Preserve these fields in the backup
+when placement behavior must survive rollback.
+Downgrading below `0008_access_events` drops all access observations and expired
+retry identities. Preserve both active and expired rows when history and retry
+deduplication must survive; a new empty table after re-upgrade cannot retain
+either guarantee.
+
+The normalized-to-legacy downgrade refuses to proceed when
 the catalog contains pools, tier metadata, tiers referenced by neither an
 object placement nor a move journal, or objects without placements because the
 legacy schema cannot represent that state. It also refuses noncanonical
@@ -172,9 +212,11 @@ destination. It accepts either of these source layouts:
 - the prototype `objects(bucket, key, size, tier, metadata)` layout; or
 - the normalized SQL catalog layout produced by the current migrations.
 
-Object metadata and placement, normalized tier and pool metadata, move-job
-checkpoints, verification evidence, leases, terminal reasons, every move
-transition, versioned audit events, and canonical content manifests are copied.
+Object metadata and placement, normalized tier and pool topology and attributes,
+move-job checkpoints, verification evidence, leases, terminal reasons, every
+move transition, versioned audit events, canonical content manifests, access
+observations, importance, placement clocks, budget definitions, and budget
+reservations are copied.
 Normalized UUIDs and timestamps are retained. Legacy
 objects receive deterministic UUIDs and the migration timestamp
 `1970-01-01T00:00:00.000000Z`, matching the in-place normalization migration.
@@ -190,6 +232,22 @@ object references. The importer removes an unbacked `content_identity` summary
 from pre-`0004` or otherwise unmapped objects. Mapped identities are validated
 as a complete canonical graph before commit, including digests, CAS keys,
 versions, chunk extents, object size, and their metadata projection.
+
+Access imports retain occurrence times, correlation, sampling rates, and the
+expiry state of retry identities; sources without access history import with
+zero observations. Current placement-control sources retain importance,
+`importance_revision`, `placement_started_at`, and `last_tier_move_at`, including
+explicitly unknown values. Older sources derive residency from the placement
+update time unless it is the prototype sentinel; absent movement history uses
+that known start or the import instant conservatively. Legacy pools without
+topology remain inactive and ineligible until configured.
+
+Budget definitions and reservations are imported together, preserving each
+reservation's move, attempt, charge, and evidence. Sources predating budgets
+import with neither. Partial budget tables, inconsistent reservation identities,
+malformed access observations, and incomplete placement-control columns abort
+the entire copy. The import report includes counts for access events, budget
+definitions, and budget reservations; its access count includes expired rows.
 
 SQLite embedding tables are migration-compatible placeholders, not a supported
 vector store. An otherwise valid SQLite source must have no rows in those six
@@ -243,8 +301,9 @@ importer:
 2. obtains exclusive PostgreSQL table locks and verifies that every
    catalog-owned data table is empty;
 3. copies records in bounded batches inside one destination transaction; and
-4. commits only after objects, placements, move jobs, transitions, audit events,
-   and durable move heads all satisfy the destination constraints.
+4. commits only after object, topology, content, move, audit, access,
+   placement-control, and budget data pass their validation and destination
+   constraints.
 
 Any conversion, JSON, foreign-key, or constraint failure rolls the data copy
 back. The migrated but empty PostgreSQL schema remains and the import can be
@@ -268,9 +327,16 @@ SELECT count(*) FROM move_job_transitions;
 SELECT count(*) FROM audit_events;
 SELECT count(*) FROM audit_move_heads;
 SELECT count(*) FROM audit_event_tombstones;
+SELECT count(*) FROM tiers;
+SELECT count(*) FROM pools;
+SELECT count(*) FROM access_events;
+SELECT expired, count(*) FROM access_events GROUP BY expired;
+SELECT count(*) FROM budget_definitions;
+SELECT count(*) FROM budget_reservations;
 ```
 
-Spot-check current placements and nonterminal move jobs as well. In-flight
+Spot-check current pool/tier assignments, importance and placement clocks,
+budget charges and their evidence, and nonterminal move jobs as well. In-flight
 move leases are preserved exactly; either allow them to expire or use the
 normal move recovery workflow after the former workers are fenced.
 

@@ -1,0 +1,323 @@
+{
+  "cases": [
+    {
+      "additional_checks": {
+        "repeated_evaluation_identical": true
+      },
+      "expected": {
+        "action": "move",
+        "attempts": 1,
+        "fallback_reason": null
+      },
+      "name": "eligible_move",
+      "observed": {
+        "action": "move",
+        "attempts": 1,
+        "dst_tier": "cold",
+        "fallback_reason": null,
+        "provider_errors": [],
+        "reason": "Synthetic eligible move",
+        "redacted_response": "{\"action\":\"move\",\"dst_tier\":\"cold\",\"reason\":\"Synthetic eligible move\"}",
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "FakePlacementProvider",
+        "response": "{\"action\":\"move\",\"dst_tier\":\"cold\",\"reason\":\"Synthetic eligible move\"}"
+      }
+    },
+    {
+      "additional_checks": {
+        "repeated_evaluation_identical": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": null
+      },
+      "name": "explicit_stay",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": null,
+        "provider_errors": [],
+        "reason": "Synthetic stay",
+        "redacted_response": "{\"action\":\"stay\",\"dst_tier\":null,\"reason\":\"Synthetic stay\"}",
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "FakePlacementProvider",
+        "response": "{\"action\":\"stay\",\"dst_tier\":null,\"reason\":\"Synthetic stay\"}"
+      }
+    },
+    {
+      "additional_checks": {
+        "repeated_evaluation_identical": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_invalid_response"
+      },
+      "name": "malformed_json",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_invalid_response",
+        "provider_errors": [],
+        "reason": "llm_invalid_response",
+        "redacted_response": "[response omitted: invalid json]",
+        "validation_errors": [
+          "invalid_json"
+        ]
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "FakePlacementProvider",
+        "response": "{"
+      }
+    },
+    {
+      "additional_checks": {
+        "repeated_evaluation_identical": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_invalid_response"
+      },
+      "name": "duplicate_json_key",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_invalid_response",
+        "provider_errors": [],
+        "reason": "llm_invalid_response",
+        "redacted_response": "{\"action\":\"move\",\"dst_tier\":\"cold\",\"reason\":\"duplicate\"}",
+        "validation_errors": [
+          "duplicate_key"
+        ]
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "FakePlacementProvider",
+        "response": "{\"action\":\"stay\",\"action\":\"move\",\"dst_tier\":\"cold\",\"reason\":\"duplicate\"}"
+      }
+    },
+    {
+      "additional_checks": {
+        "repeated_evaluation_identical": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_invalid_response"
+      },
+      "name": "ineligible_destination",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_invalid_response",
+        "provider_errors": [],
+        "reason": "llm_invalid_response",
+        "redacted_response": "{\"action\":\"move\",\"dst_tier\":\"archive\",\"reason\":\"unknown tier\"}",
+        "validation_errors": [
+          "invalid_destination"
+        ]
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "FakePlacementProvider",
+        "response": "{\"action\":\"move\",\"dst_tier\":\"archive\",\"reason\":\"unknown tier\"}"
+      }
+    },
+    {
+      "additional_checks": {},
+      "expected": {
+        "action": "stay",
+        "attempts": 0,
+        "fallback_reason": "llm_provider_unavailable"
+      },
+      "name": "no_provider",
+      "observed": {
+        "action": "stay",
+        "attempts": 0,
+        "dst_tier": null,
+        "fallback_reason": "llm_provider_unavailable",
+        "provider_errors": [],
+        "reason": "llm_provider_unavailable",
+        "redacted_response": null,
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "kind": "none"
+      }
+    },
+    {
+      "additional_checks": {
+        "raw_diagnostic_excluded": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_provider_unavailable"
+      },
+      "name": "unavailable_provider",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_provider_unavailable",
+        "provider_errors": [],
+        "reason": "llm_provider_unavailable",
+        "redacted_response": null,
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "behavior": "raise PlacementProviderUnavailable",
+        "kind": "CallablePlacementProvider"
+      }
+    },
+    {
+      "additional_checks": {
+        "raw_diagnostic_excluded": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_provider_timeout"
+      },
+      "name": "provider_timeout",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_provider_timeout",
+        "provider_errors": [],
+        "reason": "llm_provider_timeout",
+        "redacted_response": null,
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "behavior": "raise TimeoutError",
+        "kind": "CallablePlacementProvider"
+      }
+    },
+    {
+      "additional_checks": {
+        "raw_diagnostic_excluded": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_provider_error"
+      },
+      "name": "provider_error",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_provider_error",
+        "provider_errors": [],
+        "reason": "llm_provider_error",
+        "redacted_response": null,
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "behavior": "raise RuntimeError",
+        "kind": "CallablePlacementProvider"
+      }
+    },
+    {
+      "additional_checks": {},
+      "expected": {
+        "action": "move",
+        "attempts": 2,
+        "fallback_reason": null
+      },
+      "name": "transient_then_success",
+      "observed": {
+        "action": "move",
+        "attempts": 2,
+        "dst_tier": "cold",
+        "fallback_reason": null,
+        "provider_errors": [
+          "transient_error"
+        ],
+        "reason": "Synthetic eligible move",
+        "redacted_response": "{\"action\":\"move\",\"dst_tier\":\"cold\",\"reason\":\"Synthetic eligible move\"}",
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "behavior": "raise TransientPlacementError once, then return eligible_move response",
+        "kind": "CallablePlacementProvider"
+      }
+    },
+    {
+      "additional_checks": {
+        "late_reply_does_not_change_result": true
+      },
+      "expected": {
+        "action": "stay",
+        "attempts": 1,
+        "fallback_reason": "llm_provider_timeout"
+      },
+      "name": "late_eligible_move",
+      "observed": {
+        "action": "stay",
+        "attempts": 1,
+        "dst_tier": null,
+        "fallback_reason": "llm_provider_timeout",
+        "provider_errors": [],
+        "reason": "llm_provider_timeout",
+        "redacted_response": null,
+        "validation_errors": []
+      },
+      "passed": true,
+      "provider_setup": {
+        "behavior": "wait for release until after inference returns, then return eligible_move response",
+        "kind": "CallablePlacementProvider",
+        "timeout_seconds": 0.05
+      }
+    }
+  ],
+  "default_max_attempts": 2,
+  "default_timeout_seconds": 10.0,
+  "implementation_code_version": "git:fe700326f3cc99ba498536afd07b897575709d53;python-source-sha256:d6d75c0ca486789cb87cd74d5138337cee4baab64f36acf9676588f5cdf20b87",
+  "inputs": {
+    "allowed_tiers": [
+      "hot",
+      "warm",
+      "cold"
+    ],
+    "current_tier": "hot",
+    "size": 123
+  },
+  "kind": "offline_llm_adapter_boundary_evaluation",
+  "limits": [
+    "Synthetic deterministic adapters evaluate boundary correctness, not model quality.",
+    "Eligible move results are proposals; no PolicyRunner or storage action is executed.",
+    "Runner guardrails, HTTP privacy, and API/job integration are covered by the separately reported focused test suite."
+  ],
+  "prompt_version": "placement-v1",
+  "response_schema_version": "placement-decision-v1",
+  "schema_version": 1,
+  "summary": {
+    "cases": 11,
+    "catalog_mutations": 0,
+    "external_provider_calls": 0,
+    "failed": 0,
+    "passed": 11,
+    "storage_mutations": 0
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "checks": {
+    "class_imbalance": {
+      "test": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      },
+      "train": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      },
+      "validation": {
+        "counts": {
+          "0": 10,
+          "1": 10
+        },
+        "majority_to_minority_ratio": 1.0,
+        "sufficient": true
+      }
+    },
+    "dataset_validation": "passed",
+    "duplicate_move_evidence": "passed",
+    "excluded_rows": {},
+    "feature_allowlist": [
+      "log1p_size_bytes",
+      "mime_fresh",
+      "access_fresh",
+      "access_partial",
+      "log1p_observed_events",
+      "recency_known",
+      "log1p_recency_seconds"
+    ],
+    "object_overlap": {
+      "reason": "export excludes object identities",
+      "status": "unavailable"
+    },
+    "purged_rows": {
+      "test": 0,
+      "train": 0,
+      "validation": 0
+    },
+    "temporal_leakage": "passed",
+    "windows": {
+      "test": {
+        "decision_end": "2026-09-05T19:00:00.000000Z",
+        "decision_start": "2026-09-05T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-05T19:01:00.000000Z",
+        "label_window_end": "2026-09-05T20:00:00.000000Z",
+        "rows": 20
+      },
+      "train": {
+        "decision_end": "2026-09-01T19:00:00.000000Z",
+        "decision_start": "2026-09-01T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-01T19:01:00.000000Z",
+        "label_window_end": "2026-09-01T20:00:00.000000Z",
+        "rows": 20
+      },
+      "validation": {
+        "decision_end": "2026-09-03T19:00:00.000000Z",
+        "decision_start": "2026-09-03T00:00:00.000000Z",
+        "evidence_recorded_end": "2026-09-03T19:01:00.000000Z",
+        "label_window_end": "2026-09-03T20:00:00.000000Z",
+        "rows": 20
+      }
+    }
+  },
+  "code_version": "git:fe700326f3cc99ba498536afd07b897575709d53;python-source-sha256:d6d75c0ca486789cb87cd74d5138337cee4baab64f36acf9676588f5cdf20b87",
+  "config_sha256": "9a42e14a934c8c61a65466a14ec1689fe8614cafcb4b746c2c22df1732bf6211",
+  "dataset_sha256": "0f326870344ac03067c17964632ce134481981e8223c8e894690a398d20d7ea1",
+  "feature_names": [
+    "log1p_size_bytes",
+    "mime_fresh",
+    "access_fresh",
+    "access_partial",
+    "log1p_observed_events",
+    "recency_known",
+    "log1p_recency_seconds"
+  ],
+  "feature_schema_version": 1,
+  "kind": "offline_move_success_gate",
+  "model_version": "sha256:6f2a3a6ce339cfa275d6c61237275b3ff6f5f1dc9caa8f0cfdeb66f818b2c12a",
+  "schema_version": 1,
+  "stump": {
+    "algorithm": "balanced_decision_stump",
+    "class_weight": "balanced",
+    "feature_count": 7,
+    "feature_index": 0,
+    "left": {
+      "counts": {
+        "0": 0,
+        "1": 10
+      },
+      "success_probability": 1.0
+    },
+    "min_leaf_samples": 2,
+    "right": {
+      "counts": {
+        "0": 10,
+        "1": 0
+      },
+      "success_probability": 0.0
+    },
+    "threshold": 6.955460366384466,
+    "training_counts": {
+      "0": 10,
+      "1": 10
+    },
+    "version": 1
+  },
+  "target": {
+    "name": "move_succeeded",
+    "version": 1
+  },
+  "training_config": {
+    "max_class_ratio": 20.0,
+    "min_class_count": 5,
+    "min_leaf_samples": 2,
+    "promotion_min_balanced_accuracy_gain": 0.05,
+    "schema_version": 1,
+    "success_threshold": 0.5,
+    "train_before": "2026-09-03T00:00:00.000000Z",
+    "validation_before": "2026-09-05T00:00:00.000000Z"
+  }
+}

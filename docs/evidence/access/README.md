@@ -91,7 +91,11 @@ python -m json.tool sqlite-10000-20260908.json >/dev/null
 ```
 
 Source checksums in `SOURCE_SHA256SUMS` identify the benchmark and catalog
-implementation used for this artifact. Verify them from the repository root:
+implementation used for this artifact, including the uncommitted changes
+described above. They are historical provenance, not a checksum gate for current
+`main`: later M3 migrations and catalog changes legitimately differ. Run the
+following only from the original source snapshot's repository root; checking
+out its base commit alone does not reconstruct the uncommitted changes:
 
 ```bash
 shasum -a 256 -c docs/evidence/access/SOURCE_SHA256SUMS

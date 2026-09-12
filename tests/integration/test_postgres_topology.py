@@ -92,6 +92,8 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
         catalog.upsert("bucket", "object", size=3, tier="hot", metadata={"owner": "storage"})
         catalog.assign_pool("bucket", "object", "pool-a")
         record = catalog.get("bucket", "object")
+        assert record is not None
+        assert record.last_tier_move_at is None
         job = catalog.claim_move_job(
             "historical-move", src_tier="retired\0source", dst_tier="retired\0destination",
             bucket="bucket", key="historical-object", expected_size=3, source_metadata={},
@@ -128,11 +130,12 @@ def test_postgres_topology_downgrade_and_reupgrade_preserve_placement_identity(
                     connection.execute(sa.update(object_placements).values(tier_name="warm"))
             assert error.value.orig.diag.constraint_name == "fk_object_placements_pool_tier"
 
-        assert record is not None
-        # Re-upgrading derives a conservative start from the retained legacy
-        # placement refresh time, which can follow the original tier arrival.
+        # Re-upgrading derives residency from the retained legacy placement
+        # refresh time. Revision 0010 also uses that start for cooldown because
+        # the older schema cannot distinguish first placement from a tier move.
         assert catalog.get("bucket", "object") == replace(
             record, placement_started_at=placement_updated_at,
+            last_tier_move_at=placement_updated_at,
         )
         pool = catalog.get_pool("pool-a")
         assert pool is not None

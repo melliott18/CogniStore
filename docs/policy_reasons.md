@@ -35,14 +35,17 @@ The top-level reason fields are:
 | `code` | Stable reason code from the vocabulary below. |
 | `disposition` | `move`, `stay`, `suppressed`, or `rejected`. |
 | `decisive_signals` | Ordered, typed evidence emitted by the trusted evaluator. |
-| `constraints` | Evaluation time, importance/residency controls, destination eligibility, cooldown, and hysteresis evidence. |
+| `constraints` | Evaluation time, importance/residency controls, destination eligibility, cooldown, hysteresis, budget checks, and objective scoring evidence. |
 | `policy` | Policy name and version, plus nullable model identity/version. |
 | `confidence` | Explicit availability of calibrated confidence; currently always a null value. |
 
 `validate_policy_reason(value)` returns a detached JSON-compatible dictionary.
-Validation rejects unknown fields at every level, invalid enum values,
+Validation rejects unknown fields at the typed contract boundaries, invalid enum values,
 non-finite numbers, booleans in numeric fields, and unredacted credential-like
 values. Timestamps must include a timezone and are canonicalized to UTC.
+The `constraints.budgets` entries and `constraints.objectives` are evidence
+mappings rather than strict nested reason models; their numeric amounts use
+decimal strings and their unavailable values remain null.
 
 Each decisive signal contains `name`, `value`, `operator`, `threshold`, and
 `rule_index`. Unused fields are explicitly null. Signal names are limited to
@@ -76,6 +79,16 @@ kind, configured band, baseline and effective thresholds, observed value, and
 optional embedding rule index. Checks preserve actual numerical boundaries,
 including deliberately unreachable thresholds; they are not probabilities.
 
+`constraints.budgets` defaults to an empty list for decisions without budget
+checks. Each check retains the allowance ID, limits, combined opening and held commitments,
+projected charges, binding constraints, estimator assumptions, and any explicit
+budget override. `constraints.objectives` is null unless an `EstimatePolicy`
+scored candidates; it retains weights, eligible candidate rankings, normalized
+scores, selected placement, and estimate evidence. See [policy budgets and
+what-if simulation](policy_budgets.md) for the charging and scoring contracts.
+Estimate-policy decisions currently use `custom_policy` with this objective
+evidence; a budget suppression takes precedence with `budget_constraint`.
+
 No current provider has a calibrated confidence contract. `confidence.value`
 is always `null`. `confidence.source` is `not_applicable` for deterministic
 rules and movement constraints, or `not_reported` for external-provider/custom
@@ -106,6 +119,7 @@ an unknown model version stays null.
 | `destination_missing` | A proposed move omitted its destination. |
 | `already_in_tier` | A proposed move targeted the object's current tier. |
 | `invalid_action` | A custom policy proposed an unsupported action. |
+| `budget_constraint` | A cost/carbon allowance, unavailable charge, inactive period, or conflicting physical pool binding suppressed movement. |
 
 Hard residency/importance decisions and stability suppressions take precedence
 over an underlying rule code. Consult `disposition` to distinguish a rule that
@@ -164,13 +178,20 @@ and move ordering guarantees.
 
 The structured projection does not include object contents, object coordinates,
 embedding vectors, MIME strings, free-text queries, filename patterns, rule
-names, importance provenance, override justifications, provider responses, or
+names, importance provenance, stability override justifications, provider responses, or
 exception messages. External provider and custom policy prose is replaced with
 a static description in persisted decision reason text as well. Custom policy
 subclasses cannot supply trusted built-in reason codes or decisive signals.
 The separate `llm_audit` payload retains its existing redacted inference evidence
 under the [LLM placement audit contract](llm_placement.md); structured reasons
 do not copy its prompt, response, or free-text proposal.
+
+Budget overrides are an explicit exception: budget checks retain the
+responsible operator's `actor_id` and `reason` so the API, UI, and exports can
+explain a numeric allowance exception. Budget and objective evidence also
+retains operator-supplied profile sources and assumption identifiers. Keep
+these operational fields free of object contents and sensitive prose;
+credential-like values are redacted.
 
 Policy/model and tier identifiers remain in the contract. Treat those as
 application metadata and keep sensitive information out of them. This
