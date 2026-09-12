@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import errno
 import os
 import secrets
 import stat
 import sys
 import threading
-from contextlib import AbstractContextManager, contextmanager, nullcontext
+from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
+from dataclasses import dataclass
 from heapq import nsmallest
 from io import BytesIO
 from pathlib import Path
@@ -88,6 +90,37 @@ class _GenerationBoundReader:
         return data
 
 
+@dataclass(frozen=True)
+class _Directory:
+    path: Path
+    fd: int
+
+
+# Capture the real functions so syscall instrumentation does not change the
+# platform capability test. Runtime filesystem errors still propagate.
+_DIR_FD_OPERATIONS = (os.open, os.mkdir, os.stat, os.unlink, os.rename, os.link)
+_LIST_DIRECTORY = os.listdir
+_STAT = os.stat
+_LINK = os.link
+
+
+def _require_containment_support() -> None:
+    if (
+        os.name != "posix"
+        or any(not getattr(os, flag, 0) for flag in (
+            "O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC", "O_NONBLOCK",
+        ))
+        or not all(operation in os.supports_dir_fd for operation in _DIR_FD_OPERATIONS)
+        or _LIST_DIRECTORY not in os.supports_fd
+        or _STAT not in os.supports_follow_symlinks
+        or _LINK not in os.supports_follow_symlinks
+        or not hasattr(os, "fchmod")
+    ):
+        raise NotImplementedError(
+            "POSIX containment requires no-follow descriptor-relative filesystem operations"
+        )
+
+
 class PosixDriver(StorageDriver):
     """POSIX filesystem-backed driver.
 
@@ -116,12 +149,23 @@ class PosixDriver(StorageDriver):
             or chunk_size <= 0
         ):
             raise ValueError("POSIX chunk_size must be a positive integer")
-        # Resolve the configured root once so every containment comparison uses
-        # the same canonical path. Directories are created lazily by writes;
-        # constructing a driver must remain read-only for dry-run workflows.
+        _require_containment_support()
+        # Configuration is trusted. Canonicalize once (including system aliases
+        # such as /tmp on Darwin), then never resolve object paths by name.
+        # Construction remains read-only for dry-run workflows.
         self.base = Path(base_path).expanduser().resolve()
         self.chunk_size = chunk_size
-        self._durable_directory_entries: set[Path] = set()
+        self._root_identity: tuple[int, int] | None = None
+        self._root_identity_guard = threading.Lock()
+        self._durable_directory_entries: set[tuple[Path, int, int, int, int]] = set()
+        self._creation_boundary = self.base
+        while not self._creation_boundary.parent.exists():
+            self._creation_boundary = self._creation_boundary.parent
+        try:
+            with self._directory(self.base):
+                pass
+        except FileNotFoundError:
+            pass
 
     @contextmanager
     def _object_lock(self, bucket: str, key: str) -> Generator[None, None, None]:
@@ -134,84 +178,151 @@ class PosixDriver(StorageDriver):
             yield
 
     @staticmethod
-    def _sync_directory(path: Path) -> None:
-        """Persist namespace changes made in ``path``.
+    def _sync_directory(directory: _Directory) -> None:
+        """Persist the same directory inode used by the namespace operation."""
+        _sync_descriptor(directory.fd)
 
-        Directory descriptors and ``O_DIRECTORY`` are POSIX facilities. Any
-        failure is deliberately propagated: callers must not report a durable
-        publication or deletion when the filesystem cannot provide the
-        required namespace barrier.
-        """
+    def _check_directory(self, descriptor: int, path: Path) -> os.stat_result:
+        st = os.fstat(descriptor)
+        inside = path == self.base or self.base in path.parents
+        owners = {os.geteuid()} if inside else {0, os.geteuid()}
+        shared_sticky_ancestor = not inside and bool(st.st_mode & stat.S_ISVTX)
+        if st.st_uid not in owners or (
+            st.st_mode & 0o022 and not shared_sticky_ancestor
+        ):
+            raise PermissionError(
+                f"POSIX containment requires trusted directory ownership and permissions: {path}"
+            )
+        if path == self.base:
+            identity = (st.st_dev, st.st_ino)
+            with self._root_identity_guard:
+                if self._root_identity is None:
+                    self._root_identity = identity
+                elif identity != self._root_identity:
+                    raise ValueError("Configured tier root directory was replaced")
+        elif inside and self._root_identity is not None:
+            if st.st_dev != self._root_identity[0]:
+                raise ValueError("POSIX object directories must stay on the tier root filesystem")
+        return st
 
-        flags = os.O_RDONLY
-        flags |= getattr(os, "O_CLOEXEC", 0)
-        flags |= getattr(os, "O_DIRECTORY", 0)
-        flags |= getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(path, flags)
+    @contextmanager
+    def _child_directory(
+        self, parent: _Directory, name: str, *, create: bool = False, mode: int = 0o700,
+    ) -> Generator[_Directory, None, None]:
+        path = parent.path / name
+        self._check_directory(parent.fd, parent.path)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
         try:
-            _sync_descriptor(descriptor)
+            try:
+                descriptor = os.open(name, flags, dir_fd=parent.fd)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(name, mode=mode, dir_fd=parent.fd)
+                except FileExistsError:
+                    pass
+                descriptor = os.open(name, flags, dir_fd=parent.fd)
+        except OSError as exc:
+            if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                raise ValueError(
+                    "POSIX tier root and object directories must be directories without symbolic links"
+                ) from exc
+            raise
+        try:
+            st = self._check_directory(descriptor, path)
+            directory = _Directory(path, descriptor)
+            if create and (
+                path == self._creation_boundary or self._creation_boundary in path.parents
+            ):
+                parent_st = os.fstat(parent.fd)
+                entry = (path, st.st_dev, st.st_ino, parent_st.st_dev, parent_st.st_ino)
+                if entry not in self._durable_directory_entries:
+                    self._sync_directory(parent)
+                    self._durable_directory_entries.add(entry)
+            yield directory
         finally:
             os.close(descriptor)
 
-    def _ensure_directory(self, path: Path, *, mode: int = 0o777) -> None:
-        """Create ``path`` and durably publish every newly created component."""
+    @contextmanager
+    def _directory(
+        self, path: Path, *, create: bool = False, mode: int = 0o700,
+    ) -> Generator[_Directory, None, None]:
+        """Walk from / using only single-component, no-follow opens.
 
-        path.mkdir(mode=mode, parents=True, exist_ok=True)
+        All descriptors stay live through the operation. Namespace swaps can
+        change names but cannot redirect any subsequent relative operation.
+        See docs/posix_containment.md for the enforced deployment boundary.
+        """
+        path.relative_to(self.base)
+        descriptor = os.open(
+            self.base.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
         try:
-            relative = path.relative_to(self.base)
-        except ValueError:
-            raise ValueError(
-                "POSIX object directories must remain below the configured tier root"
-            ) from None
+            directory = _Directory(Path(self.base.anchor), descriptor)
+            self._check_directory(descriptor, directory.path)
+            with ExitStack() as stack:
+                for name in path.parts[1:]:
+                    directory = stack.enter_context(self._child_directory(
+                        directory, name, create=create, mode=mode,
+                    ))
+                yield directory
+        finally:
+            os.close(descriptor)
 
-        # Work from the tier root down. Each parent barrier makes its child name
-        # durable before that child is used to publish the next component. A
-        # successful barrier is cached for this driver instance; failures are
-        # not, so a retry cannot mistake a merely visible mkdir for a durable
-        # one. A new driver also reconfirms every configured-root edge once.
-        directory = self.base
-        entries = [directory]
-        for part in relative.parts:
-            directory /= part
-            entries.append(directory)
-        for entry in entries:
-            if entry in self._durable_directory_entries:
-                continue
-            self._sync_directory(entry.parent)
-            self._durable_directory_entries.add(entry)
+    def _ensure_directory(self, path: Path, *, mode: int = 0o700) -> None:
+        with self._directory(path, create=True, mode=mode):
+            pass
+
+    def _regular_stat(self, st: os.stat_result) -> os.stat_result:
+        if self._root_identity is not None and st.st_dev != self._root_identity[0]:
+            raise ValueError("POSIX objects must stay on the tier root filesystem")
+        if stat.S_ISLNK(st.st_mode):
+            raise ValueError("Object path must not contain symbolic links")
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError("POSIX objects must be regular files")
+        if st.st_nlink != 1:
+            raise ValueError("POSIX objects must not have multiple hard links")
+        return st
+
+    def _stat_file(self, parent: _Directory, name: str) -> os.stat_result:
+        return self._regular_stat(os.stat(name, dir_fd=parent.fd, follow_symlinks=False))
+
+    @contextmanager
+    def _open_file(
+        self, parent: _Directory, name: str, *, writable: bool = False,
+    ) -> Generator[BinaryIO, None, None]:
+        flags = (os.O_RDWR if writable else os.O_RDONLY)
+        flags |= os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+        try:
+            descriptor = os.open(name, flags, dir_fd=parent.fd)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise ValueError("Object path must not contain symbolic links") from exc
+            raise
+        try:
+            self._regular_stat(os.fstat(descriptor))
+            stream = os.fdopen(descriptor, "r+b" if writable else "rb")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with stream:
+            yield stream
 
     def _publish_staged_file(
-        self,
-        temporary_path: Path,
-        path: Path,
-        *,
-        overwrite: bool,
+        self, staging: _Directory, name: str, parent: _Directory, key: str, *, overwrite: bool,
     ) -> None:
-        """Publish a synced staging inode and persist both namespace changes."""
-
-        staging = temporary_path.parent
         if overwrite:
-            os.replace(temporary_path, path)
+            os.replace(name, key, src_dir_fd=staging.fd, dst_dir_fd=parent.fd)
         else:
-            os.link(temporary_path, path)
-
-        # Persist the destination name before removing/persisting the staging
-        # name. A crash between these barriers can leave an extra private link,
-        # but cannot lose the acknowledged destination.
-        self._sync_directory(path.parent)
+            os.link(
+                name, key, src_dir_fd=staging.fd, dst_dir_fd=parent.fd,
+                follow_symlinks=False,
+            )
+        self._sync_directory(parent)
         if not overwrite:
-            temporary_path.unlink()
+            os.unlink(name, dir_fd=staging.fd)
         self._sync_directory(staging)
-
-    def _sync_existing_parent(self, path: Path) -> None:
-        """Barrier a prior unlink when an idempotent retry sees no object."""
-
-        # A never-created bucket remains an idempotent, read-only delete. Once
-        # the parent is observed, however, every barrier failure must propagate;
-        # do not confuse an fsync error with an absent namespace.
-        if not path.parent.exists():
-            return
-        self._sync_directory(path.parent)
 
     @staticmethod
     def _generation(st: os.stat_result) -> str:
@@ -244,9 +355,6 @@ class PosixDriver(StorageDriver):
         return path
 
     def _path(self, bucket: str, key: str, *, allow_bucket_root: bool = False) -> Path:
-        if self.base.is_symlink() or self.base.resolve() != self.base:
-            raise ValueError("Configured tier root must not contain symbolic links")
-
         bucket_path = self._relative_path(bucket, "Bucket")
         if bucket_path.parts[0] == _STAGING_DIRECTORY:
             raise ValueError(
@@ -266,57 +374,34 @@ class PosixDriver(StorageDriver):
         if full == self.base:
             raise ValueError("Object path must be below configured tier root")
 
-        current = self.base
-        for part in full.relative_to(self.base).parts:
-            current /= part
-            if current.is_symlink():
-                raise ValueError("Object path must not contain symbolic links")
         return full
 
-    def _staging_directory(self) -> Path:
-        """Return a private staging directory outside all object namespaces."""
-
-        if self.base.is_symlink() or self.base.resolve() != self.base:
-            raise ValueError("Configured tier root must not contain symbolic links")
-
-        staging = self.base / _STAGING_DIRECTORY
-        if staging.is_symlink():
-            raise ValueError("POSIX staging directory must not be a symbolic link")
-        try:
-            self._ensure_directory(staging, mode=0o700)
-        except FileExistsError:
-            raise ValueError("POSIX staging path must be a directory") from None
-        if (
-            staging.is_symlink()
-            or not staging.is_dir()
-            or staging.resolve() != staging
-        ):
-            raise ValueError(
-                "POSIX staging path must be a directory below the configured tier root"
-            )
-        return staging
-
-    @staticmethod
-    def _create_staging_file(staging: Path) -> tuple[int, Path]:
-        """Create a private unique file while honoring the process umask."""
-
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        flags |= getattr(os, "O_BINARY", 0)
-        flags |= getattr(os, "O_CLOEXEC", 0)
-        for _ in range(_MAX_STAGING_NAME_ATTEMPTS):
-            name = (
-                f"{_STAGING_FILE_PREFIX}{secrets.token_hex(16)}"
-                f"{_STAGING_FILE_SUFFIX}"
-            )
-            path = staging / name
+    @contextmanager
+    def _staged_file(self) -> Generator[tuple[_Directory, str, BinaryIO], None, None]:
+        with self._directory(self.base / _STAGING_DIRECTORY, create=True) as staging:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+            for _ in range(_MAX_STAGING_NAME_ATTEMPTS):
+                name = f"{_STAGING_FILE_PREFIX}{secrets.token_hex(16)}{_STAGING_FILE_SUFFIX}"
+                try:
+                    descriptor = os.open(name, flags, 0o666, dir_fd=staging.fd)
+                    break
+                except FileExistsError:
+                    continue
+            else:
+                raise FileExistsError("Could not allocate a unique POSIX staging file")
             try:
-                # Unlike tempfile.mkstemp's fixed 0o600 mode, passing 0o666 to
-                # os.open lets the kernel apply the process's current umask in
-                # the same way as the driver's former open(path, "wb") writes.
-                return os.open(path, flags, 0o666), path
-            except FileExistsError:
-                continue
-        raise FileExistsError("Could not allocate a unique POSIX staging file")
+                try:
+                    destination = os.fdopen(descriptor, "wb")
+                except BaseException:
+                    os.close(descriptor)
+                    raise
+                with destination:
+                    yield staging, name, destination
+            finally:
+                try:
+                    os.unlink(name, dir_fd=staging.fd)
+                except FileNotFoundError:
+                    pass
 
     def put_object(
         self,
@@ -339,47 +424,31 @@ class PosixDriver(StorageDriver):
 
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
-            self._ensure_directory(path.parent)
-
-            start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
-            if path.exists():
-                if not overwrite:
-                    raise FileExistsError(path)
-                with open(path, "r+b") as existing_destination:
-                    existing_destination.seek(start)
-                    existing_destination.write(data[: end - start + 1])
-                    existing_destination.flush()
-                    _sync_descriptor(existing_destination.fileno())
-                return
-
-            descriptor, temporary_path = self._create_staging_file(
-                self._staging_directory()
-            )
-            try:
+            with self._directory(path.parent, create=True) as parent:
+                start, end = [int(x) for x in range.replace("bytes=", "").split("-")]
                 try:
-                    destination = os.fdopen(descriptor, "wb")
-                except BaseException:
-                    try:
-                        os.close(descriptor)
-                    except OSError:
-                        pass
-                    raise
-                with destination:
+                    self._stat_file(parent, path.name)
+                except FileNotFoundError:
+                    pass
+                else:
+                    if not overwrite:
+                        raise FileExistsError(path)
+                    with self._open_file(parent, path.name, writable=True) as destination:
+                        destination.seek(start)
+                        destination.write(data[: end - start + 1])
+                        destination.flush()
+                        _sync_descriptor(destination.fileno())
+                    return
+
+                with self._staged_file() as (staging, name, destination):
                     destination.truncate(end + 1)
                     destination.seek(start)
                     destination.write(data[: end - start + 1])
                     destination.flush()
                     _sync_descriptor(destination.fileno())
                     self._publish_staged_file(
-                        temporary_path,
-                        path,
-                        overwrite=overwrite,
+                        staging, name, parent, path.name, overwrite=overwrite,
                     )
-            finally:
-                try:
-                    temporary_path.unlink()
-                except FileNotFoundError:
-                    pass
 
     def get_object(
         self, bucket: str, key: str, range: Optional[str] = None
@@ -432,8 +501,8 @@ class PosixDriver(StorageDriver):
                 if generation is not None
                 else nullcontext()
             )
-            with object_lock:
-                with open(path, "rb") as stream:
+            with object_lock, self._directory(path.parent) as parent:
+                with self._open_file(parent, path.name) as stream:
                     opened_stat = os.fstat(stream.fileno())
                     if (
                         generation is not None
@@ -510,22 +579,9 @@ class PosixDriver(StorageDriver):
             raise ValueError("Object size must be a non-negative integer")
 
         path = self._path(bucket, key)
-        self._ensure_directory(path.parent)
-        descriptor, temporary_path = self._create_staging_file(
-            self._staging_directory()
-        )
-        written = 0
-
-        try:
-            try:
-                destination = os.fdopen(descriptor, "wb")
-            except BaseException:
-                try:
-                    os.close(descriptor)
-                except OSError:
-                    pass
-                raise
-            with destination:
+        with self._directory(path.parent, create=True) as parent:
+            with self._staged_file() as (staging, name, destination):
+                written = 0
                 while written < size:
                     requested = min(self.chunk_size, size - written)
                     chunk = source.read(requested)
@@ -553,88 +609,93 @@ class PosixDriver(StorageDriver):
                 with self._object_lock(bucket, key):
                     if overwrite:
                         try:
-                            existing_mode = stat.S_IMODE(
-                                path.stat(follow_symlinks=False).st_mode
-                            )
+                            existing_mode = stat.S_IMODE(self._stat_file(parent, path.name).st_mode)
                         except FileNotFoundError:
                             pass
                         else:
-                            temporary_path.chmod(
-                                existing_mode,
-                                follow_symlinks=False,
-                            )
+                            os.fchmod(destination.fileno(), existing_mode)
                     destination.flush()
                     _sync_descriptor(destination.fileno())
                     self._publish_staged_file(
-                        temporary_path,
-                        path,
-                        overwrite=overwrite,
+                        staging, name, parent, path.name, overwrite=overwrite,
                     )
-            return written
-        finally:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
+                return written
 
     def delete_object(self, bucket: str, key: str) -> None:
-        with self._object_lock(bucket, key):
-            path = self._path(bucket, key)
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                self._sync_existing_parent(path)
-                return
-            self._sync_directory(path.parent)
+        self._delete_object(bucket, key, generation=None)
 
     def delete_object_if_generation(
-        self, bucket: str, key: str, generation: str
+        self, bucket: str, key: str, generation: str,
     ) -> bool:
+        return self._delete_object(bucket, key, generation=generation)
+
+    def _delete_object(self, bucket: str, key: str, generation: str | None) -> bool:
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
-            try:
-                current = self._generation(path.stat(follow_symlinks=False))
-            except FileNotFoundError:
-                self._sync_existing_parent(path)
-                return False
-            if current != generation:
-                raise ObjectGenerationMismatchError(
-                    f"Object generation changed: {bucket}/{key}"
-                )
-            path.unlink()
-            self._sync_directory(path.parent)
-            return True
+            with ExitStack() as stack:
+                try:
+                    parent = stack.enter_context(self._directory(path.parent))
+                except FileNotFoundError:
+                    return False
+                try:
+                    current = self._generation(self._stat_file(parent, path.name))
+                except FileNotFoundError:
+                    self._sync_directory(parent)
+                    return False
+                if generation is not None and current != generation:
+                    raise ObjectGenerationMismatchError(
+                        f"Object generation changed: {bucket}/{key}"
+                    )
+                try:
+                    os.unlink(path.name, dir_fd=parent.fd)
+                except FileNotFoundError:
+                    self._sync_directory(parent)
+                    return False
+                self._sync_directory(parent)
+                return True
 
     def ensure_object_durable(self, bucket: str, key: str) -> None:
         with self._object_lock(bucket, key):
             path = self._path(bucket, key)
-            flags = os.O_RDONLY
-            flags |= getattr(os, "O_CLOEXEC", 0)
-            flags |= getattr(os, "O_NOFOLLOW", 0)
-            descriptor = os.open(path, flags)
-            try:
-                _sync_descriptor(descriptor)
-            finally:
-                os.close(descriptor)
-            self._sync_directory(path.parent)
-            staging = self.base / _STAGING_DIRECTORY
-            if staging.exists():
+            with self._directory(path.parent) as parent:
+                with self._open_file(parent, path.name) as stream:
+                    _sync_descriptor(stream.fileno())
+                self._sync_directory(parent)
+            with ExitStack() as stack:
+                try:
+                    staging = stack.enter_context(self._directory(self.base / _STAGING_DIRECTORY))
+                except FileNotFoundError:
+                    return
                 self._sync_directory(staging)
 
     def list_objects(self, bucket: str, prefix: str = "") -> Generator[str, None, None]:
         base = self._path(bucket, "", allow_bucket_root=True)
-        if not base.exists():
-            return
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [
-                name for name in dirs if not (Path(root) / name).is_symlink()
-            ]
-            for name in files:
-                if (Path(root) / name).is_symlink():
+
+        def walk(directory: _Directory, relative: str) -> Generator[str, None, None]:
+            for name in os.listdir(directory.fd):
+                try:
+                    st = os.stat(name, dir_fd=directory.fd, follow_symlinks=False)
+                except FileNotFoundError:
                     continue
-                rel = os.path.relpath(os.path.join(root, name), base)
-                if rel.startswith(prefix):
-                    yield rel
+                rel = f"{relative}/{name}" if relative else name
+                if stat.S_ISDIR(st.st_mode):
+                    with ExitStack() as stack:
+                        try:
+                            child = stack.enter_context(self._child_directory(directory, name))
+                        except FileNotFoundError:
+                            continue
+                        yield from walk(child, rel)
+                elif stat.S_ISREG(st.st_mode):
+                    self._regular_stat(st)
+                    if rel.startswith(prefix):
+                        yield rel
+
+        with ExitStack() as stack:
+            try:
+                directory = stack.enter_context(self._directory(base))
+            except FileNotFoundError:
+                return
+            yield from walk(directory, "")
 
     def list_objects_page(
         self,
@@ -716,7 +777,8 @@ class PosixDriver(StorageDriver):
 
     def stat_object(self, bucket: str, key: str) -> Dict[str, Any]:
         path = self._path(bucket, key)
-        st = path.stat()
+        with self._directory(path.parent) as parent:
+            st = self._stat_file(parent, path.name)
         return {
             "size": st.st_size,
             "mtime": st.st_mtime,

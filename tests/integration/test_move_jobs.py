@@ -24,7 +24,7 @@ from cognistore.core.throughput import (
     ThroughputController,
     TierLimits,
 )
-from cognistore.drivers.posix_driver import PosixDriver
+from cognistore.drivers.posix_driver import PosixDriver, _Directory
 
 
 class InjectedCrash(BaseException):
@@ -175,8 +175,8 @@ def test_recovery_reconfirms_visible_destination_durability_before_source_cleanu
     destination_parent = warm.base / bucket / "durability"
     original_sync_directory = warm._sync_directory
 
-    def fail_destination_barrier(path: Path) -> None:
-        if path == destination_parent:
+    def fail_destination_barrier(path: _Directory) -> None:
+        if path.path == destination_parent:
             raise OSError("injected destination namespace barrier failure")
         original_sync_directory(path)
 
