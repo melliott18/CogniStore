@@ -1,8 +1,7 @@
 # CogniStore architecture
 
 This document describes the currently implemented architecture. It is a
-current-state reference, not a promise that every later M2–M4 component already
-exists.
+current-state reference through M3. Production-platform work remains in M4.
 
 ## System view
 
@@ -48,7 +47,7 @@ the REST API v1 boundary.
 | Worker | `cognistore/jobs/runtime.py`, `handlers.py` | Bounded concurrent delivery, heartbeats, retry classification, graceful shutdown, and job dispatch |
 | Scheduler | `cognistore/jobs/scheduler.py` | Strict interval configuration, durable reservations, envelopes with retry-stable identity, scoped single-flight execution, and restart recovery before execution begins |
 | Throughput | `cognistore/core/throughput.py` | Per-tier source/destination concurrency, bounded admission, operation/byte rates, fairness, live reconfiguration, and metrics snapshots |
-| Discovery/policy | `cognistore/core/scanner.py`, `policy*.py`, `utils/` | Storage observations, scan/move coordination, prototype placement rules, device discovery, and tier profiling |
+| Discovery/policy | `cognistore/core/scanner.py`, `policy*.py`, `placement*.py`, `estimation.py`, `utils/` | Storage observations, behavioral/content signals, guarded rule and LLM decisions, offline baseline evaluation, structured explanations, estimated placement objectives, budget admission, device discovery, and tier profiling |
 | Keyword search | `cognistore/search/` | Versioned normalized-passage projection, BM25 ranking, exact metadata filters, synchronous replace/delete visibility, and atomic full rebuild from the catalog |
 | Ask | `cognistore/search/` | Hybrid retrieval and grounded citations |
 
@@ -58,8 +57,9 @@ CogniStore currently has four authoritative durable state planes plus one
 reconstructable derived plane:
 
 1. JetStream owns job delivery, redelivery, and source-message settlement.
-2. The catalog DAL owns object placement, move state and transitions, and move
-   leases in either PostgreSQL or SQLite.
+2. The catalog DAL owns object placement, move state and transitions, move
+   leases, access history, policy decision snapshots, and cost/carbon budget
+   definitions and reservations in either PostgreSQL or SQLite.
 3. `SQLiteScheduleStore` separately owns scheduled occurrence/reservation
    state, execution leases, and fenced-recovery audits.
 4. Storage backends own object bytes and backend-specific generation tokens.
@@ -126,6 +126,37 @@ PREPARED -> TRANSFERRED -> VERIFIED -> COMMITTED -> CLEANUP -> COMPLETED
 The job is leased and keyed by a caller- or coordinator-owned idempotency key.
 Replaying that key resumes its recorded phase; reusing it for different move
 coordinates is rejected.
+
+## Policy decisions and admission
+
+Policy runners project versioned MIME, embedding, and observed access features
+through the catalog contract. Simple/content rules and schema-validated LLM
+adapters use shared importance, minimum-residency, and cooldown controls.
+Numerical hysteresis applies to simple/content rule boundaries; the validated
+LLM adapter uses cooldown because it exposes no numerical boundary. Topology
+eligibility filters hard locality requirements before estimate-based scoring.
+Stability controls default to zero and take effect when configured. Provider
+failure selects a safe stay; provider output cannot grant an override.
+Execution rechecks authoritative constraints before movement.
+
+Writable evaluations retain immutable feature snapshots and structured reasons
+for moves, stays, and suppressions. REST, SDK, and the Placement UI expose frozen
+before/after placement alongside separately derived job outcomes. A selection
+or preview does not establish that a move completed.
+
+Tier/pool observations carry units, sources, timestamps, and freshness.
+Versioned estimators expose missing inputs rather than treating them as zero.
+Configured cost/carbon allowances reserve modeled charges atomically with move
+admission, including concurrent workers and conservative retry accounting.
+Numeric-limit overrides require attributable audit evidence. What-if simulation
+compares detached catalog snapshots without catalog or storage mutations.
+
+The supervised baseline trains and evaluates offline against observed move
+success labels. It gates historical rule decisions, does not choose new tiers,
+and remains ineligible for production promotion. Its proxy comparisons do not
+measure real financial savings or object-level flapping. See the
+[M3 closeout evidence](evidence/m3/README.md), [placement controls](placement_controls.md),
+[policy baseline](policy_baseline.md), and [budget guide](policy_budgets.md).
 
 ## Scheduling and delivery
 
@@ -208,6 +239,7 @@ artifact.
   Helm, and Terraform belong to M4.
 
 See the [design contracts](design.md), [M1 closeout evidence](evidence/m1/README.md),
+[M2 closeout evidence](evidence/m2/README.md), [M3 closeout evidence](evidence/m3/README.md),
 [historical M1 verification](m1_verification_2026-08-27.md), and
 [next-ticket roadmap](next_ticket_roadmap_2026-08-27.md) for invariants, evidence,
 open findings, and implementation order.

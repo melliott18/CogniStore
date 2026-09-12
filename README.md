@@ -410,6 +410,9 @@ Notes:
 	- `--allowed-tiers hot,warm` to constrain decisions
 	- `--minimum-residency TIER SECONDS` (repeatable) to delay leaving a tier
 	- `--importance-tier LEVEL TIER` (repeatable) to configure importance destinations
+	- `--cooldown-seconds`, `--size-hysteresis-bytes`, and `--similarity-hysteresis`
+	  to reduce tier flapping; these default to zero and must be configured for
+	  stability protection (see [placement controls](docs/placement_controls.md))
 	- `--dry-run` to validate and report planned moves without writes
 	- `--json` for one machine-readable result object
 	- `--threshold` for simple/content size rules (`--llm-threshold` is accepted for compatibility and ignored)
@@ -454,6 +457,10 @@ move history. Dataset exports retain these reasons alongside the feature snapsho
 The **Placement** view at `/ui/` renders [placement explanations and diffs](docs/placement_explanations.md)
 for object or job history and side-effect-free previews. Versioned API resources
 share the same decision schema, with execution and job status shown separately.
+
+M3 is complete. The [closeout evidence](docs/evidence/m3/README.md) maps all
+eleven delivery issues to implementation and validation, including configured
+stability guardrails, modeled budgets, and the offline baseline's limits.
 
 ### Durable background workers
 

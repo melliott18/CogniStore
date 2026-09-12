@@ -67,10 +67,21 @@ with CogniStoreClient("http://127.0.0.1:8080") as client:
   retain their comparison operators and thresholds.
 
 Guardrail evidence includes importance restrictions, minimum residency,
-cooldown, allowed destinations, and hysteresis checks. Hysteresis exposes both
+cooldown, allowed destinations, hysteresis checks, and cost/carbon budget
+checks. Hysteresis exposes both
 baseline and effective boundaries. An attributed stability override is visible
-by kind; free-text justifications and model response text are not copied into
-this resource.
+by kind; its free-text justification and model response text are not copied
+into this resource.
+
+Budget evidence retains limits, balances, projected charges, binding
+constraints, and estimator assumptions. The UI displays each checked budget's
+admission result and projected commitments. An explicit budget override
+includes the operator's identity and rationale, which the UI also displays;
+these operational fields must not contain sensitive object content. Unknown
+amounts remain unavailable rather than becoming zero. When an `EstimatePolicy`
+scored candidates, the API also retains its weights, candidate rankings, and
+selection in `constraints.objectives`. See [policy budgets and what-if
+simulation](policy_budgets.md) for scenario comparisons and forecast limits.
 
 ## Preview and execution are separate
 

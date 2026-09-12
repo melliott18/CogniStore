@@ -183,14 +183,14 @@ def test_override_is_audited_frozen_and_recovery_finishes_under_cooldown(tmp_pat
         catalog.update_placement("bucket", "key", "hot")
         mover = Mover(drivers, catalog, clock=lambda: START, transition_hook=crash)
         with pytest.raises(RuntimeError, match="simulated crash"):
-            mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move",
+            mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move",  # gitleaks:allow (synthetic retry identity)
                        movement_constraints=controls, audit_context=context)
     with SQLiteCatalog(database) as catalog:
         mover = Mover(drivers, catalog, clock=lambda: START + timedelta(seconds=31))
         with pytest.raises(MoveJobConflictError, match="Movement constraints differ"):
-            mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move",
+            mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move",  # gitleaks:allow (synthetic retry identity)
                        movement_constraints=MovementConstraints(cooldown_seconds=3600))
-        mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move")
+        mover.move("hot", "warm", "bucket", "key", idempotency_key="override-move")  # gitleaks:allow (synthetic retry identity)
         assert catalog.get("bucket", "key").tier == "warm"
         event = next(e for e in catalog.list_audit_events()
                      if e.event_type == AuditEventType.MOVE_PREPARED)

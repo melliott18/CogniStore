@@ -1,0 +1,65 @@
+## quality.log
+All checks passed!
+Success: no issues found in 118 source files
+OpenAPI contract is current: docs/openapi/v1.json
+
+
+## bandit.log
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	using config: pyproject.toml
+[main]	INFO	running on Python 3.13.7
+Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:04
+Run started:2026-09-12 18:03:02.414596+00:00
+
+Test results:
+	No issues identified.
+
+Code scanned:
+	Total lines of code: 46641
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 1
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 117
+		Medium: 2
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 2
+		Medium: 0
+		High: 117
+Files skipped (0):
+
+
+## dependency-audit.log
+No known vulnerabilities found
+
+
+## dev-dependency-audit.log
+No known vulnerabilities found
+Name       Skip Reason
+---------- -------------------------------
+cognistore distribution marked as editable
+
+
+## twine.log
+Checking /tmp/cognistore-m3-validation/dist/cognistore-0.1.0-py3-none-any.whl: PASSED
+Checking /tmp/cognistore-m3-validation/dist/cognistore-0.1.0.tar.gz: PASSED
+
+
+## wheel-smoke.log
+Wheel import, migration head, SDK marker, Placement UI asset, and sample corpus passed outside checkout.
+
+
+## wheel-sample.log
+{"corpus": "cognistore-content-search-sample-v1", "duplicate_content_groups": 1, "license": "MIT", "objects": 4, "queries": ["ask", "keyword", "vector"], "schema_version": 1, "status": "verified"}
+
+
+## secrets-current.log
+11:07AM INF scanned ~5128148 bytes (5.13 MB) in 1.21s
+11:07AM INF no leaks found

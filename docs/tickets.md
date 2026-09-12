@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-08T19:44:24Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-12T18:14:47Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 35 open, 33 closed
+- **Snapshot:** 68 issues; 23 open, 45 closed
 
 ## How to use this mirror
 
@@ -35,7 +35,7 @@ git diff --check
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | 2 | 0 | 0 / 16 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
 | M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 3 | 0 | 0 / 17 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/1) |
-| M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/2) |
+| M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 0 / 12 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 22 / 22 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
 
 ## Label taxonomy
@@ -66,7 +66,7 @@ git diff --check
 - **Status:** Open
 - **Milestone:** None
 - **Labels:** `roadmap`, `type:epic`
-- **Last updated:** 2026-09-08
+- **Last updated:** 2026-09-12
 
 <h4 id="issue-12-purpose">Purpose</h4>
 <p>This is the top-level tracker for converting the original CogniStore roadmap into an executable GitHub Issues backlog.</p>
@@ -83,7 +83,7 @@ git diff --check
 <ul class="contains-task-list">
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> — <a href="https://github.com/melliott18/CogniStore/milestone/4">M1 milestone</a>: reliable multi-backend movement</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> — <a href="https://github.com/melliott18/CogniStore/milestone/1">M2 milestone</a>: knowledge layer and search</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> — <a href="https://github.com/melliott18/CogniStore/milestone/2">M3 milestone</a>: explainable policy engine</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> — <a href="https://github.com/melliott18/CogniStore/milestone/2">M3 milestone</a>: explainable policy engine</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> — <a href="https://github.com/melliott18/CogniStore/milestone/3">M4 milestone</a>: production platform</li>
 </ul>
 <h4 id="issue-12-backlog-inventory">Backlog inventory</h4>
@@ -98,7 +98,9 @@ git diff --check
 <h4 id="issue-12-m1-completion">M1 completion</h4>
 <p>M1 completed on 2026-08-29. Epic <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> and milestone 4 are closed. The canonical clean full-scale qualification report is retained at <a href="https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json">https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json</a> (SHA-256 <code>0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39</code>).</p>
 <h4 id="issue-12-m2-completion">M2 completion</h4>
-<p>M2 completed on 2026-09-08. Epic <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> and <a href="https://github.com/melliott18/CogniStore/milestone/1">milestone 1</a> are closed; all 13 delivery issues and three verification/tracking follow-ups are complete. The <a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">retained closeout evidence</a> maps every milestone success criterion to the qualified source revision <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>, <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">passing CI</a>, and archived JUnit/coverage reports. M3 and M4 remain open.</p>
+<p>M2 completed on 2026-09-08. Epic <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> and <a href="https://github.com/melliott18/CogniStore/milestone/1">milestone 1</a> are closed; all 13 delivery issues and three verification/tracking follow-ups are complete. The <a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">retained closeout evidence</a> maps every milestone success criterion to the qualified source revision <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>, <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">passing CI</a>, and archived JUnit/coverage reports. M4 remains open.</p>
+<h4 id="issue-12-m3-completion">M3 completion</h4>
+<p>M3 completed on 2026-09-12. Epic <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> and <a href="https://github.com/melliott18/CogniStore/milestone/2">milestone 2</a> are closed; all eleven delivery issues (<a href="https://github.com/melliott18/CogniStore/issues/43">#43</a>–<a href="https://github.com/melliott18/CogniStore/issues/53">#53</a>) are complete. The <a href="https://github.com/melliott18/CogniStore/blob/692c8850353544c0abd240d9adcea001e0e0c945/docs/evidence/m3/README.md">retained closeout evidence</a> maps their acceptance criteria to application revision <code>fe700326f3cc99ba498536afd07b897575709d53</code>, passing local full and service-enabled integration suites, archived reports, and reproducible offline evaluations. GitHub Actions remains blocked by account billing/spending limits; no remote CI pass is claimed. M4 remains open.</p>
 
 ## M1 – Reliable multi-backend movement
 
@@ -1537,17 +1539,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Original delivery tickets:** 11
 - **Verification follow-ups:** 0
 - **Other tracking issues:** 0
-- **Status:** 12 open, 0 closed (12 including the epic)
+- **Status:** 0 open, 12 closed (12 including the epic)
 
 ### Epic
 
 #### [#15 — \[Epic\] M3 – Explainable policy engine](https://github.com/melliott18/CogniStore/issues/15)
 
 - **Kind:** Milestone epic
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:epic`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent roadmap: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
 <h5 id="issue-15-outcome">Outcome</h5>
@@ -1561,31 +1563,35 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-15-child-issues">Child issues</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/43">#43</a> — Capture access events and compute recency/frequency signals</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/44">#44</a> — Add importance tags and minimum-residency rules</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/45">#45</a> — Prevent tier flapping with hysteresis and cooldowns</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/46">#46</a> — Log versioned policy features and outcome labels</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/47">#47</a> — Train and evaluate a supervised placement baseline</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/48">#48</a> — Integrate schema-validated LLM-assisted placement decisions</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/49">#49</a> — Persist structured policy decision reasons</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/50">#50</a> — Expose placement explanations and before/after diffs</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/51">#51</a> — Model tier pools, regions, latency, cost, and carbon attributes</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/52">#52</a> — Build calibrated storage cost and carbon estimators</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/53">#53</a> — Enforce cost/carbon budgets and provide what-if simulation</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/43">#43</a> — Capture access events and compute recency/frequency signals</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/44">#44</a> — Add importance tags and minimum-residency rules</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/45">#45</a> — Prevent tier flapping with hysteresis and cooldowns</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/46">#46</a> — Log versioned policy features and outcome labels</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/47">#47</a> — Train and evaluate a supervised placement baseline</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/48">#48</a> — Integrate schema-validated LLM-assisted placement decisions</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/49">#49</a> — Persist structured policy decision reasons</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/50">#50</a> — Expose placement explanations and before/after diffs</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/51">#51</a> — Model tier pools, regions, latency, cost, and carbon attributes</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/52">#52</a> — Build calibrated storage cost and carbon estimators</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/53">#53</a> — Enforce cost/carbon budgets and provide what-if simulation</li>
 </ul>
 <p>Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.</p>
 <h5 id="issue-15-source">Source</h5>
 <p><code>docs/roadmap.md</code>: policy engine v2, tier/pool abstractions, explainability, and cost/carbon modeling.</p>
+<h5 id="issue-15-completion-evidence">Completion evidence</h5>
+<p>Accepted on 2026-09-12 after reviewing all eleven child issues against their implementation and written acceptance criteria. All children are merged and closed. The <a href="https://github.com/melliott18/CogniStore/blob/692c8850353544c0abd240d9adcea001e0e0c945/docs/evidence/m3/README.md">retained closeout evidence</a> binds validation to application revision <code>fe700326f3cc99ba498536afd07b897575709d53</code> and archives JUnit, coverage, and reproducible offline baseline/LLM evaluations.</p>
+<p>Local validation: 2,857 default tests passed (84.90% coverage), and 245 service-enabled PostgreSQL/pgvector, NATS, and MinIO integration tests passed with one unsupported-capability skip. Independent focused reviews, Ruff, mypy, OpenAPI, packaging, dependency audits, Bandit, and current-source secret scanning passed. The review corrected a stale PostgreSQL rollback assertion; application code required no changes.</p>
+<p>GitHub Actions could not start jobs because of account billing/spending-limit configuration; no remote matrix result is claimed. Stability controls and modeled budgets require configuration. The learned baseline remains an offline execution-success experiment with production promotion disabled; synthetic LLM fixtures establish boundary safety, not hosted-model quality. See the evidence record for complete scope limits.</p>
 
 ### Original delivery tickets
 
 #### [#43 — \[M3\] Capture access events and compute recency/frequency signals](https://github.com/melliott18/CogniStore/issues/43)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1604,10 +1610,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-43-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> API and supported driver access paths emit correlated events without double-counting retries.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Windowed features are reproducible for fixture histories.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Sparse or unavailable history produces documented safe defaults.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Volume, retention, and aggregation behavior are measured.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> API and supported driver access paths emit correlated events without double-counting retries.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Windowed features are reproducible for fixture histories.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Sparse or unavailable history produces documented safe defaults.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Volume, retention, and aggregation behavior are measured.</li>
 </ul>
 <h5 id="issue-43-dependencies">Dependencies</h5>
 <ul>
@@ -1620,10 +1626,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#44 — \[M3\] Add importance tags and minimum-residency rules](https://github.com/melliott18/CogniStore/issues/44)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1642,10 +1648,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-44-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Importance and residency constraints appear in dry-run decisions.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A move cannot violate an active minimum-residency rule.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tag changes are audited and trigger deterministic reevaluation.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Boundary-time and missing-tag behavior are tested.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Importance and residency constraints appear in dry-run decisions.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A move cannot violate an active minimum-residency rule.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tag changes are audited and trigger deterministic reevaluation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Boundary-time and missing-tag behavior are tested.</li>
 </ul>
 <h5 id="issue-44-dependencies">Dependencies</h5>
 <ul>
@@ -1658,10 +1664,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#45 — \[M3\] Prevent tier flapping with hysteresis and cooldowns](https://github.com/melliott18/CogniStore/issues/45)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1680,10 +1686,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-45-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Repeated evaluation of unchanged or boundary-adjacent objects does not flap tiers.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Cooldown and hysteresis are configurable and visible in explanations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Property/soak tests cover noisy signals and clock boundaries.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Emergency or compliance overrides are explicit and audited.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Repeated evaluation of unchanged or boundary-adjacent objects does not flap tiers.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Cooldown and hysteresis are configurable and visible in explanations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Property/soak tests cover noisy signals and clock boundaries.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Emergency or compliance overrides are explicit and audited.</li>
 </ul>
 <h5 id="issue-45-dependencies">Dependencies</h5>
 <ul>
@@ -1695,10 +1701,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#46 — \[M3\] Log versioned policy features and outcome labels](https://github.com/melliott18/CogniStore/issues/46)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1717,10 +1723,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-46-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A decision can be reconstructed from its stored feature snapshot.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Schema changes are versioned and migration-compatible.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Exports exclude configured sensitive fields and document sampling.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Validation detects missing, leaking, or temporally invalid labels.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A decision can be reconstructed from its stored feature snapshot.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Schema changes are versioned and migration-compatible.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Exports exclude configured sensitive fields and document sampling.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Validation detects missing, leaking, or temporally invalid labels.</li>
 </ul>
 <h5 id="issue-46-dependencies">Dependencies</h5>
 <ul>
@@ -1734,10 +1740,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#47 — \[M3\] Train and evaluate a supervised placement baseline](https://github.com/melliott18/CogniStore/issues/47)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1756,10 +1762,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-47-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Training and evaluation are reproducible from a versioned dataset snapshot.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Leakage and class-imbalance checks run automatically.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A promotion threshold and safe rule fallback are documented.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Evaluation artifacts capture metrics, model version, code version, and data window.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Training and evaluation are reproducible from a versioned dataset snapshot.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Leakage and class-imbalance checks run automatically.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A promotion threshold and safe rule fallback are documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Evaluation artifacts capture metrics, model version, code version, and data window.</li>
 </ul>
 <h5 id="issue-47-dependencies">Dependencies</h5>
 <ul>
@@ -1772,10 +1778,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#48 — \[M3\] Integrate schema-validated LLM-assisted placement decisions](https://github.com/melliott18/CogniStore/issues/48)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1794,10 +1800,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-48-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Malformed, late, or unavailable provider responses cannot trigger a move.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Deterministic fallback behavior is covered by tests.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Prompts, redacted responses, schema errors, and final decisions are auditable.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> No external provider is required for the default test suite.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Malformed, late, or unavailable provider responses cannot trigger a move.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Deterministic fallback behavior is covered by tests.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Prompts, redacted responses, schema errors, and final decisions are auditable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> No external provider is required for the default test suite.</li>
 </ul>
 <h5 id="issue-48-dependencies">Dependencies</h5>
 <ul>
@@ -1810,10 +1816,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#49 — \[M3\] Persist structured policy decision reasons](https://github.com/melliott18/CogniStore/issues/49)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1832,10 +1838,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-49-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Every evaluated object produces a structured reason or an explicitly sampled record.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Reason schemas are versioned and documented.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Secrets and raw sensitive content are excluded.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A decision can be traced from inputs through action and final outcome.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Every evaluated object produces a structured reason or an explicitly sampled record.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Reason schemas are versioned and documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Secrets and raw sensitive content are excluded.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A decision can be traced from inputs through action and final outcome.</li>
 </ul>
 <h5 id="issue-49-dependencies">Dependencies</h5>
 <ul>
@@ -1849,10 +1855,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#50 — \[M3\] Expose placement explanations and before/after diffs](https://github.com/melliott18/CogniStore/issues/50)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:ui`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1871,10 +1877,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-50-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Users can inspect why an object moved, stayed, or was suppressed.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Dry-run diffs cannot be confused with completed actions.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> API/UI handle unavailable model details without hiding rule or constraint reasons.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> End-to-end tests trace a decision through its final job outcome.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Users can inspect why an object moved, stayed, or was suppressed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Dry-run diffs cannot be confused with completed actions.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> API/UI handle unavailable model details without hiding rule or constraint reasons.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> End-to-end tests trace a decision through its final job outcome.</li>
 </ul>
 <h5 id="issue-50-dependencies">Dependencies</h5>
 <ul>
@@ -1888,10 +1894,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#51 — \[M3\] Model tier pools, regions, latency, cost, and carbon attributes](https://github.com/melliott18/CogniStore/issues/51)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:storage`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-31
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a>
@@ -1915,14 +1921,14 @@ Follow-up contract context: <a href="https://github.com/melliott18/CogniStore/is
 </ul>
 <h5 id="issue-51-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Invalid units, missing required topology, and stale attributes are explicit.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Policies can enumerate eligible placements without backend-specific logic.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Hard region/locality constraints always filter candidates before scoring.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Migrations and configuration examples cover multi-pool tiers.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> In-memory, SQLite, and PostgreSQL implement the same backend-neutral tier/pool contract.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Pool assignment and reassignment are atomic and preserve the composite pool/tier invariant under concurrent updates.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Application and policy callers do not require concrete <code>SQLCatalog</code> access or direct table updates for tier/pool operations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests and documentation distinguish constrained active placement references from intentionally retained historical move-journal names.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Invalid units, missing required topology, and stale attributes are explicit.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Policies can enumerate eligible placements without backend-specific logic.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Hard region/locality constraints always filter candidates before scoring.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Migrations and configuration examples cover multi-pool tiers.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> In-memory, SQLite, and PostgreSQL implement the same backend-neutral tier/pool contract.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Pool assignment and reassignment are atomic and preserve the composite pool/tier invariant under concurrent updates.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Application and policy callers do not require concrete <code>SQLCatalog</code> access or direct table updates for tier/pool operations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests and documentation distinguish constrained active placement references from intentionally retained historical move-journal names.</li>
 </ul>
 <h5 id="issue-51-dependencies">Dependencies</h5>
 <ul>
@@ -1935,10 +1941,10 @@ Follow-up contract context: <a href="https://github.com/melliott18/CogniStore/is
 #### [#52 — \[M3\] Build calibrated storage cost and carbon estimators](https://github.com/melliott18/CogniStore/issues/52)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1957,10 +1963,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-52-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> All units, sources, effective dates, and formulas are versioned.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Golden fixtures produce reproducible totals.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unknown attributes cannot silently become zero cost or zero carbon.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Estimator outputs are available to policies and explanations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> All units, sources, effective dates, and formulas are versioned.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Golden fixtures produce reproducible totals.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unknown attributes cannot silently become zero cost or zero carbon.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Estimator outputs are available to policies and explanations.</li>
 </ul>
 <h5 id="issue-52-dependencies">Dependencies</h5>
 <ul>
@@ -1972,10 +1978,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#53 — \[M3\] Enforce cost/carbon budgets and provide what-if simulation](https://github.com/melliott18/CogniStore/issues/53)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M3 – Explainable policy engine
 - **Labels:** `area:policy`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-12
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -1994,10 +2000,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-53-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Hard budgets cannot be exceeded by an automated action without an explicit audited override.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> What-if runs perform zero storage/catalog mutations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Results show assumptions, deltas, affected objects, and binding constraints.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests cover competing cost, performance, locality, and carbon objectives.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Hard budgets cannot be exceeded by an automated action without an explicit audited override.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> What-if runs perform zero storage/catalog mutations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Results show assumptions, deltas, affected objects, and binding constraints.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests cover competing cost, performance, locality, and carbon objectives.</li>
 </ul>
 <h5 id="issue-53-dependencies">Dependencies</h5>
 <ul>

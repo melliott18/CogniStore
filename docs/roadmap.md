@@ -35,13 +35,19 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 
 ## Policy engine v2
 
-- [ ] Signals + guardrails
-  - [ ] Recency/frequency from access logs; importance tags; residency timers; hysteresis/cooldowns
-- [ ] Learning loop
-  - [ ] Supervised baseline; log features/labels; offline evaluation
-  - [ ] LLM-assisted decisions with JSON schema validation, dry-run, and safe fallbacks
-- [ ] Explainability
-  - [ ] Persist structured reasons; render in UI/API; diff before/after placement
+- [x] Signals + guardrails (#43–#45)
+  - [x] Recency/frequency from access logs; importance tags; residency timers; hysteresis/cooldowns
+- [x] Learning loop (#46–#48)
+  - [x] Supervised baseline; log features/labels; offline evaluation
+  - [x] LLM-assisted decisions with JSON schema validation, dry-run, and safe fallbacks
+- [x] Explainability (#49–#50)
+  - [x] Persist structured reasons; render in UI/API; diff before/after placement
+
+The [M3 closeout evidence](evidence/m3/README.md) maps these requirements to
+implementation and tests. The learned baseline is an offline execution-success
+experiment with production promotion disabled; its movement-volume and gate
+sensitivity metrics do not establish real financial savings or tier stability.
+Runtime stability controls and hard modeled budgets must be configured.
 
 ## Scale-out orchestration
 
@@ -64,8 +70,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [x] S3 (MinIO/AWS) with multipart support
   - [ ] Azure Blob
   - [ ] GCS
-- [ ] Tier/pool abstractions
-  - [ ] Regions, cost/latency/carbon attributes; policy integrates budgets
+- [x] Tier/pool abstractions (#51–#53)
+  - [x] Regions, cost/latency/carbon attributes; policy integrates budgets
 
 ## Security, compliance, tenancy
 
@@ -76,14 +82,16 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [ ] Secrets + encryption
   - [ ] KMS/Vault integration; encryption at rest/in transit
 - [ ] Governance
-  - [ ] PII detection hooks; legal holds; immutable audit logs; data locality constraints
+  - [x] Hard region/locality filtering for placement candidates (#51)
+  - [ ] PII detection hooks; legal holds; immutable audit logs
 
 ## Observability and ops
 
 - [ ] Metrics/tracing/logging
   - [ ] Prometheus/Grafana, OpenTelemetry traces, structured logs
 - [ ] SLOs and budgets
-  - [ ] Move latency/error SLOs, throughput targets; cost/carbon guardrails and alerts
+  - [x] Modeled cost/carbon budget guardrails (#53)
+  - [ ] Move latency/error SLOs, throughput targets, and operational alerts
 - [ ] Repair/health
   - [ ] Consistency checks, auto-repair, orphan cleanup
 
@@ -97,7 +105,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
 - [x] Content-search UI and sample corpus
   ([#41](https://github.com/melliott18/CogniStore/issues/41))
 - [ ] Admin UI
-  - [ ] Drivers, tiers, policies, actions, audit trail; dry-run previews and diffs
+  - [x] Placement reasons, dry-run previews, and before/after diffs (#50)
+  - [ ] General administration of drivers, tiers, policies, actions, and audit history
 - [ ] CLI polish
   - [x] Global config file, profiles, dry-run, verbose and JSON outputs
   - [x] Close secret-redaction and operator-contract gaps in [#26](https://github.com/melliott18/CogniStore/issues/26)
@@ -111,8 +120,8 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - [x] Reduced CI fault injection verifies mover retries, idempotency, and source retention
   - [x] Demonstrate fenced stale scheduled-run recovery after a hard process kill
   - [x] Demonstrate the full-scale recovery profile
-- [ ] Cost/carbon modeling
-  - [ ] Estimators per tier; what-if simulations for policy changes
+- [x] Cost/carbon modeling (#52–#53)
+  - [x] Estimators per tier; what-if simulations for policy changes
 
 ## Delivery and DX
 
@@ -139,7 +148,11 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
   - Epic [#13](https://github.com/melliott18/CogniStore/issues/13) and the
     [M2 milestone](https://github.com/melliott18/CogniStore/milestone/1) are closed
   - Completed execution record: [next-ticket roadmap](next_ticket_roadmap_2026-08-27.md)
-- [ ] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets)
+- [x] M3: Policy engine v2 (signals + hysteresis + cost/carbon budgets; completed 2026-09-12)
   - Success: Automated, explainable actions under budget constraints; no tier flapping
+  - Exit gate: #43–#53 are complete; [retained closeout evidence](evidence/m3/README.md)
+    records acceptance coverage, local validation, and the unavailable GitHub Actions run
+  - Epic [#15](https://github.com/melliott18/CogniStore/issues/15) and the
+    [M3 milestone](https://github.com/melliott18/CogniStore/milestone/2) are closed
 - [ ] M4: Multi-tenant, observable, and deployable
   - Success: Helm chart, dashboards, alerts; RBAC; audit-complete; run on k8s with autoscaling

@@ -1,0 +1,248 @@
+{
+  "accepted_on": "2026-09-12",
+  "application_python_source_sha256": "d6d75c0ca486789cb87cd74d5138337cee4baab64f36acf9676588f5cdf20b87",
+  "closeout_test_files": {
+    "tests/integration/test_postgres_topology.py": "661d573d71dfaa300075233c5e5f15cc11cebd48579f599f0bd6e4c510af77e9",
+    "tests/unit/test_policy_stability.py": "dd710858573654fabf50c5ef43d20c39d23522d5bf2b56210cb9e4fb6429c831"
+  },
+  "commands": {
+    "default": "python -m pytest --cov=cognistore --cov-report=term --cov-report=xml:coverage.xml --junitxml=default.xml",
+    "integration": "COGNISTORE_NATS_URL=nats://127.0.0.1:14222 COGNISTORE_MINIO_ENDPOINT_URL=http://127.0.0.1:19000 COGNISTORE_MINIO_ACCESS_KEY=cognistore COGNISTORE_MINIO_SECRET_KEY=cognistore-development-only COGNISTORE_MINIO_REGION=us-east-1 COGNISTORE_TEST_POSTGRES_DSN=postgresql://cognistore:cognistore-development-only@127.0.0.1:55433/postgres COVERAGE_FILE=.coverage.integration python -m pytest tests/integration --cov=cognistore --cov-report= --cov-fail-under=0 --junitxml=integration.xml",
+    "offline_evaluation": "python docs/evidence/m3/reproduce_learning.py",
+    "packaging": [
+      "python -m build --outdir <temporary-dist>",
+      "python -m twine check <temporary-dist>/*",
+      "clean venv: pip install <wheel>; pip check; cognistore --help; cognistore-sample verify; Python import/migration/resource smoke from /tmp"
+    ],
+    "quality": [
+      "python -m ruff check .",
+      "python -m mypy cognistore",
+      "python -m cognistore.api.openapi --check docs/openapi/v1.json"
+    ],
+    "security": [
+      "python -m bandit -c pyproject.toml -r cognistore -ll -ii",
+      "python -m pip_audit .",
+      "python -m pip_audit --skip-editable",
+      "gitleaks dir --redact --no-banner <copy-of-current-tracked-files>"
+    ]
+  },
+  "default_coverage": {
+    "branch_rate": 0.7555,
+    "branches_valid": 7162,
+    "combined_percent": 84.9,
+    "line_rate": 0.8792,
+    "lines_valid": 22157,
+    "threshold_percent": 80
+  },
+  "default_suite": {
+    "errors": 0,
+    "failures": 0,
+    "passed": 2857,
+    "seconds": 193.166,
+    "skipped": 151,
+    "tests": 3008
+  },
+  "environment": {
+    "machine": "arm64",
+    "pip": "pip 26.2.1",
+    "platform": "macOS-14.8.7-arm64-arm-64bit-Mach-O",
+    "python": "3.13.7 (v3.13.7:bcee1c32211, Aug 14 2025, 19:10:51) [Clang 16.0.0 (clang-1600.0.26.6)]",
+    "requirements": "requirements.txt",
+    "services": "Isolated Docker Compose project cognistore-m3-audit: repository-configured PostgreSQL/pgvector, NATS and MinIO; host ports 55433, 14222, 19000"
+  },
+  "gates": {
+    "bandit_configured_gate": "passed",
+    "dependency_audit": "passed",
+    "development_dependency_audit_after_pip_upgrade": "passed",
+    "gitleaks_current_tracked_source": "passed",
+    "mypy": "passed",
+    "openapi": "passed",
+    "ruff": "passed",
+    "wheel_and_sdist": "passed",
+    "wheel_outside_checkout": "passed"
+  },
+  "historical_gitleaks": {
+    "assessment": "Reviewed synthetic idempotency-key test fixtures; complete-history scan is not a zero-finding pass",
+    "findings": [
+      {
+        "Commit": "115adfd5e077890449738851dd2208de30ae7061",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 186
+      },
+      {
+        "Commit": "115adfd5e077890449738851dd2208de30ae7061",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 191
+      },
+      {
+        "Commit": "115adfd5e077890449738851dd2208de30ae7061",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 193
+      },
+      {
+        "Commit": "885fd789db083b2d7336fe27a80fb7b2ab5d7205",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 186
+      },
+      {
+        "Commit": "885fd789db083b2d7336fe27a80fb7b2ab5d7205",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 191
+      },
+      {
+        "Commit": "885fd789db083b2d7336fe27a80fb7b2ab5d7205",
+        "File": "tests/unit/test_policy_stability.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 193
+      },
+      {
+        "Commit": "464145908bc944b14be6e8034c2b38b039b98b3d",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 435
+      },
+      {
+        "Commit": "464145908bc944b14be6e8034c2b38b039b98b3d",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 447
+      },
+      {
+        "Commit": "e9f32e8338e1152e409d8ba6619188259f620521",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 436
+      },
+      {
+        "Commit": "e9f32e8338e1152e409d8ba6619188259f620521",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 448
+      },
+      {
+        "Commit": "593cd69565b5d078cf24dd59ce60e81a1901b3cb",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 435
+      },
+      {
+        "Commit": "593cd69565b5d078cf24dd59ce60e81a1901b3cb",
+        "File": "tests/integration/test_mover_catalog.py",
+        "RuleID": "generic-api-key",
+        "StartLine": 447
+      }
+    ],
+    "matches": 12
+  },
+  "limitations": [
+    "Local CPython 3.13.7 only; GitHub Actions account prevented runtime matrix.",
+    "151 default skips include opt-in services and 4 unavailable native-libmagic cases; services covered by integration rerun.",
+    "Default suite produced 53 ResourceWarnings for unclosed SQLite test connections.",
+    "No automated browser interactions or fresh full container shutdown campaign.",
+    "Offline baseline predicts execution success, not placement optimality; production promotion disabled.",
+    "LLM evaluation uses deterministic adapters, not hosted model quality measurements."
+  ],
+  "qualification_corrections": [
+    "Initial environment used an incomplete Anaconda venv and was discarded for a clean CPython 3.13.7 venv.",
+    "One stale PostgreSQL rollback/re-upgrade expectation corrected to verify the conservative last_tier_move_at backfill; 34 focused PostgreSQL topology tests and full 245-test integration suite subsequently passed.",
+    "Standalone partial integration coverage is not required to reach the full-suite 80% gate.",
+    "Synthetic retry identity annotated on three test lines for current-source Gitleaks. No application code changes."
+  ],
+  "qualified_application_revision": "fe700326f3cc99ba498536afd07b897575709d53",
+  "remote_ci": {
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the Billing & plans section in your settings",
+    "conclusion": "failure",
+    "executed_jobs": 0,
+    "headSha": "fe700326f3cc99ba498536afd07b897575709d53",
+    "jobs": [
+      {
+        "conclusion": "failure",
+        "name": "Lint and type check",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958750"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Build and install package",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958819"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Tests (Python 3.12)",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958871"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Container images and Compose integration",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958876"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Default full test suite",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958881"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Secret scan",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958897"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Tests (Python 3.14)",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958901"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Dependency and static security scans",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958918"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Tests (Python 3.13)",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958921"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Tests (Python 3.11)",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958933"
+      },
+      {
+        "conclusion": "failure",
+        "name": "Tests (Python 3.10)",
+        "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198/job/103453958972"
+      }
+    ],
+    "url": "https://github.com/melliott18/CogniStore/actions/runs/34657835198"
+  },
+  "retained_reports": [
+    {
+      "original_bytes": 497196,
+      "original_sha256": "5a1522f680441b6eacff2c0f263575ed060d3789375483df97c8dfea50d824fc",
+      "path": "default.xml.gz"
+    },
+    {
+      "original_bytes": 39805,
+      "original_sha256": "360573dab7c411999ae3b78423787f2a1a341957ea81da01e567083bc79114b4",
+      "path": "integration.xml.gz"
+    },
+    {
+      "original_bytes": 1019707,
+      "original_sha256": "9eda8cd06dc9c1c67e863b1ee72d429e3f8b0133e9f36dd65d9f63fa138eb041",
+      "path": "coverage.xml.gz"
+    }
+  ],
+  "schema_version": 1,
+  "service_enabled_integration": {
+    "errors": 0,
+    "failures": 0,
+    "passed": 245,
+    "seconds": 132.757,
+    "skipped": 1,
+    "tests": 246
+  },
+  "source_diff_vs_qualified_revision": ""
+}
