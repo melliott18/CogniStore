@@ -281,9 +281,39 @@ class PosixDriver(StorageDriver):
             raise ValueError("Object path must not contain symbolic links")
         if not stat.S_ISREG(st.st_mode):
             raise ValueError("POSIX objects must be regular files")
-        if st.st_nlink != 1:
+        if st.st_nlink != 1 and not self._only_staging_links(st):
             raise ValueError("POSIX objects must not have multiple hard links")
         return st
+
+    def _only_staging_links(self, st: os.stat_result) -> bool:
+        """Account for every extra link left by interrupted publication.
+
+        A process can die after linking the destination but before unlinking
+        its staging name. Such an object must remain available to recovery.
+        Accept extra links only when all of them are observed in the secured
+        staging directory; an unaccounted-for (possibly outside) alias still
+        fails closed. This does not remove potentially active staging files.
+        """
+        if st.st_nlink < 2:
+            return False
+        with ExitStack() as stack:
+            try:
+                staging = stack.enter_context(self._directory(self.base / _STAGING_DIRECTORY))
+            except FileNotFoundError:
+                return False
+            links = 0
+            for name in os.listdir(staging.fd):
+                if not (name.startswith(_STAGING_FILE_PREFIX) and name.endswith(_STAGING_FILE_SUFFIX)):
+                    continue
+                try:
+                    alias = os.stat(name, dir_fd=staging.fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if (alias.st_dev, alias.st_ino) == (st.st_dev, st.st_ino):
+                    if alias.st_nlink != st.st_nlink:
+                        return False
+                    links += 1
+            return links == st.st_nlink - 1
 
     def _stat_file(self, parent: _Directory, name: str) -> os.stat_result:
         return self._regular_stat(os.stat(name, dir_fd=parent.fd, follow_symlinks=False))

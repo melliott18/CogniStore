@@ -62,8 +62,9 @@ The tier root's device and inode identify the accepted root. An existing root
 is observed during construction; a missing root is accepted on first use.
 A later traversal that observes a different root device or inode is rejected.
 Descendants on a different device are rejected. Object access requires regular
-files with a single hard link; special files and multiply linked files are
-unsupported.
+files. Extra hard links are accepted only when every additional link is
+accounted for by a matching inode in the secured private staging directory;
+special files and unaccounted-for hard links are unsupported.
 
 Read, range-write, stat, recursive listing, publication, deletion, and staging
 cleanup use the descriptors acquired by that traversal. Leaf opens also use
@@ -79,6 +80,12 @@ Publication uses source and destination directory descriptors; no-overwrite
 publication retains the atomic hard-link operation. Permission preservation
 and file durability barriers act on the opened staging file. Namespace
 durability barriers and cleanup act on the retained directory descriptors.
+An abrupt process exit between linking a no-overwrite destination and removing
+its staging name can leave both links. The driver verifies the private alias
+through the staging descriptor so reads and mover recovery can still use the
+published object. A remaining outside alias is rejected even when a valid
+staging alias also exists. Recognition does not remove staging files that
+another publication could still be using.
 
 These properties follow the POSIX definitions of descriptor-relative
 [openat](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html),
@@ -109,8 +116,8 @@ descriptors across renames in its
 [openat rationale](https://www.man7.org/linux/man-pages/man2/openat.2.html).
 
 Device checks reject ordinary cross-filesystem traversal; they cannot identify
-every same-device bind mount or filesystem alias. Single-link checks reject
-ordinary hard-link aliases when observed, but cannot stop a process with the
+every same-device bind mount or filesystem alias. Link-count checks reject
+unaccounted-for hard-link aliases when observed, but cannot stop a process with the
 necessary permissions creating a link after that check. Hard-link permissions
 vary across systems; Linux, for example, has a configurable
 [`protected_hardlinks` restriction](https://www.man7.org/linux/man-pages/man5/proc_sys_fs.5.html).
