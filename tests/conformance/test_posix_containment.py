@@ -25,6 +25,7 @@ _OPERATIONS = (
     "generation_read",
     "stat",
     "list",
+    "list_page",
     "publish_overwrite",
     "publish_create",
     "range_write",
@@ -171,6 +172,8 @@ def _operate(case: _DirectorySwap, operation: str):
         return driver.stat_object(bucket, key)
     if operation == "list":
         return list(driver.list_objects(bucket))
+    if operation == "list_page":
+        return list(driver.list_objects_page(bucket).keys)
     if operation in {"publish_overwrite", "publish_create"}:
         return driver.put_object_stream(
             bucket,
@@ -201,7 +204,7 @@ def test_symlink_swap_before_directory_acquisition_is_rejected(
     case = _DirectorySwap(tmp_path, component, existing=operation != "publish_create")
     case.swap_on_open(monkeypatch, when="before")
 
-    if operation == "list":
+    if operation in {"list", "list_page"}:
         # Listings can skip a child that becomes unsafe during traversal, or
         # reject the bucket itself. Neither response may reveal outside keys.
         try:
@@ -243,7 +246,7 @@ def test_acquired_directory_remains_bound_during_namespace_replacement(
         assert result == _INSIDE[2:7]
     elif operation == "stat":
         assert (result["size"], result["generation"]) == (len(_INSIDE), case.generation)
-    elif operation == "list":
+    elif operation in {"list", "list_page"}:
         assert result == [case.key]
     elif operation in {"publish_overwrite", "publish_create"}:
         assert result == len(_NEW)

@@ -100,6 +100,7 @@ class _Directory:
 # platform capability test. Runtime filesystem errors still propagate.
 _DIR_FD_OPERATIONS = (os.open, os.mkdir, os.stat, os.unlink, os.rename, os.link)
 _LIST_DIRECTORY = os.listdir
+_SCAN_DIRECTORY = os.scandir
 _STAT = os.stat
 _LINK = os.link
 
@@ -112,6 +113,7 @@ def _require_containment_support() -> None:
         ))
         or not all(operation in os.supports_dir_fd for operation in _DIR_FD_OPERATIONS)
         or _LIST_DIRECTORY not in os.supports_fd
+        or _SCAN_DIRECTORY not in os.supports_fd
         or _STAT not in os.supports_follow_symlinks
         or _LINK not in os.supports_follow_symlinks
         or not hasattr(os, "fchmod")
@@ -747,30 +749,11 @@ class PosixDriver(StorageDriver):
         base = self._path(bucket, "", allow_bucket_root=True)
         backend = f"posix:{self.base}"
         after = decode_listing_cursor(cursor, backend, bucket, prefix) if cursor else None
-        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        flags |= getattr(os, "O_CLOEXEC", 0)
-        try:
-            # Anchor every absolute path component, including the tier root's
-            # ancestors. A prior _path check alone cannot prevent a directory
-            # being replaced with a symlink between validation and traversal.
-            descriptor = os.open(base.anchor, flags)
-            try:
-                for part in base.parts[1:]:
-                    child = os.open(part, flags, dir_fd=descriptor)
-                    os.close(descriptor)
-                    descriptor = child
-            except BaseException:
-                os.close(descriptor)
-                raise
-        except FileNotFoundError:
-            if cursor is not None:
-                raise
-            return StorageListingPage((), None)
 
-        def keys(directory: int, parent: str = "") -> Generator[str, None, None]:
+        def keys(directory: _Directory, parent: str = "") -> Generator[str, None, None]:
             # scandir propagates permission and I/O failures; os.walk's default
             # error suppression would misreport these as a complete inventory.
-            with os.scandir(directory) as entries:
+            with os.scandir(directory.fd) as entries:
                 for entry in entries:
                     key = f"{parent}{entry.name}"
                     child_prefix = key + "/"
@@ -782,24 +765,26 @@ class PosixDriver(StorageDriver):
                         and not after.startswith(child_prefix)
                     ):
                         continue
-                    mode = entry.stat(follow_symlinks=False).st_mode
-                    if stat.S_ISDIR(mode):
-                        child = os.open(entry.name, flags, dir_fd=directory)
-                        try:
+                    st = entry.stat(follow_symlinks=False)
+                    if stat.S_ISDIR(st.st_mode):
+                        with self._child_directory(directory, entry.name) as child:
                             yield from keys(child, child_prefix)
-                        finally:
-                            os.close(child)
                     elif (
-                        stat.S_ISREG(mode)
+                        stat.S_ISREG(st.st_mode)
                         and key.startswith(prefix)
                         and (after is None or key > after)
                     ):
+                        self._regular_stat(st)
                         yield key
 
-        try:
-            selected = nsmallest(limit + 1, keys(descriptor))
-        finally:
-            os.close(descriptor)
+        with ExitStack() as stack:
+            try:
+                directory = stack.enter_context(self._directory(base))
+            except FileNotFoundError:
+                if cursor is not None:
+                    raise
+                return StorageListingPage((), None)
+            selected = nsmallest(limit + 1, keys(directory))
         more = len(selected) > limit
         page = tuple(selected[:limit])
         next_cursor = encode_listing_cursor(backend, bucket, prefix, page[-1]) if more else None

@@ -32,6 +32,8 @@ def _operate(driver: PosixDriver, operation: str):
         return driver.get_object("bucket", "object.bin", range="bytes=0-2")
     if operation == "stat":
         return driver.stat_object("bucket", "object.bin")
+    if operation == "list_page":
+        return driver.list_objects_page("bucket")
     if operation == "write":
         return driver.put_object("bucket", "object.bin", _REPLACEMENT)
     if operation == "range_write":
@@ -56,7 +58,7 @@ def _fingerprint(path: Path) -> tuple[int, ...]:
     [
         "O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC", "O_NONBLOCK", "fchmod",
         "dir_fd:open", "dir_fd:mkdir", "dir_fd:stat", "dir_fd:unlink",
-        "dir_fd:rename", "dir_fd:link", "fd:listdir",
+        "dir_fd:rename", "dir_fd:link", "fd:listdir", "fd:scandir",
         "follow_symlinks:stat", "follow_symlinks:link",
     ],
 )
@@ -133,7 +135,7 @@ def test_runtime_unsupported_relative_syscall_fails_without_fallback(
 
 @pytest.mark.parametrize("location", ["ancestor", "root", "descendant"])
 @pytest.mark.parametrize("mode", [0o770, 0o707])
-@pytest.mark.parametrize("operation", ["read", "write"])
+@pytest.mark.parametrize("operation", ["read", "write", "list_page"])
 def test_untrusted_directory_permissions_reject_access(
     tmp_path: Path, location: str, mode: int, operation: str,
 ) -> None:
@@ -176,8 +178,9 @@ def test_constructor_rejects_unsafe_existing_directory_without_mutation(
 
 
 @pytest.mark.parametrize("location", ["ancestor", "root", "descendant"])
+@pytest.mark.parametrize("operation", ["read", "list_page"])
 def test_foreign_directory_owner_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, location: str,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, location: str, operation: str,
 ) -> None:
     driver, object_path = _stored_object(tmp_path)
     directory = {
@@ -200,7 +203,7 @@ def test_foreign_directory_owner_is_rejected(
 
     monkeypatch.setattr(os, "fstat", foreign_owner)
     with pytest.raises(PermissionError, match="trusted directory"):
-        driver.get_object("bucket", "object.bin")
+        _operate(driver, operation)
     assert checked
     assert object_path.read_bytes() == _PAYLOAD
 
@@ -219,17 +222,18 @@ def test_sticky_shared_ancestor_allows_protected_root(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("location", ["root", "descendant"])
+@pytest.mark.parametrize("operation", ["read", "list_page"])
 def test_sticky_bit_does_not_allow_shared_object_directories(
-    tmp_path: Path, location: str,
+    tmp_path: Path, location: str, operation: str,
 ) -> None:
     driver, object_path = _stored_object(tmp_path)
     directory = driver.base if location == "root" else object_path.parent
     directory.chmod(0o1777)
     with pytest.raises(PermissionError, match="trusted directory"):
-        driver.get_object("bucket", "object.bin")
+        _operate(driver, operation)
 
 
-@pytest.mark.parametrize("operation", ["read", "write", "delete"])
+@pytest.mark.parametrize("operation", ["read", "write", "delete", "list_page"])
 def test_replaced_tier_root_is_rejected(tmp_path: Path, operation: str) -> None:
     driver, original_object = _stored_object(tmp_path)
     retained = tmp_path / "retained-tier"
@@ -276,6 +280,34 @@ def test_non_regular_or_aliased_objects_are_rejected(
     assert _fingerprint(object_path) == object_before
     staging = driver.base / ".cognistore-staging"
     assert not staging.exists() or list(staging.iterdir()) == []
+
+
+def test_paged_listing_rejects_outside_hardlink_without_mutation(tmp_path: Path) -> None:
+    driver, object_path = _stored_object(tmp_path)
+    outside = tmp_path / "outside.bin"
+    os.link(object_path, outside)
+    before = _fingerprint(outside)
+
+    with pytest.raises(ValueError, match="multiple hard links"):
+        driver.list_objects_page("bucket")
+
+    assert _fingerprint(outside) == before
+    assert outside.read_bytes() == object_path.read_bytes() == _PAYLOAD
+
+
+@pytest.mark.parametrize("mode", [0o770, 0o707])
+def test_paged_listing_rejects_unsafe_nested_directory(tmp_path: Path, mode: int) -> None:
+    driver, object_path = _stored_object(tmp_path)
+    nested = object_path.parent / "nested"
+    nested.mkdir()
+    object_path.rename(nested / object_path.name)
+    nested.chmod(mode)
+    before = _fingerprint(nested / object_path.name)
+
+    with pytest.raises(PermissionError, match="trusted directory"):
+        driver.list_objects_page("bucket")
+
+    assert _fingerprint(nested / object_path.name) == before
 
 
 @pytest.mark.parametrize("location", ["directory", "object"])
