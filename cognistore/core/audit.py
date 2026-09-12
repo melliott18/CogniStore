@@ -50,6 +50,12 @@ class AuditEventType(str, Enum):
     IMPORTANCE_CHANGED = "importance.changed"
     BUDGET_CONFIGURED = "budget.configured"
     BUDGET_RESERVED = "budget.reserved"
+    CONSISTENCY_STARTED = "consistency.started"
+    CONSISTENCY_RESUMED = "consistency.resumed"
+    CONSISTENCY_CHECKPOINT = "consistency.checkpoint"
+    CONSISTENCY_COMPLETED = "consistency.completed"
+    CONSISTENCY_FAILED = "consistency.failed"
+    CONSISTENCY_EXPORTED = "consistency.exported"
 
 
 class AuditOutcome(str, Enum):

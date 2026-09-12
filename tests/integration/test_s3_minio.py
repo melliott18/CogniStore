@@ -7,7 +7,9 @@ present.  They never fall back to the ambient AWS credential chain.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import sqlite3
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -19,11 +21,13 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from cognistore.core.catalog import Catalog
+from cognistore.core.consistency import ConsistencyScanner, ScanScope
 from cognistore.core.mover import (
     MoveGenerationMismatchError,
     Mover,
     MoveVerificationError,
 )
+from cognistore.core.sqlite_catalog import SQLiteCatalog
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.s3_driver import S3Driver
 from tests.conformance.storage_driver import StorageDriverConformance
@@ -144,6 +148,77 @@ def _multipart_driver(client: Any) -> S3Driver:
         multipart_threshold=part_size,
         client=client,
     )
+
+
+def test_s3_inventory_pages_and_resumed_consistency_scan_are_scoped_and_read_only(
+    tmp_path: Path,
+    minio_client,
+    move_bucket: str,
+) -> None:
+    prefix = "tenants/雪%_/"
+    tracked = [prefix + name for name in ("alpha", "beta", "nested/gamma", "omega")]
+    untracked = prefix + "untracked"
+    outside = "tenants/other/private"
+    all_keys = tracked + [untracked, outside]
+    payload = b"complete checksum content"
+    driver = _multipart_driver(minio_client)
+    for key in all_keys:
+        driver.put_object(move_bucket, key, payload)
+
+    cursor = None
+    listed: list[str] = []
+    page_lengths = []
+    while True:
+        # Tokens must survive client/driver reconstruction, as CLI resumes do.
+        page = _multipart_driver(minio_client).list_objects_page(
+            move_bucket, prefix, cursor=cursor, limit=2,
+        )
+        page_lengths.append(len(page.keys))
+        listed.extend(page.keys)
+        if page.next_cursor is None:
+            break
+        assert page.next_cursor != cursor
+        cursor = page.next_cursor
+    assert listed == sorted(tracked + [untracked])
+    assert page_lengths == [2, 2, 1]
+
+    database = tmp_path / "catalog.sqlite3"
+    with SQLiteCatalog(database) as catalog:
+        for key in tracked + [outside]:
+            catalog.upsert(
+                move_bucket, key, size=len(payload), tier="hot",
+                metadata={"sha256": hashlib.sha256(payload).hexdigest(), "sample_len": len(payload)},
+            )
+    catalog_before = database.read_bytes()
+    objects_before = {key: driver.stat_object(move_bucket, key) for key in all_keys}
+    scope = ScanScope("tenant-unicode", move_bucket, prefix, ("hot",))
+    report = tmp_path / "consistency.sqlite3"
+    reports = []
+    with SQLiteCatalog(database, read_only=True) as catalog:
+        for attempt in range(30):
+            scanner = ConsistencyScanner(
+                catalog, {"hot": _multipart_driver(minio_client)}, scope,
+                binding_id="minio-isolated-integration", page_size=2,
+                requests_per_second=1000, bytes_per_second=1e9,
+            )
+            summary = scanner.run(report, resume=attempt > 0, max_items=2)
+            reports.append(summary)
+            if summary["complete"]:
+                break
+    assert len(reports) > 1 and not reports[0]["complete"]
+    assert summary["complete"] and summary["read_only"]
+    assert summary["checked"] == summary["inventory_keys"] == 5
+    assert summary["reason_counts"] == {"untracked_object": 1}
+    with sqlite3.connect(report) as connection:
+        inventory = {row[0] for row in connection.execute("SELECT object_key FROM inventory")}
+        findings = [json.loads(row[0]) for row in connection.execute("SELECT payload FROM findings")]
+    assert inventory == set(tracked + [untracked])
+    assert [finding["key"] for finding in findings] == [untracked]
+    assert all(finding["tenant_id"] == scope.tenant_id for finding in findings)
+    assert database.read_bytes() == catalog_before
+    assert {key: driver.stat_object(move_bucket, key) for key in all_keys} == objects_before
+    assert set(driver.list_objects(move_bucket)) == set(all_keys)
+    assert all(driver.get_object(move_bucket, key) == payload for key in all_keys)
 
 
 def test_mover_streams_posix_to_s3_and_back(

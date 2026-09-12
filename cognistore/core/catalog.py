@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from heapq import nsmallest
 from typing import Any, Dict, List, Mapping, Optional, Protocol
 from uuid import UUID
 
@@ -501,6 +502,15 @@ class CatalogStore(Protocol):
 		*,
 		states: set[MoveJobState] | None = None,
 		idempotency_prefix: str | None = None,
+	) -> List[MoveJob]: ...
+
+	def list_move_jobs_page(
+		self,
+		bucket: str,
+		prefix: str = "",
+		*,
+		after_id: str | None = None,
+		limit: int = 100,
 	) -> List[MoveJob]: ...
 
 	def list_move_job_transitions(
@@ -1604,6 +1614,40 @@ class Catalog(CatalogStore):
 	) -> List[MoveJobTransition]:
 		with self._lock:
 			return list(self._move_transitions.get(idempotency_key, ()))
+
+	def list_move_jobs_page(
+		self,
+		bucket: str,
+		prefix: str = "",
+		*,
+		after_id: str | None = None,
+		limit: int = 100,
+	) -> List[MoveJob]:
+		"""Read a bounded, detached job page for one bucket and literal key prefix.
+
+		The exclusive cursor is an idempotency key in backend-neutral string
+		order. Jobs inserted behind the cursor are observed by the next scan.
+		"""
+
+		if not isinstance(bucket, str) or not bucket:
+			raise ValueError("bucket must be a non-empty string")
+		if not isinstance(prefix, str):
+			raise ValueError("prefix must be a string")
+		if after_id is not None and not isinstance(after_id, str):
+			raise ValueError("after_id must be a string or null")
+		if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+			raise ValueError("limit must be a positive integer")
+		with self._lock:
+			jobs = nsmallest(
+				limit,
+				(
+					job for job in self._move_jobs.values()
+					if job.bucket == bucket and job.key.startswith(prefix)
+					and (after_id is None or job.idempotency_key > after_id)
+				),
+				key=lambda job: job.idempotency_key,
+			)
+			return deepcopy(jobs)
 
 	def renew_move_job_lease(
 		self,

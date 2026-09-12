@@ -134,6 +134,8 @@ _COMMAND_NAMES = frozenset(
 		"move-list",
 		"move-resume",
 		"content-reference-report",
+		"consistency-scan",
+		"consistency-export",
 		"schedule-run-list",
 		"schedule-run-status",
 		"schedule-run-recover",
@@ -1480,6 +1482,8 @@ def _run_cli(
 
 	from cognistore.cli.budget_commands import add_commands as add_budget_commands
 	add_budget_commands(command)
+	from cognistore.cli.consistency_commands import add_commands as add_consistency_commands
+	add_consistency_commands(command)
 
 	p_run = command("policy-run")
 	p_importance = command("importance-set", help="Set an audited importance tag and reevaluate")
@@ -1694,6 +1698,16 @@ def _run_cli(
 		sources=effective_sources,
 	)
 	dry_run = bool(getattr(args, "dry_run", False))
+	from cognistore.cli.consistency_commands import COMMANDS as consistency_commands
+	if args.cmd in consistency_commands:
+		from cognistore.cli.consistency_commands import run as run_consistency_command
+		result = run_consistency_command(args)
+		_emit_result(
+			args.cmd, "planned" if dry_run else "success", json_output=args.json,
+			human=json.dumps(result["summary"], sort_keys=True),
+			dry_run=dry_run, **result,
+		)
+		return 0
 	queue_command = (
 		args.cmd
 		in {

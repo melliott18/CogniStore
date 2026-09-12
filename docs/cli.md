@@ -174,6 +174,9 @@ and dataset export require an existing catalog and open it read-only, without
 `--drivers` or `--base`. `policy-dataset-validate` reads a local JSON file or stdin
 and requires no catalog. `policy-baseline-train` and `policy-baseline-evaluate`
 read local JSON artifacts and require no catalog, drivers, or queue service.
+`consistency-scan` and `consistency-export` require a persistent catalog locator,
+`--drivers`, and a trusted `--scope-config` tenant binding. The scan opens the
+existing catalog read-only; export verifies the binding without contacting it.
 Scheduler state is always SQLite: a PostgreSQL worker requires an
 explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
 file when `schedule_db` is omitted. A non-preview scheduler requires a
@@ -279,6 +282,8 @@ their query. The complete command matrix is:
 | `move-list` | Read-only. Returns the same deterministic, optionally filtered job list. |
 | `move-resume` | Reads the durable job and reports `would_resume` or `already_completed`; it does not advance the job, transfer data, clean up a source, or write the catalog. `resume_preconditions` records the checked journal state and driver pair, reports that no ownership claim was attempted, and names every phase-specific storage condition left unchecked. A non-terminal preview therefore reports `readiness: "not_confirmed"`; the writable resume may still fail. |
 | `content-reference-report` | Read-only in every mode. Returns the same deterministic comparison of stored and topology-derived reference counts plus grace-period reclamation eligibility. It never repairs catalog state or deletes content. |
+| `consistency-scan` | Always read-only toward source catalog and storage. Dry-run scans into a disposable temporary report; with `--resume`, previews a snapshot of the checkpoint. No report, checkpoint, or audit changes are retained. |
+| `consistency-export` | Validates the report's tenant/source binding and new output target, returning the saved summary without creating an export or audit event. |
 | `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
 | `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
 | `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the SQLite scheduler store read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
@@ -337,6 +342,35 @@ compares it with the recorded rules on time-based holdouts. Both support
 `--json` and `--dry-run`; output directories must already exist for publication.
 See the [supervised baseline guide](policy_baseline.md) for reproducible examples,
 model provenance, leakage checks, metrics, and promotion requirements.
+
+## Tenant-scoped consistency checks
+
+`consistency-scan` compares catalog placements, backend listings/stats,
+generation-bound checksums, and durable move state. It records discrepancies in
+a separate SQLite report and supports bounded work and resumable checkpoints:
+
+```sh
+cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-scan \
+  --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 \
+  --max-items 1000 --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-scan \
+  --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 \
+  --resume --max-items 1000 --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-export \
+  --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 \
+  --output reports/acme.jsonl --json
+```
+
+The scope configuration binds each tenant to one bucket, key prefix, and set of
+tiers. Scan `--prefix` and repeated `--tier` options can only narrow that binding.
+`--page-size`, `--requests-per-second`, and `--bytes-per-second` bound inventory
+pages and throttle backend reads. Inspect `summary.complete` before treating a
+report as finished, and `summary.consistent` to distinguish completion from a
+clean result. The CLI never repairs catalog state or deletes stored objects.
+See the [consistency checks guide](consistency_checks.md) for the configuration
+schema, trust boundary, report/export contracts, and scan limitations.
 
 ## Shared-content reference report
 
