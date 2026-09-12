@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Mapping, TypeAlias
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
+from cognistore.auth.principal import PRINCIPAL_METADATA, Principal
 from cognistore.observability import current_correlation_id, inject_trace_context
 
 JSONScalar: TypeAlias = None | bool | int | float | str
@@ -136,6 +137,7 @@ class JobEnvelope:
     correlation_id: str
     payload: Mapping[str, JSONValue]
     metadata: Mapping[str, str] = field(default_factory=dict)
+    _principal: Principal | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -170,7 +172,30 @@ class JobEnvelope:
             if not isinstance(key, str) or not isinstance(value, str):
                 raise JobEnvelopeError("metadata keys and values must be strings")
             normalized_metadata[key] = value
+        if PRINCIPAL_METADATA in normalized_metadata:
+            try:
+                principal = Principal.from_json(normalized_metadata[PRINCIPAL_METADATA])
+            except (TypeError, ValueError) as exc:
+                raise JobEnvelopeError("invalid normalized principal metadata") from exc
+            normalized_metadata[PRINCIPAL_METADATA] = principal.to_json()
+            object.__setattr__(self, "_principal", principal)
         object.__setattr__(self, "metadata", normalized_metadata)
+
+    @property
+    def principal(self) -> Principal | None:
+        """The submitting identity, normalized at the trusted API boundary."""
+
+        return self._principal
+
+    def _wire_metadata(self) -> dict[str, str]:
+        # Handlers may mutate ordinary metadata, but the submitting identity
+        # remains the one validated when the envelope crossed the boundary.
+        metadata = dict(self.metadata)
+        if self.principal is None:
+            metadata.pop(PRINCIPAL_METADATA, None)
+        else:
+            metadata[PRINCIPAL_METADATA] = self.principal.to_json()
+        return metadata
 
     @classmethod
     def create(
@@ -209,7 +234,7 @@ class JobEnvelope:
                 "created_at": self.created_at,
                 "correlation_id": self.correlation_id,
                 "payload": self.payload,
-                "metadata": self.metadata,
+                "metadata": self._wire_metadata(),
             },
             allow_nan=False,
             separators=(",", ":"),
@@ -655,7 +680,7 @@ class DeadLetterRecord:
             raise DeadLetterRedriveError(
                 f"dead-letter {self.dead_letter_id} has no valid job envelope"
             )
-        metadata = dict(self.job.metadata)
+        metadata = self.job._wire_metadata()
         metadata.update(
             {
                 DEAD_LETTER_CHAIN_METADATA: json.dumps(
@@ -831,6 +856,7 @@ class JobContext:
     shutdown_requested: Any
     cumulative_attempt: int | None = None
     redrive_count: int = 0
+    principal: Principal | None = None
 
 
 class BusState(str, Enum):

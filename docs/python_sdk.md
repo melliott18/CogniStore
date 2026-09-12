@@ -108,6 +108,14 @@ specific authentication headers. The SDK creates and owns its HTTP connection po
 unless an advanced caller injects `http_client`; an injected client remains owned
 by the caller.
 
+For a server with [JWT/OIDC authentication](authentication.md), send a JWT
+access token issued for its configured API audience through `default_headers`.
+The SDK does not acquire or refresh tokens; use the identity provider's client
+library and recreate the client with a fresh header when replacing a token.
+Human clients and service clients using client credentials send the same bearer
+header. Authentication failures arrive as `APIError` with HTTP status `401`
+and code `authentication_required` or `invalid_token`.
+
 `timeout` is the HTTP request timeout in seconds. A request deadline raises
 `RequestTimeoutError`, which is distinct from both a server-generated `APIError`
 and other `TransportError` failures. Choose a timeout that covers the longest

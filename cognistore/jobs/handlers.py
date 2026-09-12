@@ -462,10 +462,11 @@ def build_handlers(
             cold_mime_prefixes=cold_mime_prefixes,
             embedding_rules=embedding_rules,
         )
+        principal = job.principal
         audit_context = AuditContext(
             correlation_id=job.correlation_id,
-            actor_type="worker",
-            actor_id=job.job_id,
+            actor_type=principal.actor_type if principal is not None else "worker",
+            actor_id=principal.actor_id if principal is not None else job.job_id,
             job_id=job.job_id,
         )
         # Each delivery owns a distinct catalog lease. Reusing one process-wide

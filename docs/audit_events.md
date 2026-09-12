@@ -32,6 +32,15 @@ monotonic move sequence serializes every decision, manual resume, retry, and
 transition for one move, so the terminal event's causation path includes the
 whole operational history even when timestamps tie.
 
+With [JWT/OIDC authentication](authentication.md), API operations and their
+queued worker operations use actor type `authenticated`. Their actor ID is
+`principal:sha256:<digest>`, derived from an unambiguous encoding of the verified
+issuer and subject; use `Principal.actor_id` to obtain the exact query value.
+The same subject under two issuers yields distinct actors. Client-supplied
+attribution cannot replace the verified audit actor. The normalized principal
+propagates across job retries without storing the bearer token or raw claims.
+Broker publishers remain trusted producers of internal principal metadata.
+
 Policy decision details include a versioned `structured_reason` beside the
 feature snapshot in `dataset`. See [structured policy reasons](policy_reasons.md)
 for the reason vocabulary, privacy rules, and queries that follow a decision
