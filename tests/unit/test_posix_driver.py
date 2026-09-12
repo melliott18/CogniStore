@@ -117,8 +117,8 @@ def test_delete_barrier_failure_propagates_and_missing_retry_rebarriers_parent(
 	parent = d.base / bucket
 	barriers: list[Path] = []
 
-	def flaky_barrier(path: Path) -> None:
-		barriers.append(path)
+	def flaky_barrier(path: posix_driver._Directory) -> None:
+		barriers.append(path.path)
 		if len(barriers) == 1:
 			raise OSError("delete namespace barrier failed")
 
@@ -155,7 +155,7 @@ def test_durability_confirmation_syncs_existing_file_before_parent(
 	monkeypatch.setattr(
 		d,
 		"_sync_directory",
-		lambda path: events.append(("directory", path)),
+		lambda path: events.append(("directory", path.path)),
 	)
 
 	d.ensure_object_durable("bucket", "key")
@@ -273,9 +273,9 @@ def test_stream_publication_orders_file_and_namespace_durability_barriers(
 	events: list[tuple[str, Path | None]] = []
 	original_publish = getattr(posix_driver.os, publication_operation)
 
-	def publish(source: Path, destination: Path) -> None:
+	def publish(source: str, destination: str, **kwargs) -> None:
 		events.append(("publish", None))
-		original_publish(source, destination)
+		original_publish(source, destination, **kwargs)
 
 	monkeypatch.setattr(
 		posix_driver,
@@ -285,7 +285,7 @@ def test_stream_publication_orders_file_and_namespace_durability_barriers(
 	monkeypatch.setattr(
 		d,
 		"_sync_directory",
-		lambda path: events.append(("directory", path)),
+		lambda path: events.append(("directory", path.path)),
 	)
 	monkeypatch.setattr(posix_driver.os, publication_operation, publish)
 
@@ -339,8 +339,8 @@ def test_destination_namespace_barrier_failure_is_not_reported_as_success(
 	d = PosixDriver(str(tier))
 	monkeypatch.setattr(posix_driver, "_sync_descriptor", lambda _descriptor: None)
 
-	def fail_destination_barrier(path: Path) -> None:
-		if path == destination_parent:
+	def fail_destination_barrier(path: posix_driver._Directory) -> None:
+		if path.path == destination_parent:
 			raise OSError("destination namespace barrier failed")
 
 	monkeypatch.setattr(d, "_sync_directory", fail_destination_barrier)
@@ -371,9 +371,9 @@ def test_new_destination_directories_are_durably_published_before_object(
 	events: list[tuple[str, Path | None]] = []
 	original_replace = posix_driver.os.replace
 
-	def replace(source: Path, destination: Path) -> None:
+	def replace(source: str, destination: str, **kwargs) -> None:
 		events.append(("publish", None))
-		original_replace(source, destination)
+		original_replace(source, destination, **kwargs)
 
 	monkeypatch.setattr(
 		posix_driver,
@@ -383,7 +383,7 @@ def test_new_destination_directories_are_durably_published_before_object(
 	monkeypatch.setattr(
 		d,
 		"_sync_directory",
-		lambda path: events.append(("directory", path)),
+		lambda path: events.append(("directory", path.path)),
 	)
 	monkeypatch.setattr(posix_driver.os, "replace", replace)
 
@@ -411,9 +411,9 @@ def test_failed_directory_creation_barrier_is_retried_before_publication(
 	original_sync_directory = d._sync_directory
 	attempts = 0
 
-	def fail_once(path: Path) -> None:
+	def fail_once(path: posix_driver._Directory) -> None:
 		nonlocal attempts
-		if path == tier / "bucket":
+		if path.path == tier / "bucket":
 			attempts += 1
 			if attempts == 1:
 				raise OSError("directory creation barrier failed")
@@ -446,9 +446,9 @@ def test_new_range_object_uses_durable_staged_publication(
 	events: list[tuple[str, Path | None]] = []
 	original_replace = posix_driver.os.replace
 
-	def replace(source: Path, destination: Path) -> None:
+	def replace(source: str, destination: str, **kwargs) -> None:
 		events.append(("publish", None))
-		original_replace(source, destination)
+		original_replace(source, destination, **kwargs)
 
 	monkeypatch.setattr(
 		posix_driver,
@@ -458,7 +458,7 @@ def test_new_range_object_uses_durable_staged_publication(
 	monkeypatch.setattr(
 		d,
 		"_sync_directory",
-		lambda path: events.append(("directory", path)),
+		lambda path: events.append(("directory", path.path)),
 	)
 	monkeypatch.setattr(posix_driver.os, "replace", replace)
 
@@ -579,7 +579,7 @@ def test_staging_directory_symlink_is_rejected(tmp_path: Path) -> None:
 		pytest.skip("directory symlinks are unavailable on this platform")
 
 	d = PosixDriver(str(tier))
-	with pytest.raises(ValueError, match="staging directory.*symbolic link"):
+	with pytest.raises(ValueError, match="directories.*symbolic links"):
 		d.put_object("bucket", "key", b"payload")
 
 	assert list(outside.iterdir()) == []

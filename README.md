@@ -411,7 +411,13 @@ different tier names may not resolve to the same backend, and an existing
 destination object is never overwritten. Remove or relocate a destination
 collision explicitly before retrying a move. POSIX bucket and key paths must
 be relative, unambiguous paths beneath the tier root; parent traversal and
-symbolic-link components are rejected.
+symbolic-link components are rejected. Filesystem operations use retained
+directory descriptors to prevent concurrent symlink swaps from redirecting
+object access. POSIX tiers require directories owned by the service account,
+protected from other writers, and a trusted namespace whose open directories
+stay inside the tier. Missing containment primitives fail closed. See
+[POSIX containment and deployment permissions](docs/posix_containment.md) for
+the enforced checks, supported mutation model, and platform limitations.
 
 After a destination write commits, the mover independently streams the stored
 object to verify its byte count and SHA-256 against the source bytes observed

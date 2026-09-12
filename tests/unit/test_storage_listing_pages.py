@@ -138,7 +138,7 @@ def test_posix_rejects_directory_symlink_swapped_in_before_open(
         return original(path, flags, dir_fd=dir_fd)
 
     monkeypatch.setattr(posix_driver.os, "open", swap_before_open)
-    with pytest.raises(OSError):
+    with pytest.raises(ValueError, match="symbolic links"):
         driver.list_objects_page("bucket", "scope/")
     assert attempted
 
@@ -157,7 +157,9 @@ def test_posix_flat_listing_memory_does_not_grow_with_inventory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "bucket").mkdir()
-    regular = os.stat_result((stat.S_IFREG | 0o644, 0, 0, 1, 0, 0, 0, 0, 0, 0))
+    regular = os.stat_result((
+        stat.S_IFREG | 0o644, 0, tmp_path.stat().st_dev, 1, 0, 0, 0, 0, 0, 0,
+    ))
 
     class Entry:
         def __init__(self, number: int):
