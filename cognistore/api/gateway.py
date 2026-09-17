@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Literal, Protocol, cast
 from uuid import UUID, uuid4
 
+from cognistore.auth.authorization import RBACAuthorizer, authorize_operation
 from cognistore.auth.principal import PRINCIPAL_METADATA, current_principal
 from cognistore.core.access import AccessConfig
 from cognistore.core.audit import (
@@ -81,6 +82,7 @@ from .models import (
     ScoreComponentResponse,
 )
 from .pagination import CursorError, decode_cursor, encode_cursor
+from .permissions import OPERATION_PERMISSIONS
 from .policy_decisions import persisted_execution, project_decision
 
 _CATALOG_CURSOR_RESOURCE = "catalog.objects"
@@ -223,7 +225,9 @@ class CogniStoreGateway:
         queue: JobQueue | None = None,
         manage_queue: bool = False,
         access_config: AccessConfig | None = None,
+        authorization: RBACAuthorizer | None = None,
     ) -> None:
+        self.authorization = authorization
         self.catalog = catalog
         self.access_recorder = AccessRecorder(catalog, access_config)
         self.drivers = {
@@ -238,6 +242,12 @@ class CogniStoreGateway:
         )
         self.queue = queue
         self.manage_queue = manage_queue
+
+    def _authorize(self, operation: str) -> None:
+        authorize_operation(
+            self.authorization, OPERATION_PERMISSIONS.get(operation, ()),
+            operation=operation, boundary="service", catalog=self.catalog,
+        )
 
     async def startup(self) -> None:
         if self.manage_queue and self.queue is not None:
@@ -380,6 +390,7 @@ class CogniStoreGateway:
         overwrite: bool,
         content_type: str | None,
     ) -> ObjectResource:
+        self._authorize("put_object")
         driver = self._driver(tier)
         event = self.access_recorder.event("write", bucket, key, tier=tier, source="api")
         with suppress_access_capture():
@@ -392,6 +403,7 @@ class CogniStoreGateway:
         return resource
 
     def stat_object(self, tier: str, bucket: str, key: str) -> ObjectResource:
+        self._authorize("stat_object")
         record = self._catalog_record(bucket, key)
         if record.tier != tier:
             raise ResourceNotFoundError("object", f"{tier}/{bucket}/{key}")
@@ -410,6 +422,7 @@ class CogniStoreGateway:
         *,
         byte_range: str | None,
     ) -> ObjectDownload:
+        self._authorize("open_object")
         with suppress_access_capture():
             resource = self.stat_object(tier, bucket, key)
         driver = self._driver(tier)
@@ -491,6 +504,7 @@ class CogniStoreGateway:
         return start, min(end, size - 1)
 
     def delete_object(self, tier: str, bucket: str, key: str) -> None:
+        self._authorize("delete_object")
         with suppress_access_capture():
             resource = self.stat_object(tier, bucket, key)
         deleted = self._driver(tier).delete_object_if_generation(
@@ -503,6 +517,7 @@ class CogniStoreGateway:
         self.catalog.delete(bucket, key)
 
     def get_catalog_object(self, bucket: str, key: str) -> CatalogObject:
+        self._authorize("get_catalog_object")
         record = self._catalog_record(bucket, key)
         resource = self._catalog_response(record)
         self.access_recorder.persist(
@@ -530,6 +545,7 @@ class CogniStoreGateway:
         limit: int,
         cursor: str | None,
     ) -> CatalogObjectPage:
+        self._authorize("list_catalog_objects")
         filters = {"bucket": bucket, "prefix": prefix, "tier": tier}
         try:
             after_key = decode_cursor(
@@ -567,6 +583,7 @@ class CogniStoreGateway:
         return page
 
     def ask(self, request: AskRequest) -> AskResponse:
+        self._authorize("ask")
         filters = request.filters
         try:
             query = AskQuery(
@@ -770,6 +787,7 @@ class CogniStoreGateway:
     def evaluate_policy(
         self, request: PolicyEvaluationRequest
     ) -> PolicyEvaluationResponse:
+        self._authorize("evaluate_policy")
         self._catalog_record(request.bucket, request.key)
         evaluation = self._policy_runner(request.config).evaluate_once(
             request.bucket, request.key
@@ -779,6 +797,7 @@ class CogniStoreGateway:
     def preview_policy(
         self, request: PolicyEvaluationRequest
     ) -> PolicyDecisionResource:
+        self._authorize("preview_policy")
         self._catalog_record(request.bucket, request.key)
         snapshot, reason = self._policy_runner(request.config).preview_decision(
             request.bucket, request.key
@@ -797,10 +816,11 @@ class CogniStoreGateway:
             bucket=event.bucket, key=event.object_key,
             evaluated_at=event.occurred_at, decision_id=event.event_id,
             details={**event.details, "outcome": event.outcome},
-            execution=persisted_execution(self.catalog, event, self.get_job),
+            execution=persisted_execution(self.catalog, event, self._get_job),
         )
 
     def get_policy_decision(self, decision_id: str) -> PolicyDecisionResource:
+        self._authorize("get_policy_decision")
         event = self.catalog.get_audit_event(decision_id)
         if event is None or event.event_type != AuditEventType.POLICY_DECISION.value:
             raise ResourceNotFoundError("policy decision", decision_id)
@@ -811,6 +831,7 @@ class CogniStoreGateway:
         job_id: str | None = None, correlation_id: str | None = None,
         limit: int = 50, cursor: str | None = None,
     ) -> PolicyDecisionPage:
+        self._authorize("list_policy_decisions")
         if key is not None and bucket is None:
             raise RequestContractError("key requires bucket")
         filters = {
@@ -855,6 +876,7 @@ class CogniStoreGateway:
     def set_importance(
         self, request: ImportanceChangeRequest, *, correlation_id: str
     ) -> PolicyEvaluationResponse:
+        self._authorize("set_importance")
         self._catalog_record(request.bucket, request.key)
         principal = current_principal()
         context = AuditContext(
@@ -935,7 +957,7 @@ class CogniStoreGateway:
             except Exception:
                 pass
             raise
-        return await asyncio.to_thread(self.get_job, job.job_id)
+        return await asyncio.to_thread(self._get_job, job.job_id)
 
     @staticmethod
     def _job_metadata() -> dict[str, str]:
@@ -948,6 +970,7 @@ class CogniStoreGateway:
     async def submit_catalog_scan(
         self, request: CatalogScanRequest
     ) -> JobStatusResponse:
+        await asyncio.to_thread(self._authorize, "submit_catalog_scan")
         self._driver(request.tier)
         job = JobEnvelope.create(
             CATALOG_SCAN_JOB,
@@ -963,6 +986,7 @@ class CogniStoreGateway:
     async def submit_policy_run(
         self, request: PolicyRunRequest
     ) -> JobStatusResponse:
+        await asyncio.to_thread(self._authorize, "submit_policy_run")
         self._validate_policy_tiers(request.config)
         config = request.config
         payload = policy_job_payload(
@@ -1014,6 +1038,10 @@ class CogniStoreGateway:
         return attempt, event.occurred_at, phase
 
     def get_job(self, job_id: str) -> JobStatusResponse:
+        self._authorize("get_job")
+        return self._get_job(job_id)
+
+    def _get_job(self, job_id: str) -> JobStatusResponse:
         # Read the newest bounded window so a long retry/redrive history cannot
         # hide a terminal transition beyond an ascending query's limit. Fetch
         # the creation event separately because it owns immutable job metadata.

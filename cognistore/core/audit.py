@@ -56,6 +56,7 @@ class AuditEventType(str, Enum):
     CONSISTENCY_COMPLETED = "consistency.completed"
     CONSISTENCY_FAILED = "consistency.failed"
     CONSISTENCY_EXPORTED = "consistency.exported"
+    AUTHORIZATION_DECISION = "authorization.decision"
 
 
 class AuditOutcome(str, Enum):
@@ -69,6 +70,8 @@ class AuditOutcome(str, Enum):
     STAYED = "stayed"
     REJECTED = "rejected"
     REQUESTED = "requested"
+    ALLOWED = "allowed"
+    DENIED = "denied"
 
 
 def _required_text(value: object, field_name: str) -> str:

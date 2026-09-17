@@ -3149,7 +3149,7 @@
     }
   },
   "info": {
-    "description": "Stable version 1 REST interface. Deployments can require JWT bearer authentication with OIDC discovery. Authorization is a separate extension hook.",
+    "description": "Stable version 1 REST interface. Deployments can require JWT bearer authentication with OIDC discovery and explicit role-based permissions. Authenticated identities without configured role bindings are denied.",
     "summary": "Versioned object, catalog, Ask, policy, and action operations",
     "title": "CogniStore REST API",
     "version": "1.0.0"
@@ -3274,7 +3274,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -3297,7 +3297,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -3411,6 +3411,9 @@
         "summary": "Submit Catalog Scan",
         "tags": [
           "actions"
+        ],
+        "x-required-permissions": [
+          "administration"
         ]
       }
     },
@@ -3503,7 +3506,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -3526,7 +3529,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -3622,6 +3625,10 @@
         "summary": "Submit Policy Run",
         "tags": [
           "actions"
+        ],
+        "x-required-permissions": [
+          "policy",
+          "movement"
         ]
       }
     },
@@ -3704,7 +3711,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -3727,7 +3734,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -3823,6 +3830,9 @@
         "summary": "Ask",
         "tags": [
           "search"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       }
     },
@@ -3905,7 +3915,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -3928,7 +3938,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -4042,6 +4052,10 @@
         "summary": "Set Object Importance",
         "tags": [
           "catalog"
+        ],
+        "x-required-permissions": [
+          "write",
+          "policy"
         ]
       }
     },
@@ -4183,7 +4197,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -4206,7 +4220,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -4284,6 +4298,9 @@
         "summary": "List Catalog Objects",
         "tags": [
           "catalog"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       }
     },
@@ -4378,7 +4395,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -4401,7 +4418,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -4497,6 +4514,9 @@
         "summary": "Get Catalog Object",
         "tags": [
           "catalog"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       }
     },
@@ -4579,7 +4599,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -4602,7 +4622,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -4698,6 +4718,9 @@
         "summary": "Get Job Status",
         "tags": [
           "actions"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       }
     },
@@ -4796,7 +4819,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -4819,7 +4842,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -4933,6 +4956,9 @@
         "summary": "Delete Object",
         "tags": [
           "objects"
+        ],
+        "x-required-permissions": [
+          "write"
         ]
       },
       "get": {
@@ -5158,7 +5184,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -5181,7 +5207,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -5318,6 +5344,9 @@
         "summary": "Get Object",
         "tags": [
           "objects"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       },
       "head": {
@@ -5454,7 +5483,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -5477,7 +5506,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -5573,6 +5602,9 @@
         "summary": "Head Object",
         "tags": [
           "objects"
+        ],
+        "x-required-permissions": [
+          "read"
         ]
       },
       "put": {
@@ -5708,7 +5740,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -5731,7 +5763,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -5863,6 +5895,9 @@
         "summary": "Put Object",
         "tags": [
           "objects"
+        ],
+        "x-required-permissions": [
+          "write"
         ]
       }
     },
@@ -5945,7 +5980,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -5968,7 +6003,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -6082,6 +6117,9 @@
         "summary": "Evaluate Policy",
         "tags": [
           "policies"
+        ],
+        "x-required-permissions": [
+          "policy"
         ]
       }
     },
@@ -6165,7 +6203,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -6188,7 +6226,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -6302,6 +6340,9 @@
         "summary": "Preview Policy",
         "tags": [
           "policies"
+        ],
+        "x-required-permissions": [
+          "policy"
         ]
       }
     },
@@ -6477,7 +6518,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -6500,7 +6541,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -6578,6 +6619,9 @@
         "summary": "List Policy Decisions",
         "tags": [
           "policies"
+        ],
+        "x-required-permissions": [
+          "audit"
         ]
       }
     },
@@ -6660,7 +6704,7 @@
                 }
               }
             },
-            "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+            "description": "Bearer token missing or invalid, or authentication required",
             "headers": {
               "WWW-Authenticate": {
                 "schema": {
@@ -6683,7 +6727,7 @@
                 }
               }
             },
-            "description": "Request forbidden by the configured authorization hook",
+            "description": "Operation not permitted by role-based authorization or an additional hook",
             "headers": {
               "X-Request-ID": {
                 "description": "Request correlation identifier",
@@ -6779,6 +6823,9 @@
         "summary": "Get Policy Decision",
         "tags": [
           "policies"
+        ],
+        "x-required-permissions": [
+          "audit"
         ]
       }
     }

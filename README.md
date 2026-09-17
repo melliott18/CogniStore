@@ -137,7 +137,11 @@ policy evaluation, queued scans and policy runs, and durable job polling under
 
 The local default permits anonymous requests. Set `COGNISTORE_AUTH_ISSUER`
 and `COGNISTORE_AUTH_AUDIENCE` to require JWT access tokens on every `/v1`
-request. [Authentication setup](docs/authentication.md) covers OIDC discovery,
+request, and set `COGNISTORE_AUTHORIZATION_POLICY` to a JSON role-binding file
+to grant protected operations. Authenticated deployments without a policy deny
+access. The [authorization guide](docs/authorization.md) documents roles, the
+complete permission matrix, and worker revalidation.
+[Authentication setup](docs/authentication.md) covers OIDC discovery,
 JWKS rotation, service clients, and token-free job and audit attribution.
 
 ### Python SDK
@@ -578,6 +582,13 @@ python -m cognistore.cli --drivers drivers.yaml \
   --catalog-db /tmp/cognistore/catalog.db \
   --nats-url nats://127.0.0.1:4222 worker
 ```
+
+For authenticated API jobs, configure the worker with the same
+`COGNISTORE_AUTHORIZATION_POLICY` as the API. Every delivery rechecks current
+permissions; an authenticated job is denied if the worker has no policy.
+The CLI and recurring-schedule examples below describe trusted local workloads:
+these producers do not authenticate principals, so their jobs are rejected by
+workers with a policy. Use authenticated REST actions for protected workloads.
 
 Recurring scans and policy passes are declared in a YAML `jobs` mapping keyed
 by stable schedule IDs:

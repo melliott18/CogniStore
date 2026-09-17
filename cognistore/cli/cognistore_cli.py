@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, Sequence
 from uuid import uuid4
 
+from cognistore.auth.authorization import RBACAuthorizer
 from cognistore.cli.config import (
 	CliConfigError,
 	CliConfigResolution,
@@ -923,6 +924,10 @@ async def _serve_worker(
 	args: argparse.Namespace, drivers, catalog: CatalogStore
 ) -> int:
 	configure_observability()
+	policy_path = getattr(args, "authorization_policy", None)
+	authorization = (
+		RBACAuthorizer(policy_path=policy_path) if policy_path is not None else None
+	)
 	policy_feature_loader = load_policy_feature_loader(args.drivers, catalog)
 	throughput = (
 		ThroughputController(
@@ -969,6 +974,7 @@ async def _serve_worker(
 		),
 		throughput=throughput,
 		audit_catalog=catalog,
+		authorization=authorization,
 		coordinator=ScheduledRunCoordinator(
 			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
 		),
@@ -1588,6 +1594,14 @@ def _run_cli(
 	p_baseline_evaluate.add_argument("--output", required=True, type=Path, help="Evaluation report JSON output path")
 
 	p_worker = command("worker", help="Run the durable background worker")
+	p_worker.add_argument(
+		"--authorization-policy",
+		default=os.environ.get("COGNISTORE_AUTHORIZATION_POLICY"),
+		help=(
+			"RBAC policy JSON (or COGNISTORE_AUTHORIZATION_POLICY); protected workers "
+			"require a submitting principal and recheck grants on every delivery"
+		),
+	)
 	p_worker.add_argument("--health-host", default="127.0.0.1")
 	p_worker.add_argument("--health-port", type=int, default=8081)
 	p_worker.add_argument("--fetch-timeout", type=float, default=1.0)

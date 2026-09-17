@@ -21,6 +21,7 @@ from cognistore.api.models import (
     PolicyConfig,
     PolicyRunRequest,
 )
+from cognistore.auth.authorization import RBACAuthorizer, RBACPolicy
 from cognistore.auth.principal import (
     PRINCIPAL_METADATA,
     Principal,
@@ -87,7 +88,17 @@ def _job(principal: Principal | None) -> JobEnvelope:
     metadata = {STATUS_TRACKING_METADATA: "1"}
     if principal is not None:
         metadata[PRINCIPAL_METADATA] = principal.to_json()
-    return JobEnvelope.create("identity.test", {}, metadata=metadata)
+    return JobEnvelope.create("catalog.scan", {}, metadata=metadata)
+
+
+def _worker_authorization(*principals: Principal | None) -> RBACAuthorizer:
+    return RBACAuthorizer(RBACPolicy.from_dict({
+        "bindings": [
+            {"issuer": principal.issuer, "subject": principal.subject, "roles": ["admin"]}
+            for principal in principals
+            if principal is not None
+        ],
+    }))
 
 
 @pytest.mark.parametrize(
@@ -121,6 +132,7 @@ def test_gateway_submission_carries_only_normalized_identity(
         queue=queue,
     )
     principal = Principal("https://issuer.example", "service-account", "batch-client")
+    gateway.authorization = _worker_authorization(principal)
     with principal_context(principal):
         if submission == "scan":
             status = asyncio.run(
@@ -139,7 +151,7 @@ def test_gateway_submission_carries_only_normalized_identity(
     }
     assert set(job.metadata) == {STATUS_TRACKING_METADATA, PRINCIPAL_METADATA}
     events = catalog.list_audit_events(AuditQuery(job_id=str(status.job_id)))
-    assert len(events) == 1
+    assert len([event for event in events if event.event_type == AuditEventType.JOB_QUEUED]) == 1
     assert events[0].actor_type == principal.actor_type
     assert events[0].actor_id == principal.actor_id
 
@@ -165,10 +177,17 @@ def test_worker_context_isolated_across_concurrent_jobs_and_threads() -> None:
             seen[job.job_id].append(current_principal())
 
         worker = AsyncWorker(
-            _Queue(), {"identity.test": handler}, config=WorkerConfig(heartbeat_interval=0)
+            _Queue(), {"catalog.scan": handler}, config=WorkerConfig(heartbeat_interval=0),
+            authorization=_worker_authorization(*principals),
+        )
+        anonymous_worker = AsyncWorker(
+            _Queue(), {"catalog.scan": handler}, config=WorkerConfig(heartbeat_interval=0),
         )
         with principal_context(outer):
-            await asyncio.gather(*(worker._process(_Delivery(job)) for job in jobs))
+            await asyncio.gather(*(
+                (worker if job.principal is not None else anonymous_worker)._process(_Delivery(job))
+                for job in jobs
+            ))
             assert current_principal() == outer
         assert current_principal() is None
         for job, principal in zip(jobs, principals):
@@ -193,8 +212,9 @@ def test_worker_retry_failure_and_redrive_preserve_identity() -> None:
 
         worker = AsyncWorker(
             queue,
-            {"identity.test": handler},
+            {"catalog.scan": handler},
             audit_catalog=catalog,
+            authorization=_worker_authorization(principal),
             config=WorkerConfig(heartbeat_interval=0, max_attempts=2),
         )
         first = _Delivery(job)
@@ -262,8 +282,9 @@ def test_trace_and_principal_coexist_across_threads_retry_and_redrive(monkeypatc
 
         worker = AsyncWorker(
             queue,
-            {"identity.test": handler},
+            {"catalog.scan": handler},
             audit_catalog=catalog,
+            authorization=_worker_authorization(principal),
             config=WorkerConfig(heartbeat_interval=0, max_attempts=2),
         )
         ambient = Principal("https://other.example", "unrelated")
@@ -311,8 +332,9 @@ def test_handler_cannot_rewrite_submitting_identity(authenticated: bool) -> None
 
         worker = AsyncWorker(
             queue,
-            {"identity.test": handler},
+            {"catalog.scan": handler},
             audit_catalog=catalog,
+            authorization=_worker_authorization(principal) if principal is not None else None,
             config=WorkerConfig(heartbeat_interval=0),
         )
         await worker._process(_Delivery(job))
@@ -332,7 +354,7 @@ def test_authenticated_policy_moves_and_importance_use_verified_actor(tmp_path: 
         drivers = {tier: PosixDriver(str(tmp_path / tier)) for tier in ("hot", "warm")}
         drivers["warm"].put_object("bucket", "one.txt", b"small")
         catalog.upsert("bucket", "one.txt", 5, "warm")
-        gateway = CogniStoreGateway(catalog, drivers, queue=queue)
+        gateway = CogniStoreGateway(catalog, drivers, queue=queue, authorization=_worker_authorization(principal))
         with principal_context(principal):
             gateway.set_importance(
                 ImportanceChangeRequest(
@@ -351,6 +373,7 @@ def test_authenticated_policy_moves_and_importance_use_verified_actor(tmp_path: 
             queue,
             build_handlers(drivers, catalog),
             audit_catalog=catalog,
+            authorization=_worker_authorization(principal),
             config=WorkerConfig(heartbeat_interval=0),
         )
         delivery = _Delivery(queue.jobs[0])

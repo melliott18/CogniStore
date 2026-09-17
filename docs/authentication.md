@@ -4,19 +4,22 @@ CogniStore can authenticate human and service clients with signed JWT access
 tokens from an external identity provider. Configure a trusted issuer and API
 audience to require authentication for every `/v1` request, including reads,
 object downloads, actions, and job status. Authentication runs before request
-bodies are consumed and before the optional authorization hook.
+bodies are consumed and before built-in RBAC and the optional authorization
+hook.
 
 With no authentication configuration, the API retains anonymous access for
 local development. Set both issuer and audience before exposing a deployment
-to clients. A partial authentication configuration fails startup instead of
+to clients, and configure an authorization policy to grant protected
+operations. A partial authentication configuration fails startup instead of
 falling back to anonymous access. `/healthz`, `/metrics`, static `/ui/` assets, `/docs`, and
 OpenAPI documentation remain public; serving the UI does not authenticate its
 API requests or provide a login flow.
 
-Authentication establishes identity. It does not grant roles, enforce
-permissions, or partition data by tenant. A configured deployment accepts all
-valid identities for its audience unless an `authorization_hook` applies
-additional policy.
+Authentication establishes identity. [Role-based authorization](authorization.md)
+uses a trusted policy file to assign permissions to exact issuer/subject pairs.
+An authenticated deployment without an authorization policy denies protected
+operations. Token role claims do not grant access, and neither authentication
+nor RBAC partitions data by tenant.
 
 ## Configure the API
 
@@ -29,6 +32,7 @@ export COGNISTORE_CATALOG_DB=./catalog.sqlite3
 export COGNISTORE_NATS_URL=nats://127.0.0.1:4222
 export COGNISTORE_AUTH_ISSUER=https://identity.example.com/realms/storage
 export COGNISTORE_AUTH_AUDIENCE=cognistore-api
+export COGNISTORE_AUTHORIZATION_POLICY=/etc/cognistore/authorization.json
 cognistore-api --host 127.0.0.1 --port 8080
 ```
 
@@ -45,6 +49,7 @@ a provider client secret.
 | `--auth-jwks-uri` | `COGNISTORE_AUTH_JWKS_URI` | Optional trusted HTTPS JWKS endpoint; when omitted, obtain it through OIDC discovery. |
 | `--auth-algorithm` (repeatable) | `COGNISTORE_AUTH_ALGORITHMS` (comma-separated) | Explicit signing algorithm allowlist; default `RS256`. |
 | `--auth-required-claim` (repeatable) | `COGNISTORE_AUTH_REQUIRED_CLAIMS` (comma-separated) | Required claims in addition to mandatory validation; default `sub,exp,iat`. |
+| `--authorization-policy` | `COGNISTORE_AUTHORIZATION_POLICY` | JSON role bindings for protected operations; see the [policy format and matrix](authorization.md). |
 
 Explicit flags override their corresponding environment variables. Repeated
 algorithm and claim flags replace the environment list rather than appending
@@ -107,6 +112,7 @@ Pass authentication alongside a configured gateway:
 ```python
 from cognistore.api import create_app
 from cognistore.auth import current_principal
+from cognistore.auth.authorization import RBACAuthorizer
 from cognistore.auth.jwt import JWTAuthConfig
 
 authentication = JWTAuthConfig(
@@ -120,7 +126,11 @@ authentication = JWTAuthConfig(
     timeout_seconds=5,
 )
 
-app = create_app(gateway, authentication=authentication)
+app = create_app(
+    gateway,
+    authentication=authentication,
+    authorization=RBACAuthorizer(policy_path="authorization.json"),
+)
 ```
 
 `create_app` also accepts an existing `JWTAuthenticator`. Request handlers and
@@ -129,7 +139,9 @@ an optional `authorization_hook` can inspect `request.state.principal`;
 code. Anonymous operation has no principal. The immutable `Principal` holds
 only `issuer`, `subject`, and optional `client_id`; `client_id` or `azp` provides
 client attribution when present. The issuer-scoped `subject` remains the
-identity for both human and service clients.
+identity for both human and service clients. The optional hook imposes an
+additional restriction after built-in authorization; it cannot grant missing
+RBAC permissions.
 
 ## Python SDK
 
@@ -165,9 +177,11 @@ provider failure details.
 | --- | --- | --- | --- |
 | Missing credentials | `401` | `authentication_required` | `WWW-Authenticate: Bearer` |
 | Malformed, invalid, expired, wrong-audience, or unknown-key token; required keys unavailable | `401` | `invalid_token` | `WWW-Authenticate: Bearer error="invalid_token"` |
+| Authenticated principal lacks a required permission, or current authorization policy cannot be loaded | `403` | `forbidden` | None |
 
-A deployment's authorization hook may deny an authenticated client with
-`403`. Authentication succeeds before that hook runs. When investigating a
+An authenticated principal lacking a required RBAC permission receives a
+generic `403` without resource-existence details. A deployment's authorization
+hook can also deny an otherwise permitted request. When investigating a
 `401`, check the client token's intended audience and lifetime, the exact
 configured issuer, provider key rotation, and API reachability to the trusted
 discovery/JWKS endpoint without copying tokens into tickets or logs.
@@ -179,7 +193,9 @@ metadata `cognistore.principal`. Workers restore this identity for execution,
 including retry and failure attribution. The job persists only the issuer,
 subject, and optional client ID, never the access token, signature, raw claims,
 or provider credentials. Background execution does not retain a token to
-revalidate after its expiry.
+revalidate after its expiry. Workers instead reread the current authorization
+policy and recheck required permissions on every delivery, including retries
+and redrives. An authenticated job is denied if its worker lacks a policy.
 
 Audit events use actor type `authenticated` and a stable
 `principal:sha256:<digest>` actor ID derived from an unambiguous encoding of
@@ -191,7 +207,8 @@ See [operational audit events](audit_events.md) for retention and querying.
 Job metadata is an internal propagation contract, not signed authentication
 proof. Protect NATS with appropriate network access and publisher credentials:
 any trusted publisher able to submit job envelopes can supply that metadata.
-Restrict publication to trusted API, scheduler, and operator processes. Direct
-CLI and scheduler jobs keep their existing local identities unless an internal
-caller explicitly propagates a principal. See
+Restrict publication to trusted producers. Direct CLI and scheduler jobs do
+not carry authenticated principals, so workers with an authorization policy
+reject them. Their existing local behavior remains available only in trusted,
+unconfigured deployments. See [worker revalidation](authorization.md#worker-revalidation) and
 [background workers](background_workers.md) for deployment configuration.
