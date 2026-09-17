@@ -25,6 +25,7 @@ from cognistore.observability import (
     current_correlation_id,
     mark_current_span_error,
     observe,
+    record_indexing_lag,
     record_job_event,
     record_job_queue_latency,
     request_context,
@@ -460,6 +461,7 @@ class AsyncWorker:
     async def _process_delivery(self, delivery: JobDelivery, contexts: ExitStack) -> None:
         job: JobEnvelope | None = None
         execution: JobExecution | None = None
+        observe_indexing = True
         heartbeat_stop = asyncio.Event()
         heartbeat_task: asyncio.Task[None] | None = None
 
@@ -481,6 +483,9 @@ class AsyncWorker:
             )
             if self._coordinator is not None:
                 execution = await self._coordinator.begin(job, context)
+                # A terminal replay may represent a failed/dead-lettered scan.
+                # Acknowledging it is not a fresh successful indexing attempt.
+                observe_indexing = execution is None or execution.execute
             if execution is None or execution.execute:
                 await self._record_status_audit(
                     delivery,
@@ -525,6 +530,8 @@ class AsyncWorker:
                 outcome=AuditOutcome.SUCCEEDED,
             )
         except asyncio.CancelledError:
+            if observe_indexing:
+                self._record_indexing_completion(delivery, job, succeeded=False)
             record_job_event("cancelled", operation=job_operation(job.job_type) if job else "other")
             await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
             try:
@@ -536,6 +543,8 @@ class AsyncWorker:
                 self._set_failure(exc)
             raise
         except Exception as exc:
+            if observe_indexing:
+                self._record_indexing_completion(delivery, job, succeeded=False)
             await self._handle_job_failure(
                 delivery,
                 job,
@@ -546,6 +555,8 @@ class AsyncWorker:
             )
             return
 
+        if observe_indexing:
+            self._record_indexing_completion(delivery, job, succeeded=True)
         await self._stop_heartbeat(heartbeat_stop, heartbeat_task)
         try:
             await delivery.ack()
@@ -559,6 +570,21 @@ class AsyncWorker:
             # ACK outcome is unknown. Never follow a failed double-ACK with NACK;
             # AckWait redelivery is the only safe recovery.
             self._set_failure(exc)
+
+    def _record_indexing_completion(
+        self, delivery: JobDelivery, job: JobEnvelope | None, *, succeeded: bool,
+    ) -> None:
+        if job is None or job.job_type != "catalog.scan":
+            return
+        published_at = getattr(delivery, "source_published_at", None)
+        seconds = None
+        if (
+            isinstance(published_at, datetime)
+            and published_at.tzinfo is not None
+            and published_at.utcoffset() is not None
+        ):
+            seconds = (self._clock() - published_at).total_seconds()
+        record_indexing_lag(seconds, succeeded=succeeded)
 
     @staticmethod
     def _metadata_integer(job: JobEnvelope, key: str) -> int:

@@ -34,6 +34,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from cognistore.auth.jwt import AuthenticationError, JWTAuthConfig, JWTAuthenticator
 from cognistore.auth.principal import principal_context
+from cognistore.budget_telemetry import budget_metrics_response
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
@@ -942,6 +943,7 @@ def create_app(
     @app.get("/metrics", include_in_schema=False)
     def prometheus_metrics() -> Response:
         body, content_type = metrics_response()
+        body += budget_metrics_response(getattr(services, "catalog", None))
         return Response(body, headers={"Content-Type": content_type})
 
     app.add_middleware(TelemetryMiddleware)

@@ -348,12 +348,15 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.time=35d
     ports:
       - "127.0.0.1:${COGNISTORE_PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
+    tmpfs:
+      - /tmp:size=256m,mode=1777
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:9090/-/ready"]
       interval: 3s

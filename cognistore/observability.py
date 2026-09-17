@@ -78,6 +78,16 @@ _JOB_LATENCY = Histogram(
     "cognistore_job_queue_latency_seconds", "Broker publication-to-current-claim age (seconds).",
     ("operation",), buckets=_BUCKETS, registry=REGISTRY,
 )
+_INDEXING_LAG = Histogram(
+    "cognistore_indexing_lag_seconds",
+    "Broker publication-to-scan-attempt completion age (seconds).",
+    ("outcome",), buckets=_BUCKETS, registry=REGISTRY,
+)
+_INDEXING_LAG_UNKNOWN = Counter(
+    "cognistore_indexing_lag_unknown_total",
+    "Scan completions without a usable broker publication timestamp (count).",
+    registry=REGISTRY,
+)
 _MOVEMENT_BYTES = Counter(
     "cognistore_movement_bytes_total", "Successfully transferred movement bytes (bytes).",
     registry=REGISTRY,
@@ -442,6 +452,18 @@ def set_job_queue_depth(depth: float, state: str = "pending") -> None:
 def record_job_queue_latency(seconds: float, operation: str = "other") -> None:
     if math.isfinite(seconds) and seconds >= 0:
         _JOB_LATENCY.labels(_bounded(operation, _JOB_OPERATIONS)).observe(seconds)
+
+
+def record_indexing_lag(seconds: float | None, *, succeeded: bool) -> None:
+    """Observe scan attempts, including failed attempts before retry settlement.
+
+    Unknown or future publication times must not look like zero-lag successes.
+    No object, scan, or provider identifiers become metric labels.
+    """
+    if seconds is None or not math.isfinite(seconds) or seconds < 0:
+        _INDEXING_LAG_UNKNOWN.inc()
+        return
+    _INDEXING_LAG.labels("success" if succeeded else "error").observe(seconds)
 
 
 def record_movement_bytes(amount: int) -> None:

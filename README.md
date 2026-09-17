@@ -37,6 +37,10 @@ OpenTelemetry traces from API requests through queued work and storage:
 COGNISTORE_OTEL_ENABLED=true docker compose --profile observability up --build --wait
 ```
 
+The [operational SLOs and runbooks](docs/operational_slos.md) cover rolling error
+budgets, throughput, capacity, and policy cost/carbon alerts. The provisioned SLO
+dashboard and [M1 evidence evaluator](docs/slo_model.md) use the versioned model.
+
 ### Local Python environment
 
 - Create a virtual environment and install the package with its development

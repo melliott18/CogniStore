@@ -5,6 +5,10 @@ moves through the real CogniStore drivers and move journal. It measures the
 POSIX and S3-compatible paths separately, injects recovery faults, moves every
 object forward and back, and writes a machine-readable evidence report.
 
+Existing reports can be evaluated against the [versioned operational SLO model](slo_model.md)
+without rerunning the campaign. The evaluator distinguishes movement baselines
+from rolling production attainment and preserves missing API/index evidence.
+
 > **Evidence status (verified 2026-08-29):** canonical run
 > `full-20260827-205845` passed from clean revision `7961c82` with exactly one
 > million objects on each required path, all eight fault scenarios recovered,

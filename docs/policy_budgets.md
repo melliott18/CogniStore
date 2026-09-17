@@ -3,6 +3,9 @@
 CogniStore can enforce operator-supplied cost and carbon allowances before
 admitting a move, rank destinations by cost, carbon, latency, and locality, and
 compare policy configurations without changing objects or catalog state.
+
+The API also exports [operational budget consumption and alerts](operational_slos.md#cost-and-carbon-budgets)
+from the same versioned reservation ledger, with no re-estimation at scrape time.
 These features use the versioned [storage estimator](storage_estimation.md);
 they model usage charges in USD and operational electricity emissions in
 gCO2e. They do not fetch provider prices or settle provider invoices.

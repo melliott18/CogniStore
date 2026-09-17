@@ -1,0 +1,709 @@
+# Executable synthetic time series; run via docker/observability/verify.sh.
+rule_files:
+- ../../docker/observability/rules/slo.yml
+evaluation_interval: 15s
+group_eval_order:
+- cognistore-slo-recordings
+- cognistore-operational-alerts
+tests:
+- name: Healthy traffic without error series, 4xx included, health and unmatched requests excluded
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+30x480
+  - series: cognistore_operation_duration_seconds_count{component="movement",operation="move",outcome="success"}
+    values: 0+30x480
+  - series: cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}
+    values: 0+30x480
+  - series: cognistore_http_requests_total{method="POST",route="/v1/ask",status_class="2xx"}
+    values: 0+30x480
+  - series: cognistore_http_requests_total{method="POST",route="/v1/ask",status_class="4xx"}
+    values: 0+30x480
+  - series: cognistore_indexing_lag_seconds_count{outcome="success"}
+    values: 0+30x480
+  - series: cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}
+    values: 0+30x480
+  - series: cognistore_http_requests_total{method="GET",route="/healthz",status_class="5xx"}
+    values: 0+999x480
+  - series: cognistore_http_requests_total{method="GET",route="unmatched",status_class="5xx"}
+    values: 0+999x480
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:slo_bad_ratio{window="5m"}
+    eval_time: 20m
+    exp_samples:
+    - labels: cognistore:slo_bad_ratio{slo="api_availability",window="5m"}
+      value: 0
+    - labels: cognistore:slo_bad_ratio{slo="indexing_lag",window="5m"}
+      value: 0
+    - labels: cognistore:slo_bad_ratio{slo="move_latency",window="5m"}
+      value: 0
+    - labels: cognistore:slo_bad_ratio{slo="move_success",window="5m"}
+      value: 0
+- name: Every request-based SLO breaches and recovers through the short burn window
+  interval: 15s
+  input_series:
+  - &id001
+    series: cognistore_operations_total{component="movement",operation="move",outcome="error"}
+    values: 0+30x80 2400x400
+  - &id002
+    series: cognistore_operation_duration_seconds_count{component="movement",operation="move",outcome="error"}
+    values: 0+30x80 2400x400
+  - &id003
+    series: cognistore_http_requests_total{method="POST",route="/v1/ask",status_class="5xx"}
+    values: 0+30x80 2400x400
+  - &id004
+    series: cognistore_indexing_lag_seconds_count{outcome="error"}
+    values: 0+30x80 2400x400
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0x80 30+30x399
+  - series: cognistore_operation_duration_seconds_count{component="movement",operation="move",outcome="success"}
+    values: 0x80 30+30x399
+  - series: cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}
+    values: 0x80 30+30x399
+  - series: cognistore_http_requests_total{method="POST",route="/v1/ask",status_class="2xx"}
+    values: 0x80 30+30x399
+  - series: cognistore_indexing_lag_seconds_count{outcome="success"}
+    values: 0x80 30+30x399
+  - series: cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}
+    values: 0x80 30+30x399
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: api_availability
+        window: 5m
+      exp_annotations:
+        summary: CogniStore api_availability is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: indexing_lag
+        window: 5m
+      exp_annotations:
+        summary: CogniStore indexing_lag is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: move_latency
+        window: 5m
+      exp_annotations:
+        summary: CogniStore move_latency is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: move_success
+        window: 5m
+      exp_annotations:
+        summary: CogniStore move_success is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - eval_time: 2h
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: api_availability
+        window: 30m
+      exp_annotations:
+        summary: CogniStore api_availability has sustained error-budget burn.
+        description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: warning
+        slo: indexing_lag
+        window: 30m
+      exp_annotations:
+        summary: CogniStore indexing_lag has sustained error-budget burn.
+        description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: warning
+        slo: move_latency
+        window: 30m
+      exp_annotations:
+        summary: CogniStore move_latency has sustained error-budget burn.
+        description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - &id005
+      exp_labels:
+        severity: warning
+        slo: move_success
+        window: 30m
+      exp_annotations:
+        summary: CogniStore move_success has sustained error-budget burn.
+        description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - eval_time: 2h
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:slo_bad_ratio{window="5m"}
+    eval_time: 20m
+    exp_samples:
+    - labels: cognistore:slo_bad_ratio{slo="api_availability",window="5m"}
+      value: 1
+    - labels: cognistore:slo_bad_ratio{slo="indexing_lag",window="5m"}
+      value: 1
+    - labels: cognistore:slo_bad_ratio{slo="move_latency",window="5m"}
+      value: 1
+    - labels: cognistore:slo_bad_ratio{slo="move_success",window="5m"}
+      value: 1
+- name: All-error cold start has no success series and still burns
+  interval: 15s
+  input_series:
+  - *id001
+  - *id002
+  - *id003
+  - *id004
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: api_availability
+        window: 5m
+      exp_annotations:
+        summary: CogniStore api_availability is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: indexing_lag
+        window: 5m
+      exp_annotations:
+        summary: CogniStore indexing_lag is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: move_latency
+        window: 5m
+      exp_annotations:
+        summary: CogniStore move_latency is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+    - exp_labels:
+        severity: critical
+        slo: move_success
+        window: 5m
+      exp_annotations:
+        summary: CogniStore move_success is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+- name: Backlogged moving work below the floor burns window budget, then recovers
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+7.5x80 630+30x399
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 10x480
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: move_throughput
+        window: 5m
+      exp_annotations:
+        summary: CogniStore move_throughput is consuming its error budget rapidly.
+        description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: move_throughput
+        window: 30m
+      exp_annotations:
+        summary: CogniStore move_throughput has sustained error-budget burn.
+        description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - eval_time: 2h
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 2h
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:slo_bad_ratio{slo="move_throughput",window="5m"}
+    eval_time: 20m
+    exp_samples:
+    - labels: cognistore:slo_bad_ratio{slo="move_throughput",window="5m"}
+      value: 1
+  - expr: cognistore:slo_bad_ratio{slo="move_throughput",window="5m"}
+    eval_time: 2h
+    exp_samples:
+    - labels: cognistore:slo_bad_ratio{slo="move_throughput",window="5m"}
+      value: 0
+- name: Scan-only backlog and idle movement do not qualify as move throughput windows
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: '0x160'
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 200x160
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:move_throughput_good
+    eval_time: 20m
+    exp_samples: []
+  - expr: cognistore:slo_bad_ratio{slo="move_throughput"}
+    eval_time: 20m
+    exp_samples: []
+- name: Idle counters remain unknown rather than perfect compliance
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: '0x80'
+  - series: cognistore_operation_duration_seconds_count{component="movement",operation="move",outcome="success"}
+    values: '0x80'
+  - series: cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}
+    values: '0x80'
+  - series: cognistore_http_requests_total{method="POST",route="/v1/ask",status_class="2xx"}
+    values: '0x80'
+  - series: cognistore_indexing_lag_seconds_count{outcome="success"}
+    values: '0x80'
+  - series: cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}
+    values: '0x80'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: count(cognistore:slo_bad_ratio{window="5m"} != cognistore:slo_bad_ratio{window="5m"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 4
+- name: Counter resets are handled by rate before aggregation
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+30x40 0+30x80
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:slo_bad_ratio{slo="move_success",window="5m"}
+    eval_time: 11m
+    exp_samples:
+    - labels: cognistore:slo_bad_ratio{slo="move_success",window="5m"}
+      value: 0
+- name: Queue, cost and carbon, timestamp and scrape breaches recover
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 10001x80 0x80
+  - series: up{job="cognistore-worker"}
+    values: 0x80 1x80
+  - series: up{job="cognistore-api"}
+    values: 0x80 1x80
+  - series: cognistore_indexing_lag_unknown_total
+    values: 0+1x80 80x80
+  - series: cognistore_policy_budget_consumption_ratio{dimension="cost"}
+    values: 0.9x60 1.2x40 0.2x60
+  - series: cognistore_policy_budget_unknown{dimension="cost"}
+    values: '0x160'
+  - series: cognistore_policy_budget_consumption_ratio{dimension="carbon"}
+    values: 0.9x60 1.2x40 0.2x60
+  - series: cognistore_policy_budget_unknown{dimension="carbon"}
+    values: '0x160'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreQueueCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: CogniStore pending queue exceeds 10,000 jobs.
+        description: Shared broker backlog has remained above the operating threshold for 10 minutes.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 40m
+    alertname: CogniStoreQueueCapacity
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetWarning
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        dimension: cost
+      exp_annotations:
+        summary: CogniStore cost budget is at least 80% consumed.
+        description: At least one active independently enforced budget scope has less than 20% headroom.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+    - exp_labels:
+        severity: warning
+        dimension: carbon
+      exp_annotations:
+        summary: CogniStore carbon budget is at least 80% consumed.
+        description: At least one active independently enforced budget scope has less than 20% headroom.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetWarning
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: CogniStorePolicyBudgetCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        dimension: cost
+      exp_annotations:
+        summary: CogniStore cost budget is exhausted.
+        description: At least one active independently enforced budget scope is fully consumed, including reservations.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+    - exp_labels:
+        severity: critical
+        dimension: carbon
+      exp_annotations:
+        summary: CogniStore carbon budget is exhausted.
+        description: At least one active independently enforced budget scope is fully consumed, including reservations.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetCritical
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreIndexingLagUnknown
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: CogniStore indexing lag observations are missing timestamps.
+        description: Completed scan attempts with invalid, missing, or future publication timestamps were excluded from
+          the indexing SLO.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStoreIndexingLagUnknown
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: CogniStoreTelemetryUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: cognistore-api
+      exp_annotations:
+        summary: CogniStore cognistore-api metrics are unavailable.
+        description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+    - exp_labels:
+        severity: critical
+        job: cognistore-worker
+      exp_annotations:
+        summary: CogniStore cognistore-worker metrics are unavailable.
+        description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStoreTelemetryUnavailable
+    exp_alerts: []
+- name: Startup grace prevents early pages; absent telemetry fires then recovers
+  interval: 15s
+  input_series:
+  - series: up{job="cognistore-worker"}
+    values: _x80 1x80
+  - series: up{job="cognistore-api"}
+    values: _x80 1x80
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: _x80 0x80
+  - series: cognistore_policy_budget_unknown{dimension="cost"}
+    values: _x80 0x80
+  - series: cognistore_policy_budget_unknown{dimension="carbon"}
+    values: _x80 0x80
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: CogniStoreTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStoreTelemetryUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: cognistore-api
+      exp_annotations:
+        summary: CogniStore cognistore-api metrics are unavailable.
+        description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+    - exp_labels:
+        severity: critical
+        job: cognistore-worker
+      exp_annotations:
+        summary: CogniStore cognistore-worker metrics are unavailable.
+        description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStoreTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: CogniStoreQueueTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStoreQueueTelemetryUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        state: pending
+      exp_annotations:
+        summary: CogniStore queue depth is unknown.
+        description: Broker queue depth is absent or NaN; capacity and throughput eligibility cannot be established.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStoreQueueTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: CogniStorePolicyBudgetTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetTelemetryUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        dimension: cost
+      exp_annotations:
+        summary: CogniStore cost budget metrics are absent.
+        description: The API is not exposing the expected budget telemetry; check its catalog and instrumentation.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+    - exp_labels:
+        severity: warning
+        dimension: carbon
+      exp_annotations:
+        summary: CogniStore carbon budget metrics are absent.
+        description: The API is not exposing the expected budget telemetry; check its catalog and instrumentation.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts: []
+- name: NaN queue signals unavailable telemetry and never an eligible throughput window
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0x80
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+7.5x160
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: CogniStoreQueueTelemetryUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: CogniStore queue depth is unknown.
+        description: Broker queue depth is absent or NaN; capacity and throughput eligibility cannot be established.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStoreQueueTelemetryUnavailable
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:move_throughput_good
+    eval_time: 10m
+    exp_samples: []
+- name: Zero-limit violated budgets (+Inf) alert; unknown NaN ratios do not assert exhaustion
+  interval: 15s
+  input_series:
+  - series: cognistore_policy_budget_consumption_ratio{dimension="cost"}
+    values: +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf
+      +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf
+      +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf
+      +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf +Inf 0x80
+  - series: cognistore_policy_budget_consumption_ratio{dimension="carbon"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0x80
+  - series: cognistore_policy_budget_unknown{dimension="carbon"}
+    values: 1x80 0x80
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        dimension: cost
+      exp_annotations:
+        summary: CogniStore cost budget is exhausted.
+        description: At least one active independently enforced budget scope is fully consumed, including reservations.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetCritical
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetUnknown
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        dimension: carbon
+      exp_annotations:
+        summary: CogniStore carbon budget telemetry is unknown.
+        description: At least one required budget scope cannot be evaluated; unknown accounting is not zero consumption.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetUnknown
+    exp_alerts: []
+- name: 'Fast burn needs both windows: a recent short spike alone does not page'
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+30x240 7229.4+29.4x39
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="error"}
+    values: 0x240 0.6+0.6x39
+  alert_rule_test:
+  - eval_time: 69m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:slo_burn_rate{slo="move_success",window="5m"} > bool 14.4
+    eval_time: 69m
+    exp_samples:
+    - labels: '{slo="move_success",window="5m"}'
+      value: 1
+  - expr: cognistore:slo_burn_rate{slo="move_success",window="1h"} > bool 14.4
+    eval_time: 69m
+    exp_samples:
+    - labels: '{slo="move_success",window="1h"}'
+      value: 0
+- name: Sustained 8x burn triggers warning independently of critical burn
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+124x160
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="error"}
+    values: 0+1x160
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateWarning
+    exp_alerts:
+    - *id005
+  - eval_time: 20m
+    alertname: CogniStoreSLOBurnRateCritical
+    exp_alerts: []
+- name: A single unavailable queue observation disqualifies its five-minute window
+  interval: 15s
+  input_series:
+  - series: cognistore_operations_total{component="movement",operation="move",outcome="success"}
+    values: 0+7.5x80
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 10x40 NaN 10x39
+  promql_expr_test:
+  - expr: cognistore:move_throughput_good
+    eval_time: 10m
+    exp_samples:
+    - labels: cognistore:move_throughput_good
+      value: 0
+  - expr: cognistore:move_throughput_good
+    eval_time: 11m
+    exp_samples: []
+  - expr: cognistore:move_throughput_good
+    eval_time: 16m
+    exp_samples:
+    - labels: cognistore:move_throughput_good
+      value: 0
+- name: Workers reporting one shared consumer do not double-count queue capacity
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending",instance="worker-1"}
+    values: 6000x80
+  - series: cognistore_job_queue_depth{state="pending",instance="worker-2"}
+    values: 6000x80
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: CogniStoreQueueCapacity
+    exp_alerts: []
+  promql_expr_test:
+  - expr: cognistore:queue_pending
+    eval_time: 20m
+    exp_samples:
+    - labels: cognistore:queue_pending
+      value: 6000
+- name: Unknown budget accounting on one API replica cannot be hidden by another finite ratio
+  interval: 15s
+  input_series:
+  - series: cognistore_policy_budget_consumption_ratio{dimension="cost",instance="api-healthy"}
+    values: 0.5x80 0.2x80
+  - series: cognistore_policy_budget_consumption_ratio{dimension="cost",instance="api-unknown"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.2x80
+  - series: cognistore_policy_budget_unknown{dimension="cost",instance="api-healthy"}
+    values: '0x160'
+  - series: cognistore_policy_budget_unknown{dimension="cost",instance="api-unknown"}
+    values: 1x80 0x80
+  - series: cognistore_policy_budget_consumption_ratio{dimension="carbon",instance="api-healthy"}
+    values: 1.2x80 0.2x80
+  - series: cognistore_policy_budget_consumption_ratio{dimension="carbon",instance="api-unknown"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.2x80
+  - series: cognistore_policy_budget_unknown{dimension="carbon",instance="api-healthy"}
+    values: '0x160'
+  - series: cognistore_policy_budget_unknown{dimension="carbon",instance="api-unknown"}
+    values: 1x80 0x80
+  promql_expr_test:
+  - expr: cognistore:policy_budget_consumption_ratio
+    eval_time: 10m
+    exp_samples: []
+  - expr: cognistore:policy_budget_consumption_ratio
+    eval_time: 40m
+    exp_samples:
+    - labels: cognistore:policy_budget_consumption_ratio{dimension="carbon"}
+      value: 0.2
+    - labels: cognistore:policy_budget_consumption_ratio{dimension="cost"}
+      value: 0.2
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetUnknown
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        dimension: carbon
+      exp_annotations:
+        summary: CogniStore carbon budget telemetry is unknown.
+        description: At least one required budget scope cannot be evaluated; unknown accounting is not zero consumption.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+    - exp_labels:
+        severity: warning
+        dimension: cost
+      exp_annotations:
+        summary: CogniStore cost budget telemetry is unknown.
+        description: At least one required budget scope cannot be evaluated; unknown accounting is not zero consumption.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - eval_time: 40m
+    alertname: CogniStorePolicyBudgetUnknown
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: CogniStorePolicyBudgetCritical
+    exp_alerts: []

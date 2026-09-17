@@ -22,7 +22,7 @@ worker stack remains usable without this profile or a trace exporter.
 | --- | --- | --- |
 | API | `http://127.0.0.1:8082` | REST API, `/healthz`, `/metrics` |
 | Worker | `http://127.0.0.1:8081` | `/healthz`, `/readyz`, `/metrics` |
-| Grafana | `http://127.0.0.1:3000/d/cognistore-operations` | Provisioned **CogniStore operations** dashboard |
+| Grafana | `http://127.0.0.1:3000/d/cognistore-operations` | Provisioned **CogniStore operations** and **CogniStore SLOs** dashboards |
 | Prometheus | `http://127.0.0.1:9090` | Query metrics and inspect scrape targets |
 | Jaeger | `http://127.0.0.1:16686` | Search and inspect traces |
 | OTLP/HTTP | `http://127.0.0.1:4318/v1/traces` | Local trace ingestion endpoint |
@@ -46,7 +46,7 @@ Changing the published OTLP port does not change the Compose-internal endpoint
 API on port 8080 and separate sample driver paths; use the observability API
 on port 8082 for the queued-work walkthrough below.
 
-Prometheus scrapes the API and worker every five seconds and retains seven
+Prometheus scrapes the API and worker every five seconds and retains 35
 days of metrics in its named volume. Grafana stores its state in a named
 volume and provisions the dashboard and Prometheus/Jaeger data sources from
 `docker/observability/`. Jaeger stores traces in memory: restarting Jaeger
@@ -54,7 +54,8 @@ clears them. The pinned upstream images use the documented
 [Prometheus configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/),
 [Grafana file provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/),
 and [Jaeger all-in-one OTLP receiver](https://www.jaegertracing.io/docs/2.20/getting-started/).
-There is no hosted backend, alert policy, or SLO configuration in this profile.
+The profile loads the [SLO recording rules, operational alerts, and runbooks](operational_slos.md).
+Alert state is available in Prometheus; notification routing is deployment configuration.
 
 ## Trace an API request through queued work
 
@@ -196,6 +197,10 @@ must be aggregated with `max`, not summed.
 | `cognistore_job_queue_depth` | Gauge, messages | `state` | Broker consumer pending or delivered/unacknowledged messages; `NaN` when unavailable. |
 | `cognistore_job_queue_latency_seconds` | Histogram, seconds | `operation` | Broker publication to the current attempt claim, including earlier attempts and retry delay. |
 | `cognistore_movement_bytes_total` | Counter, bytes | None | Source bytes after a destination transfer returns successfully, before verification; retried transfers count again, recovery without transfer does not. |
+| `cognistore_indexing_lag_seconds` | Histogram, seconds | `outcome` | Original broker publication to completion of each scan attempt, including failures and cancellation; retries retain original publication age. |
+| `cognistore_indexing_lag_unknown_total` | Counter, attempts | None | Completed scan attempts with missing, invalid, or future publication timestamps; excluded from the lag histogram. |
+| `cognistore_policy_budget_consumption_ratio` | Gauge, ratio | `dimension` | API-only maximum independently scoped opening-plus-held budget consumption; `NaN` when unknown, `+Inf` for positive commitments against zero limit. |
+| `cognistore_policy_budget_unknown` | Gauge, scopes | `dimension` | API-only unknown relevant budget count; one per dimension when the ledger cannot be read. |
 
 All durations use the same fixed bucket upper bounds, in seconds:
 `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, +Inf`.
@@ -226,6 +231,7 @@ Labels have these fixed vocabularies:
 - Job `event`: `enqueued`, `started`, `succeeded`, `failed`, `retried`,
   `dead_lettered`, `redriven`, `cancelled`, or `other`.
 - Queue `state`: `pending` or `in_flight`.
+- Budget `dimension`: `cost` or `carbon`; budget identifiers/scopes are never labels.
 
 Unknown categorical values collapse to `other`, and unregistered routes to
 `unmatched`. Object counts, arbitrary paths, request IDs, trace IDs,
