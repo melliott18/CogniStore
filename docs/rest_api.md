@@ -24,15 +24,21 @@ configure Tantivy, pgvector, or answer generation should construct
 `create_app`. Configure JWT/OIDC authentication with
 `COGNISTORE_AUTH_ISSUER` and `COGNISTORE_AUTH_AUDIENCE`, or pass
 `authentication=JWTAuthConfig(...)` to `create_app`. Every `/v1` request then
-requires a valid bearer access token before request body handling. Unconfigured
-local deployments retain anonymous access; partial authentication configuration
-fails startup. See [authentication](authentication.md) for discovery, key
+requires a valid bearer access token before request body handling. Set
+`COGNISTORE_AUTHORIZATION_POLICY` or `--authorization-policy` to a JSON role
+binding file; authenticated deployments without a policy deny protected
+operations. Embedded applications pass `authorization=RBACAuthorizer(...)`.
+Unconfigured local deployments retain anonymous access; partial authentication
+configuration and an API authorization policy without JWT fail startup.
+See [authentication](authentication.md) for discovery, key
 rotation, service clients, SDK headers, and deployment guidance.
 
 A deployment can pass `authorization_hook` to `create_app` without changing a
 route. It runs after authentication and can inspect `request.state.principal`.
-The default hook permits the request; authentication alone does not enforce
-roles, permissions, or tenant isolation.
+It may add restrictions after the built-in permission checks, but it cannot
+grant missing permissions. The [authorization guide](authorization.md) defines
+every endpoint's permissions, role combinations, current-policy revalidation,
+and trusted local process boundary. RBAC does not provide tenant isolation.
 
 Every application created by `create_app` also serves the same-origin content
 discovery interface at `/ui/`; those static routes are deliberately excluded
@@ -40,13 +46,15 @@ from the versioned OpenAPI document. The
 [content-search sample](content_search_sample.md) composes Tantivy, pgvector,
 and offline providers around this interface for a complete runnable workflow.
 
-Queued actions require a worker connected to the same NATS stream and catalog.
+Queued actions require a worker connected to the same NATS stream and catalog,
+with the same authorization policy for authenticated jobs.
 Without one, accepted jobs remain durably visible in `queued` state.
 
 Interactive documentation is available at `/docs`; the runtime OpenAPI JSON is
 at `/openapi.json`. `/healthz` reports process-level API availability. Backend
 health remains observable through its own service probes. Health, documentation,
-and static UI routes remain public; the UI does not supply an OIDC login flow.
+metrics, and static UI routes remain public; the UI does not supply an OIDC
+login flow.
 
 ## Endpoint summary
 
@@ -183,7 +191,9 @@ Configured authentication returns `401 authentication_required` with
 `WWW-Authenticate: Bearer` for missing credentials, or `401 invalid_token` with
 `WWW-Authenticate: Bearer error="invalid_token"` for invalid credentials or
 unavailable required signing keys. Authentication failures use safe generic
-messages. An authorization hook may additionally return 401 or 403, and
+messages. A missing permission returns a generic 403 before resource lookups,
+without revealing whether the requested resource exists. The additional
+authorization hook may also deny access, and
 challenge headers such as `WWW-Authenticate` are preserved.
 
 ## Asynchronous status
@@ -203,7 +213,9 @@ job returns 404.
 
 Authenticated submissions carry only the normalized principal in reserved job
 metadata, allowing workers to attribute audit events without persisting access
-tokens. Broker publishers are trusted to produce this internal metadata; protect
+tokens or role snapshots. Workers check current bindings again before execution,
+including every retry and redrive; revocation can therefore reject a previously
+accepted job. Broker publishers are trusted to produce this internal metadata; protect
 broker access accordingly. See [identity propagation](authentication.md#jobs-and-audit-attribution).
 
 ## Contract generation

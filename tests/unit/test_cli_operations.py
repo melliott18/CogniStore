@@ -672,8 +672,9 @@ def test_plain_redrive_output_distinguishes_existing_completion(
     assert capsys.readouterr().out.startswith("already redriven ")
 
 
+@pytest.mark.parametrize("protected", [False, True])
 def test_serve_worker_lifecycle_and_live_limit_reload(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, protected: bool,
 ) -> None:
     events: list[str] = []
     callbacks = {}
@@ -686,6 +687,8 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
     release_reload = threading.Event()
     reload_calls = 0
     real_load = cognistore_cli.load_throughput_config
+    authorization_path = tmp_path / "authorization.json"
+    authorization_path.write_text('{"bindings": []}')
 
     def delayed_load(*args, **kwargs):
         nonlocal reload_calls
@@ -718,11 +721,13 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             throughput=None,
             coordinator=None,
             audit_catalog=None,
+            authorization=None,
         ) -> None:
             self.state = WorkerState.STARTING
             self.throughput = throughput
             assert coordinator is not None
             assert audit_catalog is catalog_sentinel
+            assert isinstance(authorization, cognistore_cli.RBACAuthorizer) == protected
 
         async def start(self) -> None:
             self.state = WorkerState.RUNNING
@@ -798,6 +803,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         health_host="127.0.0.1",
         health_port=0,
         drivers="runtime.yaml",
+        authorization_policy=str(authorization_path) if protected else None,
         schedule_db=str(tmp_path / "schedule.db"),
         tier_limits=str(limits_path),
         _throughput_config=cognistore_cli.ThroughputConfig(
@@ -827,3 +833,50 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
     ]
     assert reload_calls == 2
     assert seen_feature_loader is feature_loader_sentinel
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_worker_authorization_policy_flag_overrides_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit: bool,
+) -> None:
+    from cognistore.core.catalog import Catalog
+
+    environment_path = tmp_path / "environment.json"
+    explicit_path = tmp_path / "explicit.json"
+    monkeypatch.setenv("COGNISTORE_AUTHORIZATION_POLICY", str(environment_path))
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda path: {"hot": object()})
+    monkeypatch.setattr(cognistore_cli, "open_catalog", lambda *args, **kwargs: Catalog())
+    seen = []
+
+    async def serve_worker(args, drivers, catalog):
+        seen.append(args.authorization_policy)
+        return 0
+
+    monkeypatch.setattr(cognistore_cli, "_serve_worker", serve_worker)
+    args = [
+        "--no-config", "--drivers", "ignored.yaml", "--catalog-db",
+        str(tmp_path / "catalog.db"), "worker", "--once",
+    ]
+    if explicit:
+        args.extend(["--authorization-policy", str(explicit_path)])
+    assert cognistore_cli.main(args) == 0
+    assert seen == [str(explicit_path if explicit else environment_path)]
+
+
+@pytest.mark.parametrize("contents", [None, "", "not-json", '{"bindings": "invalid"}'])
+def test_worker_rejects_invalid_authorization_before_queue_or_schedule_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, contents: str | None,
+) -> None:
+    path = tmp_path / "authorization.json"
+    if contents is not None:
+        path.write_text(contents)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("worker must validate authorization before acquiring resources")
+
+    monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", forbidden)
+    monkeypatch.setattr(cognistore_cli, "SQLiteScheduleStore", forbidden)
+    with pytest.raises(ValueError, match="Invalid RBAC policy"):
+        asyncio.run(cognistore_cli._serve_worker(
+            argparse.Namespace(authorization_policy=str(path)), {}, object(),
+        ))

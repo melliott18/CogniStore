@@ -12,6 +12,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Awaitable, Callable, Mapping, Protocol
 
+from cognistore.auth.authorization import (
+    Permission,
+    RBACAuthorizer,
+    authorization_context,
+    authorize_operation,
+)
 from cognistore.auth.principal import principal_context
 from cognistore.core.audit import (
     AuditContext,
@@ -220,6 +226,7 @@ class AsyncWorker:
         throughput: Any | None = None,
         coordinator: JobCoordinator | None = None,
         audit_catalog: CatalogStore | None = None,
+        authorization: RBACAuthorizer | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("at least one job handler is required")
@@ -233,6 +240,7 @@ class AsyncWorker:
         self._throughput = throughput
         self._coordinator = coordinator
         self._audit_catalog = audit_catalog
+        self._authorization = authorization
         self.state = WorkerState.STOPPED
         self.accepting_claims = False
         self.last_error: str | None = None
@@ -425,6 +433,7 @@ class AsyncWorker:
         # malformed deliveries, and restore it after every settlement path.
         with ExitStack() as contexts:
             contexts.enter_context(principal_context(None))
+            contexts.enter_context(authorization_context(self._authorization))
             try:
                 job = delivery.job
             except Exception:
@@ -469,6 +478,25 @@ class AsyncWorker:
             job = delivery.job
             principal = job.principal
             contexts.enter_context(principal_context(principal))
+            # Resolve permissions from the actual operation on every attempt,
+            # including retry/redrive. Producer metadata is identity evidence,
+            # never a reusable grant. Check before leases, status changes, or
+            # handlers can perform any work.
+            permissions: tuple[Permission | str, ...] = {
+                "catalog.scan": (Permission.ADMIN,),
+                "policy.run": (Permission.POLICY, Permission.MOVEMENT),
+            }.get(job.job_type, ("unknown_job_type",))
+            await asyncio.to_thread(
+                authorize_operation,
+                self._authorization,
+                permissions,
+                operation=job_operation(job.job_type),
+                boundary="worker",
+                catalog=self._audit_catalog,
+                correlation_id=job.correlation_id,
+                job_id=job.job_id,
+                principal=principal,
+            )
             attempt_offset = self._metadata_integer(job, ATTEMPT_OFFSET_METADATA)
             redrive_count = self._metadata_integer(job, REDRIVE_COUNT_METADATA)
             context = JobContext(

@@ -33,8 +33,21 @@ the principal for job execution and audit attribution across retries; no raw
 bearer token or complete claim set is retained. This metadata is trusted
 internal context, not independently signed proof. Restrict broker access and
 publisher credentials to trusted API, scheduler, and operator processes so
-untrusted publishers cannot impersonate an audit actor. Direct CLI and scheduled
-jobs retain their existing local identities.
+untrusted publishers cannot impersonate an audit actor.
+
+Workers handling authenticated jobs require `worker --authorization-policy PATH` or
+`COGNISTORE_AUTHORIZATION_POLICY` with the same JSON role bindings as the API.
+They reread current permissions before scheduler execution claims and handler
+work on every delivery, including retries and redrives. `catalog.scan` requires
+`administration`; `policy.run` requires both `policy` and `movement` because it
+recovers and executes moves. A worker without a policy rejects any job that
+carries an authenticated principal. See the [authorization matrix and policy
+format](authorization.md).
+
+Workers with a policy reject jobs missing an authenticated principal. Existing
+CLI producers and the scheduler do not authenticate principals; use the REST
+action endpoints for protected workloads. The CLI and schedule examples in
+this guide apply to trusted local deployments with unconfigured workers.
 
 ```bash
 export COGNISTORE_CATALOG_DB='postgresql://cognistore@db.example/cognistore'
@@ -45,6 +58,10 @@ python -m cognistore.cli \
   --nats-url nats://127.0.0.1:4222 \
   worker
 ```
+
+For an authenticated API workload, run that worker with
+`COGNISTORE_AUTHORIZATION_POLICY=/etc/cognistore/authorization.json` in its
+environment. Restrict access to both the policy file and broker credentials.
 
 `--catalog-url` is an alias for `--catalog-db`; configuration files and the
 environment use `catalog_db` and `COGNISTORE_CATALOG_DB`. A writable catalog
@@ -438,7 +455,7 @@ python -m cognistore.cli \
 ```
 
 Redrive keeps the original logical `job_id`, correlation ID, creation time, and
-payload, but uses a distinct deterministic NATS transport message ID so it is
+payload and submitting principal, but uses a distinct deterministic NATS transport message ID so it is
 not suppressed by the main stream's publish-deduplication window. Immutable
 dead-letter and redrive audit records link every cycle. An immutable intent is
 persisted before the main-stream publish and a completion record follows its
@@ -449,7 +466,9 @@ older diagnostic entry expires during a prolonged main-stream outage. Repeated
 invocations for a completed entry return the existing audit result. A malformed
 envelope cannot be automatically redriven because repairing it is intentionally
 out of scope.
-The command makes only bounded connection attempts; with `--json`, operational
+Redrive does not restore revoked permissions: the worker checks the original
+principal against the current policy again, and authorization denial is a
+terminal failure. The command makes only bounded connection attempts; with `--json`, operational
 failures are emitted as a machine-readable error object and return nonzero.
 
 Policy handlers derive a distinct move idempotency key for each object from the

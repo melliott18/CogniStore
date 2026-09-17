@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from cognistore.api import server
 from cognistore.api.app import create_app
 from cognistore.api.gateway import CogniStoreGateway
+from cognistore.auth.authorization import RBACAuthorizer, RBACPolicy
 from cognistore.auth.jwt import JWTAuthConfig, JWTAuthenticator
 from cognistore.auth.principal import Principal, current_principal, principal_context
 from cognistore.core.audit import AuditQuery
@@ -24,6 +25,13 @@ from cognistore.drivers.posix_driver import PosixDriver
 
 ISSUER = "https://identity.example.test/realm"
 AUDIENCE = "cognistore-api"
+
+
+def _authorization():
+    return RBACAuthorizer(RBACPolicy.from_dict({"bindings": [
+        {"issuer": ISSUER, "subject": subject, "roles": ["admin"]}
+        for subject in ("alice", "bob", "service:scanner", "private-service-subject")
+    ]}))
 
 
 @pytest.fixture
@@ -58,7 +66,7 @@ def identity_provider():
 def test_all_versioned_operations_require_auth_before_body_or_hook(identity_provider):
     authenticator, _, requests = identity_provider
     hook_calls = []
-    app = create_app(authentication=authenticator, authorization_hook=lambda: hook_calls.append(1))
+    app = create_app(authentication=authenticator, authorization=_authorization(), authorization_hook=lambda: hook_calls.append(1))
     with TestClient(app) as client:
         for path, operations in app.openapi()["paths"].items():
             if not path.startswith("/v1/"):
@@ -81,7 +89,7 @@ def test_all_versioned_operations_require_auth_before_body_or_hook(identity_prov
 ], ids=["empty", "basic", "no-token", "blank-token", "malformed", "leading-space", "trailing-space", "oversize"])
 def test_malformed_bearer_errors_are_safe_and_consistent(identity_provider, authorization):
     authenticator, _, _ = identity_provider
-    with TestClient(create_app(authentication=authenticator)) as client:
+    with TestClient(create_app(authentication=authenticator, authorization=_authorization())) as client:
         response = client.get("/v1/catalog/objects", headers={
             "Authorization": authorization, "X-Request-ID": "auth-test",
         })
@@ -98,7 +106,7 @@ def test_malformed_bearer_errors_are_safe_and_consistent(identity_provider, auth
 def test_invalid_signed_tokens_never_reach_gateway(identity_provider, claims):
     authenticator, issue_token, _ = identity_provider
     token = issue_token(**claims)
-    with TestClient(create_app(authentication=authenticator)) as client:
+    with TestClient(create_app(authentication=authenticator, authorization=_authorization())) as client:
         response = client.get("/v1/catalog/objects", headers={"Authorization": "Bearer " + token})
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "invalid_token"
@@ -107,7 +115,7 @@ def test_invalid_signed_tokens_never_reach_gateway(identity_provider, claims):
 
 def test_duplicate_authorization_headers_fail_closed(identity_provider):
     authenticator, issue_token, requests = identity_provider
-    with TestClient(create_app(authentication=authenticator)) as client:
+    with TestClient(create_app(authentication=authenticator, authorization=_authorization())) as client:
         response = client.get("/v1/catalog/objects", headers=[
             ("Authorization", "Bearer " + issue_token()), ("Authorization", "Bearer extra"),
         ])
@@ -130,7 +138,7 @@ def test_verified_identity_reaches_sync_hook_and_jobs_without_tokens(identity_pr
     catalog = SQLCatalog(tmp_path / "catalog.db")
     gateway = CogniStoreGateway(catalog, {"hot": PosixDriver(str(tmp_path / "hot"))}, queue=Queue())
     token = issue_token("service:scanner", client_id="scanner-client", secret_claim="not-propagated")
-    app = create_app(gateway, authentication=authenticator, authorization_hook=authorize)
+    app = create_app(gateway, authentication=authenticator, authorization=_authorization(), authorization_hook=authorize)
     with TestClient(app) as client:
         response = client.post("/v1/actions/catalog-scans", json={"tier": "hot", "bucket": "docs"},
                                headers={"Authorization": "bEaReR " + token})
@@ -155,7 +163,7 @@ def test_hook_can_deny_authenticated_request(identity_provider):
         assert request.state.principal.subject == "alice"
         raise HTTPException(403, "internal policy details")
 
-    with TestClient(create_app(authentication=authenticator, authorization_hook=deny)) as client:
+    with TestClient(create_app(authentication=authenticator, authorization=_authorization(), authorization_hook=deny)) as client:
         response = client.get("/v1/catalog/objects", headers={"Authorization": "Bearer " + issue_token()})
     assert response.status_code == 403
     assert "internal policy details" not in response.text
@@ -170,7 +178,7 @@ def test_concurrent_requests_keep_principals_isolated(identity_provider):
         assert before == current_principal() == request.state.principal
         assert before.subject == request.headers["X-Expected-Subject"]
 
-    app = create_app(CogniStoreGateway(Catalog(), {}), authentication=authenticator, authorization_hook=check)
+    app = create_app(CogniStoreGateway(Catalog(), {}), authentication=authenticator, authorization=_authorization(), authorization_hook=check)
 
     async def run():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://api.test") as client:
@@ -187,7 +195,7 @@ def test_concurrent_requests_keep_principals_isolated(identity_provider):
 
 def test_openapi_documents_bearer_on_every_v1_operation(identity_provider):
     authenticator, _, _ = identity_provider
-    schema = create_app(authentication=authenticator).openapi()
+    schema = create_app(authentication=authenticator, authorization=_authorization()).openapi()
     assert schema["components"]["securitySchemes"]["BearerAuth"] == {
         "type": "http", "scheme": "bearer", "bearerFormat": "JWT",
     }
@@ -277,7 +285,7 @@ def test_principal_bounds_identity_text(subject):
 @pytest.mark.parametrize("mounted", [False, True])
 def test_authentication_cannot_be_bypassed_by_a_path_prefix(identity_provider, mounted):
     authenticator, issue_token, _ = identity_provider
-    app = create_app(CogniStoreGateway(Catalog(), {}), authentication=authenticator)
+    app = create_app(CogniStoreGateway(Catalog(), {}), authentication=authenticator, authorization=_authorization())
     if mounted:
         parent = FastAPI()
         parent.mount("/cognistore", app)
@@ -319,7 +327,7 @@ def test_app_closes_owned_authenticator_even_when_gateway_startup_fails(monkeypa
 
 def test_app_leaves_injected_authenticator_owned_by_caller(identity_provider):
     authenticator, issue_token, _ = identity_provider
-    with TestClient(create_app(authentication=authenticator)) as client:
+    with TestClient(create_app(authentication=authenticator, authorization=_authorization())) as client:
         assert client.get("/healthz").status_code == 200
     assert authenticator.authenticate(issue_token()) == Principal(ISSUER, "alice")
 
@@ -357,7 +365,7 @@ def test_authentication_preserves_traces_without_exporting_identity_or_tokens(
             gateway = CogniStoreGateway(
                 catalog, {"hot": PosixDriver(str(tmp_path / "hot"))}, queue=Queue(),
             )
-            with TestClient(create_app(gateway, authentication=authenticator)) as client:
+            with TestClient(create_app(gateway, authentication=authenticator, authorization=_authorization())) as client:
                 response = client.post(
                     "/v1/actions/catalog-scans", json={"tier": "hot", "bucket": "docs"},
                     headers=headers,

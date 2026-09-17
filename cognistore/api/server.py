@@ -8,6 +8,7 @@ from collections.abc import Sequence
 
 import uvicorn
 
+from cognistore.auth.authorization import RBACAuthorizer
 from cognistore.auth.jwt import JWTAuthConfig
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
@@ -66,6 +67,10 @@ def _parser() -> argparse.ArgumentParser:
         "--auth-required-claim", action="append",
         help="required claim; repeat (default sub,exp,iat or COGNISTORE_AUTH_REQUIRED_CLAIMS)",
     )
+    parser.add_argument(
+        "--authorization-policy", default=os.environ.get("COGNISTORE_AUTHORIZATION_POLICY"),
+        help="JSON issuer/subject role bindings (or COGNISTORE_AUTHORIZATION_POLICY)",
+    )
     return parser
 
 
@@ -107,6 +112,19 @@ def _auth_config(args: argparse.Namespace) -> JWTAuthConfig | None:
         raise SystemExit("Invalid JWT authentication configuration; check issuer, audience and options") from None
 
 
+def _authorization_config(
+    args: argparse.Namespace, authentication: JWTAuthConfig | None,
+) -> RBACAuthorizer | None:
+    if args.authorization_policy is None:
+        return None
+    if authentication is None:
+        raise SystemExit("API authorization requires JWT authentication")
+    try:
+        return RBACAuthorizer(policy_path=args.authorization_policy)
+    except (OSError, ValueError):
+        raise SystemExit("Invalid authorization policy configuration") from None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     configure_observability()
@@ -118,6 +136,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("--port must be between 1 and 65535")
 
     authentication = _auth_config(args)
+    authorization = _authorization_config(args, authentication)
     drivers = load_drivers(args.drivers)
     catalog = open_catalog(args.catalog_db)
     try:
@@ -140,7 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             feature_loader=feature_loader,
             access_config=load_access_config(args.drivers),
         )
-        app = create_app(gateway, authentication=authentication)
+        app = create_app(gateway, authentication=authentication, authorization=authorization)
         uvicorn.run(
             app,
             host=args.host,

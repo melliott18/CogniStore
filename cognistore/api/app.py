@@ -27,11 +27,19 @@ from fastapi import (
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.routing import APIRoute
 from fastapi.security import HTTPBearer
 from starlette._utils import get_route_path
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from cognistore.auth.authorization import (
+    AuthorizationError,
+    RBACAuthorizer,
+    audit_authorization_denial,
+    authorization_context,
+    authorize_operation,
+)
 from cognistore.auth.jwt import AuthenticationError, JWTAuthConfig, JWTAuthenticator
 from cognistore.auth.principal import principal_context
 from cognistore.budget_telemetry import budget_metrics_response
@@ -46,7 +54,7 @@ from cognistore.observability import (
 from cognistore.ui import register_content_search_ui
 
 from .errors import APIError, PayloadTooLargeError, RequestContractError
-from .gateway import APIGateway, UnavailableGateway
+from .gateway import APIGateway, CogniStoreGateway, UnavailableGateway
 from .models import (
     AskRequest,
     AskResponse,
@@ -66,6 +74,7 @@ from .models import (
     PolicyRunRequest,
     ValidationIssue,
 )
+from .permissions import ENDPOINT_OPERATIONS, OPERATION_PERMISSIONS, endpoint_operation
 from .telemetry import TelemetryMiddleware
 
 MAX_OBJECT_UPLOAD_BYTES = 16 * 1024 * 1024
@@ -96,7 +105,7 @@ _REQUEST_ID_HEADER = {
 _COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
         "model": ErrorEnvelope,
-        "description": "Bearer token missing or invalid, or authentication required by the authorization hook",
+        "description": "Bearer token missing or invalid, or authentication required",
         "headers": {
             "X-Request-ID": _REQUEST_ID_HEADER,
             "WWW-Authenticate": {"schema": {"type": "string"}},
@@ -104,7 +113,7 @@ _COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
     403: {
         "model": ErrorEnvelope,
-        "description": "Request forbidden by the configured authorization hook",
+        "description": "Operation not permitted by role-based authorization or an additional hook",
         "headers": {"X-Request-ID": _REQUEST_ID_HEADER},
     },
     422: {
@@ -282,11 +291,20 @@ def create_app(
     gateway: APIGateway | None = None,
     *,
     authentication: JWTAuthConfig | JWTAuthenticator | None = None,
+    authorization: RBACAuthorizer | None = None,
     authorization_hook: Callable[..., Any] | None = None,
 ) -> FastAPI:
     """Create the ASGI application around injected service abstractions."""
 
     services = gateway or cast(APIGateway, UnavailableGateway())
+    authorizer = authorization
+    if authorizer is None and isinstance(services, CogniStoreGateway):
+        authorizer = services.authorization
+    if authorizer is not None and authentication is None:
+        raise ValueError("API authorization requires JWT authentication")
+    if authorizer is None and authentication is not None:
+        authorizer = RBACAuthorizer()
+    audit_catalog = services.catalog if isinstance(services, CogniStoreGateway) else None
     owns_authenticator = isinstance(authentication, JWTAuthConfig)
     authenticator = (
         JWTAuthenticator(authentication) if isinstance(authentication, JWTAuthConfig)
@@ -311,7 +329,8 @@ def create_app(
         summary="Versioned object, catalog, Ask, policy, and action operations",
         description=(
             "Stable version 1 REST interface. Deployments can require JWT bearer "
-            "authentication with OIDC discovery. Authorization is a separate extension hook."
+            "authentication with OIDC discovery and explicit role-based permissions. "
+            "Authenticated identities without configured role bindings are denied."
         ),
         version="1.0.0",
         openapi_version="3.1.0",
@@ -319,6 +338,7 @@ def create_app(
     )
     app.state.gateway = services
     app.state.authenticator = authenticator
+    app.state.authorizer = authorizer
 
     @app.middleware("http")
     async def request_identity(request: Request, call_next):
@@ -353,6 +373,23 @@ def create_app(
                     code="invalid_token",
                     message="The bearer access token is invalid",
                     headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+                )
+        if route_path == "/v1" or route_path.startswith("/v1/"):
+            operation = endpoint_operation(request.method, route_path)
+            try:
+                await asyncio.to_thread(
+                    authorize_operation,
+                    authorizer,
+                    OPERATION_PERMISSIONS.get(operation, ()),
+                    principal=request.state.principal,
+                    operation=operation,
+                    boundary="api",
+                    catalog=audit_catalog,
+                    correlation_id=request.state.request_id,
+                )
+            except AuthorizationError:
+                return _error_response(
+                    request, status_code=403, code="forbidden", message="Operation not permitted",
                 )
         operation_id = request.headers.get("idempotency-key", request.state.request_id)
         if _REQUEST_ID.fullmatch(operation_id) is None:
@@ -422,7 +459,7 @@ def create_app(
                     retryable=exc.retryable,
                     headers=exc.headers,
                 )
-        with principal_context(request.state.principal), access_operation(
+        with authorization_context(authorizer), principal_context(request.state.principal), access_operation(
             operation_id=operation_id,
             correlation_id=request.state.request_id,
             source="api",
@@ -431,8 +468,22 @@ def create_app(
         response.headers["X-Request-ID"] = request.state.request_id
         return response
 
+    async def audit_http_denial(request: Request) -> None:
+        operation = endpoint_operation(request.method, get_route_path(request.scope))
+        await asyncio.to_thread(
+            audit_authorization_denial,
+            getattr(request.state, "principal", None),
+            OPERATION_PERMISSIONS.get(operation, ()),
+            operation=operation,
+            boundary="api_result",
+            catalog=audit_catalog,
+            correlation_id=_request_id(request),
+        )
+
     @app.exception_handler(APIError)
     async def api_error(request: Request, exc: APIError) -> JSONResponse:
+        if exc.status_code in (401, 403):
+            await audit_http_denial(request)
         return _error_response(
             request,
             status_code=exc.status_code,
@@ -440,6 +491,16 @@ def create_app(
             message=exc.message,
             retryable=exc.retryable,
             headers=exc.headers,
+        )
+
+    @app.exception_handler(AuthorizationError)
+    async def authorization_error(request: Request, _exc: AuthorizationError) -> JSONResponse:
+        # Hooks may raise this error directly without recording a decision.
+        # Also retain the final API denial when a service recheck rejects a
+        # request that passed the earlier transport check.
+        await audit_http_denial(request)
+        return _error_response(
+            request, status_code=403, code="forbidden", message="Operation not permitted",
         )
 
     @app.exception_handler(RequestValidationError)
@@ -466,6 +527,8 @@ def create_app(
     async def http_error(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
+        if exc.status_code in (401, 403):
+            await audit_http_denial(request)
         return _error_response(
             request,
             status_code=exc.status_code,
@@ -934,6 +997,15 @@ def create_app(
     ) -> JobStatusResponse:
         return services.get_job(job_id)
 
+    # Keep permission requirements visible in the deterministic API contract.
+    for route in router.routes:
+        if isinstance(route, APIRoute):
+            for method in route.methods or ():
+                operation = ENDPOINT_OPERATIONS[(method, route.path)]
+                route.openapi_extra = {
+                    **(route.openapi_extra or {}),
+                    "x-required-permissions": [p.value for p in OPERATION_PERMISSIONS[operation]],
+                }
     app.include_router(router)
     register_content_search_ui(app)
     register_http_routes(

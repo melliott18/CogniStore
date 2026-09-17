@@ -89,6 +89,7 @@ _KEY_SEPARATOR = re.compile(r"[^a-z0-9]+")
 # Keep the list explicit so a broad "*_key" or "*token*" rule cannot hide
 # fields that operators need for correlation and capacity accounting.
 _BENIGN_KEY_NAMES = {
+    "authorization_policy",
     "cached_tokens",
     "completion_tokens",
     "correlation_id",
