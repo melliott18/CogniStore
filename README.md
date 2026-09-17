@@ -234,6 +234,21 @@ hot = drivers["hot"]
 hot.put_object("bucket", "key.txt", b"hello")
 ```
 
+### Runtime secrets and keys
+
+Production tiers can resolve credential references from Vault KV v2 or AWS
+Secrets Manager at operation time. Bounded caches refresh after expiry, while
+active streams retain their credential version for the transfer. Keep old
+credentials valid through the documented transfer grace window when rotating.
+AWS KMS and Vault Transit key providers also unwrap encrypted key material
+through the Python API.
+
+Prefer native cloud workload identities when available. See the
+[runtime secrets guide](docs/secrets.md) for configuration, least privilege,
+rotation, redaction, and provider outage behavior, and
+[examples/drivers.production.yaml](examples/drivers.production.yaml) for a
+configuration containing references only.
+
 ### S3-compatible tiers
 
 The `s3` driver works with AWS S3 and S3-compatible services such as MinIO.

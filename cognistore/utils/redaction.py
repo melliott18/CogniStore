@@ -2,12 +2,85 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import re
+import threading
 from collections.abc import Mapping, Sequence
+from functools import lru_cache
 from typing import Any
 from urllib.parse import unquote_plus
 
 REDACTED = "[REDACTED]"
+
+
+class RedactedValue:
+    """Marker for opaque runtime secrets understood by recursive redaction."""
+
+    __slots__ = ()
+
+
+_known_values: set[str] = set()
+_known_values_lock = threading.RLock()
+
+
+def register_secret_value(value: str | bytes) -> None:
+    """Remember opaque material and JSON leaves for process-lifetime redaction.
+
+    Historical versions remain protected after rotation. This registry is never
+    persisted and is intentionally not an API for discovering secret values.
+    """
+
+    representations: set[str] = set()
+    if isinstance(value, bytes):
+        representations.update((base64.b64encode(value).decode("ascii"), value.hex()))
+        representations.update((repr(value), repr(value)[2:-1]))
+        try:
+            text = value.decode("utf-8")
+        except UnicodeError:
+            text = ""
+    else:
+        text = value
+    if text:
+        representations.add(text)
+        representations.add(json.dumps(text, ensure_ascii=True)[1:-1])
+        representations.add(json.dumps(text, ensure_ascii=False)[1:-1])
+        try:
+            parsed = json.loads(text)
+        except (ValueError, RecursionError):
+            parsed = None
+
+        def leaves(item: Any) -> None:
+            if isinstance(item, str) and item:
+                representations.add(item)
+                representations.add(json.dumps(item, ensure_ascii=True)[1:-1])
+                representations.add(json.dumps(item, ensure_ascii=False)[1:-1])
+            elif isinstance(item, Mapping):
+                for child in item.values():
+                    leaves(child)
+            elif isinstance(item, list):
+                for child in item:
+                    leaves(child)
+
+        try:
+            leaves(parsed)
+        except RecursionError:
+            pass
+    with _known_values_lock:
+        _known_values.update(item for item in representations if item and item != REDACTED)
+
+
+@lru_cache(maxsize=1)
+def _known_pattern(values: tuple[str, ...]) -> re.Pattern[str]:
+    return re.compile("|".join(re.escape(value) for value in values))
+
+
+def _redact_known_values(text: str) -> str:
+    with _known_values_lock:
+        values = tuple(sorted(_known_values, key=len, reverse=True))
+    # A single pass preserves existing NUL bytes until after exact matching and
+    # prevents short secrets from corrupting previously inserted redaction marks.
+    return _known_pattern(values).sub(lambda _match: REDACTED, text) if values else text
 
 _CAMEL_CASE_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _KEY_SEPARATOR = re.compile(r"[^a-z0-9]+")
@@ -318,7 +391,7 @@ def redact_text(text: str) -> str:
     ``key: value`` diagnostics. The original string is never changed.
     """
 
-    redacted = _PRIVATE_KEY_BLOCK.sub(REDACTED, str(text))
+    redacted = _PRIVATE_KEY_BLOCK.sub(REDACTED, _redact_known_values(str(text)))
     redacted = _URL_USERINFO.sub(
         lambda match: f"{match.group('scheme')}{REDACTED}@",
         redacted,
@@ -355,6 +428,12 @@ def redact(value: Any) -> Any:
     callers can safely retain or reuse the original input.
     """
 
+    if isinstance(value, RedactedValue):
+        return REDACTED
+    if isinstance(value, (bytes, bytearray)):
+        # Binary diagnostic values have no safe schema; do not expose keys via
+        # an opaque bytes representation even when they predate registration.
+        return REDACTED
     if isinstance(value, str):
         return redact_text(value)
     if isinstance(value, Mapping):
@@ -377,4 +456,7 @@ def redact(value: Any) -> Any:
     return value
 
 
-__all__ = ["REDACTED", "redact", "redact_cli_arguments", "redact_text"]
+__all__ = [
+    "REDACTED", "RedactedValue", "redact", "redact_cli_arguments", "redact_text",
+    "register_secret_value",
+]

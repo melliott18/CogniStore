@@ -20,6 +20,7 @@ nav:
       - Content-search sample: content_search_sample.md
       - REST API v1: rest_api.md
       - Python SDK: python_sdk.md
+      - Runtime secrets and keys: secrets.md
       - S3 driver: s3_driver.md
       - Tier profiling: tier_profiling.md
       - Raspberry Pi tiers: rpi_three_tier_setup.md

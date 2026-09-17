@@ -130,6 +130,7 @@ class S3Driver(StorageDriver):
         self.list_page_size = list_page_size
         self.chunk_size = chunk_size
         self.multipart_threshold = multipart_threshold
+        self._owns_client = client is None
 
         self._validate_configuration(
             region_name=region_name,
@@ -758,7 +759,17 @@ class S3Driver(StorageDriver):
         self._create_bucket(bucket)
         return cast(Dict[str, Any], self._client.create_multipart_upload(**request))
 
+    def close(self) -> None:
+        """Release a client created by this driver, once active IO has finished."""
+        if self._owns_client:
+            self._owns_client = False
+            self._client.close()
+
     def same_backend(self, other: StorageDriver) -> bool:
+        from .rotating import RotatingStorageDriver
+
+        if isinstance(other, RotatingStorageDriver):
+            return other.same_backend(self)
         if not isinstance(other, S3Driver):
             return False
 

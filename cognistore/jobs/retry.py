@@ -28,6 +28,7 @@ from cognistore.core.move_jobs import (
     MoveJobLeaseError,
 )
 from cognistore.core.mover import MoveVerificationError
+from cognistore.secrets import SecretAccessError, SecretUnavailableError
 
 from .models import InvalidJobError, JobEnvelopeError, QueueSaturatedError
 
@@ -232,6 +233,10 @@ def _status_from_exception(error: BaseException) -> int | None:
 
 
 def _classification_for_one(error: BaseException) -> ErrorClassification | None:
+    if isinstance(error, SecretUnavailableError):
+        return ErrorClassification(True, FailureCategory.UNAVAILABLE, "secret provider unavailable")
+    if isinstance(error, SecretAccessError):
+        return ErrorClassification(False, FailureCategory.AUTHORIZATION, "secret access failed")
     if isinstance(error, QueueSaturatedError) or getattr(
         error, "throughput_saturated", False
     ):

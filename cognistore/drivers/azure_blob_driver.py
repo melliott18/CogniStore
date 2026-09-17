@@ -239,6 +239,10 @@ class AzureBlobDriver(StorageDriver):
                 credential.close()
 
     def same_backend(self, other: StorageDriver) -> bool:
+        from .rotating import RotatingStorageDriver
+
+        if isinstance(other, RotatingStorageDriver):
+            return other.same_backend(self)
         if not isinstance(other, AzureBlobDriver):
             return False
         return self._client is other._client or (
