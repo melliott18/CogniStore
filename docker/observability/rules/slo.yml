@@ -1,0 +1,326 @@
+# SLO contract and response steps: docs/operational_slos.md.
+# Empty/idle denominators stay NaN or absent; they never become 100% healthy.
+# le values match Python prometheus_client classic histogram exposition.
+groups:
+- name: cognistore-slo-recordings
+  interval: 15s
+  rules:
+  - record: cognistore:queue_pending
+    expr: max(cognistore_job_queue_depth{state="pending"} >= 0)
+  - record: cognistore:move_throughput_per_second
+    expr: sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[5m])) or
+      (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[5m])))
+  - record: cognistore:move_throughput_eligible
+    expr: (min_over_time(cognistore:queue_pending[5m]) > 0) and (count_over_time(cognistore:queue_pending[5m]) >=
+      20) and (sum(increase(cognistore_operations_total{component="movement",operation="move"}[5m])) > 0)
+  - record: cognistore:move_throughput_good
+    expr: (cognistore:move_throughput_per_second >= bool 1) and cognistore:move_throughput_eligible
+  - record: cognistore:slo_target
+    expr: vector(0.999)
+    labels:
+      slo: move_success
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[5m]))
+      or (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[5m])))) / sum(rate(cognistore_operations_total{component="movement",operation="move"}[5m])),
+      0, 1)
+    labels:
+      slo: move_success
+      window: 5m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[1h]))
+      or (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[1h])))) / sum(rate(cognistore_operations_total{component="movement",operation="move"}[1h])),
+      0, 1)
+    labels:
+      slo: move_success
+      window: 1h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[30m]))
+      or (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[30m])))) / sum(rate(cognistore_operations_total{component="movement",operation="move"}[30m])),
+      0, 1)
+    labels:
+      slo: move_success
+      window: 30m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[6h]))
+      or (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[6h])))) / sum(rate(cognistore_operations_total{component="movement",operation="move"}[6h])),
+      0, 1)
+    labels:
+      slo: move_success
+      window: 6h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operations_total{component="movement",operation="move",outcome="success"}[30d]))
+      or (0 * sum(rate(cognistore_operations_total{component="movement",operation="move"}[30d])))) / sum(rate(cognistore_operations_total{component="movement",operation="move"}[30d])),
+      0, 1)
+    labels:
+      slo: move_success
+      window: 30d
+  - record: cognistore:slo_target
+    expr: vector(0.99)
+    labels:
+      slo: move_latency
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}[5m]))
+      or (0 * sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[5m]))))
+      / sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[5m])), 0, 1)
+    labels:
+      slo: move_latency
+      window: 5m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}[1h]))
+      or (0 * sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[1h]))))
+      / sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[1h])), 0, 1)
+    labels:
+      slo: move_latency
+      window: 1h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}[30m]))
+      or (0 * sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[30m]))))
+      / sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[30m])), 0, 1)
+    labels:
+      slo: move_latency
+      window: 30m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}[6h]))
+      or (0 * sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[6h]))))
+      / sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[6h])), 0, 1)
+    labels:
+      slo: move_latency
+      window: 6h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_operation_duration_seconds_bucket{component="movement",operation="move",outcome="success",le="30.0"}[30d]))
+      or (0 * sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[30d]))))
+      / sum(rate(cognistore_operation_duration_seconds_count{component="movement",operation="move"}[30d])), 0, 1)
+    labels:
+      slo: move_latency
+      window: 30d
+  - record: cognistore:slo_target
+    expr: vector(0.999)
+    labels:
+      slo: api_availability
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_http_requests_total{route=~"/v1/.*",status_class!="5xx"}[5m])) or (0 *
+      sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[5m])))) / sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[5m])),
+      0, 1)
+    labels:
+      slo: api_availability
+      window: 5m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_http_requests_total{route=~"/v1/.*",status_class!="5xx"}[1h])) or (0 *
+      sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[1h])))) / sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[1h])),
+      0, 1)
+    labels:
+      slo: api_availability
+      window: 1h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_http_requests_total{route=~"/v1/.*",status_class!="5xx"}[30m])) or (0 *
+      sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[30m])))) / sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[30m])),
+      0, 1)
+    labels:
+      slo: api_availability
+      window: 30m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_http_requests_total{route=~"/v1/.*",status_class!="5xx"}[6h])) or (0 *
+      sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[6h])))) / sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[6h])),
+      0, 1)
+    labels:
+      slo: api_availability
+      window: 6h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_http_requests_total{route=~"/v1/.*",status_class!="5xx"}[30d])) or (0 *
+      sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[30d])))) / sum(rate(cognistore_http_requests_total{route=~"/v1/.*"}[30d])),
+      0, 1)
+    labels:
+      slo: api_availability
+      window: 30d
+  - record: cognistore:slo_target
+    expr: vector(0.99)
+    labels:
+      slo: indexing_lag
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}[5m])) or (0 *
+      sum(rate(cognistore_indexing_lag_seconds_count[5m])))) / sum(rate(cognistore_indexing_lag_seconds_count[5m])),
+      0, 1)
+    labels:
+      slo: indexing_lag
+      window: 5m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}[1h])) or (0 *
+      sum(rate(cognistore_indexing_lag_seconds_count[1h])))) / sum(rate(cognistore_indexing_lag_seconds_count[1h])),
+      0, 1)
+    labels:
+      slo: indexing_lag
+      window: 1h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}[30m])) or (0
+      * sum(rate(cognistore_indexing_lag_seconds_count[30m])))) / sum(rate(cognistore_indexing_lag_seconds_count[30m])),
+      0, 1)
+    labels:
+      slo: indexing_lag
+      window: 30m
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}[6h])) or (0 *
+      sum(rate(cognistore_indexing_lag_seconds_count[6h])))) / sum(rate(cognistore_indexing_lag_seconds_count[6h])),
+      0, 1)
+    labels:
+      slo: indexing_lag
+      window: 6h
+  - record: cognistore:slo_bad_ratio
+    expr: clamp(1 - (sum(rate(cognistore_indexing_lag_seconds_bucket{outcome="success",le="300.0"}[30d])) or (0
+      * sum(rate(cognistore_indexing_lag_seconds_count[30d])))) / sum(rate(cognistore_indexing_lag_seconds_count[30d])),
+      0, 1)
+    labels:
+      slo: indexing_lag
+      window: 30d
+  - record: cognistore:slo_target
+    expr: vector(0.99)
+    labels:
+      slo: move_throughput
+  - record: cognistore:slo_bad_ratio
+    expr: 1 - sum_over_time(cognistore:move_throughput_good[5m]) / count_over_time(cognistore:move_throughput_good[5m])
+    labels:
+      slo: move_throughput
+      window: 5m
+  - record: cognistore:slo_bad_ratio
+    expr: 1 - sum_over_time(cognistore:move_throughput_good[1h]) / count_over_time(cognistore:move_throughput_good[1h])
+    labels:
+      slo: move_throughput
+      window: 1h
+  - record: cognistore:slo_bad_ratio
+    expr: 1 - sum_over_time(cognistore:move_throughput_good[30m]) / count_over_time(cognistore:move_throughput_good[30m])
+    labels:
+      slo: move_throughput
+      window: 30m
+  - record: cognistore:slo_bad_ratio
+    expr: 1 - sum_over_time(cognistore:move_throughput_good[6h]) / count_over_time(cognistore:move_throughput_good[6h])
+    labels:
+      slo: move_throughput
+      window: 6h
+  - record: cognistore:slo_bad_ratio
+    expr: 1 - sum_over_time(cognistore:move_throughput_good[30d]) / count_over_time(cognistore:move_throughput_good[30d])
+    labels:
+      slo: move_throughput
+      window: 30d
+  - record: cognistore:slo_burn_rate
+    expr: cognistore:slo_bad_ratio / on(slo) group_left() (1 - cognistore:slo_target)
+  - record: cognistore:slo_budget_remaining_ratio
+    expr: 1 - (cognistore:slo_bad_ratio{window="30d"} / on(slo) group_left() (1 - cognistore:slo_target))
+  - record: cognistore:policy_budget_consumption_ratio
+    expr: max by (dimension) (cognistore_policy_budget_consumption_ratio)
+      unless on(dimension) (sum by (dimension) (cognistore_policy_budget_unknown) > 0)
+- name: cognistore-operational-alerts
+  interval: 15s
+  rules:
+  - alert: CogniStoreSLOBurnRateCritical
+    expr: (cognistore:slo_burn_rate{window="5m"} > 14.4) and on(slo) (cognistore:slo_burn_rate{window="1h"} > 14.4)
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore {{ $labels.slo }} is consuming its error budget rapidly.
+      description: The 5m and 1h burn rates both exceed 14.4 times the allowed bad-event rate.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - alert: CogniStoreSLOBurnRateWarning
+    expr: (cognistore:slo_burn_rate{window="30m"} > 6) and on(slo) (cognistore:slo_burn_rate{window="6h"} > 6)
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore {{ $labels.slo }} has sustained error-budget burn.
+      description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
+  - alert: CogniStoreQueueCapacity
+    expr: cognistore:queue_pending > 10000
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore pending queue exceeds 10,000 jobs.
+      description: Shared broker backlog has remained above the operating threshold for 10 minutes.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - alert: CogniStorePolicyBudgetWarning
+    expr: cognistore:policy_budget_consumption_ratio >= 0.8 and cognistore:policy_budget_consumption_ratio < 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore {{ $labels.dimension }} budget is at least 80% consumed.
+      description: At least one active independently enforced budget scope has less than 20% headroom.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+  - alert: CogniStorePolicyBudgetCritical
+    expr: cognistore:policy_budget_consumption_ratio >= 1
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore {{ $labels.dimension }} budget is exhausted.
+      description: At least one active independently enforced budget scope is fully consumed, including reservations.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#policy-budget
+  - alert: CogniStorePolicyBudgetUnknown
+    expr: sum by (dimension) (cognistore_policy_budget_unknown) > 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore {{ $labels.dimension }} budget telemetry is unknown.
+      description: At least one required budget scope cannot be evaluated; unknown accounting is not zero consumption.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStoreIndexingLagUnknown
+    expr: sum(increase(cognistore_indexing_lag_unknown_total[5m])) > 0
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore indexing lag observations are missing timestamps.
+      description: Completed scan attempts with invalid, missing, or future publication timestamps were excluded
+        from the indexing SLO.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStoreTelemetryUnavailable
+    expr: up{job="cognistore-worker"} == 0 or absent(up{job="cognistore-worker"})
+    for: 5m
+    labels:
+      job: cognistore-worker
+      severity: critical
+    annotations:
+      summary: CogniStore {{ $labels.job }} metrics are unavailable.
+      description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStoreTelemetryUnavailable
+    expr: up{job="cognistore-api"} == 0 or absent(up{job="cognistore-api"})
+    for: 5m
+    labels:
+      job: cognistore-api
+      severity: critical
+    annotations:
+      summary: CogniStore {{ $labels.job }} metrics are unavailable.
+      description: The expected scrape target has been unavailable for 5 minutes; SLO charts may contain gaps.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStoreQueueTelemetryUnavailable
+    expr: count(cognistore_job_queue_depth{state="pending"} != cognistore_job_queue_depth{state="pending"}) > 0
+      or absent(cognistore_job_queue_depth{state="pending"})
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore queue depth is unknown.
+      description: Broker queue depth is absent or NaN; capacity and throughput eligibility cannot be established.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStorePolicyBudgetTelemetryUnavailable
+    expr: absent(cognistore_policy_budget_unknown{dimension="cost"})
+    for: 5m
+    labels:
+      dimension: cost
+      severity: warning
+    annotations:
+      summary: CogniStore {{ $labels.dimension }} budget metrics are absent.
+      description: The API is not exposing the expected budget telemetry; check its catalog and instrumentation.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStorePolicyBudgetTelemetryUnavailable
+    expr: absent(cognistore_policy_budget_unknown{dimension="carbon"})
+    for: 5m
+    labels:
+      dimension: carbon
+      severity: warning
+    annotations:
+      summary: CogniStore {{ $labels.dimension }} budget metrics are absent.
+      description: The API is not exposing the expected budget telemetry; check its catalog and instrumentation.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable

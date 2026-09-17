@@ -331,6 +331,8 @@ class CatalogStore(Protocol):
 
 	def list_budget_reservations(self, budget_id: str | None = None) -> List[dict[str, Any]]: ...
 
+	def read_budget_snapshot(self) -> tuple[List[BudgetDefinition], List[dict[str, Any]]]: ...
+
 	def register_tier(
 		self, name: str, metadata: Mapping[str, object] | None = None, *, active: bool = True
 	) -> None: ...
@@ -618,6 +620,11 @@ class Catalog(CatalogStore):
 		with self._lock:
 			return deepcopy([item for identity, item in sorted(self._budget_reservations.items())
 				if budget_id is None or identity[0] == budget_id])
+
+	def read_budget_snapshot(self) -> tuple[List[BudgetDefinition], List[dict[str, Any]]]:
+		"""Detach definitions and held reservations under one admission lock."""
+		with self._lock:
+			return self.list_budgets(), self.list_budget_reservations()
 
 	@contextmanager
 	def _budget_claim_transaction(self) -> Iterator[None]:

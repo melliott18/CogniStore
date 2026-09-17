@@ -1,0 +1,736 @@
+{
+  "id": null,
+  "uid": "cognistore-slos",
+  "title": "CogniStore \u00b7 SLOs and operational guardrails",
+  "description": "Rolling 30-day SLOs, error budgets, burn alerts, policy budgets and capacity. Missing observations are unknown. Review the runbook for eligibility, partial history and notification setup.",
+  "tags": [
+    "cognistore",
+    "slo",
+    "operations"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "editable": false,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "SLO definitions and runbooks",
+      "type": "link",
+      "url": "https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md",
+      "targetBlank": true
+    },
+    {
+      "title": "Detailed operations dashboard",
+      "type": "link",
+      "url": "/d/cognistore-operations",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "SLI attainment \u00b7 rolling 30 days",
+      "type": "timeseries",
+      "description": "Move success/API availability targets 99.9%; move latency <=30s, indexing lag <=300s, and eligible throughput windows >=1 move/s targets 99%. NaN/missing means no observations, not 100%. Before 30 days have been retained these are partial-history values.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - cognistore:slo_bad_ratio{window=\"30d\"}",
+          "legendFormat": "{{slo}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error budget consumed \u00b7 rolling 30 days",
+      "type": "timeseries",
+      "description": "Observed bad fraction / (1 - target). Values above 100% mean the rolling budget is exhausted; overspend is preserved. With no observations consumption is unknown. All series use the same rolling 30-day accounting window.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - cognistore:slo_budget_remaining_ratio",
+          "legendFormat": "{{slo}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Fast burn \u00b7 5m / 1h",
+      "type": "timeseries",
+      "description": "Critical alert: both 5m and 1h windows exceed 14.4x for 2m. Burn 1 consumes budget at exactly the allowed long-run rate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cognistore:slo_burn_rate{window=~\"5m|1h\"}",
+          "legendFormat": "{{slo}} \u00b7 {{window}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Sustained burn \u00b7 30m / 6h",
+      "type": "timeseries",
+      "description": "Warning: both 30m and 6h windows exceed 6x for 15m. Both windows must breach to avoid paging on an already recovered incident.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cognistore:slo_burn_rate{window=~\"30m|6h\"}",
+          "legendFormat": "{{slo}} \u00b7 {{window}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Completed successful moves \u00b7 5m rate",
+      "type": "timeseries",
+      "description": "Floor 1 successful move/s. Throughput SLO samples overlapping 5m windows every 15s only when pending backlog remained positive and some move attempts completed. It does not infer move demand from scan-only backlog.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cognistore:move_throughput_per_second",
+          "legendFormat": "successful moves/s",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Throughput window result",
+      "type": "timeseries",
+      "description": "1 = eligible window met floor; 0 = eligible window missed floor; gap = ineligible/unknown. Fully stalled movers age out of eligibility; investigate queue-capacity and telemetry alerts alongside this SLI.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cognistore:move_throughput_good",
+          "legendFormat": "eligible window result",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Cost/carbon budget consumption",
+      "type": "timeseries",
+      "description": "Maximum consumption of an active independently enforced policy/tier/window budget scope, including reservations. No configured limit is 0; any unknown required scope is NaN. A zero limit with consumption is +Inf.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cognistore:policy_budget_consumption_ratio",
+          "legendFormat": "{{dimension}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Budget scopes with unknown accounting",
+      "type": "timeseries",
+      "description": "Unknown budget telemetry never implies free capacity. Check scope coverage, active time windows, and catalog connectivity. Counts can repeat across API replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (dimension) (cognistore_policy_budget_unknown)",
+          "legendFormat": "{{dimension}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Broker queue backlog",
+      "type": "timeseries",
+      "description": "Maximum across worker replicas reporting the same durable consumer avoids double-counting. Pending >10,000 for 10m warns. NaN means broker health is unknown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (state) (cognistore_job_queue_depth)",
+          "legendFormat": "{{state}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Indexing observations excluded \u00b7 5m",
+      "type": "timeseries",
+      "description": "Completed scan attempts with missing, invalid, or future original publication time are excluded from indexing SLI and produce a data-quality alert.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(cognistore_indexing_lag_unknown_total[5m]))",
+          "legendFormat": "unknown timestamps",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Telemetry scrape health",
+      "type": "timeseries",
+      "description": "1 = scrape succeeded; 0 = scrape failed. Absent/failed targets alert after 5m. Missing history must not be read as compliance.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"cognistore-worker|cognistore-api\"}",
+          "legendFormat": "{{job}} \u00b7 {{instance}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Firing operational alerts",
+      "type": "timeseries",
+      "description": "Prometheus evaluates these rules locally. Configure Alertmanager routing for production notifications; this local profile does not send notifications.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cognistore-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No observations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\",alertname=~\"CogniStore.*\"}",
+          "legendFormat": "{{alertname}} \u00b7 {{slo}} {{dimension}} {{job}}",
+          "range": true
+        }
+      ]
+    }
+  ]
+}

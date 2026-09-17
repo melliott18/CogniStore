@@ -374,6 +374,24 @@ class SQLCatalog(Catalog):
         return sorted((deepcopy(value) for value in values),
                       key=lambda item: (item["budget_id"], item["move_id"], item["attempt"]))
 
+    def read_budget_snapshot(self) -> tuple[List[BudgetDefinition], List[dict[str, Any]]]:
+        """Read both ledger tables in one statement-consistent, read-only query.
+
+        A single UNION ALL preserves one snapshot under PostgreSQL READ COMMITTED
+        and SQLite, without taking the admission writer lock during scrapes.
+        """
+        statement = sa.union_all(
+            sa.select(sa.literal("definition"), budget_definitions.c.definition),
+            sa.select(sa.literal("reservation"), budget_reservations.c.reservation),
+        )
+        with self._connection() as connection:
+            rows = connection.execute(statement).all()
+        return (
+            [BudgetDefinition.from_mapping(value) for kind, value in rows
+             if kind == "definition"],
+            [deepcopy(value) for kind, value in rows if kind == "reservation"],
+        )
+
     def _reserve_move_budgets(
         self, connection: Connection, *, move_id: str, bucket: str, key: str,
         src_tier: str, dst_tier: str, size: int, source_metadata: Mapping[str, Any],

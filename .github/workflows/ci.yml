@@ -46,6 +46,17 @@ jobs:
       - name: Verify deterministic OpenAPI contract
         run: python -m cognistore.api.openapi --check docs/openapi/v1.json
 
+  observability:
+    name: Prometheus rules and operational alerts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Compose, Prometheus configuration, and synthetic breach/recovery fixtures
+        run: ./docker/observability/verify.sh
+
   tests:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
