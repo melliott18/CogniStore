@@ -262,6 +262,10 @@ class GCSDriver(StorageDriver):
             self._auth_request.session.close()
 
     def same_backend(self, other: StorageDriver) -> bool:
+        from .rotating import RotatingStorageDriver
+
+        if isinstance(other, RotatingStorageDriver):
+            return other.same_backend(self)
         # GCS bucket names are global; credential/project differences do not
         # distinguish physical storage. Emulator origins do.
         return isinstance(other, GCSDriver) and self.endpoint_url == other.endpoint_url
