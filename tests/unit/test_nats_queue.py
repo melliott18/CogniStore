@@ -1147,3 +1147,40 @@ def test_nats_connection_error_callback_redacts_driver_exception(caplog) -> None
     assert "secret" not in caplog.text
     assert "password" not in caplog.text
     assert all(record.exc_info is None for record in caplog.records)
+
+
+def test_same_job_id_is_published_independently_for_each_tenant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch, consume=False)
+        await queue.connect()
+        first = JobEnvelope.create("catalog.scan", {}, tenant_id="alpha")
+        second = JobEnvelope.create("catalog.scan", {}, job_id=first.job_id, tenant_id="beta")
+        await queue.enqueue(first)
+        await queue.enqueue(second)
+        messages = [item for item in jetstream.published if item[0] == queue.config.subject]
+        assert len(messages) == 2
+        assert messages[0][3][Header.MSG_ID] != messages[1][3][Header.MSG_ID]
+        assert [JobEnvelope.from_bytes(item[1]).tenant_id for item in messages] == ["alpha", "beta"]
+        await queue.close()
+
+    asyncio.run(scenario())
+
+
+def test_publication_restores_immutable_tenant_when_metadata_was_changed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cognistore.jobs.models import TENANT_METADATA
+
+    async def scenario() -> None:
+        queue, _, jetstream, _ = _configured_queue(monkeypatch, consume=False)
+        await queue.connect()
+        envelope = JobEnvelope.create("catalog.scan", {}, tenant_id="alpha")
+        envelope.metadata[TENANT_METADATA] = "beta"
+        await queue.enqueue(envelope)
+        published = next(item for item in jetstream.published if item[0] == queue.config.subject)
+        assert JobEnvelope.from_bytes(published[1]).tenant_id == "alpha"
+        await queue.close()
+
+    asyncio.run(scenario())

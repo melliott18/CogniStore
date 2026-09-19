@@ -66,6 +66,7 @@ _CATALOG_TABLES = {
     "budget_definitions",
     "budget_reservations",
     "catalog_schema_features",
+    "catalog_tenant",
     "content_blobs",
     "content_manifest_chunks",
     "content_manifests",
@@ -97,7 +98,10 @@ Path(os.environ["COGNISTORE_TEST_INITIALIZER_READY"]).touch()
 if sys.stdin.buffer.read(1) != b"!":
     raise RuntimeError("initializer start signal was not received")
 
-with SQLCatalog(os.environ["COGNISTORE_TEST_INITIALIZER_DSN"]) as catalog:
+with SQLCatalog(
+    os.environ["COGNISTORE_TEST_INITIALIZER_DSN"],
+    tenant_id=os.environ["COGNISTORE_TEST_INITIALIZER_TENANT"],
+) as catalog:
     if not MigrationManager().is_at_head(catalog.engine):
         raise RuntimeError("initializer did not observe the migration head")
 """
@@ -163,13 +167,16 @@ def test_postgres_clean_install_has_normalized_schema_and_pgvector(
         assert tuple(feature) == (True, True)
 
 
+@pytest.mark.parametrize("tenant_id", ["default", "alice"])
 def test_concurrent_postgres_initializers_reach_one_complete_migration_head(
     postgres_dsn: str,
     tmp_path: Path,
+    tenant_id: str,
 ) -> None:
     worker_count = 8
     worker_environment = os.environ.copy()
     worker_environment["COGNISTORE_TEST_INITIALIZER_DSN"] = postgres_dsn
+    worker_environment["COGNISTORE_TEST_INITIALIZER_TENANT"] = tenant_id
     processes: list[subprocess.Popen[bytes]] = []
     results: list[tuple[int, bytes, bytes]] = []
     ready_paths = [tmp_path / f"initializer-{index}.ready" for index in range(worker_count)]
@@ -232,7 +239,7 @@ def test_concurrent_postgres_initializers_reach_one_complete_migration_head(
     assert failures == []
 
     manager = MigrationManager()
-    with SQLCatalog(postgres_dsn, migrate=False) as catalog:
+    with SQLCatalog(postgres_dsn, tenant_id=tenant_id, migrate=False) as catalog:
         heads = manager.heads()
         assert len(heads) == 1
         assert manager.current(catalog.engine) == heads[0]
@@ -244,7 +251,7 @@ def test_concurrent_postgres_initializers_reach_one_complete_migration_head(
             assert connection.exec_driver_sql(
                 "SELECT feature, available, owned "
                 "FROM catalog_schema_features ORDER BY feature"
-            ).all() == [("pgvector", True, True)]
+            ).all() == [("pgvector", True, tenant_id == "default")]
 
 
 def test_postgres_read_only_refuses_an_absent_schema(postgres_dsn: str) -> None:

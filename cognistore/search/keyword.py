@@ -8,11 +8,13 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import NoReturn, Protocol
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, require_tenant
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.document_extraction import (
     EXTRACTION_SCHEMA_VERSION,
     NORMALIZATION_VERSION,
 )
+from cognistore.core.tenant_dependencies import for_tenant
 
 KEYWORD_INDEX_SCHEMA_VERSION = 1
 PASSAGE_CHUNKING_ALGORITHM = "bounded-unicode-word-boundary"
@@ -598,7 +600,8 @@ class KeywordSearchService:
         rebuild_batch_size: int = DEFAULT_REBUILD_BATCH_SIZE,
     ) -> None:
         self.catalog = catalog
-        self.adapter = adapter
+        self.tenant_id = getattr(catalog, "tenant_id", DEFAULT_TENANT_ID)
+        self.adapter = for_tenant(adapter, self.tenant_id)
         self.chunker = chunker or NormalizedPassageChunker()
         self.rebuild_batch_size = _validate_int(
             rebuild_batch_size,
@@ -607,9 +610,16 @@ class KeywordSearchService:
             maximum=2**31 - 1,
         )
 
+    def for_tenant(self, tenant_id: str) -> KeywordSearchService:
+        return KeywordSearchService(
+            for_tenant(self.catalog, tenant_id), for_tenant(self.adapter, tenant_id),
+            chunker=self.chunker, rebuild_batch_size=self.rebuild_batch_size,
+        )
+
     def sync_object(self, bucket: str, key: str) -> int:
         """Replace one derived object after its catalog transaction commits."""
 
+        require_tenant(self.tenant_id)
         record = self.catalog.get(bucket, key)
         if record is None:
             self.adapter.delete_object(bucket, key)
@@ -621,16 +631,19 @@ class KeywordSearchService:
     def delete_object(self, bucket: str, key: str) -> None:
         """Remove one already-deleted catalog coordinate from the derived index."""
 
+        require_tenant(self.tenant_id)
         if self.catalog.get(bucket, key) is not None:
             raise ValueError("catalog object still exists; delete it before its search entry")
         self.adapter.delete_object(bucket, key)
 
     def search(self, query: KeywordSearchQuery) -> list[KeywordSearchHit]:
+        require_tenant(self.tenant_id)
         return self.adapter.search(query)
 
     def rebuild(self) -> KeywordRebuildReport:
         """Reconstruct the complete derived index from one catalog iteration."""
 
+        require_tenant(self.tenant_id)
         iterator = getattr(self.catalog, "iter_objects", None)
         if not callable(iterator):
             raise TypeError("catalog does not support bounded full-object iteration")

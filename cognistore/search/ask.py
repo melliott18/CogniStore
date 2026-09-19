@@ -21,6 +21,7 @@ from itertools import islice
 from types import MappingProxyType
 from typing import Protocol
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, require_tenant
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.document_extraction import (
     EXTRACTION_SCHEMA_VERSION,
@@ -35,6 +36,7 @@ from cognistore.core.embeddings import (
     EmbeddingProviderConfigurationError,
     TransientEmbeddingProviderError,
 )
+from cognistore.core.tenant_dependencies import for_tenant
 
 from .keyword import (
     DOCUMENT_METADATA_FIELDS,
@@ -1093,6 +1095,7 @@ class CatalogMetadataRetriever:
 
     def __init__(self, catalog: CatalogStore, *, batch_size: int = 1_000) -> None:
         self.catalog = catalog
+        self.tenant_id = getattr(catalog, "tenant_id", DEFAULT_TENANT_ID)
         self.batch_size = _bounded_integer(
             batch_size,
             field_name="metadata batch_size",
@@ -1100,7 +1103,11 @@ class CatalogMetadataRetriever:
             maximum=2**31 - 1,
         )
 
+    def for_tenant(self, tenant_id: str) -> CatalogMetadataRetriever:
+        return CatalogMetadataRetriever(for_tenant(self.catalog, tenant_id), batch_size=self.batch_size)
+
     def search(self, query: MetadataSearchQuery) -> list[MetadataSearchHit]:
+        require_tenant(self.tenant_id)
         if not isinstance(query, MetadataSearchQuery):
             raise ValueError("query must be MetadataSearchQuery")
         records = self.catalog.iter_objects(batch_size=self.batch_size)
@@ -1263,13 +1270,25 @@ class AskService:
         fusion: FusionConfig | None = None,
     ) -> None:
         self.catalog = catalog
+        self.tenant_id = getattr(catalog, "tenant_id", DEFAULT_TENANT_ID)
         self.metadata = (
-            CatalogMetadataRetriever(catalog) if metadata is None else metadata
+            CatalogMetadataRetriever(catalog)
+            if metadata is None else for_tenant(metadata, self.tenant_id)
         )
-        self.keyword = keyword
-        self.vector = vector
-        self.answer_provider = answer_provider
+        self.keyword = for_tenant(keyword, self.tenant_id)
+        self.vector = for_tenant(vector, self.tenant_id)
+        self.answer_provider = for_tenant(answer_provider, self.tenant_id)
         self.fusion = FusionConfig() if fusion is None else fusion
+
+    def for_tenant(self, tenant_id: str) -> AskService:
+        return AskService(
+            for_tenant(self.catalog, tenant_id),
+            metadata=for_tenant(self.metadata, tenant_id),
+            keyword=for_tenant(self.keyword, tenant_id),
+            vector=for_tenant(self.vector, tenant_id),
+            answer_provider=for_tenant(self.answer_provider, tenant_id),
+            fusion=self.fusion,
+        )
 
     @staticmethod
     def _keyword_query(query: AskQuery) -> KeywordSearchQuery:
@@ -1689,6 +1708,7 @@ class AskService:
         )
 
     def ask(self, query: AskQuery) -> AskResponse:
+        require_tenant(self.tenant_id)
         if not isinstance(query, AskQuery):
             raise ValueError("query must be AskQuery")
         metadata_hits = self._metadata_hits(query)

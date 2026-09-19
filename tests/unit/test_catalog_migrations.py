@@ -303,7 +303,7 @@ def test_audit_event_migration_is_reversible_without_changing_catalog_data(
     database = tmp_path / "audit-migration.sqlite3"
     with SQLCatalog(database) as catalog:
         catalog.upsert("bucket", "object", size=7, tier="hot")
-        assert manager.current(catalog.engine) == "0011_policy_budgets"
+        assert manager.current(catalog.engine) == "0012_tenant_ownership"
         assert sa.inspect(catalog.engine).has_table(audit_events.name)
         assert sa.inspect(catalog.engine).has_table(audit_move_heads.name)
         assert sa.inspect(catalog.engine).has_table(audit_event_tombstones.name)
@@ -344,7 +344,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
             tier="hot",
             metadata={"sha256": "untrusted-first-mebibyte-sample"},
         )
-        assert manager.current(catalog.engine) == "0011_policy_budgets"
+        assert manager.current(catalog.engine) == "0012_tenant_ownership"
         assert all(
             sa.inspect(catalog.engine).has_table(table.name)
             for table in content_tables
@@ -359,7 +359,7 @@ def test_content_identity_migration_is_reversible_without_unsafe_backfill(
         assert legacy_metadata == {"sha256": "untrusted-first-mebibyte-sample"}
 
         manager.upgrade(catalog.engine)
-        assert manager.current(catalog.engine) == "0011_policy_budgets"
+        assert manager.current(catalog.engine) == "0012_tenant_ownership"
         assert all(sa.inspect(catalog.engine).has_table(table.name) for table in content_tables)
         assert catalog.get_object_content("bucket", "legacy-scan") is None
 
@@ -379,7 +379,7 @@ def test_embedding_migration_is_reversible_and_uses_portable_vector_storage(
 
     with SQLCatalog(tmp_path / "embedding-migration.sqlite3") as catalog:
         inspector = sa.inspect(catalog.engine)
-        assert manager.current(catalog.engine) == "0011_policy_budgets"
+        assert manager.current(catalog.engine) == "0012_tenant_ownership"
         assert all(inspector.has_table(table.name) for table in embedding_tables)
         mapping_primary_key = inspector.get_pk_constraint(object_embedding_documents.name)[
             "constrained_columns"
@@ -400,7 +400,7 @@ def test_embedding_migration_is_reversible_and_uses_portable_vector_storage(
 
         manager.upgrade(catalog.engine)
         inspector = sa.inspect(catalog.engine)
-        assert manager.current(catalog.engine) == "0011_policy_budgets"
+        assert manager.current(catalog.engine) == "0012_tenant_ownership"
         assert all(inspector.has_table(table.name) for table in embedding_tables)
         vector_column = next(
             column

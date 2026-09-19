@@ -16,6 +16,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Protocol
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, require_tenant
+
 from .access import AccessConfig, AccessFeatures, compute_access_features
 from .catalog import CatalogStore, ObjectRecord
 from .embedding_index import (
@@ -28,6 +30,7 @@ from .estimation import (
     ObjectPlacementEstimates,
     StorageImpactEstimator,
 )
+from .tenant_dependencies import for_tenant
 from .topology import PlacementConstraints
 
 POLICY_FEATURE_SCHEMA_VERSION = 1
@@ -666,8 +669,12 @@ class CatalogPolicyFeatureLoader:
         estimation_workload_factory: Callable[[ObjectRecord], EstimationWorkload] | None = None,
         estimation_constraints: PlacementConstraints | None = None,
     ) -> None:
-        self.embedding_provider = embedding_provider
-        self.access_catalog = access_catalog
+        self.tenant_id = getattr(
+            access_catalog or estimation_catalog or embedding_provider,
+            "tenant_id", DEFAULT_TENANT_ID,
+        )
+        self.embedding_provider = for_tenant(embedding_provider, self.tenant_id)
+        self.access_catalog = for_tenant(access_catalog, self.tenant_id)
         self.access_config = access_config or AccessConfig()
         estimation_inputs = (impact_estimator, estimation_catalog, estimation_workload_factory)
         if any(value is not None for value in estimation_inputs) and any(
@@ -684,9 +691,22 @@ class CatalogPolicyFeatureLoader:
             if impact_estimator is None:
                 raise ValueError("estimation_constraints require an impact estimator")
         self.impact_estimator = impact_estimator
-        self.estimation_catalog = estimation_catalog
+        self.estimation_catalog = for_tenant(estimation_catalog, self.tenant_id)
         self.estimation_workload_factory = estimation_workload_factory
         self.estimation_constraints = estimation_constraints
+
+    def for_tenant(self, tenant_id: str) -> CatalogPolicyFeatureLoader:
+        loader = CatalogPolicyFeatureLoader(
+            for_tenant(self.embedding_provider, tenant_id),
+            access_catalog=for_tenant(self.access_catalog, tenant_id),
+            access_config=self.access_config,
+            impact_estimator=self.impact_estimator,
+            estimation_catalog=for_tenant(self.estimation_catalog, tenant_id),
+            estimation_workload_factory=self.estimation_workload_factory,
+            estimation_constraints=self.estimation_constraints,
+        )
+        loader.tenant_id = tenant_id
+        return loader
 
     def load(
         self,
@@ -695,6 +715,7 @@ class CatalogPolicyFeatureLoader:
         *,
         as_of: str | datetime | None = None,
     ) -> dict[PolicyFeatureCoordinate, PolicyFeatures]:
+        require_tenant(self.tenant_id)
         detached_records = tuple(records)
         detached_requests = tuple(requests)
         if any(not isinstance(record, ObjectRecord) for record in detached_records):
@@ -927,12 +948,17 @@ class EmbeddingSimilarityFeatureProvider:
         if not isinstance(indexer, EmbeddingIndexer):
             raise ValueError("indexer must be an EmbeddingIndexer")
         self.indexer = indexer
+        self.tenant_id = indexer.tenant_id
+
+    def for_tenant(self, tenant_id: str) -> EmbeddingSimilarityFeatureProvider:
+        return EmbeddingSimilarityFeatureProvider(self.indexer.for_tenant(tenant_id))
 
     def load(
         self,
         records: Sequence[ObjectRecord],
         requests: Sequence[EmbeddingFeatureRequest],
     ) -> Mapping[PolicyFeatureCoordinate, Sequence[EmbeddingPolicyFeature]]:
+        require_tenant(self.tenant_id)
         query_vectors: dict[str, tuple[float, ...]] = {}
         for request in requests:
             if request.query not in query_vectors:

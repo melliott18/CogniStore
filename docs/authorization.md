@@ -6,10 +6,10 @@ local policy file assigns that identity roles. An authenticated API with no
 authorization policy denies protected operations. Roles in token claims,
 request bodies, headers, or job metadata do not grant access.
 
-Permissions apply across the deployment. This initial model does not isolate
-tenants, buckets, or individual objects and does not use an external policy
-engine. Deployments that need data isolation must establish that boundary
-separately.
+Permissions apply within the identity's assigned tenant when a
+[tenant membership policy](tenancy.md) is configured. Roles do not grant
+cross-tenant access. Without tenant configuration, permissions apply to the
+legacy `default` tenant. External policy engines are not supported.
 
 ## Roles and permissions
 
@@ -71,6 +71,8 @@ job types have no implicit permission grant.
 documentation remain public infrastructure or presentation surfaces. Restrict
 infrastructure access through deployment networking as appropriate. The UI's
 API calls still pass through the same `/v1` permission checks.
+Tenant-enabled deployments return 404 for the aggregate `/metrics` endpoint;
+shared operational telemetry must use private operator infrastructure.
 
 ## Configure a policy
 

@@ -19,7 +19,10 @@ depends_on = None
 
 def upgrade() -> None:
     inspector = sa.inspect(op.get_bind())
-    tables = set(inspector.get_table_names())
+    # A tenant may share the database with a legacy public catalog. Reflect
+    # only the owned schema; visible public tables are not this migration's.
+    schema = op.get_bind().get_execution_options().get("schema_translate_map", {}).get(None)
+    tables = set(inspector.get_table_names(schema=schema))
     if "objects" not in tables:
         op.create_table(
             "objects",

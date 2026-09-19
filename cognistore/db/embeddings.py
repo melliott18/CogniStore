@@ -120,6 +120,19 @@ class PgVectorEmbeddingStore:
             )
         self.catalog = catalog
 
+    @property
+    def tenant_id(self) -> str:
+        return self.catalog.tenant_id
+
+    def for_tenant(self, tenant_id: str) -> PgVectorEmbeddingStore:
+        return PgVectorEmbeddingStore(self.catalog.for_tenant(tenant_id))
+
+    def _qualified_name(self, connection: Connection, name: str) -> str:
+        quote = connection.dialect.identifier_preparer.quote
+        if self.catalog.schema_name is None:
+            return quote(name)
+        return f"{quote(self.catalog.schema_name)}.{quote(name)}"
+
     @contextlib.contextmanager
     def _connection(self) -> Iterator[Connection]:
         with self.catalog.engine.connect() as connection:
@@ -371,12 +384,12 @@ class PgVectorEmbeddingStore:
                 dimensions = space.dimensions
                 index_exists = connection.execute(
                     sa.text("SELECT to_regclass(:index_name)"),
-                    {"index_name": index_name},
+                    {"index_name": self._qualified_name(connection, index_name)},
                 ).scalar_one()
                 if inserted_space is not None or index_exists is None:
                     connection.exec_driver_sql(
                         f"CREATE INDEX IF NOT EXISTS {index_name} "
-                        "ON embedding_vectors USING hnsw "
+                        f"ON {self._qualified_name(connection, 'embedding_vectors')} USING hnsw "
                         f"((embedding::vector({dimensions})) vector_cosine_ops) "
                         f"WITH (m = {config.m}, ef_construction = {config.ef_construction}) "
                         f"WHERE space_id = '{space.space_id}'::uuid "
@@ -955,16 +968,17 @@ class PgVectorEmbeddingStore:
                 index_size = int(
                     connection.execute(
                         sa.text("SELECT pg_relation_size(to_regclass(:name))"),
-                        {"name": index_name},
+                        {"name": self._qualified_name(connection, index_name)},
                     ).scalar_one()
                     or 0
                 )
                 index_definition = connection.execute(
                     sa.text(
                         "SELECT indexdef FROM pg_indexes "
-                        "WHERE schemaname = current_schema() AND indexname = :name"
+                        "WHERE schemaname = COALESCE(:schema, current_schema()) "
+                        "AND indexname = :name"
                     ),
-                    {"name": index_name},
+                    {"name": index_name, "schema": self.catalog.schema_name},
                 ).scalar_one_or_none()
             vector_count = connection.execute(
                 sa.select(sa.func.count())

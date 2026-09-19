@@ -9,6 +9,7 @@ from io import BytesIO
 import pytest
 import sqlalchemy as sa
 
+from cognistore.auth.tenancy import TenantIsolationError, tenant_context
 from cognistore.core.content_identity import ContentIdentityBuilder
 from cognistore.core.embedding_index import (
     MAX_SIMILARITY_RESULT_METADATA_BYTES,
@@ -124,6 +125,61 @@ def _publish_document(
         fence=fence,
         content=content,
     )
+
+
+def test_pgvector_tenants_isolate_identical_content_passages_and_model_spaces(
+    postgres_dsn: str,
+) -> None:
+    class TenantVectorProvider(_SemanticProvider):
+        def __init__(self, vector: tuple[float, float, float]) -> None:
+            super().__init__()
+            self.vector = vector
+
+        def embed_documents(self, texts: Sequence[str]) -> tuple[tuple[float, ...], ...]:
+            return tuple(self.vector for _text in texts)
+
+        def embed_query(self, text: str) -> tuple[float, ...]:
+            return (1.0, 0.0, 0.0)
+
+    with SQLCatalog(postgres_dsn) as root:
+        first, second = root.for_tenant("tenant-a"), root.for_tenant("tenant-b")
+        for catalog in (first, second):
+            _publish_document(
+                catalog, bucket="knowledge", key="shared.pdf", text="Identical source content.",
+                tier="hot", mime="application/pdf", department=catalog.tenant_id,
+            )
+        first_indexer = EmbeddingIndexer(
+            PgVectorEmbeddingStore(first), TenantVectorProvider((1.0, 0.0, 0.0)),
+        )
+        second_indexer = EmbeddingIndexer(
+            PgVectorEmbeddingStore(second), TenantVectorProvider((0.0, 1.0, 0.0)),
+        )
+        first_report = first_indexer.index_object("knowledge", "shared.pdf")
+        second_report = second_indexer.index_object("knowledge", "shared.pdf")
+        assert first_report.document_id == second_report.document_id
+        assert first_report.space_id == second_report.space_id
+        assert first_report.embedded_passages == second_report.embedded_passages == 1
+        for exact in (False, True):
+            first_hit = first_indexer.search("query", exact=exact)[0]
+            second_hit = second_indexer.search("query", exact=exact)[0]
+            assert first_hit.passage_id == second_hit.passage_id
+            assert first_hit.object_metadata["department"] == "tenant-a"
+            assert second_hit.object_metadata["department"] == "tenant-b"
+            assert first_hit.score == pytest.approx(1.0)
+            assert second_hit.score == pytest.approx(0.0)
+        assert first_indexer.for_tenant("tenant-b").search("query")[0].score == pytest.approx(0.0)
+        with tenant_context("tenant-a"), pytest.raises(TenantIsolationError):
+            second_indexer.search("query")
+        first_metadata = first_indexer.repository.index_metadata(first_indexer.provider.space)
+        second_metadata = second_indexer.repository.index_metadata(second_indexer.provider.space)
+        assert first_metadata["hnsw"]["index_name"] == second_metadata["hnsw"]["index_name"]
+        assert first.schema_name in first_metadata["hnsw"]["index_definition"]
+        assert second.schema_name in second_metadata["hnsw"]["index_definition"]
+        first_indexer.index_object("knowledge", "shared.pdf", force=True)
+        assert second_indexer.search("query")[0].score == pytest.approx(0.0)
+        assert PgVectorEmbeddingStore(root).search(
+            first_indexer.provider.space, (1.0, 0.0, 0.0), filters=SimilaritySearchFilters(), limit=10,
+        ) == []
 
 
 def test_pgvector_indexes_queries_filters_and_reembeds_idempotently(

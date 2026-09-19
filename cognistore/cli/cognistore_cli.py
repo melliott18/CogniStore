@@ -22,6 +22,7 @@ from typing import Any, Literal, NoReturn, Sequence
 from uuid import uuid4
 
 from cognistore.auth.authorization import RBACAuthorizer
+from cognistore.auth.tenancy import TenantResolver
 from cognistore.cli.config import (
 	CliConfigError,
 	CliConfigResolution,
@@ -928,6 +929,8 @@ async def _serve_worker(
 	authorization = (
 		RBACAuthorizer(policy_path=policy_path) if policy_path is not None else None
 	)
+	tenant_policy = getattr(args, "tenant_policy", None)
+	tenant_resolver = TenantResolver(policy_path=tenant_policy) if tenant_policy else None
 	policy_feature_loader = load_policy_feature_loader(args.drivers, catalog)
 	throughput = (
 		ThroughputController(
@@ -975,6 +978,7 @@ async def _serve_worker(
 		throughput=throughput,
 		audit_catalog=catalog,
 		authorization=authorization,
+		tenant_resolver=tenant_resolver,
 		coordinator=ScheduledRunCoordinator(
 			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
 		),
@@ -1601,6 +1605,11 @@ def _run_cli(
 			"RBAC policy JSON (or COGNISTORE_AUTHORIZATION_POLICY); protected workers "
 			"require a submitting principal and recheck grants on every delivery"
 		),
+	)
+	p_worker.add_argument(
+		"--tenant-policy",
+		default=os.environ.get("COGNISTORE_TENANT_POLICY"),
+		help="Tenant policy JSON; require and recheck tenant ownership on every delivery",
 	)
 	p_worker.add_argument("--health-host", default="127.0.0.1")
 	p_worker.add_argument("--health-port", type=int, default=8081)

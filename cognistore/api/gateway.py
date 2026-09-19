@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
 from collections.abc import Callable, Generator, Iterator, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, Protocol, cast
@@ -13,6 +16,14 @@ from uuid import UUID, uuid4
 
 from cognistore.auth.authorization import RBACAuthorizer, authorize_operation
 from cognistore.auth.principal import PRINCIPAL_METADATA, current_principal
+from cognistore.auth.tenancy import (
+    DEFAULT_TENANT_ID,
+    TenantIsolationError,
+    TenantResolver,
+    current_tenant_id,
+    require_tenant,
+    validate_tenant_id,
+)
 from cognistore.core.access import AccessConfig
 from cognistore.core.audit import (
     AuditContext,
@@ -35,6 +46,7 @@ from cognistore.drivers.observed import (
     suppress_access_capture,
 )
 from cognistore.drivers.storage_driver import DEFAULT_STREAM_CHUNK_SIZE, StorageDriver
+from cognistore.drivers.tenancy import scope_storage_drivers
 from cognistore.jobs.handlers import (
     CATALOG_SCAN_JOB,
     POLICY_RUN_JOB,
@@ -121,6 +133,34 @@ class ObjectDownload:
     content_length: int
     content_range: str | None = None
     close: Callable[[], None] = lambda: None
+
+
+class _DownloadSource(Iterator[bytes]):
+    """Keep a reader's context and lock ownership across ASGI thread handoffs."""
+
+    def __init__(self, source: Generator[bytes, None, None], tenant_id: str) -> None:
+        self._source = source
+        self.tenant_id = tenant_id
+        self._context = copy_context()
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="object-download")
+        self._lock = threading.Lock()
+        self._closed = False
+
+    def __next__(self) -> bytes:
+        require_tenant(self.tenant_id)
+        with self._lock:
+            if self._closed:
+                raise StopIteration
+            return self._executor.submit(self._context.run, next, self._source).result()
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._closed:
+                self._closed = True
+                try:
+                    self._executor.submit(self._context.run, self._source.close).result()
+                finally:
+                    self._executor.shutdown(wait=True)
 
 
 class APIGateway(Protocol):
@@ -226,24 +266,76 @@ class CogniStoreGateway:
         manage_queue: bool = False,
         access_config: AccessConfig | None = None,
         authorization: RBACAuthorizer | None = None,
+        tenancy: TenantResolver | None = None,
     ) -> None:
         self.authorization = authorization
-        self.catalog = catalog
-        self.access_recorder = AccessRecorder(catalog, access_config)
-        self.drivers = {
+        self.tenancy = tenancy
+        self.tenant_id = getattr(catalog, "tenant_id", DEFAULT_TENANT_ID)
+        self._catalog = catalog
+        self._access_config = access_config
+        self._base_drivers = dict(drivers)
+        self._tenant_gateways: dict[str, CogniStoreGateway] = {}
+        self._tenant_lock = threading.RLock()
+        self._access_recorder = AccessRecorder(catalog, access_config)
+        self._drivers = {
             tier: ObservedStorageDriver(
                 driver, catalog, tier=tier, config=access_config, source="api"
             )
-            for tier, driver in drivers.items()
+            for tier, driver in scope_storage_drivers(drivers, self.tenant_id).items()
         }
-        self.ask_service = ask_service or AskService(catalog)
-        self.feature_loader = feature_loader or CatalogPolicyFeatureLoader(
+        self._ask_service = ask_service or AskService(catalog)
+        self._feature_loader = feature_loader or CatalogPolicyFeatureLoader(
             access_catalog=catalog, access_config=access_config
         )
         self.queue = queue
         self.manage_queue = manage_queue
 
+    def for_tenant(self, tenant_id: str) -> CogniStoreGateway:
+        tenant_id = validate_tenant_id(tenant_id)
+        require_tenant(tenant_id)
+        if tenant_id == self.tenant_id:
+            return self
+        with self._tenant_lock:
+            if tenant_id not in self._tenant_gateways:
+                self._tenant_gateways[tenant_id] = CogniStoreGateway(
+                    self._catalog.for_tenant(tenant_id),
+                    self._base_drivers,
+                    ask_service=self._ask_service.for_tenant(tenant_id),
+                    feature_loader=self._feature_loader.for_tenant(tenant_id),
+                    queue=self.queue,
+                    access_config=self._access_config,
+                    authorization=self.authorization,
+                    tenancy=self.tenancy,
+                )
+            return self._tenant_gateways[tenant_id]
+
+    def _scoped(self) -> CogniStoreGateway:
+        return self.for_tenant(current_tenant_id() or self.tenant_id)
+
+    @property
+    def catalog(self) -> CatalogStore:
+        return self._scoped()._catalog
+
+    @property
+    def drivers(self) -> Mapping[str, StorageDriver]:
+        return self._scoped()._drivers
+
+    @property
+    def access_recorder(self) -> AccessRecorder:
+        return self._scoped()._access_recorder
+
+    @property
+    def ask_service(self) -> AskService:
+        return self._scoped()._ask_service
+
+    @property
+    def feature_loader(self) -> CatalogPolicyFeatureLoader:
+        return self._scoped()._feature_loader
+
     def _authorize(self, operation: str) -> None:
+        if self.tenancy is not None:
+            if self.tenancy.resolve(current_principal()) != current_tenant_id():
+                raise TenantIsolationError()
         authorize_operation(
             self.authorization, OPERATION_PERMISSIONS.get(operation, ()),
             operation=operation, boundary="service", catalog=self.catalog,
@@ -456,15 +548,19 @@ class CogniStoreGateway:
         content_type = resource.metadata.get("mime", "application/octet-stream")
         if not isinstance(content_type, str):
             content_type = "application/octet-stream"
-        source = chunks()
+        source = _DownloadSource(chunks(), self.catalog.tenant_id)
         try:
             first_chunk = next(source)
         except StopIteration:
             first_chunk = None
+        except BaseException:
+            source.close()
+            raise
 
         def prefetched_chunks() -> Iterator[bytes]:
             try:
                 if first_chunk is not None:
+                    require_tenant(source.tenant_id)
                     yield first_chunk
                 yield from source
             finally:

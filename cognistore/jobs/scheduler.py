@@ -1719,7 +1719,9 @@ class SQLiteScheduleStore:
             if key not in _REDRIVE_METADATA and key not in transport_metadata
         }
         if (
-            job.schema_version != stored.schema_version
+            job.tenant_id != stored.tenant_id
+            or job.principal != stored.principal
+            or job.schema_version != stored.schema_version
             or job.job_type != stored.job_type
             or job.created_at != stored.created_at
             or job.correlation_id != stored.correlation_id

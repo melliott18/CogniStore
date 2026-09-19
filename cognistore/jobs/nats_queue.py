@@ -725,6 +725,8 @@ class NatsJetStreamQueue:
         transport_id = job.job_id if message_id is None else message_id
         if not isinstance(transport_id, str) or not transport_id.strip():
             raise ValueError("message_id must be a non-empty string")
+        if job.tenant_id is not None and job.tenant_id != "default":
+            transport_id = f"tenant:{job.tenant_id}:{transport_id}"
         return await self._publish_job(
             job,
             transport_id=transport_id,
@@ -741,7 +743,7 @@ class NatsJetStreamQueue:
         parent = job.metadata.get("traceparent") or inject_trace_context().get("traceparent")
         with request_context(correlation_id=job.correlation_id, traceparent=parent):
             with observe("queue", "enqueue", kind="producer"):
-                traced_job = replace(job, metadata={**job.metadata, **inject_trace_context()})
+                traced_job = replace(job, metadata={**job._wire_metadata(), **inject_trace_context()})
                 receipt = await self._publish_job_payload(
                     traced_job,
                     transport_id=transport_id,
@@ -1345,7 +1347,7 @@ class NatsJetStreamQueue:
             job = await self._persist_redrive_intent(pending_record, job)
         # The intent remains immutable across retrying the redrive transaction.
         # Only the transport copy descends from this specific redrive attempt.
-        transport_job = replace(job, metadata={**job.metadata, **inject_trace_context()})
+        transport_job = replace(job, metadata={**job._wire_metadata(), **inject_trace_context()})
         enqueue_receipt = await self._publish_job(
             transport_job,
             transport_id=f"redrive:{identifier}",

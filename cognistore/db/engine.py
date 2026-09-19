@@ -9,6 +9,8 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 
+from cognistore.auth.tenancy import tenant_namespace
+
 
 def is_database_url(locator: str | Path) -> bool:
     return isinstance(locator, str) and "://" in locator
@@ -45,6 +47,7 @@ def create_catalog_engine(
     locator: str | Path,
     *,
     read_only: bool = False,
+    schema_name: str | None = None,
 ) -> tuple[Engine, sqlite3.Connection | None]:
     url = normalize_database_url(locator)
     if url.startswith("sqlite+pysqlite://"):
@@ -97,9 +100,34 @@ def create_catalog_engine(
     if not url.startswith("postgresql+psycopg://"):
         raise ValueError("catalog URL must use sqlite or postgresql")
     connect_args: dict[str, Any] = {}
+    options = []
     if read_only:
-        connect_args["options"] = "-c default_transaction_read_only=on"
+        options.append("-c default_transaction_read_only=on")
+    if schema_name is not None:
+        # Names are generated from a digest, never interpolated tenant input.
+        options.append(f"-c search_path={schema_name},public")
+    if options:
+        connect_args["options"] = " ".join(options)
     return (
         sa.create_engine(url, pool_pre_ping=True, connect_args=connect_args),
         None,
     )
+
+
+def tenant_catalog_locator(locator: str | Path, tenant_id: str) -> tuple[str | Path, str | None]:
+    """Resolve a tenant to a disjoint SQLite file or PostgreSQL schema.
+
+    The default tenant retains the existing catalog location. Hashes prevent
+    tenant identifiers from becoming paths, SQL identifiers, or DSN options.
+    """
+    if tenant_id == "default":
+        return locator, None
+    digest = tenant_namespace(tenant_id)
+    url = sa.engine.make_url(normalize_database_url(locator))
+    if url.get_backend_name() == "postgresql":
+        return locator, "cognistore_t_" + digest[:48]
+    database = url.database
+    if database in (None, "", ":memory:") or str(url.query.get("mode", "")).lower() == "memory":
+        return ":memory:", None
+    path = Path(database).expanduser().resolve()
+    return path.parent / (path.name + ".tenants") / digest / "catalog.sqlite3", None
