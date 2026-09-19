@@ -1,0 +1,8 @@
+# Bootstrap this bucket and key separately from the workload state.
+# Copy outside the repository as production.tfbackend; no credentials here.
+bucket       = "REPLACE_WITH_VERSIONED_PRIVATE_STATE_BUCKET"
+key          = "cognistore/production/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+kms_key_id   = "arn:aws:kms:us-east-1:111122223333:key/REPLACE_WITH_STATE_KEY_ID"
+use_lockfile = true

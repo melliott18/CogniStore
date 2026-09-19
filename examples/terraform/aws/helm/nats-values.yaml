@@ -1,0 +1,118 @@
+# For nats/nats chart 2.14.6. Install release cognistore-nats in cognistore.
+# Complete the digest and create cognistore-nats-auth/tls Secrets first.
+fullnameOverride: cognistore-nats
+tlsCA:
+  enabled: true
+  secretName: cognistore-nats-tls
+  key: ca.crt
+config:
+  cluster:
+    enabled: true
+    replicas: 3
+    noAdvertise: true
+    routeURLs:
+      useFQDN: true
+    tls:
+      enabled: true
+      secretName: cognistore-nats-tls
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: true
+      pvc:
+        enabled: true
+        size: 20Gi
+        storageClassName: cognistore-encrypted-gp3
+    memoryStore:
+      enabled: false
+  nats:
+    tls:
+      enabled: true
+      secretName: cognistore-nats-tls
+      merge:
+        handshake_first: true
+  monitor:
+    enabled: true
+    tls:
+      enabled: true
+  merge:
+    authorization:
+      users:
+        - user: << $NATS_USER >>
+          password: << $NATS_PASSWORD >>
+container:
+  image:
+    digest: REPLACE_WITH_TESTED_NATS_SHA256_DIGEST
+  env:
+    NATS_USER:
+      valueFrom:
+        secretKeyRef: {name: cognistore-nats-auth, key: username}
+    NATS_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: cognistore-nats-auth, key: password}
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+  merge:
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: {drop: [ALL]}
+reloader:
+  enabled: false
+podTemplate:
+  configChecksumAnnotation: true
+  merge:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-nats}
+              topologyKey: topology.kubernetes.io/zone
+podDisruptionBudget:
+  enabled: true
+  merge:
+    spec:
+      maxUnavailable: 1
+natsBox:
+  enabled: false
+extraResources:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: cognistore-nats
+    spec:
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-nats}
+      policyTypes: [Ingress, Egress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels: {app.kubernetes.io/name: cognistore, app.kubernetes.io/instance: cognistore}
+            # Only administrators may create pods with this operator label.
+            - podSelector:
+                matchLabels: {cognistore.io/queue-operator: "true"}
+          ports: [{protocol: TCP, port: 4222}]
+        - from:
+            - podSelector:
+                matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-nats}
+          ports: [{protocol: TCP, port: 6222}]
+      egress:
+        - to:
+            - podSelector:
+                matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-nats}
+          ports: [{protocol: TCP, port: 6222}]
+        - to:
+            - namespaceSelector:
+                matchLabels: {kubernetes.io/metadata.name: kube-system}
+              podSelector:
+                matchLabels: {k8s-app: kube-dns}
+          ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]

@@ -1,0 +1,21 @@
+# Illustrative identities only. Copy outside the repository and replace them.
+# No access keys/passwords. Authenticate the CLI through a short-lived role.
+account_id              = "111122223333"
+region                  = "us-east-1"
+name                    = "cognistore-production"
+availability_zones      = ["us-east-1a", "us-east-1b", "us-east-1c"]
+cluster_admin_role_arn  = "arn:aws:iam::111122223333:role/cognistore-operator"
+operator_cidrs          = ["10.73.0.0/24"]
+vpc_cidr                = "10.72.0.0/16"
+kubernetes_version      = "1.35"
+postgres_version        = "17.11"
+node_instance_type      = "m7i.large"
+node_capacity           = { min = 3, desired = 3, max = 6 }
+database_instance_class = "db.m7g.large"
+database_storage_gib    = 100
+tags                    = { Owner = "platform", CostCenter = "cognistore" }
+
+# Verify compatibility using aws eks describe-addon-versions, then set exact
+# addon_versions and node_release_version for subsequent reproducible installs.
+# Omitted pins use EKS defaults at first creation; these are reported in
+# resolved_versions. Never blindly copy versions between Kubernetes minors.

@@ -5,6 +5,7 @@ nav:
   - Setup:
       - Docker development: setup_guide.md
       - Kubernetes and Helm: kubernetes.md
+      - AWS Terraform reference: terraform.md
       - CLI reference: cli.md
       - PostgreSQL catalog: postgres_catalog.md
       - Operational audit events: audit_events.md

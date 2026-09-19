@@ -54,6 +54,10 @@ rollback, and API/queue autoscaling. It also documents the single-node storage
 constraint for the optional recurring scheduler and the automated cluster
 qualification workflow.
 
+The [AWS Terraform reference](docs/terraform.md) provisions the surrounding
+three-zone network, EKS, PostgreSQL, object storage, and secret containers, with
+production Helm configuration and a deployment and recovery runbook.
+
 ### Local Python environment
 
 - Create a virtual environment and install the package with its development
