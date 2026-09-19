@@ -657,6 +657,29 @@ def create_app(
     def health() -> HealthResponse:
         return HealthResponse()
 
+    @app.get(
+        "/readyz",
+        response_model=HealthResponse,
+        operation_id="getReadiness",
+        tags=["system"],
+        responses={503: _COMMON_ERROR_RESPONSES[503]},
+    )
+    async def readiness(request: Request) -> HealthResponse | JSONResponse:
+        try:
+            ready = await asyncio.wait_for(services.check_readiness(), timeout=2.0)
+        except Exception:
+            ready = False
+        if not ready:
+            return _error_response(
+                request,
+                status_code=503,
+                code="backend_unavailable",
+                message="A required backend is unavailable",
+                retryable=True,
+                headers={"Retry-After": "1"},
+            )
+        return HealthResponse()
+
     @router.put(
         "/objects/{tier}/{bucket}/{key:path}",
         response_model=ObjectResource,

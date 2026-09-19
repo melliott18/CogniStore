@@ -1,0 +1,18 @@
+{{- if and .Values.scheduler.enabled (not .Values.scheduler.storage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "cognistore.scheduleClaim" . }}
+  labels:
+    {{- include "cognistore.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.scheduler.storage.className }}
+  storageClassName: {{ .Values.scheduler.storage.className | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.scheduler.storage.size }}
+{{- end }}

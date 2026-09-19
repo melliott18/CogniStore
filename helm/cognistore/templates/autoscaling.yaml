@@ -1,0 +1,49 @@
+{{- if .Values.api.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "cognistore.fullname" . }}-api
+  labels:
+    {{- include "cognistore.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "cognistore.fullname" . }}-api
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  behavior:
+    {{- toYaml .Values.api.autoscaling.behavior | nindent 4 }}
+  metrics:
+    {{- toYaml .Values.api.autoscaling.metrics | nindent 4 }}
+{{- end }}
+{{- if .Values.worker.autoscaling.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "cognistore.fullname" . }}-worker
+  labels:
+    {{- include "cognistore.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "cognistore.fullname" . }}-worker
+  minReplicaCount: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.worker.autoscaling.maxReplicas }}
+  pollingInterval: {{ .Values.worker.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ .Values.worker.autoscaling.cooldownPeriod }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        {{- toYaml .Values.worker.autoscaling.behavior | nindent 8 }}
+  triggers:
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: {{ .Values.worker.autoscaling.natsMonitoringEndpoint | quote }}
+        account: {{ .Values.worker.autoscaling.account | quote }}
+        stream: {{ .Values.queue.stream | quote }}
+        consumer: {{ .Values.queue.consumer | quote }}
+        lagThreshold: {{ .Values.worker.autoscaling.lagThreshold | quote }}
+        activationLagThreshold: "0"
+        useHttps: {{ .Values.worker.autoscaling.useHttps | quote }}
+{{- end }}

@@ -1,0 +1,26 @@
+{{- if not .Values.config.existingSecret }}
+{{- fail "config.existingSecret is required; create the runtime configuration Secret first" }}
+{{- end }}
+{{- if not .Values.credentials.existingSecret }}
+{{- fail "credentials.existingSecret is required (PostgreSQL DSN and NATS URL)" }}
+{{- end }}
+{{- if eq .Values.securityProfile "production" }}
+{{- if or (not .Values.tls.existingSecret) (not .Values.auth.issuer) (not .Values.auth.audience) }}
+{{- fail "production requires tls.existingSecret, auth.issuer, and auth.audience" }}
+{{- end }}
+{{- if and .Values.scheduler.enabled (or (not .Values.scheduler.principalIssuer) (not .Values.scheduler.principalSubject)) }}
+{{- fail "production scheduler requires principalIssuer and principalSubject authorized by the worker policy" }}
+{{- end }}
+{{- end }}
+{{- if and .Values.worker.autoscaling.enabled (not .Values.worker.autoscaling.natsMonitoringEndpoint) }}
+{{- fail "worker.autoscaling.natsMonitoringEndpoint is required for KEDA" }}
+{{- end }}
+{{- if and .Values.worker.autoscaling.enabled (gt (int .Values.worker.autoscaling.minReplicas) (int .Values.worker.autoscaling.maxReplicas)) }}
+{{- fail "worker autoscaling minReplicas must not exceed maxReplicas" }}
+{{- end }}
+{{- if and .Values.api.autoscaling.enabled (gt (int .Values.api.autoscaling.minReplicas) (int .Values.api.autoscaling.maxReplicas)) }}
+{{- fail "API autoscaling minReplicas must not exceed maxReplicas" }}
+{{- end }}
+{{- if le (int .Values.worker.terminationGracePeriodSeconds) (add (int .Values.worker.shutdownGrace) (int .Values.worker.settlementTimeout) 5) }}
+{{- fail "worker termination grace must exceed shutdownGrace + settlementTimeout + 5 seconds" }}
+{{- end }}

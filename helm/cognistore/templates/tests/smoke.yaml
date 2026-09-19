@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "cognistore.fullname" . }}-smoke
+  labels:
+    {{- include "cognistore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: smoke
+  annotations:
+    helm.sh/hook: test
+    # Retain success until the next test so `helm test --logs` can read it.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  restartPolicy: Never
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    {{- include "cognistore.podSecurityContext" . | nindent 4 }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: smoke
+      image: {{ include "cognistore.image" . | quote }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      securityContext:
+        {{- include "cognistore.securityContext" . | nindent 8 }}
+      resources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: "1", memory: 256Mi}
+      command: [python, -c]
+      args:
+        - |
+          import ssl, urllib.request
+          context = {{ if eq .Values.securityProfile "production" }}ssl.create_default_context(cafile='/etc/cognistore/tls/ca.crt'){{ else }}None{{ end }}
+          base = '{{ if eq .Values.securityProfile "production" }}https{{ else }}http{{ end }}://{{ include "cognistore.fullname" . }}-api.{{ .Release.Namespace }}.svc:8080'
+          for path in ('/healthz', '/readyz', '/ui/'):
+              with urllib.request.urlopen(base + path, context=context, timeout=10) as response:
+                  assert response.status == 200, path
+          print('API, readiness, and administration UI smoke checks passed')
+      volumeMounts:
+        {{- include "cognistore.mounts" . | nindent 8 }}
+  volumes:
+    {{- include "cognistore.volumes" . | nindent 4 }}

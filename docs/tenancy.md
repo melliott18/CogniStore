@@ -84,8 +84,11 @@ membership and compares it to the saved owner before handlers, status updates,
 or execution coordination. Missing, changed, revoked, or malformed tenant
 context is rejected. A worker without a tenant policy rejects non-default
 tenant jobs. Legacy unowned jobs remain accepted only in single-tenant mode.
-The existing local CLI and recurring scheduler do not authenticate principals;
-use authenticated REST actions for tenant workloads.
+The local CLI does not authenticate principals; use authenticated REST actions
+for manual tenant workloads. Recurring schedules can use an operator-controlled
+service identity and the same tenant policy; see
+[protected schedules](background_workers.md#protected-schedules). This trusted
+assertion assigns one scheduler to one tenant and does not verify a JWT.
 
 Durable access history, authorization audits, policy evidence, and job status
 are stored in the owning catalog partition. The shared API returns 404 for
