@@ -693,6 +693,7 @@ class ReasonConstraints(SDKResponse):
     hysteresis_checks: list[HysteresisCheck]
     budgets: list[dict[str, Any]] = Field(default_factory=list)
     objectives: dict[str, Any] | None = None
+    locality: dict[str, Any] | None = None
 
 
 class ReasonModel(SDKResponse):
@@ -719,6 +720,7 @@ class PolicyReason(SDKResponse):
         "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
         "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
         "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
+        "locality_constraint",
     ]
     disposition: Literal["move", "stay", "suppressed", "rejected"]
     decisive_signals: list[DecisiveSignal]

@@ -317,6 +317,31 @@ function renderDecisionExplanation(card, explanation) {
     }
   });
 
+  const locality = constraints.locality;
+  if (locality?.configured) {
+    addText(card, "h4", "decision-section-title", "Data locality");
+    if (locality.reason) {
+      addText(card, "p", "decision-time", decisionValue(locality.reason));
+    }
+    (locality.rules || []).forEach((rule) => {
+      const scope = rule.scope === "object"
+        ? `Object rule for ${decisionValue(rule.bucket)}/${decisionValue(rule.key_prefix)}*`
+        : "Tenant rule";
+      const regions = rule.allowed_regions == null ? "Unrestricted" : decisionValue(rule.allowed_regions);
+      addText(card, "p", "decision-time", `${scope} · Allowed regions: ${regions} · Required localities: ${decisionValue(rule.required_localities || [])}`);
+    });
+    Object.entries(locality.rejected || {}).forEach(([tier, rejection]) => {
+      addText(card, "p", "decision-time", `Excluded ${tier}: ${decisionValue(rejection)}`);
+    });
+    if (locality.exception) {
+      const exception = locality.exception;
+      addText(card, "p", "decision-time", exception.used
+        ? "Exception permits the selected destination"
+        : "Exception not used for this decision");
+      addText(card, "p", "decision-time", `Exception ${decisionValue(exception.id)} · Actor ${decisionValue(exception.actor_id)} · ${decisionValue(exception.reason)}`);
+    }
+  }
+
   addText(card, "h4", "decision-section-title", "Model details");
   if (explanation.model_details === "available" && policy.model) {
     addText(card, "p", "decision-time", `${decisionValue(policy.model.identity)} · Version ${decisionValue(policy.model.version)}`);

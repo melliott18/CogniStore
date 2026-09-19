@@ -88,8 +88,9 @@ def _selected(
     ):
         return record.tier, record.pool_id, None if estimates is None else estimates.current
     tier = result.destination_tier
+    locality_pool = runner._selected_pool(result.constraints, tier)
     if estimates is None:
-        return tier, None, None
+        return tier, locality_pool, None
     candidates = [item for item in estimates.candidates if item.tier == tier]
     budget = _estimate_budget(runner, record, as_of)
     bindings = tier_pools
@@ -97,7 +98,7 @@ def _selected(
         bindings = runner.policy.tier_pools
     if bindings is None and budget is not None:
         bindings = budget.tier_pools
-    bound_pool = None if bindings is None else bindings.get(tier)
+    bound_pool = locality_pool or (None if bindings is None else bindings.get(tier))
     if bound_pool is not None:
         candidates = [item for item in candidates if item.pool_id == bound_pool]
     # A tier-only policy does not resolve multiple physical pools. Do not
@@ -164,6 +165,9 @@ def _bindings(result: PolicyEvaluationResult, runner: PolicyRunner) -> list[dict
         bindings.append({"kind": evidence["suppression_reason"], "reason": result.reason})
     if result.action == "move" and result.destination_tier not in runner.allowed_tiers:
         bindings.append({"kind": "allowed_tiers", "reason": "destination tier is not allowed"})
+    locality = evidence.get("locality")
+    if isinstance(locality, Mapping) and locality.get("rejected"):
+        bindings.append({"kind": "locality", **deepcopy(locality)})
     budgets = evidence.get("budgets")
     if isinstance(budgets, list):
         for budget in budgets:

@@ -2711,7 +2711,8 @@
               "destination_missing",
               "already_in_tier",
               "invalid_action",
-              "budget_constraint"
+              "budget_constraint",
+              "locality_constraint"
             ],
             "title": "Code",
             "type": "string"
@@ -2975,6 +2976,18 @@
               }
             ],
             "title": "Last Tier Move At"
+          },
+          "locality": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locality"
           },
           "minimum_residency_seconds": {
             "minimum": 0.0,
