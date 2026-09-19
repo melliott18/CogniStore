@@ -30,6 +30,24 @@ and separate cost/carbon consumption and unknown-data panels.
 | Queue telemetry unavailable | Pending depth is absent or unknown | 5 minutes |
 | Indexing timestamp unknown | Unknown timestamp counter increases over 5 minutes | Immediate |
 
+## Runbooks
+
+Every alert rule in `docker/observability/rules/slo.yml` carries a `runbook_url`
+to a response section below. Use the
+[incident decision tree](operator_incidents.md#first-response-and-decision-tree)
+for initial evidence collection and the [security runbook](operator_security.md)
+for identity, tenant, secret, and audit failures. Assign the escalation owners
+before enabling production alert delivery.
+
+| Shipped alert | Response |
+| --- | --- |
+| `CogniStoreSLOBurnRateCritical`, `CogniStoreSLOBurnRateWarning` | [SLO burn rate](#slo-burn-rate) |
+| `CogniStoreQueueCapacity` | [Queue capacity](#queue-capacity) |
+| `CogniStorePolicyBudgetWarning`, `CogniStorePolicyBudgetCritical` | [Policy budget](#policy-budget) |
+| `CogniStorePolicyBudgetUnknown`, `CogniStorePolicyBudgetTelemetryUnavailable` | [Telemetry unavailable](#telemetry-unavailable), then [policy budget](#policy-budget) |
+| `CogniStoreIndexingLagUnknown` | [Telemetry unavailable](#telemetry-unavailable) |
+| `CogniStoreTelemetryUnavailable`, `CogniStoreQueueTelemetryUnavailable` | [Telemetry unavailable](#telemetry-unavailable) |
+
 ## Measurement and error budgets
 
 For event-based objectives, attainment is `good events / eligible events`.
@@ -103,60 +121,129 @@ that an unbudgeted deployment is within a spending target.
 
 ## SLO burn rate
 
-1. Open the SLO dashboard, identify the affected objective, then compare recent
-   and long-window burn with request/operation volume and target health.
-2. For movement failures or latency, inspect worker readiness, retries, dead
-   letters, and driver latency. Use [consistency checks](consistency_checks.md) and
-   [background workers](background_workers.md) to diagnose retained sources
-   and retry bounds before redrive. Do not bypass integrity verification.
-3. For API failures, inspect structured events and correlated traces, catalog
-   connectivity, and storage operations. Restore the failing dependency or
-   roll back the triggering deployment.
-4. For indexing lag, compare queue age with scan duration and index operations.
-   Repair the extractor/provider or reduce admission pressure; verify a new
-   scan completes and the short burn window returns below threshold.
-5. Recovery requires both restored service and falling burn. Record the consumed
-   budget and review remaining allowance before increasing risky change volume.
+Applies to `CogniStoreSLOBurnRateCritical` and `CogniStoreSLOBurnRateWarning`.
+
+**Triage.** Open the SLO dashboard and record the alert's `slo` label, burn
+windows, operation volume, onset, recent changes, and consumed error budget.
+Check worker readiness and scrape health before interpreting the series.
+
+**Action.** Select the affected objective:
+
+| `slo` label | Response |
+| --- | --- |
+| `move_success`, `move_latency` | Correlate worker errors and backend latency; follow [queue/DLQ diagnosis](operator_incidents.md#dead-letter-diagnosis-and-redrive), then [scoped repair](operator_incidents.md#interrupted-move-and-consistency-repair) for incomplete journals. Restore the dependency before replaying work; retain source copies and integrity checks. |
+| `move_throughput` | Follow [queue capacity](#queue-capacity); confirm a movement workload is actually pending and compare tier waiters, retries, and backend capacity before scaling. |
+| `api_availability` | Correlate failing route/request IDs with API, catalog, and storage logs/traces. Restore the failing dependency or roll back the triggering release using the deployment runbook. An auth-related client error may affect users without contributing to this 5xx-based objective. |
+| `indexing_lag` | Compare queue wait with extractor, embedding, and index-provider duration/errors. Restore the failing provider, reduce admission pressure, and complete a new authorized scan. Resolve unknown timestamps before trusting lag. |
+
+**Verify.** Require successful representative work in the affected scope and
+falling short-window burn. Follow long-window burn and remaining allowance
+through recovery; a cleared alert alone is not a fresh 30-day attainment claim.
+Confirm expected catalog/index results and queue progress as applicable.
+
+**Escalate.** Contact the accountable team in the [SLO model](slo_model.md)
+immediately for critical burn, or if warning burn persists after dependency
+recovery. Bring scoped correlation/job/move IDs and recent change evidence.
+Missing/corrupt data goes to the storage owner; identity/audit anomalies go to
+security. Record remaining allowance before resuming risky changes.
 
 ## Queue capacity
 
-1. Check broker pending depth with `max` across workers; each worker reports the
-   same durable consumer, so summing would overcount. Compare in-flight jobs,
-   worker readiness, limiter saturation, retries, and successful move throughput.
-2. Confirm whether backlog contains moves, scans, or policy jobs. A mixed queue
-   can invalidate the throughput cohort; inspect durable job history.
-3. Restore workers or dependencies, adjust proven per-tier limits, or reduce
-   producers. Qualify a capacity increase against destination limits first.
-4. Recovery means backlog falls below its threshold and eligible throughput
-   windows meet the floor. A throughput alert clearing because the cohort went
-   idle does not prove a stalled queue recovered.
+Applies to `CogniStoreQueueCapacity` and backlog-associated throughput burn.
+
+**Triage.** Check `max(cognistore_job_queue_depth{state="pending"})` across
+workers and a fresh worker `/readyz` response. Compare outstanding ACKs,
+in-flight jobs, tier saturation, retry/dead-letter counts, and successful move
+throughput. Confirm whether jobs are scans or policy movement; a mixed queue
+can invalidate the throughput cohort. Preserve affected IDs and consumer settings.
+
+**Action.** Follow the [backlog decision table](operator_incidents.md#queue-backlog-and-saturation).
+Restore consumers/dependencies or slow producers first. Qualify any added worker
+or per-tier capacity against backend limits and divide aggregate limits across
+processes. Preserve stream contents and use a coordinated change for shared
+consumer settings. The default stream cap is 10,000 messages whereas this alert
+uses `> 10000`; submission saturation errors remain authoritative at/below the cap.
+
+**Verify.** Require continuing completions/ACKs, falling backlog below the
+threshold, and successful new work. Eligible movement windows should meet the
+floor. A throughput alert clearing because attempts aged out of the cohort does
+not prove a stalled queue recovered.
+
+**Escalate.** Involve the broker/platform owner if claims or ACKs stop, the
+storage owner for persistent backend throttling, and the SLO owner if the
+estimated drain time exceeds the workload objective. Do not purge jobs to
+silence the alert.
 
 ## Policy budget
 
-1. Inspect the dimension (cost or carbon), warning/critical threshold, and
-   unknown-data signal. Read the registered budget periods, scopes, opening
-   commitments, and immutable reservation evidence from the catalog.
-2. Compare commitments with admission evidence and estimator profiles. Failed
-   attempts retain charges; retry and override reservations legitimately increase
-   usage. Do not subtract them merely to silence an alert.
-3. Slow admission, use [what-if simulation](policy_budgets.md) to compare
-   alternatives, or configure an approved replacement period/allowance through
-   the audited budget workflow. Repair missing evidence before resuming work.
-4. Recovery means the maximum applicable ratio falls below threshold for the
-   configured interval, with no unknown scope remaining. An ended period alone
-   is not a healthy replacement budget.
+Applies to `CogniStorePolicyBudgetWarning`, `CogniStorePolicyBudgetCritical`,
+and the accounting branch of `CogniStorePolicyBudgetUnknown`.
+
+**Triage.** Record the cost/carbon `dimension`, consumption ratio, and unknown
+signals. On the trusted catalog used by this deployment, inspect definitions:
+
+```bash
+cognistore --catalog-db /var/lib/cognistore/catalog.sqlite3 --json budget-list
+```
+
+Use the deployment's PostgreSQL locator instead when appropriate; do not infer
+non-default tenant coverage from a local default-catalog command. Read periods,
+scopes, opening commitments, reservations, and original estimator evidence
+using the [budget ledger workflow](policy_budgets.md). Metric labels deliberately
+omit scope IDs, so the dashboard alone cannot identify the offending budget.
+
+**Action.** Reduce admissions and compare alternatives through documented
+what-if simulation. Request an approved replacement allowance/period from the
+budget owner and apply it through the audited workflow. Renew expired budgets
+at the same scope; a wider scope does not repair a narrower expired one.
+Restore missing evidence before resuming work. Failed attempts, retries, and
+overrides retain modeled charges; do not edit/subtract ledger entries to clear
+the alert, or add overlapping budget amounts together.
+
+**Verify.** Require every applicable scope to be evaluable and the maximum
+ratio to return below the alert threshold, with no unknown series. Check a new
+policy preview respects the intended scope/period. An expired period or missing
+metric is not proof of recovered budget headroom.
+
+**Escalate.** Engage the budget owner for exhausted headroom and the catalog/
+service owner for missing ledger evidence or inexplicable commitments. Include
+the dimension and restricted reservation/estimator evidence; modeled charges
+are not invoices or measured emissions.
 
 ## Telemetry unavailable
 
-1. Inspect Prometheus targets and the API `/healthz` and worker `/readyz`
-   endpoints. Check service reachability, catalog access, and broker connectivity.
-2. For unknown scan timestamps, verify broker metadata and UTC clock sync;
-   investigate future timestamps before trusting apparently fast scans.
-3. For budget unknowns, inspect missing/stale periods or unavailable ledger
-   evidence. A reachable metrics endpoint does not guarantee the catalog read
-   succeeded.
-4. Confirm scrapes resume and unknown counters stop increasing. Reassess any SLO
-   conclusions spanning the gap; do not fill missing history with healthy data.
+Applies to `CogniStoreTelemetryUnavailable` (API and worker),
+`CogniStoreQueueTelemetryUnavailable`, `CogniStoreIndexingLagUnknown`,
+`CogniStorePolicyBudgetUnknown`, and
+`CogniStorePolicyBudgetTelemetryUnavailable` (cost and carbon).
+
+**Triage.** Inspect Prometheus Targets at the deployment's private Prometheus
+endpoint and the [API/worker probes](operator_incidents.md#first-response-and-decision-tree).
+Record the `job` or `dimension` label, scrape error, last good sample time, and
+whether other targets are healthy. A reachable metrics endpoint does not prove
+that its catalog or broker reads succeeded.
+
+**Action.** Use the alert-specific branch:
+
+| Alert | Response |
+| --- | --- |
+| `CogniStoreTelemetryUnavailable` | Restore the expected process/target, scrape routing, verified TLS, and permissions. Check deployment target names and scrape configuration before changing rules. A tenant-enabled API deliberately returns 404 from aggregate `/metrics`; use an approved private operator telemetry design, not disabling tenant isolation. |
+| `CogniStoreQueueTelemetryUnavailable` | Inspect fresh worker broker/account/stream/consumer readiness and connectivity. Restore the correct durable topology and broker permissions; never substitute zero for unknown queue depth. |
+| `CogniStoreIndexingLagUnknown` | Inspect broker publication metadata and UTC clock synchronization. Correct missing/future timestamps at the source and complete a new scan; a redrive creates a new publication time and cannot repair historical measurements. |
+| `CogniStorePolicyBudgetUnknown` | Check catalog connectivity and missing/expired budget periods/evidence, then follow [policy budget](#policy-budget). |
+| `CogniStorePolicyBudgetTelemetryUnavailable` | Confirm the API version/configuration exposes both expected dimensions and can access its catalog. Restore instrumentation/catalog access or the approved private telemetry path. |
+
+**Verify.** Confirm expected targets scrape successfully, queue depth is finite
+and known, both budget dimensions are present/evaluable, and unknown timestamp
+counters stop increasing across fresh scan completions. Allow the five-minute
+timestamp increase window to age out. Preserve the missing-history interval;
+evaluate evidence coverage before making SLO claims spanning that gap.
+
+**Escalate.** Engage the observability/platform owner for absent targets or an
+unimplemented tenant-safe scrape topology, the broker owner for unavailable
+queue metadata, and catalog/budget owners for accounting failures. Treat a
+telemetry outage concurrent with service failure as an incident, not merely a
+dashboard problem.
 
 ## Qualification evidence and checks
 

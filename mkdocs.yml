@@ -2,6 +2,16 @@ site_name: CogniStore
 docs_dir: docs
 
 nav:
+  - Operations:
+      - Operator handbook: operator_handbook.md
+      - Install, upgrade, and recovery: operator_lifecycle.md
+      - Incidents, queues, and repair: operator_incidents.md
+      - Security operations: operator_security.md
+      - Migration guides: operator_migrations.md
+      - Reference architectures: reference_architectures.md
+      - SLO alerts and runbooks: operational_slos.md
+      - SLO model: slo_model.md
+      - Operator drill evidence: evidence/m4/README.md
   - Setup:
       - Docker development: setup_guide.md
       - Kubernetes and Helm: kubernetes.md

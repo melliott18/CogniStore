@@ -1,7 +1,10 @@
 # CogniStore architecture
 
-This document describes the currently implemented architecture. It is a
-current-state reference through M3. Production-platform work remains in M4.
+This document describes the currently implemented architecture, including the
+M4 security, observability, repair, and deployment components. The
+[reference architectures](reference_architectures.md) distinguish supported
+deployment shapes and their qualification boundaries; the
+[operator handbook](operator_handbook.md) provides operational procedures.
 
 ## System view
 
@@ -17,7 +20,7 @@ CLI / operator -- catalog calls --> CatalogStore --> memory / SQLite / PostgreSQ
                           +---------- SQLite scheduler state <----------------+
 
 async workers -- handlers --> scan / policy / mover -- driver contract -->
-                              POSIX and S3-compatible storage tiers
+                              POSIX, S3-compatible, GCS, and Azure Blob tiers
 
 CatalogStore -- bounded projection --> keyword search service --> Tantivy generations
 
@@ -40,7 +43,7 @@ the REST API v1 boundary.
 | CLI | `cognistore/cli/` | Strict configuration/profile resolution, human or JSON output, previews, storage commands, worker/scheduler lifecycle, move recovery, and DLQ redrive |
 | REST API | `cognistore/api/` | Versioned FastAPI transport, explicit public schemas, bounded cursor pages, stable errors, service injection, and deterministic OpenAPI generation |
 | Python SDK | `cognistore/sdk/` | Server-independent typed REST v1 client, response and error models, cursor iteration, and asynchronous job polling |
-| Storage | `cognistore/drivers/` | Common object contract plus POSIX and S3-compatible drivers, streaming I/O, capability flags, generations, conditional deletion, and durability hooks |
+| Storage | `cognistore/drivers/` | Common object contract plus POSIX, S3-compatible, GCS, and optional Azure Blob drivers, streaming I/O, capability flags, generations, conditional deletion, and durability hooks |
 | Catalog | `cognistore/core/catalog.py`, `cognistore/db/` | Backend-neutral `CatalogStore` contract plus the in-memory `Catalog` and transactional `SQLCatalog`; normalized objects, placements, tiers, pools, scan fences, durable move journals, leases, and transition history on SQLite or PostgreSQL |
 | Movement | `cognistore/core/mover.py`, `move_jobs.py` | Bounded transfer, full SHA-256 verification, generation fencing, resumable phases, and catalog placement commit |
 | Queue | `cognistore/jobs/nats_queue.py` | Bounded JetStream setup, publish/claim/ACK/NAK, health, dead-letter records, and redrive |
@@ -50,6 +53,8 @@ the REST API v1 boundary.
 | Discovery/policy | `cognistore/core/scanner.py`, `policy*.py`, `placement*.py`, `estimation.py`, `utils/` | Storage observations, behavioral/content signals, guarded rule and LLM decisions, offline baseline evaluation, structured explanations, estimated placement objectives, budget admission, device discovery, and tier profiling |
 | Keyword search | `cognistore/search/` | Versioned normalized-passage projection, BM25 ranking, exact metadata filters, synchronous replace/delete visibility, and atomic full rebuild from the catalog |
 | Ask | `cognistore/search/` | Hybrid retrieval and grounded citations |
+| Security | `cognistore/auth/`, `cognistore/encryption.py` | JWT identity, role authorization, tenant partitions and storage namespaces, verified transport and deployment encryption evidence |
+| Operations | `cognistore/core/`, `cognistore/cli/`, `helm/cognistore/`, `examples/terraform/aws/` | Legal holds, audit integrity, consistency reports and constrained repair, orphan quarantine/cleanup, Helm workloads and AWS infrastructure reference |
 
 ## State and ownership
 
@@ -58,8 +63,9 @@ reconstructable derived plane:
 
 1. JetStream owns job delivery, redelivery, and source-message settlement.
 2. The catalog DAL owns object placement, move state and transitions, move
-   leases, access history, policy decision snapshots, and cost/carbon budget
-   definitions and reservations in either PostgreSQL or SQLite.
+   leases, access history, policy decision snapshots, cost/carbon budget
+   definitions and reservations, legal holds, and audit-integrity evidence in
+   tenant-owned PostgreSQL or SQLite partitions.
 3. `SQLiteScheduleStore` separately owns scheduled occurrence/reservation
    state, execution leases, and fenced-recovery audits.
 4. Storage backends own object bytes and backend-specific generation tokens.
@@ -195,6 +201,15 @@ same-origin API/UI process. It composes the production extraction, Tantivy,
 pgvector, REST, and citation paths with checked project-authored documents and
 deterministic offline sample providers.
 
+The [Helm chart](kubernetes.md) deploys the production API/UI and workers with
+operator-managed PostgreSQL, JetStream, storage, identity, TLS, and runtime
+Secrets. Normal independent worker scaling leaves the SQLite scheduler
+disabled; enabling schedules constrains the scheduler and its workers to one
+node with the same persistent file. The [AWS Terraform reference](terraform.md)
+provisions private EKS, RDS, S3, and supporting infrastructure; application and
+dependency releases remain separate operator steps. Neither deployment
+creates a distributed Tantivy writer or automatically restores durable state.
+
 CI exercises Python 3.10–3.14, live NATS, MinIO, and PostgreSQL/pgvector
 integration, package and security gates, the Compose shutdown probe, and a reduced movement
 qualification. The manual full profile completed on 2026-08-29 with one million
@@ -233,10 +248,22 @@ artifact.
   answer generation does not suppress ranked citations. The REST API exposes
   that same service response without bypassing its authoritative catalog
   checks; production provider composition remains an injected runtime concern.
-- POSIX path containment rejects static symlinks but is not yet race-safe
-  against a concurrent component swap; #91 owns production hardening.
-- Authentication, authorization, tenancy, production observability, repair,
-  Helm, and Terraform belong to M4.
+- POSIX containment uses descriptor-relative no-follow operations and verifies
+  service-user ownership and directory permissions. Privileged processes and
+  other processes using the service account remain trusted not to relocate
+  open directories outside the tier, insert hard links, or change mount
+  topology. See the [supported mutation model](posix_containment.md).
+- JWT authentication, current role and tenant revalidation, partitioned
+  catalogs and storage namespaces, legal holds, integrity-protected audit
+  history, metrics/traces, SLO rules, consistency repair, and explicit orphan
+  cleanup are implemented. Operator-owned TLS, encrypted storage, secret
+  delivery, trusted broker access, and recovery evidence are still required.
+  Tenant API processes do not expose aggregate `/metrics` to tenants.
+- Automated repair resumes only eligible existing durable moves using the
+  recorded identities and current fences. It is not a general reconciliation
+  engine and does not infer permission to overwrite collisions or delete
+  unknown objects. Physical CAS reclamation remains outside the shipped
+  content-reference contract.
 
 See the [design contracts](design.md), [M1 closeout evidence](evidence/m1/README.md),
 [M2 closeout evidence](evidence/m2/README.md), [M3 closeout evidence](evidence/m3/README.md),

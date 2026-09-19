@@ -317,7 +317,7 @@ jobs:
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
                   migrations = MigrationManager()
-                  assert migrations.heads() == ("0013_audit_integrity",)
+                  assert migrations.heads() == ("0014_legal_holds",)
                   assert migrations.is_at_head(catalog.engine)
 
           assert files("cognistore.sdk").joinpath("py.typed").is_file()
@@ -359,6 +359,21 @@ jobs:
           assert result.schema_version == 1
           assert result.results == []
           PY
+
+      - name: Exercise clean operator installation, backup/restore, and repair
+        run: |
+          python scripts/operator_drills.py \
+            --workspace "${RUNNER_TEMP}/cognistore-operator-drill" \
+            --evidence "${RUNNER_TEMP}/operator-evidence/operator-drill.json"
+
+      - name: Upload operator drill evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operator-drill-evidence
+          path: ${{ runner.temp }}/operator-evidence/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload verified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

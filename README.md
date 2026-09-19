@@ -11,6 +11,12 @@ TLS and persistent volumes require current encryption attestations. Follow the
 [encryption deployment and recovery guide](docs/encryption.md) before deploying.
 The local Docker stack explicitly selects the isolated `development` profile.
 
+Start with the [operator handbook](docs/operator_handbook.md) for a tested
+clean-install walkthrough, upgrade/rollback and backup/restore procedures,
+incident and security runbooks, migration guides, and supported reference
+architectures. [Recorded local recovery drills](docs/evidence/m4/README.md)
+include the commands and verification evidence.
+
 ### Docker stack
 
 Start the non-root CogniStore worker, PostgreSQL with pgvector, file-backed

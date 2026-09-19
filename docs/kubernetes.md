@@ -24,8 +24,12 @@ scheduled envelopes in that mode; ordinary REST action jobs use the shared
 PostgreSQL catalog's durable claims and move journal. Scaling replicas does not
 turn JetStream's at-least-once delivery into an exactly-once transport. Stable
 job identities, duplicate detection, transaction fences, and verified move
-transitions protect side effects through retries. Clients must retain an
-operation's idempotency key when retrying that operation.
+transitions protect side effects through retries. Retain a durable manual
+move's caller-provided idempotency key when retrying it. REST API v1 action
+submission has no caller-provided idempotency key: retain the returned job ID
+for status checks, and reconcile an uncertain submission before submitting it
+again. See the [SDK's asynchronous job workflow](python_sdk.md) for this
+boundary.
 
 Recurring schedule coordination is still a SQLite file. Enabling the scheduler
 requires a persistent volume shared by the scheduler and all its workers on
