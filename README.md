@@ -218,6 +218,18 @@ three query modes, direct CLI workflow, corpus provenance, state behavior, and
 reduced-scale end-to-end test. Verify packaged assets alone with
 `cognistore-sample verify`.
 
+### Administration UI
+
+Open `/ui/admin/` on the API origin for authorized driver and tier views,
+policy previews and actions, job history, audit evidence, and repair workflows.
+Connect with a JWT access token; the interface shows the current tenant and
+only the operations allowed by the server's role bindings. Scoped policy runs
+and repairs require explicit confirmation before execution.
+
+See the [administration UI guide](docs/admin_ui.md) for access configuration,
+permissions, action tracking, and registration of trusted consistency reports
+for repair.
+
 ### Driver configuration (optional)
 
 You can instantiate drivers from a YAML file using `cognistore.drivers.driver_loader.load_drivers`.

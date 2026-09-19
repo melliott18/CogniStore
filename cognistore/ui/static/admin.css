@@ -1,0 +1,53 @@
+:root { --admin-ink: #172923; --admin-green: #245f47; --admin-border: #d9e1dc; }
+body { background: #f3f5f1; color: var(--admin-ink); }
+[hidden] { display: none !important; }
+.admin-layout { max-width: 1440px; margin: 0 auto; padding: 32px 40px 72px; }
+.admin-connection { padding: 12px 0 28px; }
+.admin-connection h1 { font-size: clamp(2rem, 4vw, 3.5rem); max-width: none; margin: 10px 0; }
+.admin-connection p { color: #4b6055; }
+#connect-form { max-width: 920px; margin-top: 24px; }
+label { display: block; font-size: .9rem; font-weight: 600; }
+label small { font-weight: 400; color: #526659; }
+input, select, textarea { box-sizing: border-box; width: 100%; border: 1px solid #a4b7aa; border-radius: 6px; padding: 11px; background: white; color: var(--admin-ink); font: inherit; margin: 7px 0 14px; }
+textarea, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .85rem; }
+textarea { resize: vertical; }
+button { border: 1px solid var(--admin-green); border-radius: 6px; background: var(--admin-green); color: white; padding: 10px 16px; font: inherit; font-size: .9rem; cursor: pointer; }
+button:disabled { opacity: .5; cursor: wait; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #a76c23; outline-offset: 3px; }
+.admin-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.admin-inline input { flex: 1; min-width: 200px; margin-bottom: 7px; }
+.admin-inline button { flex-shrink: 0; }
+.scope-banner { font-family: ui-monospace, monospace; font-size: .85rem; background: #e4ede4; padding: 12px 16px; border-left: 3px solid var(--admin-green); overflow-wrap: anywhere; }
+.admin-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.admin-nav button { background: transparent; color: #3e5548; border-color: transparent; }
+.admin-nav button[aria-current="page"] { background: #fff; border-color: var(--admin-border); color: #172923; box-shadow: 0 2px 4px #17292308; }
+.admin-content { background: white; border: 1px solid var(--admin-border); border-radius: 12px; padding: 28px; min-height: 240px; }
+.admin-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.admin-heading h2 { margin: 0; font-size: 1.6rem; }
+#view-status { padding: 12px 0; color: #526659; }
+#view-status[data-state="error"], #view-status[data-state="stale"] { color: #874415; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.admin-card { border: 1px solid var(--admin-border); border-radius: 8px; padding: 20px; overflow-wrap: anywhere; }
+.admin-card h3 { margin: 0 0 14px; font-size: 1.1rem; }
+.admin-card p { line-height: 1.65; }
+.admin-form { max-width: 820px; }
+.admin-form .admin-grid { gap: 0 20px; }
+.admin-form details { margin-bottom: 20px; }
+.admin-form summary { cursor: pointer; margin-bottom: 12px; }
+.admin-evidence { margin-top: 24px; }
+.admin-evidence ol { list-style: none; margin: 0; padding: 0; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .88rem; }
+.admin-table th { color: #526659; background: #f5f7f3; font-size: .8rem; }
+.admin-table th, .admin-table td { padding: 14px 12px; border-bottom: 1px solid var(--admin-border); vertical-align: top; overflow-wrap: anywhere; }
+.admin-table td button { padding: 5px 9px; font-size: .8rem; }
+.admin-table code { font-size: .78rem; }
+.admin-table caption { text-align: left; padding-bottom: 12px; }
+.admin-empty { padding: 36px 20px; color: #526659; text-align: center; border: 1px dashed var(--admin-border); border-radius: 8px; }
+pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f7f3; border-radius: 5px; padding: 14px; max-height: 400px; }
+.admin-more { margin-top: 18px; }
+.admin-note { color: #526659; line-height: 1.6; }
+dialog { width: min(640px, calc(100vw - 48px)); box-sizing: border-box; padding: 28px; border: 1px solid var(--admin-border); border-radius: 12px; color: var(--admin-ink); }
+dialog::backdrop { background: #12291f88; }
+#cancel-action, #disconnect { background: white; color: var(--admin-green); }
+@media (max-width: 680px) { .admin-layout { padding: 20px 14px 40px; } .admin-content { padding: 18px; } .app-header { padding: 18px; } .admin-nav { gap: 3px; } }

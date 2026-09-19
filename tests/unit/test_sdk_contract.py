@@ -1445,6 +1445,13 @@ def test_sdk_embedding_policy_rules_enforce_the_api_request_constraints() -> Non
 
 def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> None:
     expected = {
+        "getAdminSession": ("get", "/v1/admin/session", "get_admin_session"),
+        "getAdminStorage": ("get", "/v1/admin/storage", "get_admin_storage"),
+        "listJobs": ("get", "/v1/jobs", "list_jobs"),
+        "listRepairs": ("get", "/v1/admin/repairs", "list_repairs"),
+        "getRepair": ("get", "/v1/admin/repairs/{repair_id}", "get_repair"),
+        "previewRepair": ("post", "/v1/admin/repairs/preview", "preview_repair"),
+        "submitRepair": ("post", "/v1/admin/repairs", "submit_repair"),
         "getHealth": ("get", "/healthz", "get_health"),
         "getReadiness": ("get", "/readyz", "get_readiness"),
         "putObject": (

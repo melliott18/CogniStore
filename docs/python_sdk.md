@@ -236,6 +236,29 @@ method. The two convenience methods do not add server endpoints.
 | `submit_policy_run(request)` | `POST /v1/actions/policy-runs` | `JobStatus` |
 | `get_job_status(job_id)` | `GET /v1/jobs/{job_id}` | `JobStatus` |
 | `wait_for_job(job, ...)` | Repeated job-status requests | Terminal `JobStatus` |
+| `get_admin_session()` | `GET /v1/admin/session` | `AdminSession` |
+| `get_admin_storage()` | `GET /v1/admin/storage` | `AdminStorage` |
+| `list_jobs(...)` | `GET /v1/jobs` | `JobHistoryPage` |
+| `list_repairs()` | `GET /v1/admin/repairs` | `RepairListResponse` |
+| `get_repair(repair_id)` | `GET /v1/admin/repairs/{repair_id}` | `RepairStatusResponse` |
+| `preview_repair(request)` | `POST /v1/admin/repairs/preview` | `RepairPreviewResponse` |
+| `submit_repair(request)` | `POST /v1/admin/repairs` | `RepairStatusResponse` |
+
+Administration methods use the same bearer authentication, current permissions,
+and server-resolved tenant as the [administration UI](admin_ui.md). Session
+capabilities are informational; every subsequent operation is independently
+authorized. Job and repair lists expose per-record `errors` alongside healthy
+items, so callers must inspect both. Driver health can be `unverified` when no
+safe backend probe is available.
+
+`preview_repair(RepairPreviewRequest(repair_id="registered-report"))` evaluates
+an operator-registered report without executing repairs. Review its `scope`,
+`actions`, and `counts` before constructing a `RepairSubmitRequest` with the same
+`repair_id`, `preview_token`, and `confirmation=preview.scope`. Submission
+rechecks the evidence; a conflict requires another preview. Repair execution is
+synchronous and may exceed the default request timeout. After a timeout, inspect
+`get_repair` before retrying; replaying a completed preview receipt reuses its
+recorded outcome. Browsers and SDK clients cannot select arbitrary report files.
 
 `put_object` accepts bytes and exposes the API's `overwrite` and `content_type`
 options. `get_object` accepts one HTTP byte range such as `bytes=0-1023` and returns

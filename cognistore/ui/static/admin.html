@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CogniStore · Administration</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+  <link rel="stylesheet" href="/ui/admin.css">
+  <script src="/ui/admin.js" defer></script>
+  <script src="/ui/decisions.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#admin-content">Skip to administration</a>
+  <header class="app-header">
+    <a class="brand" href="/ui/">CogniStore <small> / Administration</small></a>
+    <a class="api-link" href="/ui/">Content discovery ↗</a>
+  </header>
+  <main class="admin-layout">
+    <section class="admin-connection" aria-labelledby="admin-title">
+      <div><div class="eyebrow">Operations console</div><h1 id="admin-title">Storage, with context.</h1>
+      <p>Inspect health, preview changes, and follow the evidence.</p></div>
+      <form id="connect-form">
+        <label for="access-token">Access token <small>Kept in memory for this page only</small></label>
+        <div class="admin-inline"><input id="access-token" type="password" autocomplete="off" spellcheck="false" maxlength="16384" placeholder="Bearer token, or use your authenticated proxy">
+        <button type="submit">Connect</button><button id="disconnect" type="button" hidden>Disconnect</button></div>
+      </form>
+      <p id="session-status" role="status" aria-live="polite">Connecting to your authorized workspace…</p>
+      <p id="tenant-scope" class="scope-banner" hidden></p>
+    </section>
+    <nav id="admin-nav" class="admin-nav" aria-label="Administration views"></nav>
+    <section id="admin-content" class="admin-content" aria-label="Operational workspace" tabindex="-1">
+      <div class="admin-heading"><h2 id="view-title">Connect to begin</h2><button id="refresh-view" type="button" hidden>Refresh</button></div>
+      <p id="view-status" role="status" aria-live="polite"></p>
+      <div id="view-body"></div>
+    </section>
+  </main>
+  <dialog id="confirmation" aria-labelledby="confirmation-title" aria-describedby="confirmation-scope">
+    <form id="confirmation-form">
+      <h2 id="confirmation-title">Confirm action</h2>
+      <p id="confirmation-scope"></p>
+      <pre id="confirmation-payload"></pre>
+      <label for="confirmation-text">Type CONFIRM to submit this exact scope</label>
+      <input id="confirmation-text" autocomplete="off" required pattern="CONFIRM">
+      <div class="admin-inline"><button id="confirm-action" type="submit">Confirm action</button><button id="cancel-action" type="button">Cancel</button></div>
+    </form>
+  </dialog>
+  <footer><span>CogniStore · Authorized operations</span><span>API v1</span></footer>
+</body>
+</html>

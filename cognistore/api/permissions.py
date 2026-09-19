@@ -7,6 +7,13 @@ from starlette.routing import compile_path
 from cognistore.auth.authorization import Permission
 
 OPERATION_PERMISSIONS = MappingProxyType({
+    "get_admin_session": tuple(Permission),
+    "get_admin_storage": (Permission.ADMIN,),
+    "list_jobs": (Permission.READ,),
+    "preview_repair": (Permission.ADMIN,),
+    "submit_repair": (Permission.ADMIN, Permission.MOVEMENT),
+    "get_repair": (Permission.ADMIN,),
+    "list_repairs": (Permission.ADMIN,),
     "put_object": (Permission.WRITE,),
     "stat_object": (Permission.READ,),
     "open_object": (Permission.READ,),
@@ -33,9 +40,20 @@ OPERATION_PERMISSIONS = MappingProxyType({
 
 # Hold lifecycle changes always require a verified identity and explicit grant,
 # including deployments that otherwise allow anonymous local HTTP operations.
-AUTHENTICATED_OPERATIONS = frozenset({"place_legal_hold", "release_legal_hold"})
+AUTHENTICATED_OPERATIONS = frozenset({
+    "place_legal_hold", "release_legal_hold", "get_admin_session", "get_admin_storage",
+    "list_jobs", "preview_repair", "submit_repair", "get_repair", "list_repairs",
+})
+ANY_PERMISSION_OPERATIONS = frozenset({"get_admin_session"})
 
 ENDPOINT_OPERATIONS = MappingProxyType({
+    ("GET", "/v1/admin/session"): "get_admin_session",
+    ("GET", "/v1/admin/storage"): "get_admin_storage",
+    ("GET", "/v1/jobs"): "list_jobs",
+    ("POST", "/v1/admin/repairs/preview"): "preview_repair",
+    ("POST", "/v1/admin/repairs"): "submit_repair",
+    ("GET", "/v1/admin/repairs"): "list_repairs",
+    ("GET", "/v1/admin/repairs/{repair_id}"): "get_repair",
     ("PUT", "/v1/objects/{tier}/{bucket}/{key:path}"): "put_object",
     ("HEAD", "/v1/objects/{tier}/{bucket}/{key:path}"): "stat_object",
     ("GET", "/v1/objects/{tier}/{bucket}/{key:path}"): "open_object",

@@ -67,3 +67,22 @@ def register_content_search_ui(app: FastAPI) -> None:
     @app.get("/ui/decisions.js", include_in_schema=False)
     def placement_explanations_javascript() -> Response:
         return _asset("decisions.js", "text/javascript", cache_control="no-cache")
+
+    @app.get("/ui/admin", include_in_schema=False)
+    def administration_redirect() -> RedirectResponse:
+        return RedirectResponse(
+            "/ui/admin/", status_code=307,
+            headers={**_SECURITY_HEADERS, "Cache-Control": "no-store"},
+        )
+
+    @app.get("/ui/admin/", include_in_schema=False)
+    def administration_index() -> Response:
+        return _asset("admin.html", "text/html", cache_control="no-store")
+
+    @app.get("/ui/admin.js", include_in_schema=False)
+    def administration_javascript() -> Response:
+        return _asset("admin.js", "text/javascript", cache_control="no-cache")
+
+    @app.get("/ui/admin.css", include_in_schema=False)
+    def administration_styles() -> Response:
+        return _asset("admin.css", "text/css", cache_control="no-cache")

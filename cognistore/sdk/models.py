@@ -933,6 +933,125 @@ class DeleteObjectResponse(SDKResponse):
     request_id: str | None = None
 
 
+HealthState: TypeAlias = Literal["ready", "unavailable", "not_configured", "unverified"]
+RepairState: TypeAlias = Literal["ready", "running", "completed", "review_required"]
+RepairIdentifier = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")]
+
+
+class AdminSession(SDKResponse):
+    schema_version: Literal[1] = 1
+    tenant_id: str
+    actor_id: str
+    operations: list[str]
+
+
+class DependencyHealth(SDKResponse):
+    status: HealthState
+
+
+class DriverCapabilityView(SDKResponse):
+    range_reads: bool = False
+    range_writes: bool = False
+    atomic_no_overwrite: bool = False
+    conditional_delete: bool = False
+
+
+class DriverEncryptionView(SDKResponse):
+    source: str = "unknown"
+    mode: str = "unknown"
+    key_configured: bool = False
+
+
+class PoolView(SDKResponse):
+    pool_id: str
+    region: str | None
+    localities: list[str]
+    member_count: int
+    active: bool
+
+
+class TierView(SDKResponse):
+    name: str
+    active: bool | None
+    driver: str | None
+    capabilities: DriverCapabilityView
+    encryption: DriverEncryptionView
+    health: DependencyHealth
+    pools: list[PoolView] = Field(default_factory=list)
+
+
+class AdminStorage(SDKResponse):
+    schema_version: Literal[1] = 1
+    tenant_id: str
+    observed_at: str
+    catalog: DependencyHealth
+    queue: DependencyHealth
+    tiers: list[TierView]
+
+
+class JobHistoryError(SDKResponse):
+    job_id: str
+    message: str
+
+
+class JobHistoryPage(SDKResponse):
+    schema_version: Literal[1] = 1
+    items: list[JobStatus]
+    page: PageMetadata
+    errors: list[JobHistoryError] = Field(default_factory=list)
+
+
+class RepairScope(SDKRequest):
+    tenant_id: Annotated[str, Field(min_length=1, max_length=128)]
+    bucket: Bucket
+    prefix: Annotated[str, Field(max_length=8192)]
+    tiers: Annotated[list[Tier], Field(min_length=1, max_length=256)]
+
+
+class RepairPreviewRequest(SDKRequest):
+    repair_id: RepairIdentifier
+
+
+class RepairSubmitRequest(RepairPreviewRequest):
+    preview_token: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    confirmation: RepairScope
+
+
+class RepairPreviewResponse(SDKResponse):
+    repair_id: RepairIdentifier
+    scope: RepairScope
+    plan_only: Literal[True] = True
+    counts: dict[str, int]
+    actions: list[dict[str, JSONValue]]
+    preview_token: str
+
+
+class RepairAttempt(SDKResponse):
+    occurred_at: str
+    actor_id: str
+    status: RepairState
+    counts: dict[str, int] = Field(default_factory=dict)
+
+
+class RepairStatusResponse(SDKResponse):
+    repair_id: RepairIdentifier
+    scope: RepairScope
+    status: RepairState
+    counts: dict[str, int] = Field(default_factory=dict)
+    actions: list[dict[str, JSONValue]] = Field(default_factory=list)
+    history: list[RepairAttempt] = Field(default_factory=list)
+
+
+class RepairListError(SDKResponse):
+    repair_id: RepairIdentifier
+    message: str
+
+
+class RepairListResponse(SDKResponse):
+    items: list[RepairStatusResponse]
+    errors: list[RepairListError] = Field(default_factory=list)
+
+
 # OpenAPI schema-name aliases keep generated-contract terminology available
 # while the shorter names remain the ergonomic SDK surface.
 AskFiltersRequest: TypeAlias = AskFilters

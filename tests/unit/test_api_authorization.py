@@ -31,6 +31,19 @@ from tests.unit.test_api_authentication import identity_provider as identity_pro
 IDENTIFIER = "11111111-1111-4111-8111-111111111111"
 # Expected permissions are independent of the production matrix.
 CASES = [
+    ("GET", "/v1/admin/session", {},
+     {"read", "write", "policy", "movement", "administration", "audit",
+      "legal_hold_inspect", "legal_hold_manage", "legal_hold_release"}, "get_admin_session"),
+    ("GET", "/v1/admin/storage", {}, {"administration"}, "get_admin_storage"),
+    ("GET", "/v1/jobs", {}, {"read"}, "list_jobs"),
+    ("GET", "/v1/admin/repairs", {}, {"administration"}, "list_repairs"),
+    ("GET", "/v1/admin/repairs/repair-1", {}, {"administration"}, "get_repair"),
+    ("POST", "/v1/admin/repairs/preview", {"json": {"repair_id": "repair-1"}},
+     {"administration"}, "preview_repair"),
+    ("POST", "/v1/admin/repairs", {"json": {
+        "repair_id": "repair-1", "preview_token": "a" * 64,
+        "confirmation": {"tenant_id": "default", "bucket": "docs", "prefix": "", "tiers": ["hot"]},
+    }}, {"administration", "movement"}, "submit_repair"),
     ("PUT", "/v1/objects/hot/docs/a.txt", {"content": b"hello"}, {"write"}, "put_object"),
     ("HEAD", "/v1/objects/hot/docs/a.txt", {}, {"read"}, "stat_object"),
     ("GET", "/v1/objects/hot/docs/a.txt", {}, {"read"}, "open_object"),
@@ -108,7 +121,10 @@ def test_every_endpoint_enforces_role_matrix(identity_provider, role):
         for method, path, payload, required, operation in CASES:
             spy.calls.clear()
             response = client.request(method, path, **payload)
-            allowed = required <= ROLE_GRANTS[role]
+            allowed = (
+                bool(required & ROLE_GRANTS[role]) if operation == "get_admin_session"
+                else required <= ROLE_GRANTS[role]
+            )
             assert response.status_code == (409 if allowed else 403), (role, method, path, response.text)
             assert spy.calls == ([operation] if allowed else [])
     assert current_authorizer() is None

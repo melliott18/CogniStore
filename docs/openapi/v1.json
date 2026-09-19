@@ -226,6 +226,80 @@
         "title": "AccessWindowResponse",
         "type": "object"
       },
+      "AdminSession": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "actor_id",
+          "operations"
+        ],
+        "title": "AdminSession",
+        "type": "object"
+      },
+      "AdminStorage": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog": {
+            "$ref": "#/components/schemas/DependencyHealth"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/DependencyHealth"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierView"
+            },
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "observed_at",
+          "catalog",
+          "queue",
+          "tiers"
+        ],
+        "title": "AdminStorage",
+        "type": "object"
+      },
       "AskFiltersRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1182,6 +1256,75 @@
         "title": "DecisiveSignal",
         "type": "object"
       },
+      "DependencyHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "unavailable",
+              "not_configured",
+              "unverified"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "DependencyHealth",
+        "type": "object"
+      },
+      "DriverCapabilityView": {
+        "additionalProperties": false,
+        "properties": {
+          "atomic_no_overwrite": {
+            "default": false,
+            "title": "Atomic No Overwrite",
+            "type": "boolean"
+          },
+          "conditional_delete": {
+            "default": false,
+            "title": "Conditional Delete",
+            "type": "boolean"
+          },
+          "range_reads": {
+            "default": false,
+            "title": "Range Reads",
+            "type": "boolean"
+          },
+          "range_writes": {
+            "default": false,
+            "title": "Range Writes",
+            "type": "boolean"
+          }
+        },
+        "title": "DriverCapabilityView",
+        "type": "object"
+      },
+      "DriverEncryptionView": {
+        "additionalProperties": false,
+        "properties": {
+          "key_configured": {
+            "default": false,
+            "title": "Key Configured",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "unknown",
+            "title": "Mode",
+            "type": "string"
+          },
+          "source": {
+            "default": "unknown",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "DriverEncryptionView",
+        "type": "object"
+      },
       "EmbeddingPolicyFeatureResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1701,6 +1844,59 @@
           "provenance"
         ],
         "title": "ImportanceChangeRequest",
+        "type": "object"
+      },
+      "JobHistoryError": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "message"
+        ],
+        "title": "JobHistoryError",
+        "type": "object"
+      },
+      "JobHistoryPage": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/JobHistoryError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobStatusResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMetadata"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "JobHistoryPage",
         "type": "object"
       },
       "JobStatusResponse": {
@@ -3345,6 +3541,50 @@
         "title": "PolicyRunRequest",
         "type": "object"
       },
+      "PoolView": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "localities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Localities",
+            "type": "array"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "pool_id": {
+            "title": "Pool Id",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "pool_id",
+          "region",
+          "localities",
+          "member_count",
+          "active"
+        ],
+        "title": "PoolView",
+        "type": "object"
+      },
       "ProviderDiagnosticResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3728,6 +3968,271 @@
         "title": "ReasonPolicy",
         "type": "object"
       },
+      "RepairAttempt": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "running",
+              "completed",
+              "review_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "occurred_at",
+          "actor_id",
+          "status"
+        ],
+        "title": "RepairAttempt",
+        "type": "object"
+      },
+      "RepairListError": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "repair_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Repair Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_id",
+          "message"
+        ],
+        "title": "RepairListError",
+        "type": "object"
+      },
+      "RepairListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/RepairListError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RepairStatusResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RepairListResponse",
+        "type": "object"
+      },
+      "RepairPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "repair_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Repair Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_id"
+        ],
+        "title": "RepairPreviewRequest",
+        "type": "object"
+      },
+      "RepairPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "plan_only": {
+            "const": true,
+            "default": true,
+            "title": "Plan Only",
+            "type": "boolean"
+          },
+          "preview_token": {
+            "title": "Preview Token",
+            "type": "string"
+          },
+          "repair_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Repair Id",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RepairScope"
+          }
+        },
+        "required": [
+          "repair_id",
+          "scope",
+          "counts",
+          "actions",
+          "preview_token"
+        ],
+        "title": "RepairPreviewResponse",
+        "type": "object"
+      },
+      "RepairScope": {
+        "additionalProperties": false,
+        "properties": {
+          "bucket": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bucket",
+            "type": "string"
+          },
+          "prefix": {
+            "maxLength": 8192,
+            "title": "Prefix",
+            "type": "string"
+          },
+          "tenant_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "bucket",
+          "prefix",
+          "tiers"
+        ],
+        "title": "RepairScope",
+        "type": "object"
+      },
+      "RepairStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/RepairAttempt"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "repair_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Repair Id",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RepairScope"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "running",
+              "completed",
+              "review_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_id",
+          "scope",
+          "status"
+        ],
+        "title": "RepairStatusResponse",
+        "type": "object"
+      },
+      "RepairSubmitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation": {
+            "$ref": "#/components/schemas/RepairScope"
+          },
+          "preview_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Preview Token",
+            "type": "string"
+          },
+          "repair_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Repair Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repair_id",
+          "preview_token",
+          "confirmation"
+        ],
+        "title": "RepairSubmitRequest",
+        "type": "object"
+      },
       "RetrievalResultResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3851,6 +4356,63 @@
           "reason"
         ],
         "title": "StabilityOverrideConfig",
+        "type": "object"
+      },
+      "TierView": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/DriverCapabilityView"
+          },
+          "driver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver"
+          },
+          "encryption": {
+            "$ref": "#/components/schemas/DriverEncryptionView"
+          },
+          "health": {
+            "$ref": "#/components/schemas/DependencyHealth"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pools": {
+            "items": {
+              "$ref": "#/components/schemas/PoolView"
+            },
+            "title": "Pools",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "active",
+          "driver",
+          "capabilities",
+          "encryption",
+          "health"
+        ],
+        "title": "TierView",
         "type": "object"
       },
       "ValidationIssue": {
@@ -4194,6 +4756,7 @@
         "tags": [
           "actions"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "administration"
         ]
@@ -4408,9 +4971,1188 @@
         "tags": [
           "actions"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "policy",
           "movement"
+        ]
+      }
+    },
+    "/v1/admin/repairs": {
+      "get": {
+        "operationId": "listRepairs",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Repairs",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "administration"
+        ]
+      },
+      "post": {
+        "operationId": "submitRepair",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepairSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource conflict",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request body is too large",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Submit Repair",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "administration",
+          "movement"
+        ]
+      }
+    },
+    "/v1/admin/repairs/preview": {
+      "post": {
+        "operationId": "previewRepair",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepairPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource conflict",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request body is too large",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Preview Repair",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "administration"
+        ]
+      }
+    },
+    "/v1/admin/repairs/{repair_id}": {
+      "get": {
+        "operationId": "getRepair",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "repair_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Repair Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get Repair",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "administration"
+        ]
+      }
+    },
+    "/v1/admin/session": {
+      "get": {
+        "operationId": "getAdminSession",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSession"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get Admin Session",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "any",
+        "x-required-permissions": [
+          "read",
+          "write",
+          "policy",
+          "movement",
+          "administration",
+          "audit",
+          "legal_hold_inspect",
+          "legal_hold_manage",
+          "legal_hold_release"
+        ]
+      }
+    },
+    "/v1/admin/storage": {
+      "get": {
+        "operationId": "getAdminStorage",
+        "parameters": [
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStorage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get Admin Storage",
+        "tags": [
+          "administration"
+        ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "administration"
         ]
       }
     },
@@ -4613,6 +6355,7 @@
         "tags": [
           "search"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -4982,6 +6725,7 @@
         "tags": [
           "audit"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
@@ -5186,6 +6930,7 @@
         "tags": [
           "audit"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
@@ -5393,6 +7138,7 @@
         "tags": [
           "audit"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
@@ -5598,6 +7344,7 @@
         "tags": [
           "audit"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
@@ -5820,6 +7567,7 @@
         "tags": [
           "catalog"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "write",
           "policy"
@@ -6066,6 +7814,7 @@
         "tags": [
           "catalog"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -6282,6 +8031,206 @@
         "tags": [
           "catalog"
         ],
+        "x-permission-mode": "all",
+        "x-required-permissions": [
+          "read"
+        ]
+      }
+    },
+    "/v1/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16384,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Request correlation and default access-operation identity. Reusing a valid identifier deduplicates access signals for the same operation kind and object.",
+              "title": "X-Request-Id"
+            }
+          },
+          {
+            "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional logical access-operation identity shared across retries with different request IDs. Deduplicates access history only; storage operations still execute.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobHistoryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid, or authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Operation not permitted by role-based authorization or an additional hook",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend operation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Backend unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "actions"
+        ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -6486,6 +8435,7 @@
         "tags": [
           "actions"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -6709,6 +8659,7 @@
         "tags": [
           "legal-holds"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "legal_hold_inspect"
         ]
@@ -6912,6 +8863,7 @@
         "tags": [
           "legal-holds"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "legal_hold_manage"
         ]
@@ -7163,6 +9115,7 @@
         "tags": [
           "legal-holds"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "legal_hold_release"
         ]
@@ -7401,6 +9354,7 @@
         "tags": [
           "objects"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "write"
         ]
@@ -7789,6 +9743,7 @@
         "tags": [
           "objects"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -8047,6 +10002,7 @@
         "tags": [
           "objects"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "read"
         ]
@@ -8340,6 +10296,7 @@
         "tags": [
           "objects"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "write"
         ]
@@ -8562,6 +10519,7 @@
         "tags": [
           "policies"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "policy"
         ]
@@ -8785,6 +10743,7 @@
         "tags": [
           "policies"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "policy"
         ]
@@ -9064,6 +11023,7 @@
         "tags": [
           "policies"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
@@ -9268,6 +11228,7 @@
         "tags": [
           "policies"
         ],
+        "x-permission-mode": "all",
         "x-required-permissions": [
           "audit"
         ]
