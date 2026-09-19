@@ -23,7 +23,7 @@ from uuid import uuid4
 
 from cognistore.auth.principal import Principal, current_principal
 from cognistore.core.audit import AuditContext, AuditEvent, AuditEventType, AuditOutcome
-from cognistore.observability import current_correlation_id
+from cognistore.observability import current_audit_correlation_id
 
 if TYPE_CHECKING:
     from cognistore.core.catalog import CatalogStore
@@ -170,12 +170,6 @@ def _safe_reference(value: str | None, *, prefix: str) -> str | None:
     return prefix + ":sha256:" + digest
 
 
-def _read_allow_sampled(actor_id: str, correlation_id: str, operation: str, boundary: str) -> bool:
-    """Deterministically retain one percent of successful read-only decisions."""
-    identity = json.dumps([actor_id, correlation_id, operation, boundary]).encode("utf-8")
-    return int.from_bytes(hashlib.sha256(identity).digest()[:8], "big") % 100 == 0
-
-
 class RBACAuthorizer:
     """Evaluate current grants and durably audit security-sensitive decisions."""
 
@@ -234,14 +228,8 @@ class RBACAuthorizer:
         allowed = valid and principal is not None and required <= policy.permissions_for(principal)
         actor_id = "anonymous" if principal is None else principal.actor_id
         safe_correlation = _safe_reference(
-            correlation_id or current_correlation_id(), prefix="correlation"
+            correlation_id or current_audit_correlation_id(), prefix="correlation"
         ) or str(uuid4())
-        if (
-            allowed
-            and required == {Permission.READ}
-            and not _read_allow_sampled(actor_id, safe_correlation, operation, boundary)
-        ):
-            return
         event = AuditEvent.create(
             AuditEventType.AUTHORIZATION_DECISION,
             AuditOutcome.ALLOWED if allowed else AuditOutcome.DENIED,

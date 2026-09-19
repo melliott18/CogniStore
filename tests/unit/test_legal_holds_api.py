@@ -122,6 +122,30 @@ def test_overlapping_scope_holds_protect_new_keys_and_other_tiers(holds_api):
                       headers=headers["writer"]).status_code == 201
 
 
+def test_held_delete_preserves_storage_audit_chain(holds_api):
+    client, gateway, drivers, headers = holds_api
+    url = "/v1/objects/hot/docs/evidence.txt"
+    assert client.put(url, content=b"retained", headers=headers["writer"]).status_code == 201
+    assert client.post("/v1/legal-holds", json={
+        "bucket": "docs", "key": "evidence.txt", "reason": "Preserve evidence",
+    }, headers=headers["manager"]).status_code == 201
+    denied = client.delete(url, headers={
+        **headers["writer"], "X-Request-ID": "held-delete-audit-chain",
+    })
+    assert denied.status_code == 409, denied.text
+    events = gateway.catalog.list_audit_events(AuditQuery(
+        correlation_id="held-delete-audit-chain",
+    ))
+    storage_events = [event for event in events if event.event_type == "storage.operation"]
+    assert [event.outcome for event in storage_events] == ["started", "failed"]
+    assert storage_events[1].causation_id == storage_events[0].event_id
+    assert storage_events[1].details["error_type"] == "LegalHoldError"
+    assert len([event for event in events if event.event_type == "legal_hold.denied"]) == 1
+    assert all(event.actor_id == Principal(ISSUER, "writer").actor_id for event in events)
+    assert drivers["hot"].get_object("docs", "evidence.txt") == b"retained"
+    assert gateway.catalog.verify_audit_integrity().valid
+
+
 @pytest.mark.parametrize("payload", [
     {"bucket": "docs", "reason": "   "},
     {"bucket": "docs", "reason": "Case", "key": "a", "prefix": "a"},

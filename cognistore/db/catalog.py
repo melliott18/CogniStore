@@ -13,7 +13,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
@@ -40,6 +40,13 @@ from cognistore.core.audit import (
     audit_text_identity,
     redact_audit_event,
     stable_audit_event_id,
+)
+from cognistore.core.audit_integrity import (
+    AuditCheckpoint,
+    AuditIntegrityResult,
+    digest,
+    event_digest,
+    verify_snapshot,
 )
 from cognistore.core.budgets import BudgetConstraintError, BudgetDefinition
 from cognistore.core.catalog import (
@@ -97,12 +104,14 @@ from cognistore.encryption import require_at_rest
 from cognistore.observability import observe
 from cognistore.utils.redaction import redact, redact_text
 
+from .audit_integrity import append_entry, read_export, read_head, read_snapshot
 from .engine import create_catalog_engine, normalize_database_url, tenant_catalog_locator
 from .migrations import MigrationManager, catalog_schema_exists
 from .schema import (
     access_events,
     audit_event_tombstones,
     audit_events,
+    audit_integrity_head,
     audit_move_heads,
     budget_definitions,
     budget_reservations,
@@ -237,6 +246,14 @@ class SQLCatalog(Catalog):
             if self.backend == "postgresql" else self._engine
         )
         self._sqlite_lock = threading.RLock()
+        if self._engine.dialect.name == "sqlite":
+            @sa.event.listens_for(self._engine, "connect")
+            def _retention_function(dbapi_connection: Any, record: Any) -> None:
+                dbapi_connection.create_function("cognistore_audit_retention", 0,
+                    lambda: int(record.info.get("audit_retention_authorized", False)))
+            # Compatibility connection is intentionally unauthorized.
+            if self._conn is not None:
+                self._conn.create_function("cognistore_audit_retention", 0, lambda: 0)
         self._closed = False
         self._engine = self._engine.execution_options(cognistore_tenant_id=tenant_id)
         if self.schema_name is not None:
@@ -554,7 +571,7 @@ class SQLCatalog(Catalog):
         return released
 
     @contextlib.contextmanager
-    def _transaction(self) -> Iterator[Connection]:
+    def _transaction(self, *, audit: bool = True) -> Iterator[Connection]:
         require_tenant(self.tenant_id)
         if self._closed:
             raise RuntimeError("catalog is closed")
@@ -566,6 +583,12 @@ class SQLCatalog(Catalog):
         with observe("catalog", "transaction", backend=self.backend), lock:
             try:
                 with self._engine.begin() as connection:
+                    # Establish a writer order before any object/move row locks.
+                    # Audit and business state must commit in the same transaction.
+                    if self.backend == "sqlite":
+                        connection.exec_driver_sql("BEGIN IMMEDIATE")
+                    elif audit:
+                        connection.execute(sa.select(audit_integrity_head).with_for_update()).first()
                     yield connection
             except sa.exc.DBAPIError as exc:
                 if self.backend == "sqlite" and isinstance(exc.orig, sqlite3.Error):
@@ -1410,7 +1433,7 @@ class SQLCatalog(Catalog):
         # or accept a caller-forged reserved header.
         persisted_metadata.pop("content_identity", None)
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             object_id = self._write_object(
                 connection,
@@ -1465,7 +1488,7 @@ class SQLCatalog(Catalog):
             if content.size != size:
                 raise ValueError("content size must match the scan observation size")
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             jobs = self._select_scan_move_jobs(connection, bucket, key)
             if self._scan_move_job_fingerprints(
@@ -1837,7 +1860,7 @@ class SQLCatalog(Catalog):
     @guard_legal_hold("catalog.update_placement")
     def update_placement(self, bucket: str, key: str, tier: str) -> None:
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             object_id = connection.execute(
                 sa.select(objects.c.object_id).where(
@@ -1891,7 +1914,7 @@ class SQLCatalog(Catalog):
     ) -> None:
         validate_catalog_size(size)
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             existing = connection.execute(
                 sa.select(objects.c.metadata).where(
@@ -1929,7 +1952,7 @@ class SQLCatalog(Catalog):
 
     @guard_legal_hold("catalog.delete")
     def delete(self, bucket: str, key: str) -> None:
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             object_id = connection.execute(
                 sa.select(objects.c.object_id).where(
@@ -2079,7 +2102,7 @@ class SQLCatalog(Catalog):
             "schema_version": event.schema_version,
             "expired": False,
         }
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             if connection.dialect.name == "postgresql":
                 # Return and lock the winning observation in the same statement.
                 # DO NOTHING followed by SELECT leaves a gap where retention
@@ -2190,7 +2213,7 @@ class SQLCatalog(Catalog):
         config = AccessConfig(windows_seconds=(1,), retention_seconds=retention_seconds)
         cutoff = access_timestamp(occurred_before)
         dedup_cutoff = access_cutoff(cutoff, config.retention_seconds)
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             purge = (
                 sa.select(access_events.c.event_id)
                 .where(
@@ -2232,6 +2255,33 @@ class SQLCatalog(Catalog):
                 allow_pseudonyms=tombstone is not None,
             )
             return self._insert_audit_event(connection, safe)
+
+    def audit_checkpoint(self) -> AuditCheckpoint:
+        with self._connection() as connection:
+            return read_head(connection, self.tenant_id)
+
+    @contextlib.contextmanager
+    def _audit_snapshot(self):
+        with self._connection() as connection:
+            if self.backend == "sqlite":
+                connection.exec_driver_sql("BEGIN")
+            else:
+                connection.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            yield read_snapshot(connection, self.tenant_id)
+
+    def verify_audit_integrity(self, checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> AuditIntegrityResult:
+        with self._audit_snapshot() as (entries, events, tombstones, head, issues):
+            return verify_snapshot(self.tenant_id, entries, events, tombstones, head, checkpoint, initial_issues=issues)
+
+    def export_audit_evidence(self, *, after_sequence: int = 0, limit: int = 1000,
+                             checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> dict[str, Any]:
+        with self._connection() as connection:
+            if self.backend == "sqlite":
+                connection.exec_driver_sql("BEGIN")
+            else:
+                connection.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            return read_export(connection, self.tenant_id, after_sequence=after_sequence,
+                               limit=limit, checkpoint=checkpoint)
 
     def get_audit_event(self, event_id: str) -> AuditEvent | None:
         try:
@@ -2331,9 +2381,14 @@ class SQLCatalog(Catalog):
         # AuditQuery supplies the shared bounded-limit validation.
         AuditQuery(limit=limit)
         with self._transaction() as connection:
+            entries, retained, tombstones, head, issues = read_snapshot(connection, self.tenant_id)
+            integrity = verify_snapshot(self.tenant_id, entries, retained, tombstones, head, initial_issues=issues)
+            if not integrity.valid:
+                raise ValueError("cannot prune audit history that fails integrity verification")
             rows = connection.execute(
                 sa.select(audit_events)
-                .where(predicate, audit_events.c.event_type.not_in(LEGAL_HOLD_EVENT_TYPES))
+                .where(predicate, audit_events.c.event_type.not_in(LEGAL_HOLD_EVENT_TYPES),
+                       audit_events.c.event_type != AuditEventType.AUDIT_RETENTION.value)
                 .order_by(audit_events.c.occurred_at, audit_events.c.event_id)
                 .limit(limit)
             ).mappings().all()
@@ -2354,11 +2409,27 @@ class SQLCatalog(Catalog):
                         "expires_at": event.expires_at,
                     },
                 )
+                append_entry(connection, self.tenant_id, kind="retention", event_id=event.event_id,
+                    payload_digest=digest({"event_id": event.event_id, "replay_digest": audit_event_replay_digest(event),
+                        "causation_id": event.causation_id, "expires_at": event.expires_at}))
             if identifiers:
-                result = connection.execute(
-                    sa.delete(audit_events).where(audit_events.c.event_id.in_(identifiers))
-                )
-                return max(0, int(result.rowcount or 0))
+                if self.backend == "sqlite":
+                    connection.info["audit_retention_authorized"] = True
+                    try:
+                        result = connection.execute(
+                            sa.delete(audit_events).where(audit_events.c.event_id.in_(identifiers)))
+                        count = max(0, int(result.rowcount or 0))
+                    finally:
+                        connection.info.pop("audit_retention_authorized", None)
+                else:
+                    count = int(connection.execute(sa.text(
+                        "SELECT cognistore_prune_audit_events(CAST(:identifiers AS uuid[]))"),
+                        {"identifiers": identifiers}).scalar_one())
+                self._insert_audit_event(connection, self._prepare_audit_event(AuditEvent.create(
+                    AuditEventType.AUDIT_RETENTION, AuditOutcome.SUCCEEDED,
+                    AuditContext(correlation_id=str(uuid4()), actor_type="service", actor_id="catalog-retention"),
+                    details={"pruned_events": count}, retention=self.audit_retention)))
+                return count
             return 0
 
     def _prepare_audit_event(
@@ -2457,6 +2528,8 @@ class SQLCatalog(Catalog):
                         last_event_id=UUID(event.event_id),
                     )
                 )
+        append_entry(connection, self.tenant_id, kind="event", event_id=persisted.event_id,
+                     payload_digest=event_digest(persisted), move_id=persisted.move_id, move_sequence=move_sequence)
         return persisted
 
     @staticmethod
@@ -2801,7 +2874,7 @@ class SQLCatalog(Catalog):
         now: str,
         lease_expires_at: str,
     ) -> MoveJob:
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_move_key(connection, idempotency_key)
             initial = self._select_move_job(connection, idempotency_key)
             if initial is None:
@@ -3051,7 +3124,7 @@ class SQLCatalog(Catalog):
             validate_minimum_residency_seconds(metadata["minimum_residency_seconds"])
         definition = Tier(name=name, metadata=dict(metadata or {}), active=active)
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_topology(connection, exclusive=True)
             if not definition.active:
                 placed = connection.execute(
@@ -3097,7 +3170,7 @@ class SQLCatalog(Catalog):
         return sorted((self._tier_record(row) for row in rows), key=lambda item: item.name)
 
     def delete_tier(self, name: str) -> None:
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_topology(connection, exclusive=True)
             placed = connection.execute(
                 sa.select(object_placements.c.placement_id)
@@ -3134,7 +3207,7 @@ class SQLCatalog(Catalog):
             active=active,
         )
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_topology(connection, exclusive=True)
             tier_active = connection.execute(
                 sa.select(tiers.c.active).where(tiers.c.name == tier)
@@ -3192,7 +3265,7 @@ class SQLCatalog(Catalog):
         return sorted((self._pool_record(row) for row in rows), key=lambda item: item.pool_id)
 
     def delete_pool(self, pool_id: str) -> None:
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_topology(connection, exclusive=True)
             placed = connection.execute(
                 sa.select(object_placements.c.placement_id)
@@ -3231,7 +3304,7 @@ class SQLCatalog(Catalog):
     @guard_legal_hold("catalog.assign_pool")
     def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None:
         now = _timestamp()
-        with self._transaction() as connection:
+        with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
             self._lock_topology(connection)
             row = connection.execute(

@@ -48,7 +48,6 @@ from cognistore.observability import (
 from .models import (
     ATTEMPT_OFFSET_METADATA,
     REDRIVE_COUNT_METADATA,
-    STATUS_TRACKING_METADATA,
     BusState,
     DeadLetterDisposition,
     DeadLetterRecord,
@@ -571,12 +570,15 @@ class AsyncWorker:
                     # skips already-completed side effects.
                     await execution.succeed()
                     execution = None
-            await self._record_status_audit(
-                delivery,
-                job,
-                event_type=AuditEventType.JOB_SUCCEEDED,
-                outcome=AuditOutcome.SUCCEEDED,
-            )
+            # A coordinator may suppress a replay of a failed/dead-lettered
+            # terminal run. An ACK for that replay is not a new successful run.
+            if execution is None or execution.execute:
+                await self._record_status_audit(
+                    delivery,
+                    job,
+                    event_type=AuditEventType.JOB_SUCCEEDED,
+                    outcome=AuditOutcome.SUCCEEDED,
+                )
         except asyncio.CancelledError:
             if observe_indexing:
                 self._record_indexing_completion(delivery, job, succeeded=False)
@@ -585,6 +587,17 @@ class AsyncWorker:
             try:
                 if execution is not None and execution.execute:
                     await asyncio.shield(execution.retry())
+                await asyncio.shield(self._append_job_audit_event(
+                    delivery, job,
+                    event_type=AuditEventType.JOB_RETRY,
+                    outcome=AuditOutcome.RETRYING,
+                    details={
+                        "job_type": job.job_type if job is not None else "unknown",
+                        "attempt": delivery.attempt,
+                        "cumulative_attempt": self._cumulative_attempt(delivery, job),
+                        "reason": "worker_cancelled",
+                    },
+                ))
                 await asyncio.shield(delivery.nack())
                 self._nacked += 1
             except BaseException as exc:
@@ -703,10 +716,8 @@ class AsyncWorker:
         event_type: AuditEventType,
         outcome: AuditOutcome,
     ) -> AuditEvent | None:
-        """Persist API-requested lifecycle status without changing legacy jobs."""
+        """Persist every bound job's lifecycle before work or settlement."""
 
-        if job.metadata.get(STATUS_TRACKING_METADATA) != "1":
-            return None
         return await self._append_job_audit_event(
             delivery,
             job,

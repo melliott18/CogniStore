@@ -122,6 +122,34 @@ with `code="legal_hold"`. Policy reasons expose `code="legal_hold"`,
 
 ## Configuration and timeouts
 
+Audit readers use `list_audit_events`, `get_audit_event`, `export_audit_events`, and
+`verify_audit_integrity`. These methods require bearer authentication and the
+`audit` permission; each successful access is itself audited in the caller's tenant.
+Export pages contain canonical event payloads, ledger links, and a fixed checkpoint:
+
+```python
+from cognistore.sdk import AuditVerificationRequest, CogniStoreClient
+
+with CogniStoreClient(
+    "https://cognistore.example.com",
+    default_headers={"Authorization": "Bearer " + access_token},
+) as client:
+    page = client.export_audit_events(limit=100)
+    checkpoint = page.checkpoint
+    save_evidence_page(page.model_dump_json())
+    while not page.complete:
+        page = client.export_audit_events(cursor=page.page.next_cursor, limit=100)
+        save_evidence_page(page.model_dump_json())
+    result = client.verify_audit_integrity(AuditVerificationRequest(checkpoint=checkpoint))
+    assert result.valid, result.issues
+```
+
+`access_token` and `save_evidence_page` come from your application. Keep the
+checkpoint and export outside the catalog's trust boundary. A page with
+`complete=False` is a partial export; do not discard its continuation cursor.
+Concurrent retention can invalidate the snapshot, requiring a fresh export.
+See [audit procedures](audit_events.md) for retention and verification limits.
+
 For simple use, pass the v1 server's origin as a string. The client appends `/v1`
 for versioned operations, so do not include `/v1` in `base_url`:
 

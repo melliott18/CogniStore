@@ -48,6 +48,8 @@ from .schema import (
     access_events,
     audit_event_tombstones,
     audit_events,
+    audit_integrity_entries,
+    audit_integrity_head,
     audit_move_heads,
     budget_definitions,
     budget_reservations,
@@ -98,6 +100,7 @@ _DESTINATION_DATA_TABLES = (
     audit_event_tombstones,
     audit_events,
     audit_move_heads,
+    audit_integrity_entries,
     content_manifest_chunks,
     object_contents,
     content_manifests,
@@ -252,6 +255,7 @@ def import_sqlite_catalog(
                     retention=destination.audit_retention,
                 )
             _validate_imported_audit_heads(target_connection)
+            _copy_audit_integrity(source_connection, target_connection, tenant_id=destination.tenant_id)
             access_count = _copy_access_history(
                 source_connection,
                 target_connection,
@@ -292,7 +296,7 @@ def _copy_legal_holds(
     if "legal_holds" not in tables:
         revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
                     if "alembic_version" in tables else None)
-        if revision and revision[0] == "0013_legal_holds":
+        if revision and revision[0] in {"0013_legal_holds", "0014_legal_holds"}:
             raise SQLiteCatalogImportError("source is missing legal hold state")
         return 0
     _require_columns(source, "legal_holds", {column.name for column in legal_holds.c})
@@ -340,7 +344,8 @@ def _require_source_tenant(source: sqlite3.Connection, tenant_id: str) -> None:
                     if "alembic_version" in tables else None)
         # Only a genuinely legacy source may omit durable tenant ownership.
         if tenant_id != "default" or revision and revision[0] in {
-            "0012_tenant_ownership", "0013_legal_holds",
+            "0012_tenant_ownership", "0013_audit_integrity", "0013_legal_holds",
+            "0014_legal_holds",
         }:
             raise TenantIsolationError()
 
@@ -355,7 +360,8 @@ def _copy_budget_state(
                 if "alembic_version" in tables else None)
     if present != names and (
         present or revision and revision[0] in {
-            "0011_policy_budgets", "0012_tenant_ownership", "0013_legal_holds",
+            "0011_policy_budgets", "0012_tenant_ownership", "0013_audit_integrity",
+            "0013_legal_holds", "0014_legal_holds",
         }
     ):
         raise SQLiteCatalogImportError("source has partial budget state tables")
@@ -500,7 +506,10 @@ def _detect_layout(connection: sqlite3.Connection) -> _SOURCE_LAYOUT:
 
 
 def _lock_and_require_empty_destination(connection: Connection) -> None:
-    if connection.dialect.name == "postgresql":
+    if connection.dialect.name == "sqlite":
+        connection.exec_driver_sql("BEGIN IMMEDIATE")
+    else:
+        connection.execute(sa.select(audit_integrity_head).with_for_update()).first()
         table_names = ", ".join(table.name for table in _DESTINATION_DATA_TABLES)
         connection.exec_driver_sql(f"LOCK TABLE {table_names} IN ACCESS EXCLUSIVE MODE")
 
@@ -887,7 +896,7 @@ def _copy_normalized_catalog(
         revision = source.execute("SELECT version_num FROM alembic_version").fetchone()
         if revision and revision[0] in {
             "0010_tier_stability", "0011_policy_budgets", "0012_tenant_ownership",
-            "0013_legal_holds",
+            "0013_audit_integrity", "0013_legal_holds", "0014_legal_holds",
         } and not has_stability:
             raise SQLiteCatalogImportError("source has partial tier stability columns")
     imported_at = _content_reference_timestamp()
@@ -2216,3 +2225,31 @@ def _backfill_move_audit_history(
             ],
         )
     return count
+
+
+def _copy_audit_integrity(source: sqlite3.Connection, destination: Connection, *, tenant_id: str) -> None:
+    """Preserve existing evidence exactly; only legacy sources establish a baseline."""
+    from cognistore.core.audit_integrity import verify_snapshot
+    from cognistore.db.audit_integrity import initialize_baseline, insert_entry, read_snapshot
+    tables = _source_tables(source)
+    present = tables.intersection({"audit_integrity_entries", "audit_integrity_head"})
+    if present and len(present) != 2:
+        raise SQLiteCatalogImportError("SQLite source audit integrity tables must occur together")
+    if not present:
+        revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
+                    if "alembic_version" in tables else None)
+        if revision and revision[0] in {"0013_audit_integrity", "0014_legal_holds"}:
+            raise SQLiteCatalogImportError("current source is missing its audit integrity tables")
+        initialize_baseline(destination, tenant_id)
+    else:
+        for row in source.execute("SELECT sequence, kind, event_id, payload_digest, previous_hash, entry_hash, recorded_at, move_id, move_sequence FROM audit_integrity_entries ORDER BY sequence"):
+            entry = dict(row)
+            entry["event_id"] = str(UUID(str(entry["event_id"])))
+            insert_entry(destination, entry)
+        source_head = source.execute("SELECT sequence, entry_hash FROM audit_integrity_head WHERE singleton = 1").fetchone()
+        entries, events, tombstones, head, issues = read_snapshot(destination, tenant_id)
+        if source_head is None or source_head["sequence"] != head.sequence or source_head["entry_hash"] != head.entry_hash:
+            raise SQLiteCatalogImportError("SQLite source audit integrity head does not match its history")
+        result = verify_snapshot(tenant_id, entries, events, tombstones, head, initial_issues=issues)
+        if not result.valid:
+            raise SQLiteCatalogImportError("SQLite source audit integrity verification failed: " + ", ".join(result.issues))

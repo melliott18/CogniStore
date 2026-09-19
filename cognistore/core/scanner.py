@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from uuid import uuid4
 
+from cognistore.auth.principal import current_principal
+from cognistore.core.audit import AuditContext, AuditEvent, AuditEventType, AuditOutcome
 from cognistore.drivers.storage_driver import (
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
 )
+from cognistore.observability import current_correlation_id
 
 from .catalog import CatalogStore
 from .content_identity import ContentSizeMismatchError
@@ -92,6 +96,64 @@ class ScanResult:
 
 
 def scan_catalog(
+    *,
+    tier: str,
+    bucket: str,
+    driver: StorageDriver,
+    catalog: CatalogStore | None,
+    prefix: str = "",
+    indexer: Indexer | None = None,
+    pii_pipeline: PIIDetectionPipeline | None = None,
+    dry_run: bool = False,
+    audit_context: AuditContext | None = None,
+) -> list[ScanResult]:
+    """Audit a catalog scan's intent and outcome without recording object content.
+
+    A preview performs the same reads without changing the catalog or audit log.
+    Persist intent before any observation can be published. Each actual scan
+    attempt has its own start event, including retried worker deliveries.
+    """
+    if catalog is None and not dry_run:
+        raise ValueError("catalog is required unless dry_run is enabled")
+    def perform_scan() -> list[ScanResult]:
+        return _scan_catalog(
+            tier=tier, bucket=bucket, driver=driver, catalog=catalog,
+            prefix=prefix, indexer=indexer, pii_pipeline=pii_pipeline, dry_run=dry_run,
+        )
+
+    if dry_run:
+        return perform_scan()
+    assert catalog is not None
+    principal = current_principal()
+    context = audit_context or AuditContext(
+        correlation_id=current_correlation_id() or str(uuid4()),
+        actor_type=principal.actor_type if principal is not None else "system",
+        actor_id=principal.actor_id if principal is not None else "catalog-scanner",
+    )
+    details = {"tier": tier, "bucket": bucket, "prefix": prefix}
+    started = catalog.append_audit_event(AuditEvent.create(
+        AuditEventType.SCAN_STARTED, AuditOutcome.STARTED, context,
+        details=details,
+    ))
+    terminal_context = replace(context, causation_id=started.event_id)
+    try:
+        results = perform_scan()
+    except Exception as error:
+        catalog.append_audit_event(AuditEvent.create(
+            AuditEventType.SCAN_FAILED, AuditOutcome.FAILED, terminal_context,
+            details={**details, "exception_type": (
+                f"{type(error).__module__}.{type(error).__name__}"
+            )},
+        ))
+        raise
+    catalog.append_audit_event(AuditEvent.create(
+        AuditEventType.SCAN_COMPLETED, AuditOutcome.SUCCEEDED, terminal_context,
+        details={**details, "objects_observed": len(results)},
+    ))
+    return results
+
+
+def _scan_catalog(
     *,
     tier: str,
     bucket: str,

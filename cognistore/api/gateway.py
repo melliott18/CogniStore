@@ -33,6 +33,7 @@ from cognistore.core.audit import (
     AuditQuery,
     stable_audit_event_id,
 )
+from cognistore.core.audit_operations import audit_storage_operation
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.mover import Mover
 from cognistore.core.placement_controls import ImportanceTag, MovementConstraints
@@ -55,9 +56,10 @@ from cognistore.jobs.handlers import (
 )
 from cognistore.jobs.models import STATUS_TRACKING_METADATA, JobEnvelope
 from cognistore.jobs.protocols import JobQueue
-from cognistore.observability import current_correlation_id
+from cognistore.observability import current_audit_correlation_id
 from cognistore.search import AskFilters, AskQuery, AskService, RetrievalMode
 
+from .audit import AuditAccessMixin
 from .errors import (
     BackendUnavailableError,
     RangeNotSatisfiableError,
@@ -67,6 +69,11 @@ from .errors import (
 from .models import (
     AskRequest,
     AskResponse,
+    AuditEventPage,
+    AuditEventResource,
+    AuditExportResponse,
+    AuditVerificationRequest,
+    AuditVerificationResponse,
     CatalogObject,
     CatalogObjectPage,
     CatalogScanRequest,
@@ -254,6 +261,21 @@ class APIGateway(Protocol):
         self, hold_id: str, request: LegalHoldReleaseRequest, *, correlation_id: str,
     ) -> LegalHoldResource: ...
 
+    def get_audit_event(self, event_id: str) -> AuditEventResource: ...
+
+    def list_audit_events(
+        self, *, bucket: str | None, key: str | None, job_id: str | None,
+        correlation_id: str | None, actor_id: str | None, event_type: str | None,
+        outcome: str | None, occurred_after: str | None, occurred_before: str | None,
+        limit: int, cursor: str | None,
+    ) -> AuditEventPage: ...
+
+    def export_audit_events(self, *, limit: int, cursor: str | None) -> AuditExportResponse: ...
+
+    def verify_audit_integrity(
+        self, request: AuditVerificationRequest,
+    ) -> AuditVerificationResponse: ...
+
 
 class UnavailableGateway:
     """Schema-generation default that never reaches infrastructure."""
@@ -274,7 +296,7 @@ class UnavailableGateway:
         return unavailable
 
 
-class CogniStoreGateway:
+class CogniStoreGateway(AuditAccessMixin):
     """Application services composed from storage, catalog, search, and queue contracts."""
 
     def __init__(
@@ -369,7 +391,7 @@ class CogniStoreGateway:
     def _audit_context(correlation_id: str | None = None) -> AuditContext:
         principal = current_principal()
         return AuditContext(
-            correlation_id=correlation_id or current_correlation_id() or str(uuid4()),
+            correlation_id=correlation_id or current_audit_correlation_id() or str(uuid4()),
             actor_type=principal.actor_type if principal is not None else "api",
             actor_id=principal.actor_id if principal is not None else "cognistore-rest-api",
         )
@@ -565,6 +587,15 @@ class CogniStoreGateway:
             metadata_truncated=metadata_truncated,
         )
 
+    @staticmethod
+    def _storage_audit_context() -> AuditContext:
+        principal = current_principal()
+        return AuditContext(
+            correlation_id=current_audit_correlation_id() or str(uuid4()),
+            actor_type="service" if principal is None else principal.actor_type,
+            actor_id="cognistore-api" if principal is None else principal.actor_id,
+        )
+
     def put_object(
         self,
         tier: str,
@@ -578,8 +609,12 @@ class CogniStoreGateway:
         self._authorize("put_object")
         driver = self._driver(tier)
         event = self.access_recorder.event("write", bucket, key, tier=tier, source="api")
-        with self.catalog.destructive_operation(
-            bucket, key, operation="put_object", context=self._audit_context(),
+        context = self._storage_audit_context()
+        with audit_storage_operation(
+            self.catalog, context, operation="put_object",
+            tier=tier, bucket=bucket, key=key,
+        ), self.catalog.destructive_operation(
+            bucket, key, operation="put_object", context=context,
         ), suppress_access_capture():
             driver.put_object(bucket, key, data, overwrite=overwrite)
             stat = driver.stat_object(bucket, key)
@@ -696,8 +731,12 @@ class CogniStoreGateway:
 
     def delete_object(self, tier: str, bucket: str, key: str) -> None:
         self._authorize("delete_object")
-        with self.catalog.destructive_operation(
-            bucket, key, operation="delete_object", context=self._audit_context(),
+        context = self._storage_audit_context()
+        with audit_storage_operation(
+            self.catalog, context, operation="delete_object",
+            tier=tier, bucket=bucket, key=key,
+        ), self.catalog.destructive_operation(
+            bucket, key, operation="delete_object", context=context,
         ):
             with suppress_access_capture():
                 resource = self.stat_object(tier, bucket, key)
@@ -970,7 +1009,7 @@ class CogniStoreGateway:
         principal = current_principal()
         if audit_context is None and principal is not None:
             audit_context = AuditContext(
-                correlation_id=str(uuid4()),
+                correlation_id=current_audit_correlation_id() or str(uuid4()),
                 actor_type=principal.actor_type,
                 actor_id=principal.actor_id,
             )

@@ -13,7 +13,7 @@ import time
 import traceback
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -47,6 +47,7 @@ from cognistore.core.audit import (
 	AuditOutcome,
 	AuditRetentionPolicy,
 )
+from cognistore.core.audit_operations import audit_storage_operation
 from cognistore.core.catalog import Catalog, CatalogStore, ObjectRecord
 from cognistore.core.content_references import DEFAULT_RECLAMATION_GRACE_PERIOD_SECONDS
 from cognistore.core.move_jobs import MoveJob, MoveJobState, MoveJobTransition
@@ -2555,6 +2556,7 @@ def _run_cli(
 	catalog: CatalogStore | None
 	catalog_commands = {
 		"put",
+		"get",
 		"worker",
 		"move",
 		"move-resume",
@@ -2564,9 +2566,10 @@ def _run_cli(
 	}
 	if (
 		background_submission
+		or (args.cmd == "get" and dry_run)
 		or args.cmd == "scheduler"
 		or args.cmd not in catalog_commands
-		or (args.cmd == "put" and not args.catalog_db)
+		or (args.cmd == "put" and dry_run and not args.catalog_db)
 	):
 		catalog = None
 	elif args.cmd == "put" and dry_run:
@@ -2670,16 +2673,17 @@ def _run_cli(
 			)
 			return 0
 		data = source_path.read_bytes()
-		guard = (
-			nullcontext() if catalog is None else catalog.destructive_operation(
-				args.bucket, args.key, operation="put",
-				context=AuditContext(
-					actor_type="cli", actor_id="cognistore-cli",
-					correlation_id=str(uuid4()),
-				),
-			)
+		assert catalog is not None
+		storage_context = _record_manual_action(
+			catalog, correlation_id=str(uuid4()), operation="put",
+			bucket=args.bucket, object_key=args.key,
 		)
-		with guard:
+		with audit_storage_operation(
+			catalog, storage_context, operation="put_object", tier="hot",
+			bucket=args.bucket, key=args.key,
+		), catalog.destructive_operation(
+			args.bucket, args.key, operation="put", context=storage_context,
+		):
 			active_driver.put_object(args.bucket, args.key, data)
 		_emit_result(
 			"put",
@@ -2714,9 +2718,18 @@ def _run_cli(
 				would_overwrite=out_path.exists(),
 			)
 			return 0
-		data = active_driver.get_object(args.bucket, args.key)
-		out_path.parent.mkdir(parents=True, exist_ok=True)
-		out_path.write_bytes(data)
+		assert catalog is not None
+		storage_context = _record_manual_action(
+			catalog, correlation_id=str(uuid4()), operation="get",
+			bucket=args.bucket, object_key=args.key,
+		)
+		with audit_storage_operation(
+			catalog, storage_context, operation="get_object", tier="hot",
+			bucket=args.bucket, key=args.key,
+		):
+			data = active_driver.get_object(args.bucket, args.key)
+			out_path.parent.mkdir(parents=True, exist_ok=True)
+			out_path.write_bytes(data)
 		_emit_result(
 			"get",
 			"completed",
@@ -2984,8 +2997,13 @@ def _run_cli(
 			)
 			return _submit_job(args, enqueue_job)
 
+		scan_context = None
 		if not dry_run:
 			assert catalog is not None
+			scan_context = _record_manual_action(
+				catalog, correlation_id=args.correlation_id or str(uuid4()),
+				operation="catalog-scan", details={"tier": args.tier, "bucket": args.bucket},
+			)
 		scan_results = scan_catalog(
 			tier=args.tier,
 			bucket=args.bucket,
@@ -2993,6 +3011,7 @@ def _run_cli(
 			driver=drivers[args.tier],
 			catalog=None if dry_run else catalog,
 			dry_run=dry_run,
+			audit_context=scan_context,
 			pii_pipeline=(
 				load_pii_config(args.drivers).pipeline_for_tenant(
 					catalog.tenant_id if catalog is not None

@@ -518,14 +518,14 @@ def test_import_preserves_a_move_head_after_all_its_events_were_pruned(
     ) as source:
         stored_first = source.append_audit_event(first)
         assert source.prune_audit_events("2026-08-02T00:00:00.000000Z") == 1
-        assert source.list_audit_events() == []
+        assert source.list_audit_events(AuditQuery(move_id="pruned-import-31")) == []
 
     with SQLCatalog(
         tmp_path / "pruned-head-destination.db",
         audit_retention=AuditRetentionPolicy(None),
     ) as destination:
         report = import_sqlite_catalog(source_path, destination)
-        assert report.audit_events == 0
+        assert report.audit_events == 1
         second = AuditEvent.create(
             AuditEventType.MOVE_RETRY,
             AuditOutcome.RETRYING,
@@ -545,7 +545,7 @@ def test_import_preserves_a_move_head_after_all_its_events_were_pruned(
         stored_second = destination.append_audit_event(second)
         assert stored_second.causation_id == stored_first.event_id
         assert destination.append_audit_event(first) == stored_first
-        assert destination.list_audit_events() == [stored_second]
+        assert destination.list_audit_events(AuditQuery(move_id="pruned-import-31")) == [stored_second]
         with destination.engine.connect() as connection:
             head = connection.execute(sa.select(audit_move_heads)).mappings().one()
             tombstones = connection.execute(
@@ -580,6 +580,8 @@ def test_import_rejects_a_noncanonical_tombstone_expiry(tmp_path: Path) -> None:
         source.append_audit_event(event)
         assert source.prune_audit_events("2026-08-02T00:00:00.000000Z") == 1
     with sqlite3.connect(source_path) as source:
+        # Simulate privileged corruption after defeating the immutable guard.
+        source.execute("DROP TRIGGER audit_event_tombstones_immutable_update")
         source.execute(
             "UPDATE audit_event_tombstones SET expires_at = ?",
             ("password=hunter2",),
@@ -698,6 +700,7 @@ def test_import_rejects_a_current_move_journal_without_its_audit_head(
             lease_expires_at="2026-08-01T00:01:00.000000Z",
         )
         with source.engine.begin() as connection:
+            connection.exec_driver_sql("DROP TRIGGER audit_events_retention_delete")
             connection.execute(sa.delete(audit_events))
             connection.execute(sa.delete(audit_move_heads))
 

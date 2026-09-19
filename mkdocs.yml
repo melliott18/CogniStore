@@ -9,6 +9,7 @@ nav:
       - PostgreSQL catalog: postgres_catalog.md
       - Operational audit events: audit_events.md
       - Legal holds: legal_holds.md
+      - Audit coverage matrix: audit_coverage.md
       - Background workers: background_workers.md
       - Document extraction: document_extraction.md
       - Content identity and chunking: content_identity.md

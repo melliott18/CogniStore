@@ -290,6 +290,8 @@ jobs:
         run: python -m twine check dist/*
 
       - name: Verify wheel installation from outside the checkout
+        env:
+          COGNISTORE_SECURITY_PROFILE: development
         shell: bash
         run: |
           python -m venv "${RUNNER_TEMP}/cognistore-smoke"
@@ -315,7 +317,7 @@ jobs:
           with TemporaryDirectory() as directory:
               with SQLCatalog(Path(directory) / "catalog.sqlite3") as catalog:
                   migrations = MigrationManager()
-                  assert migrations.heads() == ("0011_policy_budgets",)
+                  assert migrations.heads() == ("0013_audit_integrity",)
                   assert migrations.is_at_head(catalog.engine)
 
           assert files("cognistore.sdk").joinpath("py.typed").is_file()

@@ -9,8 +9,8 @@ from alembic import op
 
 from cognistore.db.types import NulSafeText
 
-revision = "0013_legal_holds"
-down_revision = "0012_tenant_ownership"
+revision = "0014_legal_holds"
+down_revision = "0013_audit_integrity"
 branch_labels = None
 depends_on = None
 

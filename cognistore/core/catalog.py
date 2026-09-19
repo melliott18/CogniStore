@@ -35,6 +35,17 @@ from .audit import (
 	redact_audit_event,
 	stable_audit_event_id,
 )
+from .audit_integrity import (
+	GENESIS_HASH,
+	AuditCheckpoint,
+	AuditIntegrityResult,
+	digest,
+	event_digest,
+	export_snapshot,
+	make_entry,
+	move_state_issues,
+	verify_snapshot,
+)
 from .budgets import (
 	BudgetConstraintError,
 	BudgetDefinition,
@@ -529,6 +540,13 @@ class CatalogStore(Protocol):
 
 	def append_audit_event(self, event: AuditEvent) -> AuditEvent: ...
 
+	def audit_checkpoint(self) -> AuditCheckpoint: ...
+
+	def verify_audit_integrity(self, checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> AuditIntegrityResult: ...
+
+	def export_audit_evidence(self, *, after_sequence: int = 0, limit: int = 1000,
+		checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> dict[str, Any]: ...
+
 	def get_audit_event(self, event_id: str) -> AuditEvent | None: ...
 
 	def list_audit_events(
@@ -656,6 +674,8 @@ class Catalog(CatalogStore):
 		self._access_events: Dict[str, AccessEvent] = {}
 		self._pruned_access_events: set[str] = set()
 		self._audit_events: Dict[str, AuditEvent] = {}
+		self._audit_integrity_entries: list[dict[str, Any]] = []
+		self._audit_integrity_head = AuditCheckpoint(self._tenant_id, 0, GENESIS_HASH)
 		self._audit_move_heads: Dict[str, tuple[int, str]] = {}
 		self._audit_event_tombstones: Dict[
 			str,
@@ -811,12 +831,14 @@ class Catalog(CatalogStore):
 				dict(self._budget_reservations), dict(self._move_jobs),
 				{name: list(items) for name, items in self._move_transitions.items()},
 				dict(self._audit_events), dict(self._audit_move_heads),
+				list(self._audit_integrity_entries), self._audit_integrity_head,
 			)
 			try:
 				yield
 			except BaseException:
 				(self._budget_reservations, self._move_jobs, self._move_transitions,
-				 self._audit_events, self._audit_move_heads) = state
+				 self._audit_events, self._audit_move_heads,
+				 self._audit_integrity_entries, self._audit_integrity_head) = state
 				raise
 
 	def _ensure_active_tier(self, name: str) -> None:
@@ -1535,17 +1557,65 @@ class Catalog(CatalogStore):
 					)
 				return self._copy_audit_event(existing)
 			move_id = safe.move_id
-			if move_id is not None:
-				sequence, previous_id = self._audit_move_heads.get(
-					move_id,
-					(0, ""),
-				)
-				if previous_id:
-					safe = replace(safe, causation_id=previous_id)
-				sequence += 1
-				self._audit_move_heads[move_id] = (sequence, safe.event_id)
-			self._audit_events[safe.event_id] = safe
-			return self._copy_audit_event(safe)
+			previous_move_head = self._audit_move_heads.get(move_id) if move_id is not None else None
+			previous_integrity_head = self._audit_integrity_head
+			previous_entry_count = len(self._audit_integrity_entries)
+			try:
+				if move_id is not None:
+					sequence, previous_id = self._audit_move_heads.get(
+						move_id,
+						(0, ""),
+					)
+					if previous_id:
+						safe = replace(safe, causation_id=previous_id)
+					sequence += 1
+					self._audit_move_heads[move_id] = (sequence, safe.event_id)
+				self._audit_events[safe.event_id] = safe
+				self._append_audit_evidence("event", safe.event_id, event_digest(safe),
+					move_id=move_id, move_sequence=None if move_id is None else sequence)
+				return self._copy_audit_event(safe)
+			except BaseException:
+				# Event, causal head, and integrity evidence form one atomic
+				# append, including a failure after an evidence entry was added.
+				self._audit_events.pop(safe.event_id, None)
+				if move_id is not None:
+					if previous_move_head is None:
+						self._audit_move_heads.pop(move_id, None)
+					else:
+						self._audit_move_heads[move_id] = previous_move_head
+				del self._audit_integrity_entries[previous_entry_count:]
+				self._audit_integrity_head = previous_integrity_head
+				raise
+
+	def _append_audit_evidence(self, kind: str, event_id: str, payload_digest: str,
+		*, move_id: str | None = None, move_sequence: int | None = None) -> None:
+		head = self._audit_integrity_head
+		entry = make_entry(self.tenant_id, head.sequence + 1, head.entry_hash, kind=kind,
+			event_id=event_id, payload_digest=payload_digest, move_id=move_id, move_sequence=move_sequence,
+			recorded_at=datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"))
+		self._audit_integrity_entries.append(entry)
+		self._audit_integrity_head = AuditCheckpoint(self.tenant_id, entry["sequence"], entry["entry_hash"])
+
+	def audit_checkpoint(self) -> AuditCheckpoint:
+		with self._lock:
+			return self._audit_integrity_head
+
+	def _integrity_tombstones(self) -> dict[str, dict[str, Any]]:
+		return {key: {"event_id": key, "replay_digest": value[0], "causation_id": value[1], "expires_at": value[2]}
+			for key, value in self._audit_event_tombstones.items()}
+
+	def verify_audit_integrity(self, checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> AuditIntegrityResult:
+		with self._lock:
+			return verify_snapshot(self.tenant_id, self._audit_integrity_entries, self._audit_events,
+				self._integrity_tombstones(), self._audit_integrity_head, checkpoint,
+				initial_issues=move_state_issues(self._audit_integrity_entries, self._audit_events, self._audit_move_heads))
+
+	def export_audit_evidence(self, *, after_sequence: int = 0, limit: int = 1000,
+		checkpoint: AuditCheckpoint | Mapping[str, Any] | None = None) -> dict[str, Any]:
+		with self._lock:
+			return export_snapshot(self.tenant_id, self._audit_integrity_entries, self._audit_events,
+				self._integrity_tombstones(), self._audit_integrity_head,
+				after_sequence=after_sequence, limit=limit, checkpoint=checkpoint)
 
 	def get_audit_event(self, event_id: str) -> AuditEvent | None:
 		try:
@@ -1614,6 +1684,8 @@ class Catalog(CatalogStore):
 		limit: int,
 	) -> int:
 		with self._lock:
+			if not self.verify_audit_integrity().valid:
+				raise ValueError("cannot prune audit history that fails integrity verification")
 			identifiers = [
 				event.event_id
 				for event in sorted(
@@ -1621,15 +1693,31 @@ class Catalog(CatalogStore):
 					key=lambda item: (item.occurred_at, item.event_id),
 				)
 				if eligible(event) and event.event_type not in LEGAL_HOLD_EVENT_TYPES
+				and event.event_type != AuditEventType.AUDIT_RETENTION.value
 			][:limit]
-			for identifier in identifiers:
-				event = self._audit_events.pop(identifier)
-				self._audit_event_tombstones[identifier] = (
-					audit_event_replay_digest(event),
-					event.causation_id,
-					event.expires_at,
-				)
-			return len(identifiers)
+			state = (dict(self._audit_events), dict(self._audit_event_tombstones),
+				list(self._audit_integrity_entries), self._audit_integrity_head)
+			try:
+				for identifier in identifiers:
+					event = self._audit_events.pop(identifier)
+					self._audit_event_tombstones[identifier] = (
+						audit_event_replay_digest(event),
+						event.causation_id,
+						event.expires_at,
+					)
+					payload = {"event_id": identifier, "replay_digest": audit_event_replay_digest(event),
+						"causation_id": event.causation_id, "expires_at": event.expires_at}
+					self._append_audit_evidence("retention", identifier, digest(payload))
+				if identifiers:
+					self.append_audit_event(AuditEvent.create(
+						AuditEventType.AUDIT_RETENTION, AuditOutcome.SUCCEEDED,
+						AuditContext(correlation_id=str(uuid4()), actor_type="service", actor_id="catalog-retention"),
+						details={"pruned_events": len(identifiers)}, retention=self.audit_retention))
+				return len(identifiers)
+			except BaseException:
+				(self._audit_events, self._audit_event_tombstones,
+				 self._audit_integrity_entries, self._audit_integrity_head) = state
+				raise
 
 	@staticmethod
 	def _copy_audit_event(event: AuditEvent) -> AuditEvent:

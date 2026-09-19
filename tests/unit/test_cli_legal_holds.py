@@ -34,7 +34,15 @@ def test_cli_put_respects_persistent_legal_hold(tmp_path: Path, dry_run: bool) -
     assert driver.get_object("bucket", "records/item") == b"preserved"
     with SQLiteCatalog(database) as catalog:
         assert catalog.list_legal_holds(active_only=True)[0].hold_id == hold.hold_id
-        assert len(catalog.list_audit_events()) == before + (0 if dry_run else 1)
+        events = catalog.list_audit_events()[before:]
+        if dry_run:
+            assert events == []
+        else:
+            assert len([event for event in events if event.event_type == "legal_hold.denied"]) == 1
+            storage_events = [event for event in events if event.event_type == "storage.operation"]
+            assert [event.outcome for event in storage_events] == ["started", "failed"]
+            assert storage_events[1].causation_id == storage_events[0].event_id
+        assert catalog.verify_audit_integrity().valid
 
 
 def test_cli_put_checks_catalog_before_new_upload(tmp_path: Path) -> None:

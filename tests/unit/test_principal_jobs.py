@@ -413,7 +413,13 @@ def test_anonymous_gateway_and_worker_keep_legacy_actor_identity(tmp_path: Path)
         assert {(event.actor_type, event.actor_id) for event in events} == {
             ("api", "cognistore-rest-api"),
             ("worker", "worker"),
+            ("worker", job.job_id),
         }
+        scan_events = [event for event in events if event.event_type in {
+            AuditEventType.SCAN_STARTED, AuditEventType.SCAN_COMPLETED,
+        }]
+        assert len(scan_events) == 2
+        assert all(event.actor_id == job.job_id for event in scan_events)
         assert (
             gateway._policy_runner(PolicyConfig(allowed_tiers=["hot"])).audit_context.actor_type
             == "system"

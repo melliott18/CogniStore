@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from cognistore.core.audit import AuditEvent
 from cognistore.core.catalog import Catalog
 from cognistore.core.legal_holds import LegalHoldError
 from cognistore.db import MigrationManager, SQLCatalog
@@ -67,6 +68,27 @@ def test_sqlite_restart_retains_hold_and_refuses_lossy_downgrade(tmp_path):
         with pytest.raises(RuntimeError, match="legal hold history"):
             MigrationManager().downgrade(catalog.engine, "0012_tenant_ownership")
         assert len(catalog.list_legal_holds()) == 1
+
+
+def test_hold_migration_preserves_existing_audit_integrity_checkpoint(tmp_path):
+    path = tmp_path / "audit-upgrade.db"
+    manager = MigrationManager()
+    with SQLCatalog(path) as catalog:
+        catalog.append_audit_event(AuditEvent.create("manual.action", "succeeded", actor()))
+        checkpoint = catalog.audit_checkpoint()
+        manager.downgrade(catalog.engine, "0013_audit_integrity")
+        assert manager.current(catalog.engine) == "0013_audit_integrity"
+    with SQLCatalog(path) as catalog:
+        assert manager.current(catalog.engine) == "0014_legal_holds"
+        assert catalog.audit_checkpoint() == checkpoint
+        assert catalog.verify_audit_integrity(checkpoint).valid
+        hold = catalog.place_legal_hold("bucket", reason="preserve", context=actor())
+        assert catalog.audit_checkpoint().sequence == checkpoint.sequence + 1
+        catalog.release_legal_hold(hold.hold_id, reason="done", context=actor())
+        with pytest.raises(RuntimeError, match="legal hold history"):
+            manager.downgrade(catalog.engine, "0013_audit_integrity")
+        assert manager.current(catalog.engine) == "0014_legal_holds"
+        assert catalog.verify_audit_integrity(checkpoint).valid
 
 
 def assert_serialized_pair(catalog, other):

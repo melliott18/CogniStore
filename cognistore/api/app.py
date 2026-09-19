@@ -60,6 +60,11 @@ from .gateway import APIGateway, CogniStoreGateway, UnavailableGateway
 from .models import (
     AskRequest,
     AskResponse,
+    AuditEventPage,
+    AuditEventResource,
+    AuditExportResponse,
+    AuditVerificationRequest,
+    AuditVerificationResponse,
     CatalogObject,
     CatalogObjectPage,
     CatalogScanRequest,
@@ -99,6 +104,7 @@ _JSON_BODY_PATHS = frozenset(
         "/v1/policies/preview",
         "/v1/catalog/importance",
         "/v1/legal-holds",
+        "/v1/audit/verify",
     }
 )
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -375,9 +381,18 @@ def create_app(
         request.state.principal = None
         request.state.tenant_id = None
         route_path = get_route_path(request.scope)
+        is_audit_request = route_path == "/v1/audit" or route_path.startswith("/v1/audit/")
+        if is_audit_request and authenticator is None:
+            await audit_http_denial(request)
+            return _error_response(
+                request, status_code=401, code="authentication_required",
+                message="Audit access requires bearer authentication",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         if authenticator is not None and (route_path == "/v1" or route_path.startswith("/v1/")):
             authorization = request.headers.getlist("authorization")
             if not authorization:
+                await audit_http_denial(request)
                 return _error_response(
                     request,
                     status_code=401,
@@ -393,6 +408,7 @@ def create_app(
                     raise AuthenticationError()
                 request.state.principal = await asyncio.to_thread(authenticator.authenticate, token)
             except AuthenticationError:
+                await audit_http_denial(request)
                 return _error_response(
                     request,
                     status_code=401,
@@ -419,7 +435,9 @@ def create_app(
                         correlation_id=request.state.request_id,
                         require_authenticated=operation in AUTHENTICATED_OPERATIONS,
                     )
-            except (AuthorizationError, TenantIsolationError):
+            except (AuthorizationError, TenantIsolationError) as exc:
+                if isinstance(exc, TenantIsolationError):
+                    await audit_http_denial(request)
                 return _error_response(
                     request, status_code=403, code="forbidden", message="Operation not permitted",
                 )
@@ -540,6 +558,7 @@ def create_app(
 
     @app.exception_handler(TenantIsolationError)
     async def tenant_error(request: Request, _exc: TenantIsolationError) -> JSONResponse:
+        await audit_http_denial(request)
         return _error_response(
             request, status_code=403, code="forbidden", message="Operation not permitted",
         )
@@ -1080,6 +1099,75 @@ def create_app(
         decision_id: Annotated[str, Path(pattern=_UUID)],
     ) -> PolicyDecisionResource:
         return services.get_policy_decision(decision_id)
+
+    @router.get(
+        "/audit/events",
+        response_model=AuditEventPage,
+        operation_id="listAuditEvents",
+        tags=["audit"],
+        description="List this tenant's retained events, newest first. Every disclosure is audited.",
+        responses={200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}}, **_COMMON_ERROR_RESPONSES},
+    )
+    def list_audit_events(
+        bucket: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        key: Annotated[str | None, Query(min_length=1, max_length=8192)] = None,
+        job_id: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        correlation_id: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        actor_id: Annotated[str | None, Query(min_length=1, max_length=8192)] = None,
+        event_type: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        outcome: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        occurred_after: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+        occurred_before: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        cursor: Annotated[str | None, Query(min_length=1, max_length=16384)] = None,
+    ) -> AuditEventPage:
+        return services.list_audit_events(
+            bucket=bucket, key=key, job_id=job_id, correlation_id=correlation_id,
+            actor_id=actor_id, event_type=event_type, outcome=outcome,
+            occurred_after=occurred_after, occurred_before=occurred_before,
+            limit=limit, cursor=cursor,
+        )
+
+    @router.get(
+        "/audit/events/{event_id}",
+        response_model=AuditEventResource,
+        operation_id="getAuditEvent",
+        tags=["audit"],
+        responses={200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+                   404: _NOT_FOUND_RESPONSE, **_COMMON_ERROR_RESPONSES},
+    )
+    def get_audit_event(event_id: Annotated[str, Path(pattern=_UUID)]) -> AuditEventResource:
+        return services.get_audit_event(event_id)
+
+    @router.get(
+        "/audit/export",
+        response_model=AuditExportResponse,
+        operation_id="exportAuditEvents",
+        tags=["audit"],
+        description=(
+            "Export a bounded page of tenant integrity evidence and retained event payloads. "
+            "Follow page.next_cursor until complete is true. The checkpoint fixes the export "
+            "boundary; subsequent access events belong to a later export. Preserve checkpoints "
+            "independently to detect complete history rewrites."
+        ),
+        responses={200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}}, **_COMMON_ERROR_RESPONSES},
+    )
+    def export_audit_events(
+        limit: Annotated[int, Query(ge=1, le=200)] = 100,
+        cursor: Annotated[str | None, Query(min_length=1, max_length=16384)] = None,
+    ) -> AuditExportResponse:
+        return services.export_audit_events(limit=limit, cursor=cursor)
+
+    @router.post(
+        "/audit/verify",
+        response_model=AuditVerificationResponse,
+        operation_id="verifyAuditIntegrity",
+        tags=["audit"],
+        description="Verify this tenant's retained history against an optional independently saved checkpoint.",
+        responses={200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}}, **_JSON_ERROR_RESPONSES},
+    )
+    def verify_audit_integrity(request: AuditVerificationRequest) -> AuditVerificationResponse:
+        return services.verify_audit_integrity(request)
 
     @router.post(
         "/actions/catalog-scans",

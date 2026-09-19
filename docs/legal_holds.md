@@ -88,8 +88,9 @@ retries and redrive do not bypass the check.
 Every lifecycle change and denied destructive attempt records a `legal_hold.*`
 audit event. Lifecycle changes and their audit insert commit together. These
 events are retained indefinitely and excluded from routine age-based pruning,
-including after release. An audit or hold lookup failure cannot authorize a
-destructive operation.
+including after release. Each event also joins the tenant's tamper-evident audit
+chain and is included in audit verification and evidence export. An audit or
+hold lookup failure cannot authorize a destructive operation.
 
 ## Cleanup, local tools, and deployment
 
@@ -112,7 +113,8 @@ replace backend IAM or provider-native object lock. Keep such access restricted.
 SQLite writers must share both the catalog and its lock-file namespace on a
 filesystem supporting process locks; do not remove lock sidecars while running.
 
-Migration `0013_legal_holds` installs hold storage in each tenant partition.
+Migration `0014_legal_holds` installs hold storage in each tenant partition after
+`0013_audit_integrity`, preserving the existing audit checkpoint.
 Offline SQLite catalog import preserves active and released holds together with
 their audit history, and rejects missing or inconsistent hold state. Schema
 downgrade refuses to discard a catalog's hold history, even after release.

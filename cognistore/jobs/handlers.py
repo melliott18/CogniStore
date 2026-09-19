@@ -382,6 +382,12 @@ def build_handlers(
             prefix=prefix,
             driver=job_drivers[tier],
             catalog=job_catalog,
+            audit_context=AuditContext(
+                correlation_id=job.correlation_id,
+                actor_type=job.principal.actor_type if job.principal else "worker",
+                actor_id=job.principal.actor_id if job.principal else job.job_id,
+                job_id=job.job_id,
+            ),
             pii_pipeline=pii_config.pipeline_for_tenant(owner) if pii_config is not None else None,
         )
         LOGGER.info(
