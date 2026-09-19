@@ -82,6 +82,58 @@ class CatalogObjectPage(APIModel):
     page: PageMetadata
 
 
+class LegalHoldRequest(APIModel):
+    """Protect an exact object, literal key prefix, or an entire bucket."""
+
+    bucket: Bucket
+    key: ObjectKey | None = None
+    prefix: Annotated[str, Field(max_length=8192)] | None = None
+    reason: Annotated[str, Field(min_length=1, max_length=4096)]
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> LegalHoldRequest:
+        if self.key is not None and self.prefix is not None:
+            raise ValueError("Specify key or prefix, never both")
+        if not self.reason.strip():
+            raise ValueError("reason must not be blank")
+        return self
+
+
+class LegalHoldReleaseRequest(APIModel):
+    reason: Annotated[str, Field(min_length=1, max_length=4096)]
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> LegalHoldReleaseRequest:
+        if not self.reason.strip():
+            raise ValueError("reason must not be blank")
+        return self
+
+
+class LegalHoldResource(APIModel):
+    schema_version: Literal[1] = 1
+    hold_id: str
+    tenant_id: str
+    bucket: Bucket
+    key: ObjectKey | None
+    prefix: str | None
+    reason: str
+    created_at: str
+    actor_type: str
+    actor_id: str
+    correlation_id: str
+    active: bool
+    released_at: str | None
+    released_reason: str | None
+    released_actor_type: str | None
+    released_actor_id: str | None
+    released_correlation_id: str | None
+
+
+class LegalHoldList(APIModel):
+    schema_version: Literal[1] = 1
+    items: list[LegalHoldResource]
+
+
 class AskFiltersRequest(APIModel):
     bucket: Bucket | None = None
     key_prefix: Annotated[str, Field(max_length=8192)] = ""

@@ -374,6 +374,16 @@ schema, trust boundary, report/export contracts, and scan limitations.
 
 ## Shared-content reference report
 
+An active [legal hold](legal_holds.md) conservatively disables reclamation for
+every content blob in the tenant catalog. Each report entry exposes `legal_hold`;
+held entries always have `reclamation_eligible: false`. This protects apparent
+orphans when their ownership cannot be established.
+
+Local `put` operations honor holds when supplied the same `--catalog-db` used by
+the API and workers. Upload and move dry runs check holds without appending audit
+events. Direct local storage access without that catalog is a trusted operator
+interface and cannot discover holds in another catalog.
+
 `content-reference-report` inspects an existing SQLite or PostgreSQL catalog
 without loading storage drivers:
 

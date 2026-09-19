@@ -24,6 +24,20 @@ catalog_tenant = sa.Table(
     sa.CheckConstraint("singleton = 1", name="catalog_tenant_singleton"),
 )
 
+legal_holds = sa.Table(
+    "legal_holds", metadata,
+    sa.Column("hold_id", uuid_type, primary_key=True),
+    sa.Column("tenant_id", NulSafeText(), nullable=False),
+    sa.Column("bucket", NulSafeText(), nullable=False),
+    sa.Column("object_key", NulSafeText(), nullable=True),
+    sa.Column("prefix", NulSafeText(), nullable=True),
+    sa.Column("evidence", json_type, nullable=False),
+    sa.Column("created_at", sa.Text(), nullable=False),
+    sa.Column("released_at", sa.Text(), nullable=True),
+    sa.CheckConstraint("object_key IS NULL OR prefix IS NULL", name="legal_hold_scope"),
+)
+sa.Index("legal_holds_active_scope_idx", legal_holds.c.bucket, legal_holds.c.released_at)
+
 budget_definitions = sa.Table(
     "budget_definitions", metadata,
     sa.Column("budget_id", NulSafeText(), primary_key=True),

@@ -189,6 +189,10 @@ class PolicyRunner:
             records, as_of=as_of, on_evaluated=None if dry_run else retain,
         )
         for rec, evaluation in zip(records, evaluated):
+            # Legal holds are authoritative current state, including when a
+            # previous attempt retained a selected policy snapshot.
+            if self._legal_hold_active(evaluation.constraints):
+                continue
             features = evaluation.features
             decision = PolicyDecision(
                 action=evaluation.action,
@@ -321,7 +325,8 @@ class PolicyRunner:
         )
         return self._capture_decision_evidence(
             record, evaluation.features, decision,
-            AuditOutcome.SELECTED if self._is_actionable(record, decision)
+            AuditOutcome.REJECTED if self._legal_hold_active(evaluation.constraints)
+            else AuditOutcome.SELECTED if self._is_actionable(record, decision)
             else AuditOutcome.REJECTED if decision.action == "move"
             else AuditOutcome.STAYED,
             evaluation.constraints, str(evaluation.constraints["as_of"]),
@@ -370,7 +375,8 @@ class PolicyRunner:
             action=decision.action,
             destination=decision.dst_tier,
             outcome=(
-                AuditOutcome.SELECTED if actionable
+                AuditOutcome.REJECTED if self._legal_hold_active(evaluation.constraints)
+                else AuditOutcome.SELECTED if actionable
                 else AuditOutcome.REJECTED
                 if decision.action == "move"
                 else AuditOutcome.STAYED
@@ -420,6 +426,15 @@ class PolicyRunner:
                 tier_metadata=None if tier is None else tier.metadata,
                 as_of=evaluated_at,
             )
+            # Hold eligibility always uses live authoritative state, never
+            # the policy's historical evaluation instant or stability override.
+            holds = self.catalog.list_legal_holds(
+                bucket=rec.bucket, key=rec.key, active_only=True,
+            )
+            evidence["legal_hold"] = {
+                "active": bool(holds),
+                "hold_ids": sorted(hold.hold_id for hold in holds),
+            }
             evidence["size_hysteresis_bytes"] = max(
                 self.movement_constraints.size_hysteresis_bytes,
                 getattr(self.policy, "size_hysteresis_bytes", 0),
@@ -435,7 +450,8 @@ class PolicyRunner:
                 allowed = allowed.intersection(configured_destinations)
             evidence["allowed_destination_tiers"] = sorted(allowed)
             evidence["blocked_reason"] = (
-                evidence["residency_reason"] if evidence["residency_active"]
+                "legal hold blocks object movement" if holds
+                else evidence["residency_reason"] if evidence["residency_active"]
                 else "importance constraint permits no other destination tier"
                 if isinstance(configured_destinations, list)
                 and not set(configured_destinations).difference({rec.tier})
@@ -444,7 +460,8 @@ class PolicyRunner:
                 else None
             )
             evidence["suppression_reason"] = (
-                "cooldown" if evidence["blocked_reason"] == evidence["cooldown_reason"]
+                "legal_hold" if holds
+                else "cooldown" if evidence["blocked_reason"] == evidence["cooldown_reason"]
                 and evidence["cooldown_active"] and evidence["stability_override"] is None
                 else None
             )
@@ -477,7 +494,10 @@ class PolicyRunner:
                 ) from exc
             evidence = constraints[coordinate]
             if evidence["blocked_reason"]:
-                decision = PolicyDecision("stay", str(evidence["blocked_reason"]))
+                decision = PolicyDecision(
+                    "stay", str(evidence["blocked_reason"]),
+                    reason_code=("legal_hold" if self._legal_hold_active(evidence) else None),
+                )
             else:
                 # Built-in policies (including LLM payloads) see only eligible
                 # tiers. Copy per record to avoid changing shared policy state.
@@ -668,6 +688,11 @@ class PolicyRunner:
         )
 
     @staticmethod
+    def _legal_hold_active(constraints: Mapping[str, object]) -> bool:
+        hold = constraints.get("legal_hold")
+        return isinstance(hold, Mapping) and hold.get("active") is True
+
+    @staticmethod
     def _feature_content_sha256(features: PolicyFeatures) -> str | None:
         # MIME is projected directly from the current catalog snapshot, so its
         # provenance carries that snapshot's source identity even when the MIME
@@ -757,7 +782,8 @@ class PolicyRunner:
         )
         if external:
             safe_reason = (
-                "external provider decision" if type(self.policy) is LLMPolicy
+                "legal hold blocks object movement" if self._legal_hold_active(constraints)
+                else "external provider decision" if type(self.policy) is LLMPolicy
                 else "custom policy decision"
             )
             decision = replace(decision, reason=safe_reason)
@@ -773,6 +799,7 @@ class PolicyRunner:
             decision_at=decision_at,
             model_identity=self.model_identity,
             model_version=self.model_version,
+            legal_hold=self._legal_hold_active(constraints),
         )
         structured_reason = capture_policy_reason(
             code=decision.reason_code,
@@ -886,6 +913,7 @@ class PolicyRunner:
             or stable_constraints.get("similarity_hysteresis")
             or stable_constraints.get("stability_override") is not None
             or stable_constraints.get("budgets") is not None
+            or self._legal_hold_active(stable_constraints)
         ):
             # Snapshot v1 has no fields for these hard inputs. Preserve the
             # observed result for datasets without claiming an exact replay

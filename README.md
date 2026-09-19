@@ -157,6 +157,10 @@ The [tenant isolation guide](docs/tenancy.md) covers server-owned membership,
 separate catalog/index partitions, storage namespaces, and worker revalidation.
 Roles grant access only within the assigned tenant.
 
+[Legal holds](docs/legal_holds.md) preserve exact objects, key prefixes, or whole
+buckets across tiers. Holds block writes and destructive movement until an
+explicitly authorized release and retain lifecycle and denial audit history.
+
 ### Python SDK
 
 The typed synchronous SDK covers every REST API v1 operation plus automatic

@@ -1,5 +1,10 @@
 # Operational audit events
 
+[Legal hold](legal_holds.md) events use `legal_hold.placed`,
+`legal_hold.released`, and `legal_hold.denied`. They retain lifecycle actor,
+scope, reason, and correlation evidence indefinitely, including after release;
+ordinary expiry and explicit age-based pruning exclude them.
+
 CogniStore records an append-oriented operational history in the catalog so an
 operator can follow a policy decision through its job and object move, including
 retries and terminal outcomes. This history is operational evidence; it is not

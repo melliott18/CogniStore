@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -42,6 +43,25 @@ def test_reclamation_grace_boundary_is_inclusive() -> None:
 
     assert not before.entries[0].reclamation_eligible
     assert at_boundary.entries[0].reclamation_eligible
+
+
+def test_legal_hold_excludes_even_old_orphaned_content_from_reclamation() -> None:
+    snapshot = replace(
+        _snapshot(unreferenced_at="2026-09-01T00:00:00.000000Z"), legal_hold=True,
+    )
+    report = build_content_reference_report(
+        (snapshot,), grace_period_seconds=0, now="2026-09-02T00:00:00Z",
+    )
+    assert report.consistent
+    assert report.eligible_blobs == 0
+    assert report.entries[0].legal_hold
+    assert not report.entries[0].reclamation_eligible
+    assert report.entries[0].to_dict()["legal_hold"] is True
+
+
+def test_reclamation_rejects_invalid_legal_hold_state() -> None:
+    with pytest.raises(ValueError, match="legal_hold"):
+        replace(_snapshot(unreferenced_at=None), legal_hold="false")
 
 
 @pytest.mark.parametrize(

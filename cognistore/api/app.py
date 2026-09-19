@@ -44,6 +44,7 @@ from cognistore.auth.jwt import AuthenticationError, JWTAuthConfig, JWTAuthentic
 from cognistore.auth.principal import principal_context
 from cognistore.auth.tenancy import TenantIsolationError, TenantResolver, tenant_context
 from cognistore.budget_telemetry import budget_metrics_response
+from cognistore.core.legal_holds import LegalHoldError
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
@@ -67,6 +68,10 @@ from .models import (
     HealthResponse,
     ImportanceChangeRequest,
     JobStatusResponse,
+    LegalHoldList,
+    LegalHoldReleaseRequest,
+    LegalHoldRequest,
+    LegalHoldResource,
     ObjectResource,
     PolicyDecisionPage,
     PolicyDecisionResource,
@@ -75,7 +80,12 @@ from .models import (
     PolicyRunRequest,
     ValidationIssue,
 )
-from .permissions import ENDPOINT_OPERATIONS, OPERATION_PERMISSIONS, endpoint_operation
+from .permissions import (
+    AUTHENTICATED_OPERATIONS,
+    ENDPOINT_OPERATIONS,
+    OPERATION_PERMISSIONS,
+    endpoint_operation,
+)
 from .telemetry import TelemetryMiddleware
 
 MAX_OBJECT_UPLOAD_BYTES = 16 * 1024 * 1024
@@ -88,6 +98,7 @@ _JSON_BODY_PATHS = frozenset(
         "/v1/policies/evaluate",
         "/v1/policies/preview",
         "/v1/catalog/importance",
+        "/v1/legal-holds",
     }
 )
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -406,6 +417,7 @@ def create_app(
                         boundary="api",
                         catalog=audit_catalog(),
                         correlation_id=request.state.request_id,
+                        require_authenticated=operation in AUTHENTICATED_OPERATIONS,
                     )
             except (AuthorizationError, TenantIsolationError):
                 return _error_response(
@@ -419,7 +431,10 @@ def create_app(
                 code="validation_error",
                 message="Idempotency-Key must contain 1-128 letters, digits, dots, underscores, colons or hyphens",
             )
-        if request.method == "POST" and route_path in _JSON_BODY_PATHS:
+        if request.method == "POST" and (
+            route_path in _JSON_BODY_PATHS
+            or endpoint_operation(request.method, route_path) == "release_legal_hold"
+        ):
             raw_content_length = request.headers.get("content-length")
             if raw_content_length is not None:
                 try:
@@ -593,6 +608,12 @@ def create_app(
             code="object_generation_changed",
             message="The object changed during the request",
             retryable=True,
+        )
+
+    @app.exception_handler(LegalHoldError)
+    async def legal_hold_error(request: Request, exc: LegalHoldError) -> JSONResponse:
+        return _error_response(
+            request, status_code=409, code="legal_hold", message=str(exc),
         )
 
     @app.exception_handler(QueueSaturatedError)
@@ -870,6 +891,72 @@ def create_app(
     )
     def get_catalog_object(bucket: BucketPath, key: KeyPath) -> CatalogObject:
         return services.get_catalog_object(bucket, key)
+
+    @router.post(
+        "/legal-holds",
+        response_model=LegalHoldResource,
+        status_code=status.HTTP_201_CREATED,
+        operation_id="placeLegalHold",
+        tags=["legal-holds"],
+        description=(
+            "Place a hold on an exact key, a literal key prefix, or an entire bucket. "
+            "Matching conservatively includes case, Unicode, and path aliases. "
+            "Requires an authenticated principal with legal_hold_manage. "
+            "Held scopes reject all object writes, deletion, and tier movement."
+        ),
+        responses={
+            201: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            **_JSON_ERROR_RESPONSES,
+        },
+    )
+    def place_legal_hold(change: LegalHoldRequest, request: Request) -> LegalHoldResource:
+        return services.place_legal_hold(change, correlation_id=_request_id(request))
+
+    @router.get(
+        "/legal-holds",
+        response_model=LegalHoldList,
+        operation_id="listLegalHolds",
+        tags=["legal-holds"],
+        description=(
+            "Inspect retained holds within the current tenant. A key filter includes "
+            "all object, prefix, and bucket holds covering that key, including case, "
+            "Unicode, and path aliases; key requires bucket."
+        ),
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
+    def list_legal_holds(
+        bucket: Annotated[str | None, Query(min_length=1, max_length=1024)] = None,
+        key: Annotated[str | None, Query(min_length=1, max_length=8192)] = None,
+        active_only: Annotated[bool, Query()] = False,
+    ) -> LegalHoldList:
+        return services.list_legal_holds(bucket=bucket, key=key, active_only=active_only)
+
+    @router.post(
+        "/legal-holds/{hold_id}/release",
+        response_model=LegalHoldResource,
+        operation_id="releaseLegalHold",
+        tags=["legal-holds"],
+        description=(
+            "Release one hold while retaining its placement and release evidence. "
+            "Requires an authenticated principal with legal_hold_release. "
+            "Other overlapping active holds continue to protect the object."
+        ),
+        responses={
+            200: {"headers": {"X-Request-ID": _REQUEST_ID_HEADER}},
+            404: _NOT_FOUND_RESPONSE,
+            409: _CONFLICT_RESPONSE,
+            **_JSON_ERROR_RESPONSES,
+        },
+    )
+    def release_legal_hold(
+        hold_id: Annotated[str, Path(pattern=_UUID)],
+        change: LegalHoldReleaseRequest,
+        request: Request,
+    ) -> LegalHoldResource:
+        return services.release_legal_hold(hold_id, change, correlation_id=_request_id(request))
 
     @router.post(
         "/ask",

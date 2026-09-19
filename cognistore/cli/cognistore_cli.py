@@ -13,7 +13,7 @@ import time
 import traceback
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -671,6 +671,12 @@ def _preview_move_constraints(
 ) -> dict[str, object]:
 	"""Read the same authoritative controls used before uncommitted moves."""
 
+	if job is None or job.state not in {MoveJobState.COMPLETED, MoveJobState.FAILED}:
+		# Dry runs inspect holds without recording a destructive attempt.
+		if catalog.list_legal_holds(bucket=bucket, key=key, active_only=True):
+			raise MovementConstraintError(
+				"Operation prohibited by an active legal hold", {"legal_hold": True},
+			)
 	if job is not None and job.state not in {
 		MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
 	}:
@@ -2458,6 +2464,7 @@ def _run_cli(
 
 	catalog: CatalogStore | None
 	catalog_commands = {
+		"put",
 		"worker",
 		"move",
 		"move-resume",
@@ -2469,8 +2476,18 @@ def _run_cli(
 		background_submission
 		or args.cmd == "scheduler"
 		or args.cmd not in catalog_commands
+		or (args.cmd == "put" and not args.catalog_db)
 	):
 		catalog = None
+	elif args.cmd == "put" and dry_run:
+		if existing_sqlite_catalog_path(args.catalog_db) is not None or catalog_locator_is_postgres(
+			args.catalog_db
+		):
+			catalog = open_sql_catalog(args.catalog_db, read_only=True)
+		else:
+			# A missing catalog has no holds to inspect. Preserve the dry-run
+			# contract by avoiding creation of a database or lock sidecar.
+			catalog = Catalog(audit_retention=audit_retention)
 	elif args.catalog_db and args.cmd in {"policy-run", "importance-set"} and dry_run:
 		catalog_path = sqlite_catalog_path(args.catalog_db)
 		if catalog_path is not None and not catalog_path.exists():
@@ -2536,6 +2553,10 @@ def _run_cli(
 		else:
 			active_driver = driver
 		if dry_run:
+			if catalog is not None and catalog.list_legal_holds(
+				bucket=args.bucket, key=args.key, active_only=True,
+			):
+				raise MovementConstraintError("Operation prohibited by an active legal hold")
 			try:
 				active_driver.stat_object(args.bucket, args.key)
 			except FileNotFoundError:
@@ -2559,7 +2580,17 @@ def _run_cli(
 			)
 			return 0
 		data = source_path.read_bytes()
-		active_driver.put_object(args.bucket, args.key, data)
+		guard = (
+			nullcontext() if catalog is None else catalog.destructive_operation(
+				args.bucket, args.key, operation="put",
+				context=AuditContext(
+					actor_type="cli", actor_id="cognistore-cli",
+					correlation_id=str(uuid4()),
+				),
+			)
+		)
+		with guard:
+			active_driver.put_object(args.bucket, args.key, data)
 		_emit_result(
 			"put",
 			"completed",

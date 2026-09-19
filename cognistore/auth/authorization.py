@@ -42,15 +42,24 @@ class Permission(str, Enum):
     MOVEMENT = "movement"
     ADMIN = "administration"
     AUDIT = "audit"
+    LEGAL_HOLD_INSPECT = "legal_hold_inspect"
+    LEGAL_HOLD_MANAGE = "legal_hold_manage"
+    LEGAL_HOLD_RELEASE = "legal_hold_release"
 
 
 ROLE_PERMISSIONS: Mapping[str, frozenset[Permission]] = MappingProxyType(
     {
-        "reader": frozenset({Permission.READ}),
-        "writer": frozenset({Permission.READ, Permission.WRITE}),
-        "policy_manager": frozenset({Permission.READ, Permission.POLICY}),
-        "operator": frozenset({Permission.READ, Permission.MOVEMENT, Permission.ADMIN}),
-        "auditor": frozenset({Permission.AUDIT}),
+        "reader": frozenset({Permission.READ, Permission.LEGAL_HOLD_INSPECT}),
+        "writer": frozenset({Permission.READ, Permission.WRITE, Permission.LEGAL_HOLD_INSPECT}),
+        "policy_manager": frozenset({
+            Permission.READ, Permission.POLICY, Permission.LEGAL_HOLD_INSPECT,
+        }),
+        "operator": frozenset({
+            Permission.READ, Permission.MOVEMENT, Permission.ADMIN, Permission.LEGAL_HOLD_INSPECT,
+        }),
+        "auditor": frozenset({Permission.AUDIT, Permission.LEGAL_HOLD_INSPECT}),
+        "hold_manager": frozenset({Permission.LEGAL_HOLD_INSPECT, Permission.LEGAL_HOLD_MANAGE}),
+        "hold_releaser": frozenset({Permission.LEGAL_HOLD_INSPECT, Permission.LEGAL_HOLD_RELEASE}),
         "admin": frozenset(Permission),
     }
 )
@@ -312,6 +321,7 @@ def authorize_operation(
     correlation_id: str | None = None,
     job_id: str | None = None,
     principal: Principal | None | object = _CURRENT_PRINCIPAL,
+    require_authenticated: bool = False,
 ) -> None:
     """Authorize an operation, preserving explicit trusted local use.
 
@@ -321,7 +331,7 @@ def authorize_operation(
     """
     effective = authorizer if authorizer is not None else current_authorizer()
     identity = current_principal() if principal is _CURRENT_PRINCIPAL else principal
-    if effective is None and identity is None:
+    if effective is None and identity is None and not require_authenticated:
         return
     if effective is None:
         effective = RBACAuthorizer()

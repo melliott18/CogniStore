@@ -377,7 +377,13 @@ def export_policy_dataset(
         if safe.get("snapshot") != snapshot:
             if not isinstance(safe.get("snapshot"), dict):
                 raise ValueError("exclusions cannot remove the snapshot contract")
-            safe["snapshot"]["replay"] = {"supported": False, "reason": "export_redaction"}
+            safe["snapshot"]["replay"] = {
+                "supported": False,
+                "reason": (
+                    "legal_hold" if snapshot["replay"].get("reason") == "legal_hold"
+                    else "export_redaction"
+                ),
+            }
         rows.append(safe)
     dataset = {
         "schema_version": POLICY_DATASET_SCHEMA_VERSION,
@@ -876,6 +882,13 @@ def _validate_policy_dataset(
             issue("invalid_schema", path + ".snapshot.decision", "Invalid decision outcome")
             continue
         action, destination = decision.get("action"), decision.get("destination_tier")
+        if snapshot.get("replay") == {"supported": False, "reason": "legal_hold"} and (
+            action != "stay" or destination is not None or decision["outcome"] != "rejected"
+        ):
+            issue(
+                "invalid_schema", path + ".snapshot.decision",
+                "Legal hold snapshots require a rejected stay decision",
+            )
         if structured_reason is not None:
             if isinstance(policy, dict) and any(
                 name in policy and structured_reason["policy"][name] != policy[name]
@@ -922,6 +935,11 @@ def _validate_policy_dataset(
             expected_outcome = (
                 "selected" if actionable else "rejected" if action == "move" else "stayed"
             )
+            if (
+                action == "stay" and destination is None
+                and snapshot.get("replay") == {"supported": False, "reason": "legal_hold"}
+            ):
+                expected_outcome = "rejected"
             if decision["outcome"] != expected_outcome:
                 issue(
                     "invalid_schema",

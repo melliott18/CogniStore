@@ -121,7 +121,9 @@ def test_policy_copies_and_freezes_server_owned_bindings() -> None:
     configuration = _configuration("reader")
     policy = RBACPolicy.from_dict(configuration)
     configuration["bindings"][0]["roles"].append("admin")
-    assert policy.permissions_for(PRINCIPAL) == frozenset({Permission.READ})
+    assert policy.permissions_for(PRINCIPAL) == frozenset({
+        Permission.READ, Permission.LEGAL_HOLD_INSPECT,
+    })
     with pytest.raises(TypeError):
         policy.bindings[(PRINCIPAL.issuer, PRINCIPAL.subject)] = frozenset({"admin"})
     with pytest.raises(TypeError):

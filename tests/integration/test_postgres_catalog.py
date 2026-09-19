@@ -67,6 +67,7 @@ _CATALOG_TABLES = {
     "budget_reservations",
     "catalog_schema_features",
     "catalog_tenant",
+    "legal_holds",
     "content_blobs",
     "content_manifest_chunks",
     "content_manifests",

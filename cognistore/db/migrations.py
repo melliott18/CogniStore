@@ -131,6 +131,7 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
             "budget_reservations",
             "catalog_schema_features",
             "catalog_tenant",
+            "legal_holds",
             "content_blobs",
             "content_manifest_chunks",
             "content_manifests",

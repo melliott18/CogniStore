@@ -38,6 +38,7 @@ from cognistore.core.content_identity import (
     cas_key_for_sha256,
 )
 from cognistore.core.estimation import _decimal
+from cognistore.core.legal_holds import LegalHold
 from cognistore.core.placement_controls import ImportanceTag
 from cognistore.core.topology import Pool, Tier
 from cognistore.utils.redaction import redact, redact_text
@@ -58,6 +59,7 @@ from .schema import (
     embedding_passages,
     embedding_spaces,
     embedding_vectors,
+    legal_holds,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
@@ -83,6 +85,7 @@ def _content_reference_timestamp() -> str:
     )
 
 _DESTINATION_DATA_TABLES = (
+    legal_holds,
     budget_reservations,
     budget_definitions,
     access_events,
@@ -137,6 +140,7 @@ class SQLiteCatalogImportReport:
     access_events: int = 0
     budget_definitions: int = 0
     budget_reservations: int = 0
+    legal_holds: int = 0
 
 
 def import_sqlite_catalog(
@@ -179,7 +183,10 @@ def import_sqlite_catalog(
         layout = _detect_layout(source_connection)
         _reject_source_embedding_state(source_connection)
 
-        with destination.engine.begin() as target_connection:
+        with (
+            destination._legal_hold_serialization(exclusive=True),
+            destination.engine.begin() as target_connection,
+        ):
             _lock_and_require_empty_destination(target_connection)
             if layout == "legacy":
                 report = _copy_legacy_catalog(
@@ -251,6 +258,10 @@ def import_sqlite_catalog(
                 batch_size=batch_size,
             )
             budget_counts = _copy_budget_state(source_connection, target_connection, batch_size=batch_size)
+            hold_count = _copy_legal_holds(
+                source_connection, target_connection,
+                tenant_id=destination.tenant_id, batch_size=batch_size,
+            )
             report = SQLiteCatalogImportReport(
                 source_layout=report.source_layout,
                 tiers=report.tiers,
@@ -267,10 +278,55 @@ def import_sqlite_catalog(
                 access_events=access_count,
                 budget_definitions=budget_counts[0],
                 budget_reservations=budget_counts[1],
+                legal_holds=hold_count,
             )
 
         source_connection.rollback()
         return report
+
+
+def _copy_legal_holds(
+    source: sqlite3.Connection, destination: Connection, *, tenant_id: str, batch_size: int,
+) -> int:
+    tables = _source_tables(source)
+    if "legal_holds" not in tables:
+        revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
+                    if "alembic_version" in tables else None)
+        if revision and revision[0] == "0013_legal_holds":
+            raise SQLiteCatalogImportError("source is missing legal hold state")
+        return 0
+    _require_columns(source, "legal_holds", {column.name for column in legal_holds.c})
+
+    def hold_values(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            evidence = _json_mapping(row["evidence"], "legal hold evidence")
+            hold = LegalHold.from_mapping(evidence)
+            if hold.tenant_id != tenant_id:
+                raise ValueError("legal hold has a different tenant owner")
+            if (
+                UUID(hold.hold_id) != _uuid(row["hold_id"], "legal hold id")
+                or any(getattr(hold, field) != row[field] for field in (
+                    "tenant_id", "bucket", "prefix", "created_at", "released_at",
+                ))
+                or hold.key != row["object_key"]
+                or not isinstance(evidence.get("active"), bool)
+                or evidence["active"] != hold.active
+            ):
+                raise ValueError("legal hold scope or lifecycle differs from its evidence")
+        except (ValueError, TypeError) as exc:
+            raise SQLiteCatalogImportError(f"invalid legal hold: {exc}") from exc
+        return {
+            "hold_id": UUID(hold.hold_id), "tenant_id": hold.tenant_id,
+            "bucket": hold.bucket, "object_key": hold.key, "prefix": hold.prefix,
+            "evidence": hold.to_dict(), "created_at": hold.created_at,
+            "released_at": hold.released_at,
+        }
+
+    return _copy_rows(
+        source, destination, legal_holds,
+        "SELECT * FROM legal_holds ORDER BY created_at, hold_id",
+        hold_values, batch_size=batch_size,
+    )
 
 
 def _require_source_tenant(source: sqlite3.Connection, tenant_id: str) -> None:
@@ -283,7 +339,9 @@ def _require_source_tenant(source: sqlite3.Connection, tenant_id: str) -> None:
         revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
                     if "alembic_version" in tables else None)
         # Only a genuinely legacy source may omit durable tenant ownership.
-        if tenant_id != "default" or revision and revision[0] == "0012_tenant_ownership":
+        if tenant_id != "default" or revision and revision[0] in {
+            "0012_tenant_ownership", "0013_legal_holds",
+        }:
             raise TenantIsolationError()
 
 
@@ -296,7 +354,9 @@ def _copy_budget_state(
     revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
                 if "alembic_version" in tables else None)
     if present != names and (
-        present or revision and revision[0] in {"0011_policy_budgets", "0012_tenant_ownership"}
+        present or revision and revision[0] in {
+            "0011_policy_budgets", "0012_tenant_ownership", "0013_legal_holds",
+        }
     ):
         raise SQLiteCatalogImportError("source has partial budget state tables")
     if not present:
@@ -826,7 +886,8 @@ def _copy_normalized_catalog(
     if "alembic_version" in _source_tables(source):
         revision = source.execute("SELECT version_num FROM alembic_version").fetchone()
         if revision and revision[0] in {
-            "0010_tier_stability", "0011_policy_budgets", "0012_tenant_ownership"
+            "0010_tier_stability", "0011_policy_budgets", "0012_tenant_ownership",
+            "0013_legal_holds",
         } and not has_stability:
             raise SQLiteCatalogImportError("source has partial tier stability columns")
     imported_at = _content_reference_timestamp()

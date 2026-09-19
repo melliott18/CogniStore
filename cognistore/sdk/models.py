@@ -327,6 +327,58 @@ class CatalogObjectPage(SDKResponse):
     page: PageMetadata
 
 
+class LegalHoldRequest(SDKRequest):
+    """Protect an exact object, literal key prefix, or an entire bucket."""
+
+    bucket: Bucket
+    key: ObjectKey | None = None
+    prefix: Annotated[str, Field(max_length=8192)] | None = None
+    reason: Annotated[str, Field(min_length=1, max_length=4096)]
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> LegalHoldRequest:
+        if self.key is not None and self.prefix is not None:
+            raise ValueError("Specify key or prefix, never both")
+        if not self.reason.strip():
+            raise ValueError("reason must not be blank")
+        return self
+
+
+class LegalHoldReleaseRequest(SDKRequest):
+    reason: Annotated[str, Field(min_length=1, max_length=4096)]
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> LegalHoldReleaseRequest:
+        if not self.reason.strip():
+            raise ValueError("reason must not be blank")
+        return self
+
+
+class LegalHoldResource(SDKResponse):
+    schema_version: Literal[1] = 1
+    hold_id: str
+    tenant_id: str
+    bucket: Bucket
+    key: ObjectKey | None
+    prefix: str | None
+    reason: str
+    created_at: str
+    actor_type: str
+    actor_id: str
+    correlation_id: str
+    active: bool
+    released_at: str | None
+    released_reason: str | None
+    released_actor_type: str | None
+    released_actor_id: str | None
+    released_correlation_id: str | None
+
+
+class LegalHoldList(SDKResponse):
+    schema_version: Literal[1] = 1
+    items: list[LegalHoldResource]
+
+
 class ObjectCitation(SDKResponse):
     citation_id: str
     object_id: str
@@ -631,6 +683,8 @@ class ReasonConstraints(SDKResponse):
     hysteresis_checks: list[HysteresisCheck]
     budgets: list[dict[str, Any]] = Field(default_factory=list)
     objectives: dict[str, Any] | None = None
+    legal_hold: bool = False
+    legal_hold_ids: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
 
 
 class ReasonModel(SDKResponse):
@@ -657,6 +711,7 @@ class PolicyReason(SDKResponse):
         "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
         "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
         "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
+        "legal_hold",
     ]
     disposition: Literal["move", "stay", "suppressed", "rejected"]
     decisive_signals: list[DecisiveSignal]

@@ -11,6 +11,7 @@ from uuid import uuid4
 from cognistore.core.audit import AuditContext
 from cognistore.core.budgets import BudgetOverride
 from cognistore.core.catalog import CatalogStore
+from cognistore.core.legal_holds import LegalHoldError
 from cognistore.core.move_jobs import (
     EXPECTED_SOURCE_SHA256_METADATA_KEY,
     MoveJob,
@@ -209,6 +210,9 @@ class Mover:
         """
 
         src, dst = self._drivers_for_move(src_tier, dst_tier)
+        self.catalog.assert_not_held(
+            bucket, key, operation="move.plan", context=self.audit_context,
+        )
         self._check_movement_constraints(
             src_tier, dst_tier, bucket, key, movement_constraints, as_of=as_of
         )
@@ -446,6 +450,9 @@ class Mover:
             budget.matches(bucket, key) for budget in self.catalog.list_budgets()
         )
         if existing is None:
+            self.catalog.assert_not_held(
+                bucket, key, operation="move", context=context,
+            )
             plan = self.plan(
                 src_tier, dst_tier, bucket, key,
                 movement_constraints=movement_constraints
@@ -564,7 +571,21 @@ class Mover:
                             audit_context=context,
                         )
                         raise
-            return self._resume(job, audit_context=context)
+            try:
+                return self._resume(job, audit_context=context)
+            except LegalHoldError:
+                # A hold placed after selection also stops recovered jobs,
+                # including jobs whose destination is already committed. Leave
+                # every extant copy intact and terminate this durable attempt.
+                current = self.catalog.get_move_job(job.idempotency_key)
+                if current is not None and not current.state.terminal:
+                    self._transition(
+                        current, MoveJobState.FAILED,
+                        "legal hold blocks object movement",
+                        updates={"terminal_reason": "legal hold blocks object movement"},
+                        audit_context=context,
+                    )
+                raise
 
     @staticmethod
     def _validate_movement_contract(
@@ -723,6 +744,10 @@ class Mover:
                 "move job lacks the source generation required for transfer"
             )
 
+        self.catalog.assert_not_held(
+            job.bucket, job.key, operation="move.resume", context=audit_context,
+        )
+
         if job.state in {
             MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED
         }:
@@ -733,6 +758,11 @@ class Mover:
             )
 
         while True:
+            if not job.state.terminal:
+                self.catalog.assert_not_held(
+                    job.bucket, job.key,
+                    operation=f"move.{job.state.value}", context=audit_context,
+                )
             if job.state == MoveJobState.PREPARED:
                 try:
                     destination_exists = True
@@ -757,7 +787,10 @@ class Mover:
                         transferred_size = job.expected_size
                         reason = "existing destination recovered after transfer"
                     else:
-                        with src.open_object_reader_if_generation(
+                        with self.catalog.destructive_operation(
+                            job.bucket, job.key,
+                            operation="move.transfer", context=audit_context,
+                        ), src.open_object_reader_if_generation(
                             job.bucket,
                             job.key,
                             source_generation,
@@ -932,7 +965,10 @@ class Mover:
                             job.key,
                             source_generation,
                         )
-                        with source_reader as retained_source:
+                        with self.catalog.destructive_operation(
+                            job.bucket, job.key,
+                            operation="move.source_cleanup", context=audit_context,
+                        ), source_reader as retained_source:
                             src.delete_object_if_generation(
                                 job.bucket, job.key, source_generation
                             )

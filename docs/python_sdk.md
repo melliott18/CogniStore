@@ -87,6 +87,39 @@ Set `level=None` to clear a tag; attribution remains required. See
 [Importance and minimum residency](placement_controls.md) for placement clocks,
 constraint precedence, defaults, and worker rollout requirements.
 
+## Legal holds
+
+Place and inspect holds with typed requests. Omit both `key` and `prefix` to hold
+the entire bucket; supply exactly one to protect an exact object or literal prefix.
+The service records the authenticated principal as the actor.
+
+```python
+import os
+
+from cognistore.sdk import CogniStoreClient, LegalHoldRequest
+
+with CogniStoreClient(
+    "https://cognistore.example.com",
+    default_headers={"Authorization": f"Bearer {os.environ['COGNISTORE_TOKEN']}"},
+) as client:
+    hold = client.place_legal_hold(LegalHoldRequest(
+        bucket="records", prefix="case-62/", reason="Preserve case evidence",
+    ))
+    effective = client.list_legal_holds(
+        bucket="records", key="case-62/evidence.txt", active_only=True,
+    )
+    print(hold.hold_id, effective.items)
+```
+
+After release is authorized, call
+`client.release_legal_hold(hold_id, LegalHoldReleaseRequest(reason="Case closed"))`.
+`LegalHoldReleaseRequest` is exported from `cognistore.sdk`. Release requires the
+separate `legal_hold_release` permission; other overlapping holds remain active.
+Object writes, deletion, and movement blocked by a hold return `ConflictError`
+with `code="legal_hold"`. Policy reasons expose `code="legal_hold"`,
+`constraints.legal_hold`, and `constraints.legal_hold_ids`. See
+[Legal holds](legal_holds.md) for retention and worker behavior.
+
 ## Configuration and timeouts
 
 For simple use, pass the v1 server's origin as a string. The client appends `/v1`
@@ -163,6 +196,9 @@ method. The two convenience methods do not add server endpoints.
 | `list_catalog_objects(bucket, ...)` | `GET /v1/catalog/objects` | `CatalogObjectPage` |
 | `iter_catalog_objects(bucket, ...)` | Repeated catalog-page requests | Iterator of `CatalogObject` |
 | `get_catalog_object(bucket, key)` | `GET /v1/catalog/objects/{bucket}/{key}` | `CatalogObject` |
+| `place_legal_hold(request)` | `POST /v1/legal-holds` | `LegalHoldResource` |
+| `list_legal_holds(...)` | `GET /v1/legal-holds` | `LegalHoldList` |
+| `release_legal_hold(hold_id, request)` | `POST /v1/legal-holds/{hold_id}/release` | `LegalHoldResource` |
 | `ask(request)` | `POST /v1/ask` | `AskResponse` |
 | `evaluate_policy(request)` | `POST /v1/policies/evaluate` | `PolicyEvaluationResponse` |
 | `preview_policy_decision(request)` | `POST /v1/policies/preview` | `PolicyDecision` |
