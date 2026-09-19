@@ -17,6 +17,13 @@ metadata = sa.MetaData(naming_convention=NAMING_CONVENTION)
 json_type = sa.JSON()
 uuid_type = sa.Uuid(as_uuid=True)
 
+catalog_tenant = sa.Table(
+    "catalog_tenant", metadata,
+    sa.Column("singleton", sa.Integer(), primary_key=True),
+    sa.Column("tenant_id", sa.Text(), nullable=False),
+    sa.CheckConstraint("singleton = 1", name="catalog_tenant_singleton"),
+)
+
 budget_definitions = sa.Table(
     "budget_definitions", metadata,
     sa.Column("budget_id", NulSafeText(), primary_key=True),

@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from cognistore.auth.tenancy import TenantIsolationError, require_tenant, validate_tenant_id
 from cognistore.core.access import (
     ACCESS_KINDS,
     AccessConfig,
@@ -85,7 +86,7 @@ from cognistore.core.topology import (
 from cognistore.observability import observe
 from cognistore.utils.redaction import redact, redact_text
 
-from .engine import create_catalog_engine
+from .engine import create_catalog_engine, tenant_catalog_locator
 from .migrations import MigrationManager, catalog_schema_exists
 from .schema import (
     access_events,
@@ -94,6 +95,7 @@ from .schema import (
     audit_move_heads,
     budget_definitions,
     budget_reservations,
+    catalog_tenant,
     content_blobs,
     content_manifest_chunks,
     content_manifests,
@@ -165,21 +167,48 @@ class SQLCatalog(Catalog):
         read_only: bool = False,
         migrate: bool = True,
         audit_retention: AuditRetentionPolicy | None = None,
+        tenant_id: str = "default",
     ) -> None:
-        self.db_path = str(locator)
+        self._tenant_id = validate_tenant_id(tenant_id)
+        require_tenant(self._tenant_id)
+        self._root_locator = locator
+        self._migrate = migrate
+        self._sql_tenant_catalogs: dict[str, SQLCatalog] = {}
+        self._tenant_catalog_root = self
+        self._tenant_catalog_lock = threading.RLock()
+        partition_locator, self.schema_name = tenant_catalog_locator(locator, tenant_id)
+        if isinstance(partition_locator, Path) and tenant_id != "default" and not read_only:
+            partition_locator.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = str(partition_locator)
         self.read_only = read_only
         self.audit_retention = audit_retention or AuditRetentionPolicy()
-        self._engine, self._conn = create_catalog_engine(locator, read_only=read_only)
+        self._engine, self._conn = create_catalog_engine(
+            partition_locator, read_only=read_only, schema_name=self.schema_name
+        )
         self._sqlite_lock = threading.RLock()
         self._closed = False
+        self._engine = self._engine.execution_options(cognistore_tenant_id=tenant_id)
+        if self.schema_name is not None:
+            self._engine = self._engine.execution_options(
+                schema_translate_map={None: self.schema_name}
+            )
+
+        @sa.event.listens_for(self._engine, "before_cursor_execute")
+        def _tenant_boundary(*_args: object) -> None:
+            # Also guard engines/connections retained before a context switch.
+            require_tenant(self._tenant_id)
+
         migrations = MigrationManager(audit_retention=self.audit_retention)
         try:
+            if self.schema_name is not None:
+                self._prepare_postgres_partition()
+            self._validate_tenant_owner(allow_missing=True)
             if read_only:
                 schema_exists = catalog_schema_exists(self._engine)
                 if not schema_exists:
                     inspector = sa.inspect(self._engine)
                     schema_present = any(
-                        inspector.has_table(table)
+                        inspector.has_table(table, schema=self.schema_name)
                         for table in (
                             "alembic_version",
                             "objects",
@@ -214,12 +243,81 @@ class SQLCatalog(Catalog):
                 raise CatalogSchemaOutdatedError(
                     "catalog schema is not at the current migration head"
                 )
+            self._validate_tenant_owner()
         except BaseException:
             self.close()
             raise
 
     @property
+    def tenant_id(self) -> str:
+        return self._tenant_id
+
+    def for_tenant(self, tenant_id: str) -> SQLCatalog:
+        tenant_id = validate_tenant_id(tenant_id)
+        require_tenant(tenant_id)
+        if self._closed:
+            raise RuntimeError("catalog is closed")
+        if tenant_id == self.tenant_id:
+            return self
+        if self._tenant_catalog_root is not self:
+            return self._tenant_catalog_root.for_tenant(tenant_id)
+        with self._tenant_catalog_lock:
+            catalog = self._sql_tenant_catalogs.get(tenant_id)
+            if catalog is None or catalog._closed:
+                catalog = SQLCatalog(
+                    self._root_locator, tenant_id=tenant_id,
+                    read_only=self.read_only, migrate=self._migrate,
+                    audit_retention=self.audit_retention,
+                )
+                catalog._tenant_catalog_root = self
+                self._sql_tenant_catalogs[tenant_id] = catalog
+            return catalog
+
+    def _prepare_postgres_partition(self) -> None:
+        schema = self.schema_name
+        assert schema is not None
+        with self._engine.begin() as connection:
+            if not self.read_only:
+                connection.exec_driver_sql("SELECT pg_advisory_xact_lock(1129270868)")
+                quoted = connection.dialect.identifier_preparer.quote(schema)
+                connection.exec_driver_sql(f"CREATE SCHEMA IF NOT EXISTS {quoted}")
+                # Extensions belong to the database, not a removable tenant
+                # schema. This also prevents an individual tenant downgrade
+                # from claiming ownership of and removing a shared extension.
+                connection.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public")
+        # Each engine owns its dialect. Keep reflection's default namespace
+        # consistent with its session; expression SQL is explicitly translated.
+        self._engine.dialect.default_schema_name = schema
+
+    def _validate_tenant_owner(self, *, allow_missing: bool = False) -> None:
+        with self._engine.connect() as connection:
+            if connection.dialect.name == "postgresql":
+                # Ownership and schema presence must describe one migration
+                # state. A concurrent initializer cannot commit between these
+                # reads and make a fresh partition appear partially owned.
+                connection.exec_driver_sql("SELECT pg_advisory_xact_lock(1129270868)")
+            else:
+                # SQLite SELECTs do not start a real read transaction under
+                # sqlite3's legacy transaction mode; pin its snapshot explicitly.
+                connection.exec_driver_sql("BEGIN")
+            inspector = sa.inspect(connection)
+            if not inspector.has_table("catalog_tenant", schema=self.schema_name):
+                if allow_missing:
+                    # Only the legacy default catalog may predate ownership.
+                    # Never silently adopt an existing unowned tenant partition.
+                    if self.tenant_id != "default" and inspector.get_table_names(
+                        schema=self.schema_name
+                    ):
+                        raise TenantIsolationError()
+                    return
+                raise TenantIsolationError()
+            owner = connection.execute(sa.select(catalog_tenant.c.tenant_id)).scalars().all()
+            if owner != [self.tenant_id]:
+                raise TenantIsolationError()
+
+    @property
     def engine(self) -> Engine:
+        require_tenant(self.tenant_id)
         return self._engine
 
     @property
@@ -230,6 +328,10 @@ class SQLCatalog(Catalog):
         if self._closed:
             return
         self._closed = True
+        with self._tenant_catalog_lock:
+            for catalog in self._sql_tenant_catalogs.values():
+                catalog.close()
+            self._sql_tenant_catalogs.clear()
         self._engine.dispose()
         if self._conn is not None:
             try:
@@ -245,6 +347,7 @@ class SQLCatalog(Catalog):
 
     @contextlib.contextmanager
     def _transaction(self) -> Iterator[Connection]:
+        require_tenant(self.tenant_id)
         if self._closed:
             raise RuntimeError("catalog is closed")
         lock: Any = (
@@ -263,6 +366,7 @@ class SQLCatalog(Catalog):
 
     @contextlib.contextmanager
     def _connection(self) -> Iterator[Connection]:
+        require_tenant(self.tenant_id)
         if self._closed:
             raise RuntimeError("catalog is closed")
         lock: Any = (
@@ -1706,8 +1810,13 @@ class SQLCatalog(Catalog):
                 max_row_buffer=batch_size,
             ).execute(statement).mappings()
             try:
-                while batch := rows.fetchmany(batch_size):
+                while True:
+                    require_tenant(self.tenant_id)
+                    batch = rows.fetchmany(batch_size)
+                    if not batch:
+                        break
                     for row in batch:
+                        require_tenant(self.tenant_id)
                         yield self._record(row)
             finally:
                 rows.close()

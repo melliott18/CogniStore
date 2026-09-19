@@ -722,6 +722,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             coordinator=None,
             audit_catalog=None,
             authorization=None,
+            tenant_resolver=None,
         ) -> None:
             self.state = WorkerState.STARTING
             self.throughput = throughput
@@ -879,4 +880,46 @@ def test_worker_rejects_invalid_authorization_before_queue_or_schedule_store(
     with pytest.raises(ValueError, match="Invalid RBAC policy"):
         asyncio.run(cognistore_cli._serve_worker(
             argparse.Namespace(authorization_policy=str(path)), {}, object(),
+        ))
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_worker_tenant_policy_flag_overrides_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit: bool,
+) -> None:
+    from cognistore.core.catalog import Catalog
+
+    environment_path = tmp_path / "tenants-environment.json"
+    explicit_path = tmp_path / "tenants-explicit.json"
+    monkeypatch.setenv("COGNISTORE_TENANT_POLICY", str(environment_path))
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda path: {"hot": object()})
+    monkeypatch.setattr(cognistore_cli, "open_catalog", lambda *args, **kwargs: Catalog())
+    seen = []
+
+    async def serve_worker(args, drivers, catalog):
+        seen.append(args.tenant_policy)
+        return 0
+
+    monkeypatch.setattr(cognistore_cli, "_serve_worker", serve_worker)
+    args = [
+        "--no-config", "--drivers", "ignored.yaml", "--catalog-db",
+        str(tmp_path / "catalog.db"), "worker", "--once",
+    ]
+    if explicit:
+        args.extend(["--tenant-policy", str(explicit_path)])
+    assert cognistore_cli.main(args) == 0
+    assert seen == [str(explicit_path if explicit else environment_path)]
+
+
+def test_worker_rejects_invalid_tenant_policy_before_acquiring_resources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args, **kwargs):
+        raise AssertionError("worker must validate tenant policy before acquiring resources")
+
+    monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", forbidden)
+    monkeypatch.setattr(cognistore_cli, "SQLiteScheduleStore", forbidden)
+    with pytest.raises(ValueError, match="Invalid tenant policy"):
+        asyncio.run(cognistore_cli._serve_worker(
+            argparse.Namespace(tenant_policy=str(tmp_path / "missing.json")), {}, object(),
         ))

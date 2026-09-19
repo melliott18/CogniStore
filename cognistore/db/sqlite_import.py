@@ -15,6 +15,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
+from cognistore.auth.tenancy import TenantIsolationError, require_tenant
 from cognistore.core.access import AccessEvent
 from cognistore.core.audit import (
     AuditContext,
@@ -157,6 +158,7 @@ def import_sqlite_catalog(
     and are not copied by this function.
     """
 
+    require_tenant(destination.tenant_id)
     if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
         raise ValueError("batch_size must be a positive integer")
     if destination.read_only:
@@ -173,6 +175,7 @@ def import_sqlite_catalog(
         source_connection.execute("PRAGMA query_only = ON")
         source_connection.execute("PRAGMA busy_timeout = 5000")
         source_connection.execute("BEGIN")
+        _require_source_tenant(source_connection, destination.tenant_id)
         layout = _detect_layout(source_connection)
         _reject_source_embedding_state(source_connection)
 
@@ -270,6 +273,20 @@ def import_sqlite_catalog(
         return report
 
 
+def _require_source_tenant(source: sqlite3.Connection, tenant_id: str) -> None:
+    tables = _source_tables(source)
+    if "catalog_tenant" in tables:
+        owners = source.execute("SELECT tenant_id FROM catalog_tenant").fetchall()
+        if len(owners) != 1 or owners[0][0] != tenant_id:
+            raise TenantIsolationError()
+    else:
+        revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
+                    if "alembic_version" in tables else None)
+        # Only a genuinely legacy source may omit durable tenant ownership.
+        if tenant_id != "default" or revision and revision[0] == "0012_tenant_ownership":
+            raise TenantIsolationError()
+
+
 def _copy_budget_state(
     source: sqlite3.Connection, destination: Connection, *, batch_size: int,
 ) -> tuple[int, int]:
@@ -278,7 +295,9 @@ def _copy_budget_state(
     present = tables.intersection(names)
     revision = (source.execute("SELECT version_num FROM alembic_version").fetchone()
                 if "alembic_version" in tables else None)
-    if present != names and (present or revision and revision[0] == "0011_policy_budgets"):
+    if present != names and (
+        present or revision and revision[0] in {"0011_policy_budgets", "0012_tenant_ownership"}
+    ):
         raise SQLiteCatalogImportError("source has partial budget state tables")
     if not present:
         return 0, 0
@@ -806,7 +825,9 @@ def _copy_normalized_catalog(
         raise SQLiteCatalogImportError("source has partial tier stability columns")
     if "alembic_version" in _source_tables(source):
         revision = source.execute("SELECT version_num FROM alembic_version").fetchone()
-        if revision and revision[0] in {"0010_tier_stability", "0011_policy_budgets"} and not has_stability:
+        if revision and revision[0] in {
+            "0010_tier_stability", "0011_policy_budgets", "0012_tenant_ownership"
+        } and not has_stability:
             raise SQLiteCatalogImportError("source has partial tier stability columns")
     imported_at = _content_reference_timestamp()
     placement_count = _copy_rows(

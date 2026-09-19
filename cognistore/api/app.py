@@ -42,6 +42,7 @@ from cognistore.auth.authorization import (
 )
 from cognistore.auth.jwt import AuthenticationError, JWTAuthConfig, JWTAuthenticator
 from cognistore.auth.principal import principal_context
+from cognistore.auth.tenancy import TenantIsolationError, TenantResolver, tenant_context
 from cognistore.budget_telemetry import budget_metrics_response
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
@@ -292,6 +293,7 @@ def create_app(
     *,
     authentication: JWTAuthConfig | JWTAuthenticator | None = None,
     authorization: RBACAuthorizer | None = None,
+    tenancy: TenantResolver | None = None,
     authorization_hook: Callable[..., Any] | None = None,
 ) -> FastAPI:
     """Create the ASGI application around injected service abstractions."""
@@ -304,7 +306,18 @@ def create_app(
         raise ValueError("API authorization requires JWT authentication")
     if authorizer is None and authentication is not None:
         authorizer = RBACAuthorizer()
-    audit_catalog = services.catalog if isinstance(services, CogniStoreGateway) else None
+    if isinstance(services, CogniStoreGateway):
+        if tenancy is None:
+            tenancy = services.tenancy
+        elif services.tenancy is not None and services.tenancy is not tenancy:
+            raise ValueError("Conflicting tenant policies")
+        services.tenancy = tenancy
+    if tenancy is not None and authentication is None:
+        raise ValueError("API tenant isolation requires JWT authentication")
+
+    def audit_catalog():
+        return services.catalog if isinstance(services, CogniStoreGateway) else None
+
     owns_authenticator = isinstance(authentication, JWTAuthConfig)
     authenticator = (
         JWTAuthenticator(authentication) if isinstance(authentication, JWTAuthConfig)
@@ -339,6 +352,7 @@ def create_app(
     app.state.gateway = services
     app.state.authenticator = authenticator
     app.state.authorizer = authorizer
+    app.state.tenancy = tenancy
 
     @app.middleware("http")
     async def request_identity(request: Request, call_next):
@@ -348,6 +362,7 @@ def create_app(
                 supplied if supplied is not None and _REQUEST_ID.fullmatch(supplied) else str(uuid4())
             )
         request.state.principal = None
+        request.state.tenant_id = None
         route_path = get_route_path(request.scope)
         if authenticator is not None and (route_path == "/v1" or route_path.startswith("/v1/")):
             authorization = request.headers.getlist("authorization")
@@ -377,17 +392,22 @@ def create_app(
         if route_path == "/v1" or route_path.startswith("/v1/"):
             operation = endpoint_operation(request.method, route_path)
             try:
-                await asyncio.to_thread(
-                    authorize_operation,
-                    authorizer,
-                    OPERATION_PERMISSIONS.get(operation, ()),
-                    principal=request.state.principal,
-                    operation=operation,
-                    boundary="api",
-                    catalog=audit_catalog,
-                    correlation_id=request.state.request_id,
-                )
-            except AuthorizationError:
+                if tenancy is not None:
+                    request.state.tenant_id = await asyncio.to_thread(
+                        tenancy.resolve, request.state.principal,
+                    )
+                with tenant_context(request.state.tenant_id):
+                    await asyncio.to_thread(
+                        authorize_operation,
+                        authorizer,
+                        OPERATION_PERMISSIONS.get(operation, ()),
+                        principal=request.state.principal,
+                        operation=operation,
+                        boundary="api",
+                        catalog=audit_catalog(),
+                        correlation_id=request.state.request_id,
+                    )
+            except (AuthorizationError, TenantIsolationError):
                 return _error_response(
                     request, status_code=403, code="forbidden", message="Operation not permitted",
                 )
@@ -459,7 +479,7 @@ def create_app(
                     retryable=exc.retryable,
                     headers=exc.headers,
                 )
-        with authorization_context(authorizer), principal_context(request.state.principal), access_operation(
+        with tenant_context(request.state.tenant_id), authorization_context(authorizer), principal_context(request.state.principal), access_operation(
             operation_id=operation_id,
             correlation_id=request.state.request_id,
             source="api",
@@ -476,7 +496,7 @@ def create_app(
             OPERATION_PERMISSIONS.get(operation, ()),
             operation=operation,
             boundary="api_result",
-            catalog=audit_catalog,
+            catalog=audit_catalog(),
             correlation_id=_request_id(request),
         )
 
@@ -499,6 +519,12 @@ def create_app(
         # Also retain the final API denial when a service recheck rejects a
         # request that passed the earlier transport check.
         await audit_http_denial(request)
+        return _error_response(
+            request, status_code=403, code="forbidden", message="Operation not permitted",
+        )
+
+    @app.exception_handler(TenantIsolationError)
+    async def tenant_error(request: Request, _exc: TenantIsolationError) -> JSONResponse:
         return _error_response(
             request, status_code=403, code="forbidden", message="Operation not permitted",
         )
@@ -1014,6 +1040,10 @@ def create_app(
 
     @app.get("/metrics", include_in_schema=False)
     def prometheus_metrics() -> Response:
+        if tenancy is not None:
+            # Process-wide counters aggregate all tenants. They belong on a
+            # private operational exporter, never the shared tenant HTTP surface.
+            return Response(status_code=404)
         body, content_type = metrics_response()
         body += budget_metrics_response(getattr(services, "catalog", None))
         return Response(body, headers={"Content-Type": content_type})

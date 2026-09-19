@@ -13,6 +13,9 @@ def _run(connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
+        version_table_schema=connection.get_execution_options().get(
+            "schema_translate_map", {}
+        ).get(None),
         # SQLite's JSON columns intentionally retain TEXT affinity for legacy
         # compatibility. PostgreSQL type drift remains fully checked.
         compare_type=connection.dialect.name != "sqlite",

@@ -19,6 +19,13 @@ from cognistore.auth.authorization import (
     authorize_operation,
 )
 from cognistore.auth.principal import principal_context
+from cognistore.auth.tenancy import (
+    DEFAULT_TENANT_ID,
+    TenantIsolationError,
+    TenantResolver,
+    current_tenant_id,
+    tenant_context,
+)
 from cognistore.core.audit import (
     AuditContext,
     AuditEvent,
@@ -227,6 +234,7 @@ class AsyncWorker:
         coordinator: JobCoordinator | None = None,
         audit_catalog: CatalogStore | None = None,
         authorization: RBACAuthorizer | None = None,
+        tenant_resolver: TenantResolver | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("at least one job handler is required")
@@ -241,6 +249,7 @@ class AsyncWorker:
         self._coordinator = coordinator
         self._audit_catalog = audit_catalog
         self._authorization = authorization
+        self._tenant_resolver = tenant_resolver
         self.state = WorkerState.STOPPED
         self.accepting_claims = False
         self.last_error: str | None = None
@@ -433,6 +442,7 @@ class AsyncWorker:
         # malformed deliveries, and restore it after every settlement path.
         with ExitStack() as contexts:
             contexts.enter_context(principal_context(None))
+            contexts.enter_context(tenant_context(None))
             contexts.enter_context(authorization_context(self._authorization))
             try:
                 job = delivery.job
@@ -478,6 +488,15 @@ class AsyncWorker:
             job = delivery.job
             principal = job.principal
             contexts.enter_context(principal_context(principal))
+            if self._tenant_resolver is not None:
+                owner = await asyncio.to_thread(self._tenant_resolver.resolve, principal)
+                if job.tenant_id != owner:
+                    raise TenantIsolationError()
+            else:
+                owner = DEFAULT_TENANT_ID
+                if job.tenant_id not in (None, DEFAULT_TENANT_ID):
+                    raise TenantIsolationError()
+            contexts.enter_context(tenant_context(owner))
             # Resolve permissions from the actual operation on every attempt,
             # including retry/redrive. Producer metadata is identity evidence,
             # never a reusable grant. Check before leases, status changes, or
@@ -492,7 +511,7 @@ class AsyncWorker:
                 permissions,
                 operation=job_operation(job.job_type),
                 boundary="worker",
-                catalog=self._audit_catalog,
+                catalog=self._tenant_audit_catalog(),
                 correlation_id=job.correlation_id,
                 job_id=job.job_id,
                 principal=principal,
@@ -508,6 +527,7 @@ class AsyncWorker:
                 cumulative_attempt=attempt_offset + delivery.attempt,
                 redrive_count=redrive_count,
                 principal=principal,
+                tenant_id=owner,
             )
             if self._coordinator is not None:
                 execution = await self._coordinator.begin(job, context)
@@ -571,6 +591,8 @@ class AsyncWorker:
                 self._set_failure(exc)
             raise
         except Exception as exc:
+            if job is None and self._tenant_resolver is None:
+                contexts.enter_context(tenant_context(DEFAULT_TENANT_ID))
             if observe_indexing:
                 self._record_indexing_completion(delivery, job, succeeded=False)
             await self._handle_job_failure(
@@ -710,6 +732,20 @@ class AsyncWorker:
             },
         )
 
+    def _tenant_audit_catalog(self) -> CatalogStore | None:
+        # Invalid or ownerless multi-tenant deliveries must not write another
+        # tenant's job status, including through the failure settlement path.
+        owner = current_tenant_id()
+        if self._audit_catalog is None or owner is None:
+            return None
+        if self._tenant_resolver is None and owner == DEFAULT_TENANT_ID:
+            return self._audit_catalog
+        try:
+            return self._audit_catalog.for_tenant(owner)
+        except BaseException as exc:
+            self._set_failure(exc)
+            raise
+
     async def _append_job_audit_event(
         self,
         delivery: JobDelivery,
@@ -722,7 +758,8 @@ class AsyncWorker:
     ) -> AuditEvent | None:
         """Persist one worker event before the corresponding settlement."""
 
-        if self._audit_catalog is None:
+        audit_catalog = self._tenant_audit_catalog()
+        if audit_catalog is None:
             return None
 
         source_stream = str(
@@ -774,7 +811,7 @@ class AsyncWorker:
                 details=details,
             )
             return await asyncio.to_thread(
-                self._audit_catalog.append_audit_event,
+                audit_catalog.append_audit_event,
                 event,
             )
         except BaseException as audit_error:

@@ -20,6 +20,7 @@ from types import MappingProxyType
 from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, require_tenant
 from cognistore.observability import instrument
 
 from .embeddings import (
@@ -35,6 +36,7 @@ from .passages import (
     Passage,
     PassageChunkerConfig,
 )
+from .tenant_dependencies import for_tenant
 
 EMBEDDING_DOCUMENT_SCHEMA_VERSION = 1
 MAX_EMBEDDING_BATCH_SIZE = 1_024
@@ -434,12 +436,20 @@ class EmbeddingIndexer:
         if not 1 <= batch_size <= MAX_EMBEDDING_BATCH_SIZE:
             raise ValueError(f"batch_size must be between 1 and {MAX_EMBEDDING_BATCH_SIZE}")
         self.repository = repository
+        self.tenant_id = getattr(repository, "tenant_id", DEFAULT_TENANT_ID)
         self.provider = provider
         self.chunker = chunker or DeterministicPassageChunker()
         self.batch_size = batch_size
         self.retry_policy = retry_policy or EmbeddingRetryPolicy()
         self.hnsw = hnsw or HnswIndexConfig()
         self._sleep = sleep
+
+    def for_tenant(self, tenant_id: str) -> EmbeddingIndexer:
+        return EmbeddingIndexer(
+            for_tenant(self.repository, tenant_id), self.provider,
+            chunker=self.chunker, batch_size=self.batch_size,
+            retry_policy=self.retry_policy, hnsw=self.hnsw, sleep=self._sleep,
+        )
 
     def _retry(self, operation: Callable[[], object]) -> object:
         if self._sleep is None:
@@ -452,6 +462,7 @@ class EmbeddingIndexer:
 
     @instrument("index", "embed", backend="embedding")
     def index_object(self, bucket: str, key: str, *, force: bool = False) -> EmbeddingIndexReport:
+        require_tenant(self.tenant_id)
         if not isinstance(force, bool):
             raise ValueError("force must be a boolean")
         source = self.repository.load_source(bucket, key)
@@ -536,6 +547,7 @@ class EmbeddingIndexer:
     def query_vector(self, query: str) -> tuple[float, ...]:
         """Embed and validate one query in this indexer's exact search space."""
 
+        require_tenant(self.tenant_id)
         _required_text(query, field_name="query")
         raw_vector = self._retry(lambda: self.provider.embed_query(query))
         vectors = validate_embedding_vectors(

@@ -37,6 +37,9 @@ class MigrationManager:
             config.attributes["audit_retention"] = self.audit_retention
         if connection is not None:
             config.attributes["connection"] = connection
+            config.attributes["tenant_id"] = connection.get_execution_options().get(
+                "cognistore_tenant_id", "default"
+            )
         return config
 
     def upgrade(self, bind: Engine | Connection, revision: str = "head") -> None:
@@ -50,9 +53,13 @@ class MigrationManager:
 
     def current(self, bind: Engine | Connection) -> str | None:
         if isinstance(bind, Connection):
-            return MigrationContext.configure(bind).get_current_revision()
+            return MigrationContext.configure(
+                bind, opts=_migration_options(bind)
+            ).get_current_revision()
         with bind.connect() as connection:
-            return MigrationContext.configure(connection).get_current_revision()
+            return MigrationContext.configure(
+                connection, opts=_migration_options(connection)
+            ).get_current_revision()
 
     def heads(self) -> tuple[str, ...]:
         return tuple(ScriptDirectory.from_config(self.config()).get_heads())
@@ -112,8 +119,9 @@ class MigrationManager:
 
 def catalog_schema_exists(bind: Engine | Connection) -> bool:
     inspector = sa.inspect(bind)
+    schema = bind.get_execution_options().get("schema_translate_map", {}).get(None)
     return all(
-        inspector.has_table(table)
+        inspector.has_table(table, schema=schema)
         for table in (
             "access_events",
             "audit_events",
@@ -122,6 +130,7 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
             "budget_definitions",
             "budget_reservations",
             "catalog_schema_features",
+            "catalog_tenant",
             "content_blobs",
             "content_manifest_chunks",
             "content_manifests",
@@ -142,3 +151,8 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
             "tiers",
         )
     )
+
+
+def _migration_options(connection: Connection) -> dict[str, object]:
+    schema = connection.get_execution_options().get("schema_translate_map", {}).get(None)
+    return {"version_table_schema": schema} if schema is not None else {}

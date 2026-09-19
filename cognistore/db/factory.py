@@ -34,12 +34,14 @@ def open_catalog(
     read_only: bool = False,
     migrate: bool = True,
     audit_retention: AuditRetentionPolicy | None = None,
+    tenant_id: str = "default",
 ) -> CatalogStore:
     return SQLCatalog(
         locator,
         read_only=read_only,
         migrate=migrate,
         audit_retention=audit_retention,
+        tenant_id=tenant_id,
     )
 
 

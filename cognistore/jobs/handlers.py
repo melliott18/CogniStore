@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, AsyncContextManager, Callable, Protocol
 from uuid import uuid4
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, TenantIsolationError, current_tenant_id
 from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import CatalogStore
 from cognistore.core.move_jobs import MoveJobLeaseError, MoveJobState
@@ -22,6 +23,7 @@ from cognistore.core.policy_runner import ActionResult, PolicyRunner
 from cognistore.core.scanner import scan_catalog
 from cognistore.core.throughput import ThroughputConfig
 from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.drivers.tenancy import scope_storage_drivers
 from cognistore.observability import current_correlation_id
 
 from .models import (
@@ -338,7 +340,15 @@ def build_handlers(
                 await asyncio.gather(*pending, return_exceptions=True)
             raise
 
+    def dependencies(job: JobEnvelope):
+        owner = job.tenant_id or DEFAULT_TENANT_ID
+        bound_owner = current_tenant_id()
+        if bound_owner is not None and owner != bound_owner:
+            raise TenantIsolationError()
+        return owner, catalog.for_tenant(owner), scope_storage_drivers(drivers, owner)
+
     async def catalog_scan(job: JobEnvelope, context: JobContext) -> None:
+        _, job_catalog, job_drivers = dependencies(job)
         tier = _string(job.payload, "tier")
         bucket = _string(job.payload, "bucket")
         prefix = _string(job.payload, "prefix", allow_empty=True)
@@ -349,8 +359,8 @@ def build_handlers(
             tier=tier,
             bucket=bucket,
             prefix=prefix,
-            driver=drivers[tier],
-            catalog=catalog,
+            driver=job_drivers[tier],
+            catalog=job_catalog,
         )
         LOGGER.info(
             "catalog scan completed",
@@ -363,6 +373,7 @@ def build_handlers(
         )
 
     async def policy_run(job: JobEnvelope, context: JobContext) -> None:
+        owner, job_catalog, job_drivers = dependencies(job)
         if (
             job.schema_version < JOB_SCHEMA_VERSION_V3
             and "movement_constraints" in job.payload
@@ -472,8 +483,8 @@ def build_handlers(
         # Each delivery owns a distinct catalog lease. Reusing one process-wide
         # owner would let concurrent duplicate deliveries bypass exclusivity.
         mover = Mover(
-            dict(drivers),
-            catalog,
+            job_drivers,
+            job_catalog,
             owner_id=f"{job.job_id}:{uuid4()}",
             throughput=throughput,
             audit_context=audit_context,
@@ -484,8 +495,8 @@ def build_handlers(
             audit_context=audit_context,
         )
         runner = PolicyRunner(
-            catalog,
-            dict(drivers),
+            job_catalog,
+            job_drivers,
             mover,
             policy,
             allowed_tiers=allowed_tiers,
@@ -494,7 +505,10 @@ def build_handlers(
             policy_version=POLICY_AUDIT_VERSION,
             audit_context=audit_context,
             audit_occurred_at=job.created_at,
-            feature_loader=policy_feature_loader,
+            feature_loader=(
+                policy_feature_loader.for_tenant(owner)
+                if policy_feature_loader is not None else None
+            ),
             movement_constraints=movement_constraints,
         )
         actions = await _run_blocking_safely(

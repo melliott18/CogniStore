@@ -10,6 +10,7 @@ import uvicorn
 
 from cognistore.auth.authorization import RBACAuthorizer
 from cognistore.auth.jwt import JWTAuthConfig
+from cognistore.auth.tenancy import TenantResolver
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
@@ -70,6 +71,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--authorization-policy", default=os.environ.get("COGNISTORE_AUTHORIZATION_POLICY"),
         help="JSON issuer/subject role bindings (or COGNISTORE_AUTHORIZATION_POLICY)",
+    )
+    parser.add_argument(
+        "--tenant-policy", default=os.environ.get("COGNISTORE_TENANT_POLICY"),
+        help="JSON issuer/subject tenant membership (or COGNISTORE_TENANT_POLICY)",
     )
     return parser
 
@@ -137,6 +142,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     authentication = _auth_config(args)
     authorization = _authorization_config(args, authentication)
+    tenancy = None
+    if args.tenant_policy is not None:
+        if authentication is None:
+            raise SystemExit("API tenant isolation requires JWT authentication")
+        try:
+            tenancy = TenantResolver(policy_path=args.tenant_policy)
+        except ValueError:
+            raise SystemExit("Invalid tenant policy configuration") from None
     drivers = load_drivers(args.drivers)
     catalog = open_catalog(args.catalog_db)
     try:
@@ -158,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             manage_queue=True,
             feature_loader=feature_loader,
             access_config=load_access_config(args.drivers),
+            tenancy=tenancy,
         )
         app = create_app(gateway, authentication=authentication, authorization=authorization)
         uvicorn.run(

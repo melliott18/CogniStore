@@ -144,6 +144,11 @@ complete permission matrix, and worker revalidation.
 [Authentication setup](docs/authentication.md) covers OIDC discovery,
 JWKS rotation, service clients, and token-free job and audit attribution.
 
+For multiple tenants, set `COGNISTORE_TENANT_POLICY` on the API and workers.
+The [tenant isolation guide](docs/tenancy.md) covers server-owned membership,
+separate catalog/index partitions, storage namespaces, and worker revalidation.
+Roles grant access only within the assigned tenant.
+
 ### Python SDK
 
 The typed synchronous SDK covers every REST API v1 operation plus automatic
@@ -586,6 +591,8 @@ python -m cognistore.cli --drivers drivers.yaml \
 For authenticated API jobs, configure the worker with the same
 `COGNISTORE_AUTHORIZATION_POLICY` as the API. Every delivery rechecks current
 permissions; an authenticated job is denied if the worker has no policy.
+Tenant-enabled workers also need the API's `COGNISTORE_TENANT_POLICY` to
+validate each job's immutable owner before execution.
 The CLI and recurring-schedule examples below describe trusted local workloads:
 these producers do not authenticate principals, so their jobs are rejected by
 workers with a policy. Use authenticated REST actions for protected workloads.

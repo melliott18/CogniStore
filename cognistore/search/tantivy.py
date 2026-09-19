@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Any, BinaryIO, TypeVar
 from uuid import uuid4
 
+from cognistore.auth.tenancy import (
+    DEFAULT_TENANT_ID,
+    require_tenant,
+    tenant_namespace,
+    validate_tenant_id,
+)
 from cognistore.observability import instrument
 
 from .keyword import (
@@ -57,6 +63,7 @@ class TantivyKeywordIndex:
         passage_max_chars: int = DEFAULT_PASSAGE_CHARS,
         passage_overlap_chars: int = DEFAULT_PASSAGE_OVERLAP_CHARS,
         writer_heap_bytes: int = DEFAULT_WRITER_HEAP_BYTES,
+        tenant_id: str = DEFAULT_TENANT_ID,
     ) -> None:
         try:
             import tantivy
@@ -66,7 +73,15 @@ class TantivyKeywordIndex:
             ) from exc
 
         self._tantivy = tantivy
-        self.path = Path(path)
+        self._tenant_id = validate_tenant_id(tenant_id)
+        require_tenant(self.tenant_id)
+        self._base_path = Path(path)
+        self.path = (
+            self._base_path if self.tenant_id == DEFAULT_TENANT_ID
+            else self._base_path / "tenants" / tenant_namespace(self.tenant_id)
+        )
+        self._tenant_owner = self
+        self._tenant_indexes: dict[str, TantivyKeywordIndex] = {self.tenant_id: self}
         if self.path.exists() and not self.path.is_dir():
             raise ValueError("keyword index path must be a directory")
         self.path.mkdir(parents=True, exist_ok=True)
@@ -112,6 +127,29 @@ class TantivyKeywordIndex:
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
+
+    @property
+    def tenant_id(self) -> str:
+        return self._tenant_id
+
+    def for_tenant(self, tenant_id: str) -> TantivyKeywordIndex:
+        tenant_id = validate_tenant_id(tenant_id)
+        require_tenant(tenant_id)
+        owner = self._tenant_owner
+        with owner._lock:
+            if owner._closed:
+                raise RuntimeError("keyword index is closed")
+            index = owner._tenant_indexes.get(tenant_id)
+            if index is None or index._closed:
+                index = TantivyKeywordIndex(
+                    owner._base_path, tenant_id=tenant_id,
+                    passage_max_chars=owner.passage_max_chars,
+                    passage_overlap_chars=owner.passage_overlap_chars,
+                    writer_heap_bytes=owner.writer_heap_bytes,
+                )
+                index._tenant_owner = owner
+                owner._tenant_indexes[tenant_id] = index
+            return index
 
     @staticmethod
     def _positive_int(value: object, *, field: str) -> int:
@@ -460,6 +498,7 @@ class TantivyKeywordIndex:
         )
 
     def _ensure_open(self) -> None:
+        require_tenant(self.tenant_id)
         if self._closed:
             raise RuntimeError("keyword index is closed")
 
@@ -783,6 +822,10 @@ class TantivyKeywordIndex:
                 return
             self._closed = True
             try:
+                if self._tenant_owner is self:
+                    for index in self._tenant_indexes.values():
+                        if index is not self:
+                            index.close()
                 self._writer.wait_merging_threads()
             finally:
                 self._release_process_lock()

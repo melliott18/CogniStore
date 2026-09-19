@@ -7,6 +7,8 @@ import hashlib
 import json
 from collections.abc import Mapping
 
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, current_tenant_id
+
 
 class CursorError(ValueError):
     """Raised when a page cursor is malformed or belongs to another query."""
@@ -14,7 +16,7 @@ class CursorError(ValueError):
 
 def _fingerprint(filters: Mapping[str, object]) -> str:
     payload = json.dumps(
-        dict(filters),
+        {"tenant_id": current_tenant_id() or DEFAULT_TENANT_ID, "filters": dict(filters)},
         ensure_ascii=True,
         allow_nan=False,
         separators=(",", ":"),

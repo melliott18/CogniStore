@@ -15,9 +15,11 @@ class SQLiteCatalog(SQLCatalog):
 		*,
 		read_only: bool = False,
 		audit_retention: AuditRetentionPolicy | None = None,
+		tenant_id: str = "default",
 	) -> None:
 		super().__init__(
 			db_path,
 			read_only=read_only,
 			audit_retention=audit_retention,
+			tenant_id=tenant_id,
 		)

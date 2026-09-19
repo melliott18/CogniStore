@@ -10,6 +10,7 @@ from typing import Any, Mapping, TypeAlias
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from cognistore.auth.principal import PRINCIPAL_METADATA, Principal
+from cognistore.auth.tenancy import current_tenant_id, validate_tenant_id
 from cognistore.observability import current_correlation_id, inject_trace_context
 
 JSONScalar: TypeAlias = None | bool | int | float | str
@@ -24,6 +25,7 @@ SUPPORTED_JOB_SCHEMA_VERSIONS = frozenset(
     {JOB_SCHEMA_VERSION_V1, JOB_SCHEMA_VERSION_V2, JOB_SCHEMA_VERSION_V3}
 )
 STATUS_TRACKING_METADATA = "cognistore_status_tracking"
+TENANT_METADATA = "cognistore.tenant_id"
 DEAD_LETTER_SCHEMA_VERSION = 1
 REDRIVE_SCHEMA_VERSION = 1
 DEAD_LETTER_NAMESPACE = uuid5(NAMESPACE_URL, "https://cognistore.dev/dead-letters")
@@ -138,6 +140,7 @@ class JobEnvelope:
     payload: Mapping[str, JSONValue]
     metadata: Mapping[str, str] = field(default_factory=dict)
     _principal: Principal | None = field(default=None, init=False, repr=False, compare=False)
+    _tenant_id: str | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -179,6 +182,12 @@ class JobEnvelope:
                 raise JobEnvelopeError("invalid normalized principal metadata") from exc
             normalized_metadata[PRINCIPAL_METADATA] = principal.to_json()
             object.__setattr__(self, "_principal", principal)
+        if TENANT_METADATA in normalized_metadata:
+            try:
+                tenant_id = validate_tenant_id(normalized_metadata[TENANT_METADATA])
+            except (TypeError, ValueError) as exc:
+                raise JobEnvelopeError("invalid tenant ownership metadata") from exc
+            object.__setattr__(self, "_tenant_id", tenant_id)
         object.__setattr__(self, "metadata", normalized_metadata)
 
     @property
@@ -186,6 +195,11 @@ class JobEnvelope:
         """The submitting identity, normalized at the trusted API boundary."""
 
         return self._principal
+
+    @property
+    def tenant_id(self) -> str | None:
+        """Immutable owner; absent only on legacy single-tenant envelopes."""
+        return self._tenant_id
 
     def _wire_metadata(self) -> dict[str, str]:
         # Handlers may mutate ordinary metadata, but the submitting identity
@@ -195,6 +209,10 @@ class JobEnvelope:
             metadata.pop(PRINCIPAL_METADATA, None)
         else:
             metadata[PRINCIPAL_METADATA] = self.principal.to_json()
+        if self.tenant_id is None:
+            metadata.pop(TENANT_METADATA, None)
+        else:
+            metadata[TENANT_METADATA] = self.tenant_id
         return metadata
 
     @classmethod
@@ -208,7 +226,21 @@ class JobEnvelope:
         metadata: Mapping[str, str] | None = None,
         created_at: datetime | None = None,
         schema_version: int = SCHEMA_VERSION,
+        tenant_id: str | None = None,
     ) -> "JobEnvelope":
+        active_owner = current_tenant_id()
+        if tenant_id is not None and active_owner is not None and tenant_id != active_owner:
+            raise JobEnvelopeError("tenant ownership does not match tenant context")
+        owner = tenant_id if tenant_id is not None else active_owner
+        wire_metadata = {**inject_trace_context(), **(metadata or {})}
+        if owner is not None:
+            try:
+                owner = validate_tenant_id(owner)
+            except (TypeError, ValueError) as exc:
+                raise JobEnvelopeError("invalid tenant ownership metadata") from exc
+            if TENANT_METADATA in wire_metadata and wire_metadata[TENANT_METADATA] != owner:
+                raise JobEnvelopeError("tenant ownership metadata does not match tenant context")
+            wire_metadata[TENANT_METADATA] = owner
         identifier = job_id or str(uuid4())
         timestamp = created_at or datetime.now(timezone.utc)
         if timestamp.tzinfo is None or timestamp.utcoffset() is None:
@@ -222,7 +254,7 @@ class JobEnvelope:
             payload=payload,
             # Trace context uses the existing extensible metadata contract, so
             # legacy workers and all supported schema versions still decode it.
-            metadata={**inject_trace_context(), **(metadata or {})},
+            metadata=wire_metadata,
         )
 
     def to_bytes(self) -> bytes:
@@ -857,6 +889,7 @@ class JobContext:
     cumulative_attempt: int | None = None
     redrive_count: int = 0
     principal: Principal | None = None
+    tenant_id: str | None = None
 
 
 class BusState(str, Enum):

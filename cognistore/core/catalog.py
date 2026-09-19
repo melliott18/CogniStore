@@ -11,6 +11,7 @@ from heapq import nsmallest
 from typing import Any, Dict, List, Mapping, Optional, Protocol
 from uuid import UUID
 
+from cognistore.auth.tenancy import require_tenant, validate_tenant_id
 from cognistore.utils.redaction import redact, redact_text
 
 from .access import (
@@ -311,6 +312,22 @@ def _budget_reservation_event(
 	)
 
 
+class _TenantLock:
+	"""Apply the tenant boundary to every in-memory catalog critical section."""
+
+	def __init__(self, tenant_id: str) -> None:
+		self._tenant_id = tenant_id
+		self._lock = threading.RLock()
+
+	def __enter__(self) -> _TenantLock:
+		require_tenant(self._tenant_id)
+		self._lock.acquire()
+		return self
+
+	def __exit__(self, *_exc: object) -> None:
+		self._lock.release()
+
+
 class CatalogStore(Protocol):
 	"""Backend-neutral persistence contract for catalog state.
 
@@ -321,6 +338,11 @@ class CatalogStore(Protocol):
 	``assign_pool()`` atomically changes both pool and tier; clearing the pool
 	retains the tier. Tier-only writes preserve a pool only within the same tier.
 	"""
+
+	@property
+	def tenant_id(self) -> str: ...
+
+	def for_tenant(self, tenant_id: str) -> CatalogStore: ...
 
 	def configure_budget(
 		self, definition: BudgetDefinition, *, audit_context: AuditContext,
@@ -567,7 +589,12 @@ class Catalog(CatalogStore):
 		self,
 		*,
 		audit_retention: AuditRetentionPolicy | None = None,
+		tenant_id: str = "default",
 	) -> None:
+		self._tenant_id = validate_tenant_id(tenant_id)
+		require_tenant(self._tenant_id)
+		self._tenant_catalogs: dict[str, Catalog] = {self._tenant_id: self}
+		self._tenant_catalog_lock = threading.RLock()
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
 		self._tiers: dict[str, Tier] = {}
 		self._pools: dict[str, Pool] = {}
@@ -587,7 +614,24 @@ class Catalog(CatalogStore):
 			tuple[str, str | None, str | None],
 		] = {}
 		self.audit_retention = audit_retention or AuditRetentionPolicy()
-		self._lock = threading.RLock()
+		self._lock = _TenantLock(self._tenant_id)
+
+	@property
+	def tenant_id(self) -> str:
+		return self._tenant_id
+
+	def for_tenant(self, tenant_id: str) -> Catalog:
+		tenant_id = validate_tenant_id(tenant_id)
+		require_tenant(tenant_id)
+		if tenant_id == self.tenant_id:
+			return self
+		with self._tenant_catalog_lock:
+			if tenant_id not in self._tenant_catalogs:
+				catalog = Catalog(tenant_id=tenant_id, audit_retention=self.audit_retention)
+				catalog._tenant_catalogs = self._tenant_catalogs
+				catalog._tenant_catalog_lock = self._tenant_catalog_lock
+				self._tenant_catalogs[tenant_id] = catalog
+			return self._tenant_catalogs[tenant_id]
 
 	def configure_budget(
 		self, definition: BudgetDefinition, *, audit_context: AuditContext,
@@ -1193,7 +1237,9 @@ class Catalog(CatalogStore):
 					key=lambda record: (record.bucket, record.key),
 				)
 			)
-		yield from records
+		for record in records:
+			require_tenant(self.tenant_id)
+			yield record
 
 	@staticmethod
 	def _copy_object_record(record: ObjectRecord) -> ObjectRecord:
