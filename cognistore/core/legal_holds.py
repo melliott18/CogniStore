@@ -183,6 +183,20 @@ def legal_hold_event(hold: LegalHold, context: AuditContext, *, released: bool) 
 _Method = TypeVar("_Method", bound=Callable[..., Any])
 
 
+def serialize_cleanup(method: _Method) -> _Method:
+    """Keep job creation/state changes outside an exclusive cleanup attempt.
+
+    This only serializes lifecycle changes; existing legal-hold authorization
+    and recovery behavior remain the caller's responsibility. Lease heartbeats
+    need not join this fence because they cannot create a new protection.
+    """
+    @wraps(method)
+    def guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
+        with self._legal_hold_serialization():
+            return method(self, *args, **kwargs)
+    return cast(_Method, guarded)
+
+
 def guard_legal_hold(
     operation: str, *, scan: bool = False, move: bool = False,
 ) -> Callable[[_Method], _Method]:

@@ -146,6 +146,7 @@ _COMMAND_NAMES = frozenset(
 		"content-reference-report",
 		"consistency-scan",
 		"consistency-export",
+		"orphan-cleanup",
 		"schedule-run-list",
 		"schedule-run-status",
 		"schedule-run-recover",
@@ -1547,6 +1548,8 @@ def _run_cli(
 	add_budget_commands(command)
 	from cognistore.cli.consistency_commands import add_commands as add_consistency_commands
 	add_consistency_commands(command)
+	from cognistore.cli.orphan_commands import add_commands as add_orphan_commands
+	add_orphan_commands(command)
 
 	p_run = command("policy-run")
 	p_importance = command("importance-set", help="Set an audited importance tag and reevaluate")
@@ -1817,6 +1820,26 @@ def _run_cli(
 		return 0
 	require_at_rest("runtime")
 	dry_run = bool(getattr(args, "dry_run", False))
+	if args.cmd == "orphan-cleanup":
+		from cognistore.cli.orphan_commands import effective_stage
+		from cognistore.cli.orphan_commands import run as run_orphan_command
+		if args.execute and not args.candidate_id:
+			parser.error("--execute requires --candidate-id")
+		result = run_orphan_command(args)
+		cleanup_preview = effective_stage(args) == "report"
+		if result["summary"].get("status") == "failed":
+			return _emit_failure(
+				args.cmd, "orphan deletion failed; retry the same candidate after inspection",
+				json_output=args.json, error_type=result["summary"].get("error_type"),
+				retryable=bool(result["summary"].get("retryable", False)),
+				dry_run=cleanup_preview, **result,
+			)
+		_emit_result(
+			args.cmd, "planned" if cleanup_preview else "success", json_output=args.json,
+			human=json.dumps(result["summary"], sort_keys=True),
+			dry_run=cleanup_preview, **result,
+		)
+		return 0
 	from cognistore.cli.consistency_commands import COMMANDS as consistency_commands
 	if args.cmd in consistency_commands:
 		from cognistore.cli.consistency_commands import run as run_consistency_command

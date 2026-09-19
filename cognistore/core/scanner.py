@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, replace
 from uuid import uuid4
 
@@ -16,6 +16,7 @@ from cognistore.observability import current_correlation_id
 from .catalog import CatalogStore
 from .content_identity import ContentSizeMismatchError
 from .indexer import Indexer
+from .legal_holds import LegalHoldError
 from .pii import PIIDetectionPipeline
 
 _MAX_MIME_SAMPLE_BYTES = 1024 * 1024
@@ -179,94 +180,107 @@ def _scan_catalog(
     active_pii_pipeline = pii_pipeline or PIIDetectionPipeline(detectors=())
     results: list[ScanResult] = []
     for key in driver.list_objects(bucket, prefix=prefix):
-        if dry_run:
-            fence = None
-        else:
+        # A cleanup must not delete a generation between the final backend
+        # check and publication of its content references. Hold the shared
+        # lifecycle fence for the entire observation, before reading bytes.
+        protection: AbstractContextManager[None] = nullcontext()
+        if not dry_run:
             assert catalog is not None
-            fence = catalog.capture_scan_fence(bucket, key)
+            protection = catalog.destructive_operation(
+                bucket, key, operation="catalog.scan_observation",
+            )
         try:
-            stat = driver.stat_object(bucket, key)
-            generation = stat.get("generation")
-            if not isinstance(generation, str) or not generation:
-                raise RuntimeError(
-                    f"Storage driver returned no generation for {bucket}/{key}"
-                )
-            size = int(stat.get("size", 0))
-            try:
-                with _open_generation_bound_reader(
-                    driver,
+            with protection:
+                if dry_run:
+                    fence = None
+                else:
+                    assert catalog is not None
+                    fence = catalog.capture_scan_fence(bucket, key)
+                try:
+                    stat = driver.stat_object(bucket, key)
+                    generation = stat.get("generation")
+                    if not isinstance(generation, str) or not generation:
+                        raise RuntimeError(
+                            f"Storage driver returned no generation for {bucket}/{key}"
+                        )
+                    size = int(stat.get("size", 0))
+                    try:
+                        with _open_generation_bound_reader(
+                            driver,
+                            bucket,
+                            key,
+                            generation,
+                        ) as reader:
+                            sample = _read_prefix(
+                                reader,
+                                min(size, _MAX_MIME_SAMPLE_BYTES) if size > 0 else 0,
+                            )
+                            indexed = active_indexer.index_stream(
+                                _PrefixReplayReader(sample, reader),
+                                sample=sample,
+                                filename=key,
+                                source_size=size,
+                            )
+                    except ContentSizeMismatchError:
+                        # A concurrent replacement can invalidate the stat size while
+                        # the full stream is being consumed. Treat that like the
+                        # generation race below, but surface a mismatch from an
+                        # otherwise unchanged backend as a storage contract failure.
+                        if driver.object_generation(bucket, key) != generation:
+                            continue
+                        raise
+                    content = indexed.content
+                    if content is None:
+                        raise RuntimeError("Stream indexing returned no content identity")
+                    classification = active_pii_pipeline.detect(
+                        indexed.document_extraction, content_sha256=content.sha256
+                    )
+                    # Do not combine bytes and metadata from different physical
+                    # generations. The catalog fence below separately protects this
+                    # stable storage observation from concurrent move transitions.
+                    if driver.object_generation(bucket, key) != generation:
+                        continue
+                except (FileNotFoundError, ObjectGenerationMismatchError):
+                    # Listings are snapshots. A concurrent move or external deletion
+                    # or replacement may retire an entry before it can be observed
+                    # consistently.
+                    continue
+
+                if dry_run:
+                    results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
+                    continue
+
+                assert catalog is not None
+                assert fence is not None
+                extraction_metadata = indexed.document_extraction.to_metadata()
+                if classification.status != "disabled":
+                    # Detection consumes extracted text only in memory. Withhold the
+                    # full text and document properties even on failure: an unknown
+                    # classification must not accidentally publish sensitive content.
+                    extraction_metadata["text"] = None
+                    extraction_metadata["document_metadata"] = {}
+                published = catalog.upsert_scan_observation(
                     bucket,
                     key,
-                    generation,
-                ) as reader:
-                    sample = _read_prefix(
-                        reader,
-                        min(size, _MAX_MIME_SAMPLE_BYTES) if size > 0 else 0,
-                    )
-                    indexed = active_indexer.index_stream(
-                        _PrefixReplayReader(sample, reader),
-                        sample=sample,
-                        filename=key,
-                        source_size=size,
-                    )
-            except ContentSizeMismatchError:
-                # A concurrent replacement can invalidate the stat size while
-                # the full stream is being consumed. Treat that like the
-                # generation race below, but surface a mismatch from an
-                # otherwise unchanged backend as a storage contract failure.
-                if driver.object_generation(bucket, key) != generation:
+                    size=size,
+                    tier=tier,
+                    generation=generation,
+                    metadata={
+                        "path": stat.get("path"),
+                        "sha256": indexed.sha256,
+                        "content_identity": content.to_metadata(),
+                        "mime": indexed.mime,
+                        "mime_detection": indexed.mime_detection.to_metadata(),
+                        "document_extraction": extraction_metadata,
+                        "pii_detection": classification.to_metadata(),
+                        "sample_len": len(indexed.sample),
+                    },
+                    fence=fence,
+                    content=content,
+                )
+                if not published:
                     continue
-                raise
-            content = indexed.content
-            if content is None:
-                raise RuntimeError("Stream indexing returned no content identity")
-            classification = active_pii_pipeline.detect(
-                indexed.document_extraction, content_sha256=content.sha256
-            )
-            # Do not combine bytes and metadata from different physical
-            # generations. The catalog fence below separately protects this
-            # stable storage observation from concurrent move transitions.
-            if driver.object_generation(bucket, key) != generation:
-                continue
-        except (FileNotFoundError, ObjectGenerationMismatchError):
-            # Listings are snapshots. A concurrent move or external deletion
-            # or replacement may retire an entry before it can be observed
-            # consistently.
+                results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
+        except LegalHoldError:
             continue
-
-        if dry_run:
-            results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
-            continue
-
-        assert catalog is not None
-        assert fence is not None
-        extraction_metadata = indexed.document_extraction.to_metadata()
-        if classification.status != "disabled":
-            # Detection consumes extracted text only in memory. Withhold the
-            # full text and document properties even on failure: an unknown
-            # classification must not accidentally publish sensitive content.
-            extraction_metadata["text"] = None
-            extraction_metadata["document_metadata"] = {}
-        published = catalog.upsert_scan_observation(
-            bucket,
-            key,
-            size=size,
-            tier=tier,
-            generation=generation,
-            metadata={
-                "path": stat.get("path"),
-                "sha256": indexed.sha256,
-                "content_identity": content.to_metadata(),
-                "mime": indexed.mime,
-                "mime_detection": indexed.mime_detection.to_metadata(),
-                "document_extraction": extraction_metadata,
-                "pii_detection": classification.to_metadata(),
-                "sample_len": len(indexed.sample),
-            },
-            fence=fence,
-            content=content,
-        )
-        if not published:
-            continue
-        results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
     return results

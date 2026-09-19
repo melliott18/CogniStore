@@ -177,6 +177,9 @@ read local JSON artifacts and require no catalog, drivers, or queue service.
 `consistency-scan` and `consistency-export` require a persistent catalog locator,
 `--drivers`, and a trusted `--scope-config` tenant binding. The scan opens the
 existing catalog read-only; export verifies the binding without contacting it.
+`orphan-cleanup` requires those same inputs and an existing tenant catalog
+partition. It defaults to a read-only report; `--quarantine` and explicit
+`--execute --candidate-id` open that partition writable without migrations.
 Scheduler state is always SQLite: a PostgreSQL worker requires an
 explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
 file when `schedule_db` is omitted. A non-preview scheduler requires a
@@ -284,6 +287,7 @@ their query. The complete command matrix is:
 | `content-reference-report` | Read-only in every mode. Returns the same deterministic comparison of stored and topology-derived reference counts plus grace-period reclamation eligibility. It never repairs catalog state or deletes content. |
 | `consistency-scan` | Always read-only toward source catalog and storage. Dry-run scans into a disposable temporary report; with `--resume`, previews a snapshot of the checkpoint. No report, checkpoint, or audit changes are retained. |
 | `consistency-export` | Validates the report's tenant/source binding and new output target, returning the saved summary without creating an export or audit event. |
+| `orphan-cleanup` | Reports current protections without writes by default. `--dry-run` previews either quarantine or execution; `--no-dry-run` alone does not authorize deletion. |
 | `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
 | `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
 | `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the SQLite scheduler store read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
@@ -368,9 +372,38 @@ tiers. Scan `--prefix` and repeated `--tier` options can only narrow that bindin
 `--page-size`, `--requests-per-second`, and `--bytes-per-second` bound inventory
 pages and throttle backend reads. Inspect `summary.complete` before treating a
 report as finished, and `summary.consistent` to distinguish completion from a
-clean result. The CLI never repairs catalog state or deletes stored objects.
+clean result. These consistency commands never repair catalog state or delete stored objects.
 See the [consistency checks guide](consistency_checks.md) for the configuration
 schema, trust boundary, report/export contracts, and scan limitations.
+
+## Confirmed orphan cleanup
+
+`orphan-cleanup` inspects one logical key and tier in an existing tenant catalog
+and storage namespace. Default inspection is read-only. Quarantine persists
+the object's generation and protection evidence, then explicit execution
+rechecks references, jobs, holds, retention, and the elapsed grace period:
+
+```sh
+cognistore --drivers drivers.yaml --catalog-db catalog.db orphan-cleanup \
+  --tenant acme --scope-config tenants.yaml --key acme/old.bin --tier hot --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db orphan-cleanup \
+  --tenant acme --scope-config tenants.yaml --key acme/old.bin --tier hot \
+  --quarantine --json
+
+# After the saved candidate's grace period has elapsed:
+cognistore --drivers drivers.yaml --catalog-db catalog.db orphan-cleanup \
+  --tenant acme --scope-config tenants.yaml --key acme/old.bin --tier hot \
+  --execute --candidate-id CANDIDATE_UUID --json
+```
+
+`--grace-period-seconds` and `--retention-seconds` each default to seven days
+and require finite, strictly positive values. `--dry-run` previews any stage;
+`--no-dry-run` alone remains a report. The JSON `summary.conditions` and
+`summary.blockers` explain eligibility. Backend deletion failures return exit
+code `1` with the durable candidate and retryable failure details; blocked
+reports return `0`. See [orphan cleanup](orphan_cleanup.md) for tenant binding,
+condition meanings, audit evidence, and retrying interrupted deletion.
 
 ## Shared-content reference report
 
