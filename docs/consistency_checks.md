@@ -8,7 +8,7 @@ findings, a resumable checkpoint, and scan/export audit events.
 
 ## Tenant scope and trust boundary
 
-Every scan and export requires an operator-managed JSON or YAML scope file,
+Every scan, export, and repair requires an operator-managed JSON or YAML scope file,
 `--tenant`, `--drivers`, and a persistent `--catalog-db` (SQLite path/URL or
 PostgreSQL DSN). For example:
 
@@ -47,11 +47,11 @@ credentials using OS permissions or their deployment's identity system. Bind
 each tenant to its own namespace and keep scope files unwritable by untrusted
 callers. Do not expose arbitrary CLI/configuration access as a tenant API.
 
-Each report belongs to exactly one tenant. Resume and export verify a digest
+Each report belongs to exactly one tenant. Resume, export, and repair verify a digest
 of the catalog locator, driver configuration contents, resolved POSIX roots,
 and complete selected tenant binding. Neither credentials nor the catalog locator are stored in the
 report. Changing the binding or driver configuration requires a new report;
-moving a SQLite catalog also changes the binding. Resume additionally requires
+moving a SQLite catalog also changes the binding. Resume and repair additionally require
 the original scan prefix and tiers. Cross-tenant aggregate reports are not
 supported.
 
@@ -128,6 +128,64 @@ The version 1 reason codes are:
 | `checksum_unavailable` | info | No trustworthy full-object SHA-256 is available for comparison. |
 | `scope_incomplete` | info | Expected placement/job evidence refers to a tier outside the selected scan. |
 
+## Plan and enable safe repair
+
+`consistency-repair` consumes a completed report from the same tenant, source
+binding, prefix, and tiers. Complete a paused scan before repairing it. If the
+scan used `--prefix` or repeated `--tier`, supply the same options for repair.
+Report schema, audit integrity, binding, and scope are checked before opening
+the catalog for writes.
+
+Repair is disabled by default. Review its plan, then explicitly enable the safe
+actions:
+
+```sh
+cognistore --drivers drivers.yaml --catalog-db catalog.sqlite3 \
+  consistency-repair --tenant acme --scope-config tenants.yaml \
+  --report reports/acme.sqlite3 --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.sqlite3 \
+  consistency-repair --tenant acme --scope-config tenants.yaml \
+  --report reports/acme.sqlite3 --enable-repair --json
+```
+
+The default command opens the catalog read-only and records its decisions in
+the report's audit chain. It returns `status: "planned"` and
+`summary.plan_only: true`. `--enable-repair` permits catalog and backend changes
+only after current state passes the same conservative checks. The command
+returns action decisions in `summary.actions` and aggregate `summary.counts`;
+successful execution does not mean every discrepancy was repaired.
+
+The supported automatic action resumes one existing, nonterminal move through
+the durable mover using its original idempotency key. It rechecks current
+catalog, job, backend generation, and full-checksum evidence; a scan finding
+alone is never authority to move or delete bytes. Live leases, legal holds,
+configured locality constraints, unsupported drivers, changed evidence, and
+ambiguous state prevent automatic repair. A repeated run reuses the original
+move and does not create a replacement job.
+
+| Report finding and current evidence | Decision |
+| --- | --- |
+| `partial_job` with one eligible nonterminal job and intact phase-appropriate copies | Resume the original move journal and idempotency key. |
+| A historical finding with no remaining discrepancy | Mark resolved; take no repair action. |
+| Missing required data, size/checksum mismatch, unexplained duplicates, or an untracked object | Quarantine for operator review. |
+| Failed or ambiguous jobs, live leases, legal holds, or configured locality constraints | Quarantine for operator review. |
+| No trusted full checksum, backend errors, incomplete scope, or changed catalog/job/generation evidence | Quarantine for operator review. |
+
+Missing objects without a safe resumable move, mismatched copies, untracked
+objects, and other uncertain discrepancies are quarantined for operator
+review. Here quarantine means an audit decision in the report: it does not
+move, hide, or delete the suspect object. Safe resumption may perform the
+original move's verified, generation-conditional source cleanup. There is no
+automatic deletion of unrelated duplicates or reconstruction of missing bytes.
+Keep the report for its decision history and run a new scan after repair to
+measure current consistency; the original scan findings remain historical.
+
+`--requests-per-second` and `--bytes-per-second` throttle repair's verification
+reads and default to 20 and 8388608. They must be finite and positive. These
+limits do not throttle the durable mover's transfer or cleanup operations.
+Repairs use the existing catalog schema and never install migrations.
+
 ## Export and audit
 
 ```sh
@@ -138,10 +196,12 @@ cognistore --drivers drivers.yaml --catalog-db catalog.sqlite3 \
 
 The export streams JSONL: one `type: "report"` summary, followed by
 `type: "finding"` records and `type: "audit"` events. Findings include stable
-reason codes and severity, plus evidence for operator review. Scan lifecycle
-and export audit records use the ordinary CogniStore audit event structure and
-redaction, but are stored only in the isolated report. The source catalog's
-audit history and access counters are unchanged. Protect reports as operational
+reason codes and severity, plus evidence for operator review. Scan lifecycle,
+repair decisions, and export audit records use the ordinary CogniStore audit
+event structure and redaction, but are stored only in the isolated report.
+Scans, exports, and repair plans leave the source catalog's audit history and
+access counters unchanged. Enabled repairs additionally use the durable
+mover's normal catalog audit trail. Protect reports as operational
 data: scoped object names and metadata can still be sensitive.
 
 Export requires the same trusted tenant/source configuration as scanning. It
@@ -176,9 +236,9 @@ historical integrity through an automatic migration.
 
 ## Dry-run behavior
 
-Both commands are always read-only toward the catalog and backend. A normal
+Scan and export are always read-only toward the catalog and backend. A normal
 scan writes only its report/checkpoint/audit; an export writes a new JSONL file
-and records the export in that report. No repair or deletion flags exist.
+and records the export in that report.
 
 `consistency-scan --dry-run` performs the scoped scan using a disposable
 temporary report and returns the observed summary. It leaves no report or
@@ -186,4 +246,7 @@ checkpoint artifact. With `--resume --dry-run`, it previews from a read-only
 snapshot of the existing checkpoint and discards progress. Temporary files
 are removed on exit. `consistency-export --dry-run` validates the binding and
 output target and returns the saved summary without writing an export or audit
-event. None of these modes creates storage roots or installs catalog migrations.
+event. `consistency-repair --dry-run` checks current state and returns its plan
+without appending decision audit events or changing catalog/backend state.
+`--dry-run` takes precedence over `--enable-repair`. None of these preview modes
+creates storage roots or installs catalog migrations.

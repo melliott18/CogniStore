@@ -542,7 +542,9 @@ Notes:
 - `consistency-scan` compares a tenant-bound catalog scope against storage
   metadata, full checksums, and move jobs without modifying source data. Scans
   are rate-limited and resumable; `consistency-export` streams their audited
-  findings as JSONL. See [consistency checks](docs/consistency_checks.md) for
+  findings as JSONL. `consistency-repair` plans safe move resumption and requires
+  `--enable-repair` to apply it; uncertain findings are audited for operator
+  review without modifying their data. See [consistency checks](docs/consistency_checks.md) for
   trusted namespace bindings, report paths, and dry-run behavior.
 - `orphan-cleanup` reports one tenant-scoped backend key's references, jobs,
   holds, and age by default. Reclamation requires durable quarantine, an
