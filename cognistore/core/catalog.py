@@ -24,6 +24,7 @@ from .access import (
 	access_timestamp,
 )
 from .audit import (
+	ORPHAN_CLEANUP_EVENT_TYPES,
 	AuditContext,
 	AuditEvent,
 	AuditEventType,
@@ -65,9 +66,11 @@ from .legal_holds import (
 	LEGAL_HOLD_EVENT_TYPES,
 	LegalHold,
 	LegalHoldError,
+	_scope_identity,
 	guard_legal_hold,
 	legal_hold_actor,
 	legal_hold_event,
+	serialize_cleanup,
 )
 from .locality import LocalityConstraintError, assert_locality_allowed
 from .move_jobs import (
@@ -401,6 +404,12 @@ class CatalogStore(Protocol):
 		context: AuditContext | None = None,
 	) -> ContextManager[None]: ...
 
+	def orphan_cleanup_fence(self) -> ContextManager[None]: ...
+
+	def orphan_cleanup_references(self, bucket: str, key: str) -> List[ObjectRecord]: ...
+
+	def orphan_cleanup_revision(self, bucket: str | None = None, key: str | None = None) -> int: ...
+
 	def configure_budget(
 		self, definition: BudgetDefinition, *, audit_context: AuditContext,
 		occurred_at: str | datetime | None = None,
@@ -660,6 +669,7 @@ class Catalog(CatalogStore):
 		self._tenant_catalogs: dict[str, Catalog] = {self._tenant_id: self}
 		self._tenant_catalog_lock = threading.RLock()
 		self._objects: Dict[tuple[str, str], ObjectRecord] = {}
+		self._cleanup_revisions: Counter[tuple[str, str]] = Counter()
 		self._tiers: dict[str, Tier] = {}
 		self._pools: dict[str, Pool] = {}
 		self._budgets: dict[str, BudgetDefinition] = {}
@@ -706,6 +716,53 @@ class Catalog(CatalogStore):
 		require_tenant(self.tenant_id)
 		with self._legal_hold_fence.hold(exclusive=exclusive):
 			yield
+
+	@contextmanager
+	def orphan_cleanup_fence(self) -> Iterator[None]:
+		"""Fence fresh eligibility checks through physical deletion and its audit.
+
+		Catalog/reference writers, scans, move admissions, storage operations and
+		hold changes participate in this tenant-wide fence. SQL catalogs inherit
+		this entry point and provide the cross-process session/file lock.
+		"""
+		with self._legal_hold_serialization(exclusive=True):
+			yield
+
+	def orphan_cleanup_references(self, bucket: str, key: str) -> List[ObjectRecord]:
+		"""Find logical references including conservative filesystem name aliases.
+
+		Run inside ``orphan_cleanup_fence`` for an authoritative absence proof.
+		SQL catalogs stream object pages so Unicode/case/path alias protection
+		does not depend on the database's collation or retain unrelated records.
+		"""
+		bucket_identity, key_identity = _scope_identity(bucket), _scope_identity(key)
+		return [record for record in self.iter_objects()
+			if _scope_identity(record.bucket) == bucket_identity
+			and _scope_identity(record.key) == key_identity]
+
+	@staticmethod
+	def _cleanup_revision_scope(bucket: str | None, key: str | None) -> tuple[str, str] | None:
+		if bucket is None and key is None:
+			return None
+		if bucket is None or key is None:
+			raise ValueError("cleanup revision requires both bucket and key, or neither")
+		Catalog._validate_hold_query(bucket, key)
+		return _scope_identity(bucket), _scope_identity(key)
+
+	def orphan_cleanup_revision(self, bucket: str | None = None, key: str | None = None) -> int:
+		"""Detect reference churn for one target, including normalized name aliases.
+
+		Unrelated objects do not invalidate this target's quarantine. Reference
+		removal never rewinds its revision, even when the object becomes absent
+		again. Omitting both coordinates returns the tenant-wide revision.
+		"""
+		scope = self._cleanup_revision_scope(bucket, key)
+		with self._lock:
+			return sum(self._cleanup_revisions.values()) if scope is None else self._cleanup_revisions[scope]
+
+	def _advance_cleanup_revision(self, bucket: str, key: str) -> None:
+		"""Record a reference mutation while its caller holds the catalog lock."""
+		self._cleanup_revisions[(_scope_identity(bucket), _scope_identity(key))] += 1
 
 	def place_legal_hold(
 		self, bucket: str, *, key: str | None = None, prefix: str | None = None,
@@ -1095,6 +1152,7 @@ class Catalog(CatalogStore):
 				importance_revision=existing.importance_revision if existing else 0,
 			)
 			self._objects[object_key] = rec
+			self._advance_cleanup_revision(bucket, key)
 
 	def capture_scan_fence(self, bucket: str, key: str) -> ScanFence:
 		"""Capture the move generations that can affect one scan observation."""
@@ -1202,6 +1260,7 @@ class Catalog(CatalogStore):
 				importance=deepcopy(existing.importance) if existing else None,
 				importance_revision=existing.importance_revision if existing else 0,
 			)
+			self._advance_cleanup_revision(bucket, key)
 			return True
 
 	def get(self, bucket: str, key: str) -> Optional[ObjectRecord]:
@@ -1332,6 +1391,7 @@ class Catalog(CatalogStore):
 				importance=deepcopy(rec.importance) if rec else None,
 				importance_revision=rec.importance_revision if rec else 0,
 			)
+			self._advance_cleanup_revision(bucket, key)
 
 	@guard_legal_hold("catalog.delete")
 	def delete(self, bucket: str, key: str) -> None:
@@ -1339,6 +1399,7 @@ class Catalog(CatalogStore):
 			object_key = (bucket, key)
 			self._replace_object_content(object_key, None)
 			self._objects.pop(object_key, None)
+			self._advance_cleanup_revision(bucket, key)
 
 	def list(self, bucket: str, prefix: str = "") -> List[ObjectRecord]:
 		with self._lock:
@@ -1526,7 +1587,7 @@ class Catalog(CatalogStore):
 			safe = redact_audit_event(
 				replace(
 					event,
-					expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES
+					expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES | ORPHAN_CLEANUP_EVENT_TYPES
 						else self.audit_retention.expires_at(event.occurred_at)),
 				),
 				_allow_pseudonyms=tombstone is not None,
@@ -1692,7 +1753,7 @@ class Catalog(CatalogStore):
 					self._audit_events.values(),
 					key=lambda item: (item.occurred_at, item.event_id),
 				)
-				if eligible(event) and event.event_type not in LEGAL_HOLD_EVENT_TYPES
+				if eligible(event) and event.event_type not in LEGAL_HOLD_EVENT_TYPES | ORPHAN_CLEANUP_EVENT_TYPES
 				and event.event_type != AuditEventType.AUDIT_RETENTION.value
 			][:limit]
 			state = (dict(self._audit_events), dict(self._audit_event_tombstones),
@@ -1749,6 +1810,7 @@ class Catalog(CatalogStore):
 			)
 		)
 
+	@serialize_cleanup
 	def claim_move_job(
 		self,
 		idempotency_key: str,
@@ -1974,6 +2036,7 @@ class Catalog(CatalogStore):
 			self._move_jobs[idempotency_key] = updated
 			return updated
 
+	@serialize_cleanup
 	def transition_move_job(
 		self,
 		idempotency_key: str,

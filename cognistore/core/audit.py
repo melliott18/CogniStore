@@ -56,6 +56,11 @@ class AuditEventType(str, Enum):
     CONSISTENCY_COMPLETED = "consistency.completed"
     CONSISTENCY_FAILED = "consistency.failed"
     CONSISTENCY_EXPORTED = "consistency.exported"
+    ORPHAN_QUARANTINED = "orphan.quarantined"
+    ORPHAN_DELETE_STARTED = "orphan.delete_started"
+    ORPHAN_DELETED = "orphan.deleted"
+    ORPHAN_DELETE_FAILED = "orphan.delete_failed"
+    ORPHAN_INVALIDATED = "orphan.invalidated"
     AUTHORIZATION_DECISION = "authorization.decision"
     LEGAL_HOLD_PLACED = "legal_hold.placed"
     LEGAL_HOLD_RELEASED = "legal_hold.released"
@@ -70,6 +75,12 @@ class AuditEventType(str, Enum):
     STORAGE_OPERATION = "storage.operation"
     LOCALITY_DECISION = "locality.decision"
     LOCALITY_EXCEPTION = "locality.exception"
+
+
+ORPHAN_CLEANUP_EVENT_TYPES = frozenset({
+    "orphan.quarantined", "orphan.delete_started", "orphan.deleted",
+    "orphan.delete_failed", "orphan.invalidated",
+})
 
 
 class AuditOutcome(str, Enum):

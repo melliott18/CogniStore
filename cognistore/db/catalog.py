@@ -30,6 +30,7 @@ from cognistore.core.access import (
     access_timestamp,
 )
 from cognistore.core.audit import (
+    ORPHAN_CLEANUP_EVENT_TYPES,
     AuditContext,
     AuditEvent,
     AuditEventType,
@@ -76,9 +77,11 @@ from cognistore.core.legal_hold_lock import LegalHoldFence
 from cognistore.core.legal_holds import (
     LEGAL_HOLD_EVENT_TYPES,
     LegalHold,
+    _scope_identity,
     guard_legal_hold,
     legal_hold_actor,
     legal_hold_event,
+    serialize_cleanup,
 )
 from cognistore.core.move_jobs import (
     MoveJob,
@@ -633,6 +636,32 @@ class SQLCatalog(Catalog):
             statement = statement.with_for_update()
         connection.execute(statement).one()
 
+    def orphan_cleanup_revision(self, bucket: str | None = None, key: str | None = None) -> int:
+        """Return a durable target revision including normalized name aliases.
+
+        Fence rows survive logical deletion. Summing their monotonic counters
+        detects reference creation followed by removal across process restarts.
+        Streaming all coordinates makes alias matching independent of database
+        collation without retaining unrelated rows or invalidating their targets.
+        Omitting both coordinates returns the tenant-wide revision.
+        """
+        scope = self._cleanup_revision_scope(bucket, key)
+        with self._connection() as connection:
+            if scope is None:
+                return int(connection.execute(sa.select(sa.func.coalesce(
+                    sa.func.sum(object_mutation_fences.c.generation), 0,
+                ))).scalar_one())
+            rows = connection.execute(sa.select(
+                object_mutation_fences.c.bucket, object_mutation_fences.c.object_key,
+                object_mutation_fences.c.generation,
+            ).execution_options(stream_results=True, max_row_buffer=1000)).mappings()
+            try:
+                return sum(int(row["generation"]) for row in rows if (
+                    _scope_identity(row["bucket"]), _scope_identity(row["object_key"]),
+                ) == scope)
+            finally:
+                rows.close()
+
     def _lock_object(self, connection: Connection, bucket: str, key: str) -> None:
         self._do_nothing_insert(
             connection,
@@ -646,6 +675,10 @@ class SQLCatalog(Catalog):
         if connection.dialect.name == "postgresql":
             statement = statement.with_for_update()
         connection.execute(statement).one()
+        connection.execute(sa.update(object_mutation_fences).where(
+            object_mutation_fences.c.bucket == bucket,
+            object_mutation_fences.c.object_key == key,
+        ).values(generation=object_mutation_fences.c.generation + 1))
 
     @staticmethod
     def _lock_budgets(connection: Connection) -> None:
@@ -2387,7 +2420,7 @@ class SQLCatalog(Catalog):
                 raise ValueError("cannot prune audit history that fails integrity verification")
             rows = connection.execute(
                 sa.select(audit_events)
-                .where(predicate, audit_events.c.event_type.not_in(LEGAL_HOLD_EVENT_TYPES),
+                .where(predicate, audit_events.c.event_type.not_in(LEGAL_HOLD_EVENT_TYPES | ORPHAN_CLEANUP_EVENT_TYPES),
                        audit_events.c.event_type != AuditEventType.AUDIT_RETENTION.value)
                 .order_by(audit_events.c.occurred_at, audit_events.c.event_id)
                 .limit(limit)
@@ -2443,7 +2476,7 @@ class SQLCatalog(Catalog):
         return redact_audit_event(
             replace(
                 event,
-                expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES
+                expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES | ORPHAN_CLEANUP_EVENT_TYPES
                             else self.audit_retention.expires_at(event.occurred_at)),
             ),
             _allow_pseudonyms=allow_pseudonyms,
@@ -2653,6 +2686,7 @@ class SQLCatalog(Catalog):
             ).mappings()],
         )
 
+    @serialize_cleanup
     def claim_move_job(
         self,
         idempotency_key: str,
@@ -2905,6 +2939,7 @@ class SQLCatalog(Catalog):
             assert renewed is not None
             return renewed
 
+    @serialize_cleanup
     def transition_move_job(
         self,
         idempotency_key: str,

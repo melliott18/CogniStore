@@ -540,6 +540,10 @@ Notes:
   are rate-limited and resumable; `consistency-export` streams their audited
   findings as JSONL. See [consistency checks](docs/consistency_checks.md) for
   trusted namespace bindings, report paths, and dry-run behavior.
+- `orphan-cleanup` reports one tenant-scoped backend key's references, jobs,
+  holds, and age by default. Reclamation requires durable quarantine, an
+  elapsed grace period, and explicit generation-conditional execution. See
+  [orphan cleanup](docs/orphan_cleanup.md) for the staged workflow and recovery.
 - `importance-set BUCKET KEY LEVEL` records an attributed importance change and
   reevaluates placement; `LEVEL` accepts `low`, `normal`, `high`, `critical`, or
   `clear`. Supply `--actor` and `--provenance`. See
