@@ -13,16 +13,15 @@ from cognistore.auth.authorization import (
     Permission,
     RBACAuthorizer,
     RBACPolicy,
-    _read_allow_sampled,
     audit_authorization_denial,
     authorization_context,
     authorize_operation,
     current_authorizer,
 )
 from cognistore.auth.principal import Principal, principal_context
-from cognistore.core.audit import AuditEventType, AuditOutcome
+from cognistore.core.audit import AuditEventType, AuditOutcome, AuditQuery
 from cognistore.core.catalog import Catalog
-from cognistore.observability import current_correlation_id, request_context
+from cognistore.observability import current_audit_correlation_id, request_context
 
 PRINCIPAL = Principal("https://issuer.example", "subject-57", client_id="service-client")
 
@@ -186,18 +185,7 @@ def test_denials_and_sensitive_allows_are_audited_without_identity_claims() -> N
             assert sensitive not in serialized
 
 
-def test_read_allow_sampling_is_deterministic_and_denials_are_never_sampled() -> None:
-    sampled = [
-        i
-        for i in range(10000)
-        if _read_allow_sampled(PRINCIPAL.actor_id, f"request-{i}", "object.get", "sdk")
-    ]
-    assert 50 < len(sampled) < 150
-    assert sampled == [
-        i
-        for i in range(10000)
-        if _read_allow_sampled(PRINCIPAL.actor_id, f"request-{i}", "object.get", "sdk")
-    ]
+def test_read_allow_and_denial_coverage_is_complete() -> None:
     catalog = Catalog()
     authorizer = _authorizer("reader")
     for i in range(100):
@@ -209,7 +197,9 @@ def test_read_allow_sampling_is_deterministic_and_denials_are_never_sampled() ->
             catalog=catalog,
             correlation_id=f"request-{i}",
         )
-    assert len(catalog.list_audit_events()) == len([i for i in sampled if i < 100])
+    allowed = catalog.list_audit_events(AuditQuery(outcomes={"allowed"}))
+    assert len(allowed) == 100
+    assert {event.correlation_id for event in allowed} == {f"request-{i}" for i in range(100)}
     for i in range(100):
         with pytest.raises(AuthorizationError):
             authorizer.require(
@@ -220,7 +210,7 @@ def test_read_allow_sampling_is_deterministic_and_denials_are_never_sampled() ->
                 catalog=catalog,
                 correlation_id=f"request-{i}",
             )
-    assert sum(event.outcome == AuditOutcome.DENIED for event in catalog.list_audit_events()) == 100
+    assert len(catalog.list_audit_events(AuditQuery(outcomes={"denied"}))) == 100
 
 
 def test_audit_store_failure_prevents_sensitive_allow_and_logs_safe_denial(caplog) -> None:
@@ -284,7 +274,7 @@ def test_contexts_preserve_local_trust_and_authenticated_default_deny() -> None:
 def test_additional_hook_denial_uses_ambient_correlation() -> None:
     catalog = Catalog()
     with request_context("request-57"):
-        correlation_id = current_correlation_id()
+        correlation_id = current_audit_correlation_id()
         audit_authorization_denial(
             PRINCIPAL, [Permission.WRITE], operation="object.put", boundary="api", catalog=catalog
         )

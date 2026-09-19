@@ -57,6 +57,14 @@ class AuditEventType(str, Enum):
     CONSISTENCY_FAILED = "consistency.failed"
     CONSISTENCY_EXPORTED = "consistency.exported"
     AUTHORIZATION_DECISION = "authorization.decision"
+    AUDIT_ACCESS = "audit.access"
+    AUDIT_EXPORT = "audit.export"
+    AUDIT_VERIFICATION = "audit.verification"
+    AUDIT_RETENTION = "audit.retention"
+    SCAN_STARTED = "catalog.scan_started"
+    SCAN_COMPLETED = "catalog.scan_completed"
+    SCAN_FAILED = "catalog.scan_failed"
+    STORAGE_OPERATION = "storage.operation"
 
 
 class AuditOutcome(str, Enum):

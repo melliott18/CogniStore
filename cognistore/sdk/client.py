@@ -39,6 +39,11 @@ from .errors import (
 from .models import (
     AskRequest,
     AskResponse,
+    AuditEventPage,
+    AuditEventResource,
+    AuditExportResponse,
+    AuditVerificationRequest,
+    AuditVerificationResponse,
     CatalogObject,
     CatalogObjectPage,
     CatalogScanRequest,
@@ -66,6 +71,10 @@ TERMINAL_JOB_STATES = frozenset({"succeeded", "failed"})
 SUPPORTED_OPERATION_IDS = frozenset(
     {
         "ask",
+        "listAuditEvents",
+        "getAuditEvent",
+        "exportAuditEvents",
+        "verifyAuditIntegrity",
         "deleteObject",
         "evaluatePolicy",
         "getCatalogObject",
@@ -764,6 +773,62 @@ class CogniStoreClient:
             expected_statuses={200}, headers={"Accept": "application/json"},
         )
         return self._parse_model(response, PolicyDecision)
+
+    def list_audit_events(
+        self, *, bucket: str | None = None, key: str | None = None,
+        job_id: UUID | str | None = None, correlation_id: UUID | str | None = None,
+        actor_id: str | None = None, event_type: str | None = None,
+        outcome: str | None = None, occurred_after: str | None = None,
+        occurred_before: str | None = None, limit: int = 50, cursor: str | None = None,
+    ) -> AuditEventPage:
+        """Read a tenant-owned page of retained audit events; requires the audit role."""
+        params: dict[str, QueryValue] = {"limit": limit}
+        for name, value in (
+            ("bucket", bucket), ("key", key), ("job_id", job_id),
+            ("correlation_id", correlation_id), ("actor_id", actor_id),
+            ("event_type", event_type), ("outcome", outcome),
+            ("occurred_after", occurred_after), ("occurred_before", occurred_before),
+            ("cursor", cursor),
+        ):
+            if value is not None:
+                params[name] = str(value)
+        response = self._send(
+            "GET", "/v1/audit/events", expected_statuses={200}, params=params,
+            headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, AuditEventPage)
+
+    def get_audit_event(self, event_id: str) -> AuditEventResource:
+        """Read one tenant-owned retained event, recording the access server-side."""
+        response = self._send(
+            "GET", f"/v1/audit/events/{self._quote_segment(event_id)}",
+            expected_statuses={200}, headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, AuditEventResource)
+
+    def export_audit_events(
+        self, *, limit: int = 100, cursor: str | None = None,
+    ) -> AuditExportResponse:
+        """Export bounded integrity evidence; follow page.next_cursor until complete."""
+        params: dict[str, QueryValue] = {"limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+        response = self._send(
+            "GET", "/v1/audit/export", expected_statuses={200}, params=params,
+            headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, AuditExportResponse)
+
+    def verify_audit_integrity(
+        self, request: AuditVerificationRequest | None = None,
+    ) -> AuditVerificationResponse:
+        """Check integrity, optionally using an independently retained checkpoint."""
+        response = self._send(
+            "POST", "/v1/audit/verify", expected_statuses={200},
+            json=self._request_json(request or AuditVerificationRequest()),
+            headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, AuditVerificationResponse)
 
     def _remember_poll_interval(self, response: httpx.Response, job: JobStatus) -> None:
         retry_after = self._retry_after(response)

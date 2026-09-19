@@ -1484,6 +1484,10 @@ def test_openapi_contract_is_deterministic_and_checked_in() -> None:
     assert operation_ids == sorted(
         [
             "ask",
+            "listAuditEvents",
+            "getAuditEvent",
+            "exportAuditEvents",
+            "verifyAuditIntegrity",
             "deleteObject",
             "evaluatePolicy",
             "getCatalogObject",

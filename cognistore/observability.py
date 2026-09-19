@@ -95,6 +95,7 @@ _MOVEMENT_BYTES = Counter(
     registry=REGISTRY,
 )
 _correlation_id: ContextVar[str | None] = ContextVar("cognistore_correlation_id", default=None)
+_audit_correlation_id: ContextVar[str | None] = ContextVar("audit_correlation_id", default=None)
 _operation_state: ContextVar[dict[str, bool] | None] = ContextVar("cognistore_operation", default=None)
 _tracer = trace.get_tracer("cognistore")
 _provider: Any = None
@@ -125,6 +126,15 @@ def current_correlation_id() -> str | None:
     return _correlation_id.get()
 
 
+def current_audit_correlation_id() -> str | None:
+    """Preserve an operation's original identity across its audit event chain.
+
+    Logs and traces use a canonical UUID. Durable audit events retain the
+    request/job identity and apply the audit store's secret-safe redaction.
+    """
+    return _audit_correlation_id.get()
+
+
 @contextmanager
 def request_context(
     correlation_id: str | None = None, traceparent: str | None = None,
@@ -139,9 +149,11 @@ def request_context(
     extracted = _propagator.extract(carrier, context=context.Context())
     token = context.attach(extracted)
     correlation_token = _correlation_id.set(_correlation(correlation_id))
+    audit_token = _audit_correlation_id.set(correlation_id or _correlation_id.get())
     try:
         yield
     finally:
+        _audit_correlation_id.reset(audit_token)
         _correlation_id.reset(correlation_token)
         context.detach(token)
 

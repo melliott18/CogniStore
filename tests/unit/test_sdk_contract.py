@@ -1368,6 +1368,10 @@ def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> N
         "getPolicyDecision": (
             "get", "/v1/policy-decisions/{decision_id}", "get_policy_decision",
         ),
+        "listAuditEvents": ("get", "/v1/audit/events", "list_audit_events"),
+        "getAuditEvent": ("get", "/v1/audit/events/{event_id}", "get_audit_event"),
+        "exportAuditEvents": ("get", "/v1/audit/export", "export_audit_events"),
+        "verifyAuditIntegrity": ("post", "/v1/audit/verify", "verify_audit_integrity"),
         "submitCatalogScan": (
             "post",
             "/v1/actions/catalog-scans",

@@ -761,3 +761,28 @@ sa.Index(
     access_events.c.occurred_at,
     access_events.c.event_id,
 )
+
+# The evidence ledger survives payload retention and preserves append order.
+audit_integrity_entries = sa.Table(
+    "audit_integrity_entries", metadata,
+    sa.Column("sequence", sa.BigInteger(), primary_key=True, autoincrement=False),
+    sa.Column("kind", sa.Text(), nullable=False),
+    sa.Column("event_id", uuid_type, nullable=False),
+    sa.Column("move_id", NulSafeText()),
+    sa.Column("move_sequence", sa.BigInteger()),
+    sa.Column("payload_digest", sa.Text(), nullable=False),
+    sa.Column("previous_hash", sa.Text(), nullable=False),
+    sa.Column("entry_hash", sa.Text(), nullable=False),
+    sa.Column("recorded_at", sa.Text(), nullable=False),
+    sa.CheckConstraint("sequence > 0", name="audit_integrity_sequence_positive"),
+)
+audit_integrity_head = sa.Table(
+    "audit_integrity_head", metadata,
+    sa.Column("singleton", sa.Integer(), primary_key=True),
+    sa.Column("sequence", sa.BigInteger(), nullable=False),
+    sa.Column("entry_hash", sa.Text(), nullable=False),
+    sa.CheckConstraint("singleton = 1", name="audit_integrity_head_singleton"),
+)
+
+sa.Index("audit_integrity_event_idx", audit_integrity_entries.c.event_id,
+         audit_integrity_entries.c.kind, audit_integrity_entries.c.sequence)
