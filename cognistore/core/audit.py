@@ -65,6 +65,8 @@ class AuditEventType(str, Enum):
     SCAN_COMPLETED = "catalog.scan_completed"
     SCAN_FAILED = "catalog.scan_failed"
     STORAGE_OPERATION = "storage.operation"
+    LOCALITY_DECISION = "locality.decision"
+    LOCALITY_EXCEPTION = "locality.exception"
 
 
 class AuditOutcome(str, Enum):

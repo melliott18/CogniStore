@@ -22,7 +22,7 @@ from typing import Any, Literal, NoReturn, Sequence
 from uuid import uuid4
 
 from cognistore.auth.authorization import RBACAuthorizer
-from cognistore.auth.tenancy import TenantResolver
+from cognistore.auth.tenancy import DEFAULT_TENANT_ID, TenantResolver, current_tenant_id
 from cognistore.cli.config import (
 	CliConfigError,
 	CliConfigResolution,
@@ -60,6 +60,7 @@ from cognistore.core.placement_controls import (
 from cognistore.core.policy import (
 	MAX_EMBEDDING_RULES,
 	EmbeddingPolicyRule,
+	PIIPolicyRule,
 	validate_policy_config_size,
 )
 from cognistore.core.policy_baseline import code_version, evaluate_baseline, train_baseline
@@ -114,6 +115,7 @@ from cognistore.jobs.scheduler import (
 	load_schedule_config,
 )
 from cognistore.observability import StructuredLogFormatter, configure_observability
+from cognistore.pii_runtime import load_pii_config
 from cognistore.policy_feature_runtime import load_policy_feature_loader
 from cognistore.utils.device_info import (
 	discover_device_for_tier,
@@ -964,6 +966,7 @@ async def _serve_worker(
 			catalog,
 			throughput=throughput,
 			policy_feature_loader=policy_feature_loader,
+			pii_config=load_pii_config(args.drivers),
 		),
 		config=WorkerConfig(
 			fetch_timeout=args.fetch_timeout,
@@ -1537,6 +1540,13 @@ def _run_cli(
 			help=(
 				"Named embedding classification rule; repeat for deterministic first-match "
 				"ordering (quote QUERY when it contains spaces)"
+			),
+		)
+		p_policy.add_argument(
+			"--pii-rule", action="append", metavar="JSON",
+			help=(
+				"PII placement rule as JSON with finding_type, destination_tier, and optional "
+				"minimum_confidence; repeat for deterministic ordering (content policy only)"
 			),
 		)
 		p_policy.add_argument("--sync", action="store_true", help="Run writable work inline instead of enqueueing (development only)")
@@ -2298,6 +2308,23 @@ def _run_cli(
 		unknown_allowed = sorted(set(policy_allowed).difference(drivers))
 		if unknown_allowed:
 			parser.error(f"unknown allowed tier(s): {', '.join(unknown_allowed)}")
+		raw_pii_rules = args.pii_rule or ()
+		if len(raw_pii_rules) > 100:
+			parser.error("--pii-rule may be repeated at most 100 times")
+		pii_rules: list[PIIPolicyRule] = []
+		for index, raw_rule in enumerate(raw_pii_rules, start=1):
+			try:
+				value = json.loads(raw_rule)
+				if not isinstance(value, dict):
+					raise ValueError("rule must be an object")
+				pii_rules.append(PIIPolicyRule.from_mapping(value))
+			except (TypeError, ValueError) as exc:
+				parser.error(f"invalid --pii-rule #{index}: {exc}")
+		if pii_rules and args.policy != "content":
+			parser.error("--pii-rule requires --policy content")
+		if any(rule.destination_tier not in policy_allowed for rule in pii_rules):
+			parser.error("--pii-rule contains a disallowed destination tier")
+		args._pii_rules = tuple(pii_rules)
 		raw_embedding_rules = args.embedding_rule or ()
 		if len(raw_embedding_rules) > MAX_EMBEDDING_RULES:
 			parser.error(
@@ -2343,6 +2370,7 @@ def _run_cli(
 				warm_mime_prefixes=args.warm_mime or (),
 				cold_mime_prefixes=args.cold_mime or (),
 				embedding_rules=embedding_rules,
+				pii_rules=pii_rules,
 			)
 		except ValueError as exc:
 			parser.error(str(exc))
@@ -2900,6 +2928,12 @@ def _run_cli(
 			catalog=None if dry_run else catalog,
 			dry_run=dry_run,
 			audit_context=scan_context,
+			pii_pipeline=(
+				load_pii_config(args.drivers).pipeline_for_tenant(
+					catalog.tenant_id if catalog is not None
+					else current_tenant_id() or DEFAULT_TENANT_ID
+				)
+			),
 		)
 		verb = "planned index" if dry_run else "indexed"
 		items = [asdict(result) for result in scan_results]
@@ -3226,6 +3260,7 @@ def _run_cli(
 				warm_mime_prefixes=args.warm_mime or (),
 				cold_mime_prefixes=args.cold_mime or (),
 				embedding_rules=args._embedding_rules,
+				pii_rules=args._pii_rules,
 				movement_constraints=args._movement_constraints,
 			)
 			enqueue_job = JobEnvelope.create(
@@ -3249,6 +3284,7 @@ def _run_cli(
 			warm_mime_prefixes=args.warm_mime or (),
 			cold_mime_prefixes=args.cold_mime or (),
 			embedding_rules=args._embedding_rules,
+			pii_rules=args._pii_rules,
 		)
 		assert catalog is not None
 		run_id = str(uuid4())

@@ -83,6 +83,11 @@ scored candidates, the API also retains its weights, candidate rankings, and
 selection in `constraints.objectives`. See [policy budgets and what-if
 simulation](policy_budgets.md) for scenario comparisons and forecast limits.
 
+`constraints.locality` retains the matching tenant/object rules, physical pool
+bindings, region evidence, and rejected destinations. `locality_constraint`
+identifies a suppressed geographic move. These hard constraints filter
+candidates before objective scoring; see [data locality](data_locality.md).
+
 ## Preview and execution are separate
 
 `execution.mode` is `preview` or `persisted`. Every preview has state `dry_run`,

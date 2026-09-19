@@ -30,6 +30,7 @@ from .budgets import (
 )
 from .catalog import CatalogStore, ObjectRecord
 from .impact_policy import EstimatePolicy
+from .locality import evaluate_locality
 from .mover import Mover
 from .placement_controls import (
     MovementConstraints,
@@ -68,6 +69,7 @@ class ActionResult:
     llm_audit: dict[str, object] | None = None
     budget_override: BudgetOverride | None = None
     destination_pool_id: str | None = None
+    locality_exception_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,7 @@ class PolicyRunner:
         budget_definitions: Sequence[BudgetDefinition] | None = None,
         budget_override: BudgetOverride | None = None,
         simulation_only: bool = False,
+        locality_exception_id: str | None = None,
     ) -> None:
         if model_version is not None and model_identity is None:
             raise ValueError("model_version requires model_identity")
@@ -132,6 +135,7 @@ class PolicyRunner:
         self.budget_definitions = budget_definitions
         self.budget_override = budget_override
         self.simulation_only = simulation_only
+        self.locality_exception_id = locality_exception_id
         self.drivers = drivers
         self.mover = mover
         self.policy = policy
@@ -252,7 +256,10 @@ class PolicyRunner:
                     movement_constraints=self.movement_constraints,
                     llm_audit=decision.llm_audit,
                     budget_override=self.budget_override,
-                    destination_pool_id=self._selected_pool(evaluation.constraints),
+                    destination_pool_id=self._selected_pool(
+                        evaluation.constraints, decision.dst_tier,
+                    ),
+                    locality_exception_id=self.locality_exception_id,
                 )
             )
 
@@ -265,6 +272,7 @@ class PolicyRunner:
                 result.from_tier, result.to_tier, result.bucket, result.key,
                 movement_constraints=self.movement_constraints,
                 as_of=str(result.constraints["as_of"]) if dry_run else None,
+                **self._locality_plan_options(result.constraints, result.to_tier),
             )
         return results
 
@@ -291,6 +299,7 @@ class PolicyRunner:
                     rec.tier, decision.dst_tier, rec.bucket, rec.key,
                     movement_constraints=self.movement_constraints,
                     as_of=str(evaluation.constraints["as_of"]),
+                    **self._locality_plan_options(evaluation.constraints, decision.dst_tier),
                 )
         return evaluations
 
@@ -409,7 +418,9 @@ class PolicyRunner:
             budget.budget_id: self.catalog.list_budget_reservations(budget.budget_id)
             for budget in budgets
         }
-        pools = {pool.pool_id: pool for pool in self.catalog.list_pools()} if budgets else {}
+        locality_tiers = self.catalog.list_tiers()
+        locality_pools = self.catalog.list_pools()
+        pools = {pool.pool_id: pool for pool in locality_pools} if budgets else {}
         constraints: dict[tuple[str, str], dict[str, object]] = {}
         eligible_records: list[ObjectRecord] = []
         blocked_records: list[ObjectRecord] = []
@@ -433,6 +444,19 @@ class PolicyRunner:
             allowed = self.allowed_tiers
             if isinstance(configured_destinations, list):
                 allowed = allowed.intersection(configured_destinations)
+            locality_evaluation = evaluate_locality(
+                rec, tenant_id=self.catalog.tenant_id,
+                tiers=locality_tiers, pools=locality_pools,
+                as_of=evaluated_at, exception_id=self.locality_exception_id,
+            )
+            locality_restricts_allowed = False
+            if locality_evaluation["configured"]:
+                evidence["locality"] = locality_evaluation
+                locality_allowed = allowed.intersection(
+                    locality_evaluation["allowed_destination_tiers"]
+                )
+                locality_restricts_allowed = locality_allowed != allowed
+                allowed = locality_allowed
             evidence["allowed_destination_tiers"] = sorted(allowed)
             evidence["blocked_reason"] = (
                 evidence["residency_reason"] if evidence["residency_active"]
@@ -448,6 +472,12 @@ class PolicyRunner:
                 and evidence["cooldown_active"] and evidence["stability_override"] is None
                 else None
             )
+            if (
+                locality_restricts_allowed and not allowed.difference({rec.tier})
+                and evidence["blocked_reason"] is None
+            ):
+                evidence["blocked_reason"] = "data-locality constraints permit no destination tier"
+                evidence["suppression_reason"] = "locality"
             constraints[(rec.bucket, rec.key)] = evidence
             (blocked_records if evidence["blocked_reason"] else eligible_records).append(rec)
         requests = tuple(getattr(self.policy, "feature_requests", ()))
@@ -490,6 +520,11 @@ class PolicyRunner:
                     ]
                     if isinstance(eligible_tiers, list):
                         policy.allowed_tiers = set(eligible_tiers).intersection(policy.allowed_tiers)
+                    locality_allowed_tiers = evidence["allowed_destination_tiers"]
+                    if "locality" in evidence and isinstance(locality_allowed_tiers, list):
+                        policy.allowed_tiers = set(policy.allowed_tiers).intersection(
+                            locality_allowed_tiers
+                        )
                     bypass = self.movement_constraints.stability_override is not None
                     policy.size_hysteresis_bytes = (
                         0 if bypass else max(
@@ -513,8 +548,17 @@ class PolicyRunner:
                         estimate_allowed.intersection_update(importance_allowed)
                     if placement.allowed_tiers is not None:
                         estimate_allowed.intersection_update(placement.allowed_tiers)
+                    estimate_pools = placement.allowed_pools
+                    locality = evidence.get("locality")
+                    if isinstance(locality, dict):
+                        estimate_allowed.intersection_update(locality["allowed_destination_tiers"])
+                        pools_allowed = set(locality["allowed_pool_ids"])
+                        if estimate_pools is not None:
+                            pools_allowed.intersection_update(estimate_pools)
+                        estimate_pools = tuple(sorted(pools_allowed))
                     policy.placement_constraints = replace(
                         placement, allowed_tiers=tuple(sorted(estimate_allowed)),
+                        allowed_pools=estimate_pools,
                     )
                 evaluate_features = getattr(policy, "evaluate_features", None)
                 if callable(evaluate_features):
@@ -561,7 +605,22 @@ class PolicyRunner:
                     else decision.proposed_dst_tier
                     if type(policy) in {SimplePolicy, ContentAwarePolicy, LLMPolicy} else None
                 )
+                locality = evidence.get("locality")
                 if (
+                    proposed_destination is not None
+                    and proposed_destination != rec.tier
+                    and isinstance(locality, dict)
+                    and proposed_destination not in locality["allowed_destination_tiers"]
+                ):
+                    reason = "data-locality constraints forbid policy destination"
+                    evidence["blocked_reason"] = reason
+                    evidence["rejected_destination_tier"] = proposed_destination
+                    evidence["suppression_reason"] = "locality"
+                    decision = replace(
+                        decision, action="stay", reason=reason, dst_tier=None,
+                        reason_code="locality_constraint",
+                    )
+                elif (
                     proposed_destination is not None
                     and proposed_destination != rec.tier
                     and isinstance(allowed_destinations, list)
@@ -583,7 +642,7 @@ class PolicyRunner:
                     budgets, rec.bucket, rec.key, as_of=evaluated_at,
                 )
                 bindings = {budget.tier_pools.get(decision.dst_tier) for budget in active_budgets}
-                selected_pool = self._selected_pool(evidence)
+                selected_pool = self._selected_pool(evidence, decision.dst_tier)
                 binding_conflict = bool(active_budgets) and (
                     len(bindings) != 1 or None in bindings
                     or selected_pool is not None and selected_pool not in bindings
@@ -615,6 +674,15 @@ class PolicyRunner:
                         # catalog admission checks the real balance at execution.
                         for check in checks:
                             reservations[check["budget_id"]].append(check["charge"])
+            locality = evidence.get("locality")
+            approval = locality.get("exception") if isinstance(locality, dict) else None
+            if isinstance(approval, dict) and (
+                not self._is_actionable(rec, decision)
+                or self._selected_pool(evidence, decision.dst_tier)
+                != approval.get("destination_pool_id")
+            ):
+                approval["used"] = False
+                approval["bypassed_rules"] = []
             if decision.llm_audit is not None:
                 # Preserve the provider's proposal and explain the actual
                 # outcome after every runner guardrail. Redaction also detaches
@@ -677,11 +745,28 @@ class PolicyRunner:
         return features.mime.provenance.content_sha256
 
     @staticmethod
-    def _selected_pool(constraints: Mapping[str, object]) -> str | None:
+    def _selected_pool(
+        constraints: Mapping[str, object], destination_tier: str | None = None,
+    ) -> str | None:
         objectives = constraints.get("objectives")
         selected = objectives.get("selected") if isinstance(objectives, Mapping) else None
         pool_id = selected.get("pool_id") if isinstance(selected, Mapping) else None
+        if isinstance(pool_id, str):
+            return pool_id
+        locality = constraints.get("locality")
+        bindings = locality.get("tier_pools") if isinstance(locality, Mapping) else None
+        pool_id = bindings.get(destination_tier) if isinstance(bindings, Mapping) else None
         return pool_id if isinstance(pool_id, str) else None
+
+    def _locality_plan_options(
+        self, constraints: Mapping[str, object], destination_tier: str,
+    ) -> dict[str, Any]:
+        if "locality" not in constraints and self.locality_exception_id is None:
+            return {}
+        return {
+            "destination_pool_id": self._selected_pool(constraints, destination_tier),
+            "locality_exception_id": self.locality_exception_id,
+        }
 
     @instrument("policy", "execute")
     def execute(self, result: ActionResult) -> None:
@@ -689,6 +774,25 @@ class PolicyRunner:
 
         if self.simulation_only:
             raise ValueError("simulation-only runners cannot execute moves")
+        if isinstance(self.policy, ContentAwarePolicy) and self.policy.pii_rules:
+            # Same-byte rescans can change a classification after planning.
+            # Recheck this governance gate in addition to the mover's source
+            # digest fence; a retained action is not permission to ignore a
+            # newly unknown finding or a more restrictive destination rule.
+            record = self.catalog.get(result.bucket, result.key)
+            if record is None:
+                raise ValueError("PII governance evidence is unavailable")
+            features = CatalogPolicyFeatureLoader(access_catalog=self.catalog).load((record,))[
+                (record.bucket, record.key)
+            ]
+            decision = self.policy.evaluate_pii(record.tier, features)
+            if decision is not None and (
+                decision.dst_tier != result.to_tier
+                and not (
+                    decision.reason_code == "pii_rule" and record.tier == result.to_tier
+                )
+            ):
+                raise ValueError("PII governance no longer permits the planned move")
         self.mover.move(
             result.from_tier,
             result.to_tier,
@@ -699,6 +803,9 @@ class PolicyRunner:
             movement_constraints=result.movement_constraints or self.movement_constraints,
             budget_override=result.budget_override or self.budget_override,
             destination_pool_id=result.destination_pool_id,
+            **({"locality_exception_id": result.locality_exception_id or self.locality_exception_id}
+               if result.locality_exception_id is not None or self.locality_exception_id is not None
+               else {}),
             audit_context=AuditContext(
                 correlation_id=result.correlation_id or self.audit_context.correlation_id,
                 actor_type=self.audit_context.actor_type,
@@ -774,6 +881,11 @@ class PolicyRunner:
             model_identity=self.model_identity,
             model_version=self.model_version,
         )
+        if constraints.get("locality") is not None and snapshot["replay"]["supported"]:
+            snapshot["replay"] = {
+                "supported": False,
+                "reason": "movement_constraints_not_in_snapshot_v1",
+            }
         structured_reason = capture_policy_reason(
             code=decision.reason_code,
             signals=decision.decisive_signals,
@@ -826,6 +938,11 @@ class PolicyRunner:
                 "hysteresis", "suppression_reason",
             }
         }
+        locality = hard_constraint_identity.get("locality")
+        if isinstance(locality, Mapping):
+            hard_constraint_identity["locality"] = {
+                name: value for name, value in locality.items() if name != "as_of"
+            }
         evidence_identity = hashlib.sha256(json.dumps(
             hard_constraint_identity,
             sort_keys=True, ensure_ascii=False, separators=(",", ":"),
@@ -886,6 +1003,7 @@ class PolicyRunner:
             or stable_constraints.get("similarity_hysteresis")
             or stable_constraints.get("stability_override") is not None
             or stable_constraints.get("budgets") is not None
+            or stable_constraints.get("locality") is not None
         ):
             # Snapshot v1 has no fields for these hard inputs. Preserve the
             # observed result for datasets without claiming an exact replay

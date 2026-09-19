@@ -18,11 +18,12 @@ from .audit import canonical_audit_timestamp
 
 POLICY_REASON_SCHEMA_VERSION = 1
 ReasonCode = Literal[
-    "size_threshold", "name_rule", "mime_rule", "embedding_rule",
+    "size_threshold", "name_rule", "mime_rule", "embedding_rule", "pii_rule",
     "required_features_unavailable", "provider_decision", "provider_error",
     "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
     "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
     "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
+    "locality_constraint",
 ]
 Number = Annotated[int | float, Field(allow_inf_nan=False)]
 NonnegativeInt = Annotated[int, Field(ge=0)]
@@ -37,7 +38,8 @@ class _Contract(BaseModel):
 class DecisiveSignal(_Contract):
     name: Literal[
         "size_bytes", "name_match", "mime_match", "mime_state", "embedding_state",
-        "features_evaluated", "embedding_similarity",
+        "features_evaluated", "embedding_similarity", "pii_state", "pii_match",
+        "pii_confidence",
     ]
     value: Number | bool | FeatureState | None
     operator: Literal["<=", ">", ">=", "=="] | None
@@ -46,7 +48,7 @@ class DecisiveSignal(_Contract):
 
     @model_validator(mode="after")
     def valid_signal(self) -> DecisiveSignal:
-        if self.name in {"size_bytes", "embedding_similarity"}:
+        if self.name in {"size_bytes", "embedding_similarity", "pii_confidence"}:
             if type(self.value) not in {int, float} or self.threshold is None:
                 raise ValueError("numeric signals require a value and threshold")
             if self.operator not in {"<=", ">", ">="}:
@@ -91,6 +93,7 @@ class ReasonConstraints(_Contract):
     hysteresis_checks: list[HysteresisCheck]
     budgets: list[dict[str, Any]] = Field(default_factory=list)
     objectives: dict[str, Any] | None = None
+    locality: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def valid_times(self) -> ReasonConstraints:
@@ -164,7 +167,9 @@ def capture_policy_reason(
     code = code if trusted_policy and code is not None else "custom_policy"
     signals = signals if trusted_policy else []
     disposition = "move" if action == "move" else "stay"
-    if constraints.get("suppression_reason") == "budget":
+    if constraints.get("suppression_reason") == "locality":
+        code, disposition = "locality_constraint", "suppressed"
+    elif constraints.get("suppression_reason") == "budget":
         code, disposition = "budget_constraint", "suppressed"
     elif constraints.get("residency_active"):
         code, disposition = "minimum_residency", "suppressed"
@@ -213,6 +218,7 @@ def capture_policy_reason(
         "hysteresis_checks": checks,
         "budgets": constraints.get("budgets", []),
         "objectives": constraints.get("objectives"),
+        "locality": constraints.get("locality"),
     })
     return validate_policy_reason(redact({
         "schema_version": POLICY_REASON_SCHEMA_VERSION,

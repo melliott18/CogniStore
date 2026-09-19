@@ -17,6 +17,13 @@ necessary.
 
 ## Event contract
 
+Data-locality execution rejections use `locality.decision` with outcome
+`rejected`; approved exception use at execution checkpoints uses
+`locality.exception` with outcome `allowed`. Both retain destination and rule
+evidence. Policy decisions retain locality explanations, and durable move
+events include their planning evidence. Read-only previews do not append
+events. See [data locality](data_locality.md) for configuration and recovery.
+
 Every row in `audit_events` uses the versioned `cognistore.audit` contract. The
 initial schema version is `1` and contains:
 

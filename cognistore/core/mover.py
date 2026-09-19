@@ -8,9 +8,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterator, Literal, Mapping, Protocol
 from uuid import uuid4
 
-from cognistore.core.audit import AuditContext
+from cognistore.auth.principal import current_principal
+from cognistore.core.audit import AuditContext, AuditEvent, AuditEventType, AuditOutcome
 from cognistore.core.budgets import BudgetOverride
-from cognistore.core.catalog import CatalogStore
+from cognistore.core.catalog import CatalogStore, ObjectRecord
+from cognistore.core.locality import LocalityConstraintError, assert_locality_allowed
 from cognistore.core.move_jobs import (
     EXPECTED_SOURCE_SHA256_METADATA_KEY,
     MoveJob,
@@ -200,6 +202,8 @@ class Mover:
         self, src_tier: str, dst_tier: str, bucket: str, key: str, *,
         movement_constraints: MovementConstraints | None = None,
         as_of: str | datetime | None = None,
+        destination_pool_id: str | None = None,
+        locality_exception_id: str | None = None,
     ) -> MovePlan:
         """Validate a move using read-only operations and return its plan.
 
@@ -211,6 +215,10 @@ class Mover:
         src, dst = self._drivers_for_move(src_tier, dst_tier)
         self._check_movement_constraints(
             src_tier, dst_tier, bucket, key, movement_constraints, as_of=as_of
+        )
+        locality = self._check_locality(
+            src_tier, dst_tier, bucket, key, as_of=as_of,
+            destination_pool_id=destination_pool_id, exception_id=locality_exception_id,
         )
         source_metadata = dict(src.stat_object(bucket, key))
         source_size = source_metadata.get("size")
@@ -236,6 +244,13 @@ class Mover:
                 f"Destination object already exists: {dst_tier}:{bucket}/{key}"
             )
 
+        source_metadata = self._destination_metadata(source_metadata)
+        if locality["configured"]:
+            source_metadata["cognistore_expected_destination_pool_id"] = locality["tier_pools"][dst_tier]
+            source_metadata["cognistore_locality"] = locality
+        if locality_exception_id is not None:
+            source_metadata["cognistore_locality_exception_id"] = locality_exception_id
+
         return MovePlan(
             src_tier=src_tier,
             dst_tier=dst_tier,
@@ -244,6 +259,58 @@ class Mover:
             size=source_size,
             metadata=source_metadata,
         )
+
+    def _check_locality(
+        self, src_tier: str, dst_tier: str, bucket: str, key: str, *,
+        as_of: str | datetime | None = None,
+        destination_pool_id: str | None = None,
+        exception_id: str | None = None,
+        audit_context: AuditContext | None = None,
+        move_id: str | None = None,
+        stage: str | None = None,
+        required: bool = False,
+    ) -> dict[str, Any]:
+        record = self.catalog.get(bucket, key)
+        if record is None:
+            record = ObjectRecord(bucket=bucket, key=key, size=0, tier=src_tier)
+        evidence = assert_locality_allowed(
+            record, dst_tier, tenant_id=self.catalog.tenant_id,
+            tiers=self.catalog.list_tiers(), pools=self.catalog.list_pools(),
+            as_of=self._clock() if as_of is None else as_of,
+            exception_id=exception_id, destination_pool_id=destination_pool_id,
+        )
+        if required and not evidence["configured"]:
+            raise LocalityConstraintError(
+                "locality policy is required by the durable move contract", evidence,
+            )
+        exception = evidence.get("exception")
+        if stage is not None and isinstance(exception, dict) and exception.get("used"):
+            self._audit_locality(
+                bucket, key, dst_tier, evidence, audit_context=audit_context,
+                move_id=move_id, stage=stage,
+            )
+        return evidence
+
+    def _audit_locality(
+        self, bucket: str, key: str, dst_tier: str, evidence: dict[str, Any], *,
+        audit_context: AuditContext | None, move_id: str | None,
+        stage: str, rejection: str | None = None,
+    ) -> None:
+        context = audit_context or self.audit_context or AuditContext(
+            correlation_id=move_id or str(uuid4()), actor_type="system", actor_id="mover",
+        )
+        principal = current_principal()
+        if principal is not None:
+            from dataclasses import replace
+            context = replace(context, actor_type=principal.actor_type, actor_id=principal.actor_id)
+        self.catalog.append_audit_event(AuditEvent.create(
+            AuditEventType.LOCALITY_DECISION if rejection else AuditEventType.LOCALITY_EXCEPTION,
+            AuditOutcome.REJECTED if rejection else AuditOutcome.ALLOWED,
+            context, bucket=bucket, object_key=key, move_id=move_id,
+            occurred_at=self._clock(),
+            details={"destination_tier": dst_tier, "stage": stage,
+                     "locality": evidence, "rejection": rejection},
+        ))
 
     def _check_movement_constraints(
         self, src_tier: str, dst_tier: str, bucket: str, key: str,
@@ -416,6 +483,38 @@ class Mover:
         movement_constraints: MovementConstraints | None = None,
         budget_override: BudgetOverride | None = None,
         destination_pool_id: str | None = None,
+        locality_exception_id: str | None = None,
+    ) -> MoveVerificationResult:
+        """Execute a durable move, retaining locality rejections outside rollback."""
+        move_key = idempotency_key or str(uuid4())
+        try:
+            return self._move(
+                src_tier, dst_tier, bucket, key, idempotency_key=move_key,
+                audit_context=audit_context, expected_source_sha256=expected_source_sha256,
+                movement_constraints=movement_constraints, budget_override=budget_override,
+                destination_pool_id=destination_pool_id, locality_exception_id=locality_exception_id,
+            )
+        except LocalityConstraintError as exc:
+            self._audit_locality(
+                bucket, key, dst_tier, exc.evidence, audit_context=audit_context,
+                move_id=move_key, stage="execution", rejection=str(exc),
+            )
+            raise
+
+    def _move(
+        self,
+        src_tier: str,
+        dst_tier: str,
+        bucket: str,
+        key: str,
+        *,
+        idempotency_key: str | None = None,
+        audit_context: AuditContext | None = None,
+        expected_source_sha256: str | None = None,
+        movement_constraints: MovementConstraints | None = None,
+        budget_override: BudgetOverride | None = None,
+        destination_pool_id: str | None = None,
+        locality_exception_id: str | None = None,
     ) -> MoveVerificationResult:
         """Execute or resume one durable, idempotent object move.
 
@@ -448,7 +547,9 @@ class Mover:
         if existing is None:
             plan = self.plan(
                 src_tier, dst_tier, bucket, key,
-                movement_constraints=movement_constraints
+                movement_constraints=movement_constraints,
+                destination_pool_id=destination_pool_id,
+                locality_exception_id=locality_exception_id,
             )
             # Freeze policy controls into the durable contract for retries and
             # recovery by a worker that did not perform the original evaluation.
@@ -457,6 +558,10 @@ class Mover:
                 bucket=plan.bucket, key=plan.key, size=plan.size,
                 metadata={
                     **self._destination_metadata(plan.metadata),
+                    **{name: plan.metadata[name] for name in (
+                        "cognistore_locality", "cognistore_locality_exception_id",
+                        "cognistore_expected_destination_pool_id",
+                    ) if name in plan.metadata},
                     "cognistore_movement_constraints":
                         (movement_constraints or MovementConstraints()).to_dict(),
                     **({"cognistore_budget_override": budget_override.to_dict()}
@@ -496,6 +601,7 @@ class Mover:
                 expected_source_sha256,
             )
             self._validate_movement_contract(plan, movement_constraints)
+            self._validate_locality_contract(plan, locality_exception_id)
             if destination_pool_id is not None and (
                 plan.metadata.get("cognistore_expected_destination_pool_id") != destination_pool_id
             ):
@@ -536,6 +642,7 @@ class Mover:
             expected_source_sha256,
         )
         self._validate_movement_contract(claimed_plan, movement_constraints)
+        self._validate_locality_contract(claimed_plan, locality_exception_id)
         if destination_pool_id is not None and (
             claimed_plan.metadata.get("cognistore_expected_destination_pool_id") != destination_pool_id
         ):
@@ -565,6 +672,13 @@ class Mover:
                         )
                         raise
             return self._resume(job, audit_context=context)
+
+    @staticmethod
+    def _validate_locality_contract(plan: MovePlan, exception_id: str | None) -> None:
+        if exception_id is not None and (
+            plan.metadata.get("cognistore_locality_exception_id") != exception_id
+        ):
+            raise MoveJobConflictError("Locality exception differs from the durable move contract")
 
     @staticmethod
     def _validate_movement_contract(
@@ -733,6 +847,20 @@ class Mover:
             )
 
         while True:
+            if not job.state.terminal:
+                # Recheck each checkpoint, including recovery after placement
+                # commit. A newly prohibited destination must never authorize
+                # deletion of the retained source.
+                self._check_locality(
+                    job.src_tier, job.dst_tier, job.bucket, job.key,
+                    destination_pool_id=job.source_metadata.get(
+                        "cognistore_expected_destination_pool_id"
+                    ),
+                    exception_id=job.source_metadata.get("cognistore_locality_exception_id"),
+                    audit_context=audit_context, move_id=job.idempotency_key,
+                    stage=job.state.value,
+                    required="cognistore_locality" in job.source_metadata,
+                )
             if job.state == MoveJobState.PREPARED:
                 try:
                     destination_exists = True
@@ -1080,6 +1208,7 @@ class Mover:
                 EXPECTED_SOURCE_SHA256_METADATA_KEY, MOVEMENT_CONSTRAINTS_METADATA_KEY,
                 "cognistore_budget_override", "cognistore_destination_pool_id",
                 "cognistore_source_pool_id", "cognistore_expected_destination_pool_id",
+                "cognistore_locality", "cognistore_locality_exception_id",
             }
         }
 

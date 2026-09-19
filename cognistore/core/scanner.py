@@ -16,6 +16,7 @@ from cognistore.observability import current_correlation_id
 from .catalog import CatalogStore
 from .content_identity import ContentSizeMismatchError
 from .indexer import Indexer
+from .pii import PIIDetectionPipeline
 
 _MAX_MIME_SAMPLE_BYTES = 1024 * 1024
 
@@ -102,6 +103,7 @@ def scan_catalog(
     catalog: CatalogStore | None,
     prefix: str = "",
     indexer: Indexer | None = None,
+    pii_pipeline: PIIDetectionPipeline | None = None,
     dry_run: bool = False,
     audit_context: AuditContext | None = None,
 ) -> list[ScanResult]:
@@ -116,7 +118,7 @@ def scan_catalog(
     def perform_scan() -> list[ScanResult]:
         return _scan_catalog(
             tier=tier, bucket=bucket, driver=driver, catalog=catalog,
-            prefix=prefix, indexer=indexer, dry_run=dry_run,
+            prefix=prefix, indexer=indexer, pii_pipeline=pii_pipeline, dry_run=dry_run,
         )
 
     if dry_run:
@@ -159,6 +161,7 @@ def _scan_catalog(
     catalog: CatalogStore | None,
     prefix: str = "",
     indexer: Indexer | None = None,
+    pii_pipeline: PIIDetectionPipeline | None = None,
     dry_run: bool = False,
 ) -> list[ScanResult]:
     """Scan one tier and return object summaries.
@@ -173,6 +176,7 @@ def _scan_catalog(
         raise ValueError("catalog is required unless dry_run is enabled")
 
     active_indexer = indexer or Indexer()
+    active_pii_pipeline = pii_pipeline or PIIDetectionPipeline(detectors=())
     results: list[ScanResult] = []
     for key in driver.list_objects(bucket, prefix=prefix):
         if dry_run:
@@ -216,6 +220,9 @@ def _scan_catalog(
             content = indexed.content
             if content is None:
                 raise RuntimeError("Stream indexing returned no content identity")
+            classification = active_pii_pipeline.detect(
+                indexed.document_extraction, content_sha256=content.sha256
+            )
             # Do not combine bytes and metadata from different physical
             # generations. The catalog fence below separately protects this
             # stable storage observation from concurrent move transitions.
@@ -233,6 +240,13 @@ def _scan_catalog(
 
         assert catalog is not None
         assert fence is not None
+        extraction_metadata = indexed.document_extraction.to_metadata()
+        if classification.status != "disabled":
+            # Detection consumes extracted text only in memory. Withhold the
+            # full text and document properties even on failure: an unknown
+            # classification must not accidentally publish sensitive content.
+            extraction_metadata["text"] = None
+            extraction_metadata["document_metadata"] = {}
         published = catalog.upsert_scan_observation(
             bucket,
             key,
@@ -245,7 +259,8 @@ def _scan_catalog(
                 "content_identity": content.to_metadata(),
                 "mime": indexed.mime,
                 "mime_detection": indexed.mime_detection.to_metadata(),
-                "document_extraction": indexed.document_extraction.to_metadata(),
+                "document_extraction": extraction_metadata,
+                "pii_detection": classification.to_metadata(),
                 "sample_len": len(indexed.sample),
             },
             fence=fence,

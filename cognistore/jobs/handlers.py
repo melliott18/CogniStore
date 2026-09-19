@@ -15,6 +15,7 @@ from cognistore.core.mover import Mover
 from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import (
     EmbeddingPolicyRule,
+    PIIPolicyRule,
     validate_policy_config_size,
 )
 from cognistore.core.policy_factory import build_policy
@@ -25,11 +26,13 @@ from cognistore.core.throughput import ThroughputConfig
 from cognistore.drivers.storage_driver import StorageDriver
 from cognistore.drivers.tenancy import scope_storage_drivers
 from cognistore.observability import current_correlation_id
+from cognistore.pii_runtime import PIIConfig
 
 from .models import (
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
     JOB_SCHEMA_VERSION_V3,
+    JOB_SCHEMA_VERSION_V4,
     InvalidJobError,
     JobContext,
     JobEnvelope,
@@ -45,6 +48,8 @@ POLICY_AUDIT_VERSION = "1"
 def policy_job_schema_version(payload: Mapping[str, object]) -> int:
     """Select the oldest envelope schema that can represent a policy job."""
 
+    if "pii_rules" in payload:
+        return JOB_SCHEMA_VERSION_V4
     if "movement_constraints" in payload:
         return JOB_SCHEMA_VERSION_V3
     if "embedding_rules" in payload:
@@ -162,12 +167,28 @@ def _embedding_rules(
     return tuple(rules)
 
 
+def _pii_rules(payload: Mapping[str, Any]) -> tuple[PIIPolicyRule, ...]:
+    value = payload.get("pii_rules", [])
+    if not isinstance(value, list) or len(value) > 100:
+        raise InvalidJobError("job payload field 'pii_rules' must be a list of at most 100 rules")
+    rules = []
+    for index, raw_rule in enumerate(value):
+        if not isinstance(raw_rule, Mapping):
+            raise InvalidJobError(f"job payload field 'pii_rules' item {index} must be an object")
+        try:
+            rules.append(PIIPolicyRule.from_mapping(raw_rule))
+        except ValueError as exc:
+            raise InvalidJobError(f"invalid job payload field 'pii_rules' item {index}: {exc}") from exc
+    return tuple(rules)
+
+
 def build_handlers(
     drivers: Mapping[str, StorageDriver],
     catalog: CatalogStore,
     *,
     throughput: MoveThroughputController | None = None,
     policy_feature_loader: CatalogPolicyFeatureLoader | None = None,
+    pii_config: PIIConfig | None = None,
 ) -> dict[str, JobHandler]:
     """Build handlers whose dependencies are configured by the worker process."""
 
@@ -348,7 +369,7 @@ def build_handlers(
         return owner, catalog.for_tenant(owner), scope_storage_drivers(drivers, owner)
 
     async def catalog_scan(job: JobEnvelope, context: JobContext) -> None:
-        _, job_catalog, job_drivers = dependencies(job)
+        owner, job_catalog, job_drivers = dependencies(job)
         tier = _string(job.payload, "tier")
         bucket = _string(job.payload, "bucket")
         prefix = _string(job.payload, "prefix", allow_empty=True)
@@ -367,6 +388,7 @@ def build_handlers(
                 actor_id=job.principal.actor_id if job.principal else job.job_id,
                 job_id=job.job_id,
             ),
+            pii_pipeline=pii_config.pipeline_for_tenant(owner) if pii_config is not None else None,
         )
         LOGGER.info(
             "catalog scan completed",
@@ -387,6 +409,8 @@ def build_handlers(
             raise InvalidJobError(
                 "job payload field 'movement_constraints' requires schema_version 3"
             )
+        if job.schema_version < JOB_SCHEMA_VERSION_V4 and "pii_rules" in job.payload:
+            raise InvalidJobError("job payload field 'pii_rules' requires schema_version 4")
         movement_constraints = None
         if "movement_constraints" in job.payload:
             raw_constraints = job.payload["movement_constraints"]
@@ -430,6 +454,16 @@ def build_handlers(
                     "unknown residency tier(s): " + ", ".join(unknown_residency)
                 )
 
+        pii_rules = _pii_rules(job.payload)
+        if pii_rules and policy_name != "content":
+            raise InvalidJobError("PII rules require the content policy")
+        disallowed_pii_tiers = sorted({
+            rule.destination_tier for rule in pii_rules if rule.destination_tier not in allowed_tiers
+        })
+        if disallowed_pii_tiers:
+            raise InvalidJobError(
+                "PII rule destination tier(s) are not allowed: " + ", ".join(disallowed_pii_tiers)
+            )
         embedding_rules = _embedding_rules(job.payload)
         if embedding_rules and policy_name != "content":
             raise InvalidJobError("embedding rules require the content policy")
@@ -462,6 +496,7 @@ def build_handlers(
                 warm_mime_prefixes=warm_mime_prefixes,
                 cold_mime_prefixes=cold_mime_prefixes,
                 embedding_rules=embedding_rules,
+                pii_rules=pii_rules,
             )
         except ValueError as exc:
             raise InvalidJobError(f"invalid policy job payload: {exc}") from exc
@@ -478,6 +513,7 @@ def build_handlers(
             warm_mime_prefixes=warm_mime_prefixes,
             cold_mime_prefixes=cold_mime_prefixes,
             embedding_rules=embedding_rules,
+            pii_rules=pii_rules,
         )
         principal = job.principal
         audit_context = AuditContext(
@@ -553,8 +589,19 @@ def policy_job_payload(
     warm_mime_prefixes: Sequence[str],
     cold_mime_prefixes: Sequence[str],
     embedding_rules: Sequence[EmbeddingPolicyRule | Mapping[str, object]] = (),
+    pii_rules: Sequence[PIIPolicyRule | Mapping[str, object]] = (),
     movement_constraints: MovementConstraints | None = None,
 ) -> dict[str, Any]:
+    if len(pii_rules) > 100:
+        raise ValueError("pii_rules must contain at most 100 rules")
+    pii_rule_objects = [
+        rule if isinstance(rule, PIIPolicyRule) else PIIPolicyRule.from_mapping(rule)
+        for rule in pii_rules
+    ]
+    if pii_rule_objects and policy != "content":
+        raise ValueError("PII rules require the content policy")
+    if any(rule.destination_tier not in allowed_tiers for rule in pii_rule_objects):
+        raise ValueError("PII rule destination tier(s) must be allowed")
     rule_objects = [
         (
             rule
@@ -572,6 +619,7 @@ def policy_job_payload(
         warm_mime_prefixes=warm_mime_prefixes,
         cold_mime_prefixes=cold_mime_prefixes,
         embedding_rules=rule_objects,
+        pii_rules=pii_rule_objects,
     )
     normalized_rules = [rule.to_mapping() for rule in rule_objects]
     payload = {
@@ -590,6 +638,8 @@ def policy_job_payload(
     }
     if normalized_rules:
         payload["embedding_rules"] = normalized_rules
+    if pii_rule_objects:
+        payload["pii_rules"] = [rule.to_mapping() for rule in pii_rule_objects]
     if movement_constraints is not None:
         payload["movement_constraints"] = movement_constraints.to_dict()
     return payload
