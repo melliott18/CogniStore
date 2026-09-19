@@ -87,6 +87,64 @@ class CatalogObjectPage(APIModel):
     page: PageMetadata
 
 
+class AuditEventResource(APIModel):
+    event_id: str
+    schema_version: int
+    event_type: str
+    outcome: str
+    occurred_at: str
+    recorded_at: str
+    correlation_id: str
+    actor_type: str
+    actor_id: str
+    expires_at: str | None = None
+    causation_id: str | None = None
+    bucket: str | None = None
+    object_key: str | None = None
+    job_id: str | None = None
+    move_id: str | None = None
+    policy_name: str | None = None
+    policy_version: str | None = None
+    details: dict[str, JSONValue]
+
+
+class AuditEventPage(APIModel):
+    schema_version: Literal[1] = 1
+    items: list[AuditEventResource]
+    page: PageMetadata
+
+
+class AuditCheckpointResource(APIModel):
+    tenant_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
+    sequence: Annotated[int, Field(ge=0)]
+    entry_hash: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    algorithm: Literal["sha256-v1"] = "sha256-v1"
+
+
+class AuditVerificationRequest(APIModel):
+    checkpoint: AuditCheckpointResource | None = None
+
+
+class AuditVerificationResponse(APIModel):
+    valid: bool
+    tenant_id: str
+    checked_entries: int
+    checked_events: int
+    pruned_events: int
+    checkpoint: AuditCheckpointResource
+    anchored: bool
+    issues: list[str]
+
+
+class AuditExportResponse(APIModel):
+    schema_version: Literal[1] = 1
+    records: list[dict[str, JSONValue]]
+    checkpoint: AuditCheckpointResource
+    next_sequence: int
+    complete: bool
+    page: PageMetadata
+
+
 class AskFiltersRequest(APIModel):
     bucket: Bucket | None = None
     key_prefix: Annotated[str, Field(max_length=8192)] = ""

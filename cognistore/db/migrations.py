@@ -127,6 +127,8 @@ def catalog_schema_exists(bind: Engine | Connection) -> bool:
             "audit_events",
             "audit_move_heads",
             "audit_event_tombstones",
+            "audit_integrity_entries",
+            "audit_integrity_head",
             "budget_definitions",
             "budget_reservations",
             "catalog_schema_features",

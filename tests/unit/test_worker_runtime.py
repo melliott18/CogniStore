@@ -830,6 +830,7 @@ def test_failure_and_retry_audits_are_durable_before_nack_and_restart(
             events = audit_catalog.list_audit_events(AuditQuery(job_id=job.job_id))
             observed_before_nack.update(event.event_type for event in events)
             assert observed_before_nack == {
+                AuditEventType.JOB_STARTED.value,
                 AuditEventType.JOB_FAILURE.value,
                 AuditEventType.JOB_RETRY.value,
             }
@@ -858,6 +859,7 @@ def test_failure_and_retry_audits_are_durable_before_nack_and_restart(
 
     job_id, observed_before_nack = asyncio.run(scenario())
     assert observed_before_nack == {
+        AuditEventType.JOB_STARTED.value,
         AuditEventType.JOB_FAILURE.value,
         AuditEventType.JOB_RETRY.value,
     }
@@ -869,7 +871,7 @@ def test_failure_and_retry_audits_are_durable_before_nack_and_restart(
     ) as restarted_catalog:
         events = restarted_catalog.list_audit_events(AuditQuery(job_id=job_id))
 
-    assert len(events) == 2
+    assert len(events) == 3
     by_type = {event.event_type: event for event in events}
     failure = by_type[AuditEventType.JOB_FAILURE.value]
     retry = by_type[AuditEventType.JOB_RETRY.value]
@@ -939,6 +941,7 @@ def test_dead_letter_audit_is_durable_before_source_ack() -> None:
         async def ack_after_audit() -> None:
             events = audit_catalog.list_audit_events(AuditQuery(job_id=job.job_id))
             assert {event.event_type for event in events} == {
+                AuditEventType.JOB_STARTED.value,
                 AuditEventType.JOB_FAILURE.value,
                 AuditEventType.JOB_DEAD_LETTERED.value,
             }

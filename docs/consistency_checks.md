@@ -39,9 +39,9 @@ Tenant ownership follows the logical bucket/key namespace across all tiers.
 Overlapping prefixes for tenants in the same bucket are rejected even when
 their tier sets differ. The same prefix in separate buckets is allowed.
 
-The repository has no authenticated tenant identity or tenant column in its
-catalog. These commands therefore enforce an explicit namespace binding at the
-CLI boundary. A tenant name is not an authentication credential. Operators must
+These operator commands enforce an explicit namespace binding at the CLI
+boundary, separately from the authenticated API's tenant membership policy.
+A tenant name is not an authentication credential. Operators must
 control the configuration, report directories, catalog access, and storage
 credentials using OS permissions or their deployment's identity system. Bind
 each tenant to its own namespace and keep scope files unwritable by untrusted
@@ -150,6 +150,29 @@ The output must be a new file. Both report and export paths are rejected if
 they alias protected catalog files, SQLite journals, configuration files, or
 the input report, including symlinks and hardlinks. They must also remain
 outside configured POSIX roots.
+
+Report schema version 2 adds a separate append-only SHA-256 audit chain.
+Opening, reading, resuming, or exporting a report verifies its chain and durable
+head. An export includes `audit_checkpoint` (`algorithm`, `scan_id`, `tenant_id`,
+`sequence`, `entry_hash`), and each audit record includes `integrity` with its
+sequence, previous hash, and entry hash. Retain the checkpoint in an independent
+archive to detect replacement or rollback of the whole report:
+
+```python
+from pathlib import Path
+from cognistore.core.consistency_report import open_report, verify_report_integrity
+
+with open_report(Path("reports/acme.sqlite3"), read_only=True) as connection:
+    checkpoint = verify_report_integrity(connection, expected_checkpoint=saved_checkpoint)
+```
+
+A mismatch raises `ValueError`. This chain protects the audit evidence, not
+the separate findings or resumable scan-state tables. Its checkpoint is
+independent of the catalog audit checkpoint. Sidecar audit records do not
+expire or support pruning; archive the report as a unit. Version 1 reports
+must be preserved as historical artifacts and replaced by a fresh scan before
+using the version 2 resume/export workflow. They cannot acquire trustworthy
+historical integrity through an automatic migration.
 
 ## Dry-run behavior
 

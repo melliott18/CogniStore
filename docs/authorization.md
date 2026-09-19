@@ -23,7 +23,7 @@ than one permission needs all of them.
 | `writer` | `read`, `write` | Read, upload, and delete objects. |
 | `policy_manager` | `read`, `policy` | Evaluate and preview placement policies. |
 | `operator` | `read`, `movement`, `administration` | Catalog scans and movement authority. |
-| `auditor` | `audit` | Retained policy decisions and their execution evidence. |
+| `auditor` | `audit` | Retained policy decisions, audit history, integrity verification, and evidence export. |
 | `admin` | `read`, `write`, `policy`, `movement`, `administration`, `audit` | Every permission. |
 
 For example, `policy_manager` plus `operator` can run policies that move data;
@@ -53,6 +53,10 @@ No permission depends on a control being hidden in the UI.
 | `POST /v1/policies/preview` | `preview_policy` | `policy` |
 | `GET /v1/policy-decisions` | `list_policy_decisions` | `audit` |
 | `GET /v1/policy-decisions/{decision_id}` | `get_policy_decision` | `audit` |
+| `GET /v1/audit/events` | `list_audit_events` | `audit` |
+| `GET /v1/audit/events/{event_id}` | `get_audit_event` | `audit` |
+| `GET /v1/audit/export` | `export_audit_events` | `audit` |
+| `POST /v1/audit/verify` | `verify_audit_integrity` | `audit` |
 | `POST /v1/actions/catalog-scans` | `submit_catalog_scan` | `administration` |
 | `POST /v1/actions/policy-runs` | `submit_policy_run` | `policy`, `movement` |
 | `GET /v1/jobs/{job_id}` | `get_job` | `read` |
@@ -209,7 +213,8 @@ a publisher that already has that privilege.
 ## Trusted local process boundary
 
 With neither authentication nor authorization configured, the API retains
-anonymous access for local use. Unconfigured, anonymous workers and direct
+anonymous access for local use, except audit history, export, and verification
+endpoints, which always require an authenticated auditor. Unconfigured, anonymous workers and direct
 local library/CLI operations likewise retain their existing behavior. The
 operator who controls drivers, storage credentials, the catalog, or policy
 files is inside the trusted process boundary.
@@ -228,9 +233,8 @@ object, tier, decision, or job exists. Checks precede resource lookups and
 backend calls, and policy-load failures cannot fall back to allowing access.
 
 The standard gateway and worker persist `authorization.decision` events
-through the existing catalog audit mechanism. Every denial and every allow involving a permission other than
-`read` is recorded. Allows requiring only `read` use deterministic 1% sampling
-to bound high-volume read audit traffic. Audit context records the operation,
+through the existing catalog audit mechanism. Every denial and every allow,
+including read operations, is recorded without sampling. Audit context records the operation,
 outcome, required permissions, and hashed issuer-scoped actor identity without
 raw tokens, claims, resource paths, queries, or request bodies. Existing
 [audit retention and query controls](audit_events.md) apply.
@@ -255,7 +259,7 @@ tests aligned. The suite should verify:
 - Workers reject revoked bindings, missing policies/principals, invalid policy
   files, and unknown job operations before execution, including retry/redrive.
 - File updates take effect on subsequent checks, identity contexts remain
-  isolated across concurrent work, and audit sampling excludes sensitive
+  isolated across concurrent work, and audit events exclude sensitive
   request/resource data.
 - Public infrastructure routes and fully unconfigured trusted local operation
   preserve their documented behavior.

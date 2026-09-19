@@ -306,13 +306,13 @@ def test_occurred_before_pruning_is_strict_bounded_and_idempotent(
             catalog.append_audit_event(event)
 
         assert catalog.prune_audit_events(_timestamp(20), limit=1) == 1
-        first_pass = catalog.list_audit_events()
+        first_pass = [event for event in catalog.list_audit_events() if event.event_type != "audit.retention"]
         assert len(first_pass) == 3
         assert events[2] in first_pass
         assert events[3] in first_pass
 
         assert catalog.prune_audit_events(_timestamp(20), limit=1) == 1
-        assert catalog.list_audit_events() == events[2:]
+        assert [event for event in catalog.list_audit_events() if event.event_type != "audit.retention"] == events[2:]
         assert catalog.prune_audit_events(_timestamp(20), limit=1) == 0
 
 
@@ -338,9 +338,9 @@ def test_expiry_pruning_is_bounded_and_preserves_unexpired_events(
             catalog.append_audit_event(event)
 
         assert catalog.prune_expired_audit_events(_timestamp(20), limit=1) == 1
-        assert len(catalog.list_audit_events()) == 2
+        assert len([event for event in catalog.list_audit_events() if event.event_type != "audit.retention"]) == 2
         assert catalog.prune_expired_audit_events(_timestamp(20), limit=1) == 1
-        remaining = catalog.list_audit_events()
+        remaining = [event for event in catalog.list_audit_events() if event.event_type != "audit.retention"]
         assert len(remaining) == 1
         assert remaining[0].event_id == expires_later.event_id
         assert remaining[0].expires_at == _timestamp(30)
@@ -375,7 +375,7 @@ def test_pruning_does_not_rewind_or_fork_the_move_causal_head(
         assert stored_backdated.causation_id == stored_newer.event_id
         assert catalog.prune_audit_events(_timestamp(10)) == 1
         assert catalog.append_audit_event(backdated_head) == stored_backdated
-        assert catalog.list_audit_events() == [stored_newer]
+        assert [event for event in catalog.list_audit_events() if event.event_type != "audit.retention"] == [stored_newer]
 
         stored_next = catalog.append_audit_event(next_event)
         assert stored_next.causation_id == stored_backdated.event_id
@@ -416,7 +416,7 @@ def test_replaying_a_pruned_non_head_event_cannot_create_a_causal_cycle(
         assert catalog.append_audit_event(first) == stored_first
         with pytest.raises(ValueError, match="pruned with different data"):
             catalog.append_audit_event(conflicting_first)
-        assert catalog.list_audit_events() == [stored_second]
+        assert [event for event in catalog.list_audit_events() if event.event_type != "audit.retention"] == [stored_second]
 
         third = catalog.append_audit_event(
             _event(63, occurred_seconds=30, move_id=move_id)
@@ -451,7 +451,7 @@ def test_sqlite_move_head_survives_pruning_and_catalog_restart(
             head = connection.execute(sa.select(audit_move_heads)).mappings().one()
         assert head["last_sequence"] == 2
         assert restarted.append_audit_event(first) == stored_first
-        assert restarted.list_audit_events() == [stored_second]
+        assert [event for event in restarted.list_audit_events() if event.event_type != "audit.retention"] == [stored_second]
 
 
 def test_sqlite_retry_after_pruning_keeps_the_pruned_transition_as_its_cause(
