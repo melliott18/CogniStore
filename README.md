@@ -157,6 +157,11 @@ The [tenant isolation guide](docs/tenancy.md) covers server-owned membership,
 separate catalog/index partitions, storage namespaces, and worker revalidation.
 Roles grant access only within the assigned tenant.
 
+Optional [PII detection and policy hooks](docs/pii_detection.md) classify extracted
+PDF/DOCX text with bounded, replaceable detectors. Tenant-specific scan settings
+retain redacted classifications, and PII-aware policies hold placement when
+detection is unknown.
+
 ### Python SDK
 
 The typed synchronous SDK covers every REST API v1 operation plus automatic

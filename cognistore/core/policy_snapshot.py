@@ -35,12 +35,21 @@ from .estimation import (
     StorageImpactEstimator,
     formula_manifest,
 )
-from .policy import ContentAwarePolicy, EmbeddingPolicyRule, LLMPolicy, PolicyDecision, SimplePolicy
+from .pii import ClassifiedPIIFinding
+from .policy import (
+    ContentAwarePolicy,
+    EmbeddingPolicyRule,
+    LLMPolicy,
+    PIIPolicyRule,
+    PolicyDecision,
+    SimplePolicy,
+)
 from .policy_factory import ThresholdProvider
 from .policy_features import (
     EmbeddingPolicyFeature,
     FeatureState,
     MimePolicyFeature,
+    PIIPolicyFeature,
     PolicyFeatureProvenance,
     PolicyFeatures,
 )
@@ -309,7 +318,7 @@ def _placement_estimates_from_dict(value: object) -> ObjectPlacementEstimates:
 def _features_from_dict(value: object) -> PolicyFeatures:
     data = _object(
         value, {"schema_version", "mime", "embeddings"}, "features",
-        {"access", "placement_estimates"},
+        {"access", "placement_estimates", "pii"},
     )
     _version(data["schema_version"], "policy feature")
 
@@ -336,11 +345,27 @@ def _features_from_dict(value: object) -> PolicyFeatures:
                 provenance=provenance(embedding["provenance"]),
             )
         )
+    pii = None
+    if "pii" in data:
+        fields = _object(data["pii"], {"state", "findings", "provenance"}, "PII feature")
+        if not isinstance(fields["findings"], list):
+            raise ValueError("PII feature findings must be a list")
+        findings = tuple(
+            ClassifiedPIIFinding(**_object(
+                finding, {"type", "confidence", "provenance", "detector", "detector_version"},
+                "PII finding",
+            ))
+            for finding in fields["findings"]
+        )
+        pii = PIIPolicyFeature(
+            FeatureState(fields["state"]), provenance(fields["provenance"]), findings,
+        )
     return PolicyFeatures(
         mime=MimePolicyFeature(
             FeatureState(mime["state"]), provenance(mime["provenance"]), mime["value"]
         ),
         embeddings=tuple(embeddings),
+        pii=pii,
         access=_access_from_dict(data["access"]) if "access" in data else None,
         placement_estimates=(
             _placement_estimates_from_dict(data["placement_estimates"])
@@ -367,6 +392,8 @@ def _policy_description(policy: object) -> tuple[str, dict[str, Any], dict[str, 
         }
         config.update({name: list(getattr(policy, name)) for name in _CONTENT_LISTS})
         config["embedding_rules"] = [rule.to_mapping() for rule in policy.embedding_rules]
+        if policy.pii_rules:
+            config["pii_rules"] = [rule.to_mapping() for rule in policy.pii_rules]
         return "content", config, None
     if type(policy) is LLMPolicy and type(policy.provider) is ThresholdProvider:
         return (
@@ -407,7 +434,7 @@ def _policy_from_dict(
         fields.update((*_CONTENT_LISTS, "embedding_rules"))
     elif implementation != "simple":
         raise ValueError(f"unsupported policy implementation: {implementation!r}")
-    _object(config, fields, "policy config")
+    _object(config, fields, "policy config", {"pii_rules"} if implementation == "content" else None)
     threshold = _integer(config["size_threshold"], "size_threshold")
     tiers = _strings(config["allowed_tiers"], "policy allowed_tiers")
     if implementation == "simple":
@@ -415,6 +442,8 @@ def _policy_from_dict(
     lists = {name: _strings(config[name], name) for name in _CONTENT_LISTS}
     if not isinstance(config["embedding_rules"], list):
         raise ValueError("embedding_rules must be a list")
+    if not isinstance(config.get("pii_rules", []), list):
+        raise ValueError("pii_rules must be a list")
     policy = ContentAwarePolicy(
         size_threshold=threshold,
         allowed_tiers=tiers,
@@ -425,6 +454,7 @@ def _policy_from_dict(
         embedding_rules=[
             EmbeddingPolicyRule.from_mapping(rule) for rule in config["embedding_rules"]
         ],
+        pii_rules=[PIIPolicyRule.from_mapping(rule) for rule in config.get("pii_rules", [])],
     )
     policy.cold_name_patterns = lists["cold_name_patterns"]
     policy.cold_mime_prefixes = lists["cold_mime_prefixes"]

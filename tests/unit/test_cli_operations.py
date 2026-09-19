@@ -773,6 +773,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         "load_policy_feature_loader",
         lambda path, catalog: feature_loader_sentinel,
     )
+    monkeypatch.setattr(cognistore_cli, "load_pii_config", lambda path: None)
 
     def handlers(
         drivers,
@@ -780,6 +781,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         *,
         throughput=None,
         policy_feature_loader=None,
+        pii_config=None,
     ):
         nonlocal seen_feature_loader
         seen_feature_loader = policy_feature_loader

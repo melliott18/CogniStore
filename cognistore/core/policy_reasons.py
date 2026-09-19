@@ -18,7 +18,7 @@ from .audit import canonical_audit_timestamp
 
 POLICY_REASON_SCHEMA_VERSION = 1
 ReasonCode = Literal[
-    "size_threshold", "name_rule", "mime_rule", "embedding_rule",
+    "size_threshold", "name_rule", "mime_rule", "embedding_rule", "pii_rule",
     "required_features_unavailable", "provider_decision", "provider_error",
     "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
     "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
@@ -37,7 +37,8 @@ class _Contract(BaseModel):
 class DecisiveSignal(_Contract):
     name: Literal[
         "size_bytes", "name_match", "mime_match", "mime_state", "embedding_state",
-        "features_evaluated", "embedding_similarity",
+        "features_evaluated", "embedding_similarity", "pii_state", "pii_match",
+        "pii_confidence",
     ]
     value: Number | bool | FeatureState | None
     operator: Literal["<=", ">", ">=", "=="] | None
@@ -46,7 +47,7 @@ class DecisiveSignal(_Contract):
 
     @model_validator(mode="after")
     def valid_signal(self) -> DecisiveSignal:
-        if self.name in {"size_bytes", "embedding_similarity"}:
+        if self.name in {"size_bytes", "embedding_similarity", "pii_confidence"}:
             if type(self.value) not in {int, float} or self.threshold is None:
                 raise ValueError("numeric signals require a value and threshold")
             if self.operator not in {"<=", ">", ">="}:

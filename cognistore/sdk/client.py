@@ -442,8 +442,10 @@ class CogniStoreClient:
 
         payload = cls._request_json(request)
         config = payload.get("config")
-        if isinstance(config, dict) and not config.get("embedding_rules"):
-            config.pop("embedding_rules", None)
+        if isinstance(config, dict):
+            for feature in ("embedding_rules", "pii_rules"):
+                if not config.get(feature):
+                    config.pop(feature, None)
         if isinstance(config, dict):
             controls = config.get("movement_constraints")
             if isinstance(controls, dict):
