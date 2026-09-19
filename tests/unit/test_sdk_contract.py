@@ -94,6 +94,9 @@ _MODEL_SCHEMA_PAIRS = {
     "GeneratedAnswerResponse": "GeneratedAnswer",
     "AskResponse": "AskResponse",
     "EmbeddingPolicyRuleConfig": "EmbeddingPolicyRuleConfig",
+    "PIIPolicyRuleConfig": "PIIPolicyRuleConfig",
+    "PIIFindingResponse": "PIIFinding",
+    "PIIPolicyFeatureResponse": "PIIPolicyFeature",
     "PolicyConfig": "PolicyConfig",
     "MovementConstraintsConfig": "MovementConstraintsConfig",
     "StabilityOverrideConfig": "StabilityOverrideConfig",
@@ -211,6 +214,7 @@ def test_sdk_budget_reason_preserves_unknown_amounts_and_objective_evidence() ->
                 "weights": {"cost": "1", "carbon": "0", "latency": "0", "locality": "0"},
                 "selected": {"pool_id": "warm-east", "tier": "warm", "score": "0"},
             },
+            "locality": None,
         },
         "policy": {"name": "estimate", "version": "1", "model": None},
         "confidence": {"value": None, "source": "not_applicable"},
@@ -450,6 +454,7 @@ def test_empty_embedding_rules_are_omitted_for_older_strict_v1_servers() -> None
 
     for bodies in request_bodies.values():
         assert b'"embedding_rules"' not in bodies[0]
+        assert b'"pii_rules"' not in bodies[0]
         assert b'"embedding_rules":[{' in bodies[1]
         assert b'"name":"active-report"' in bodies[1]
 

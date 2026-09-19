@@ -115,7 +115,7 @@ def _runtime_config(config_path: str | Path) -> dict[str, Any]:
         raise PolicyFeatureRuntimeConfigError(
             "driver configuration field names must be strings"
         )
-    unknown_top_level = sorted(set(raw).difference({"tiers", "embedding", "access_history"}))
+    unknown_top_level = sorted(set(raw).difference({"tiers", "embedding", "access_history", "pii"}))
     if unknown_top_level:
         raise PolicyFeatureRuntimeConfigError(
             "driver configuration has unsupported top-level fields: "

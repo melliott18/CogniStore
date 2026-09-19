@@ -60,6 +60,8 @@ class AuditEventType(str, Enum):
     LEGAL_HOLD_PLACED = "legal_hold.placed"
     LEGAL_HOLD_RELEASED = "legal_hold.released"
     LEGAL_HOLD_DENIED = "legal_hold.denied"
+    LOCALITY_DECISION = "locality.decision"
+    LOCALITY_EXCEPTION = "locality.exception"
 
 
 class AuditOutcome(str, Enum):

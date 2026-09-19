@@ -36,7 +36,7 @@ from cognistore.core.audit import (
 from cognistore.core.catalog import CatalogStore, ObjectRecord
 from cognistore.core.mover import Mover
 from cognistore.core.placement_controls import ImportanceTag, MovementConstraints
-from cognistore.core.policy import EmbeddingPolicyRule
+from cognistore.core.policy import EmbeddingPolicyRule, PIIPolicyRule
 from cognistore.core.policy_factory import build_policy
 from cognistore.core.policy_features import CatalogPolicyFeatureLoader
 from cognistore.core.policy_runner import PolicyRunner
@@ -908,6 +908,10 @@ class CogniStoreGateway:
         )
 
     @staticmethod
+    def _pii_rules(config: PolicyConfig) -> tuple[PIIPolicyRule, ...]:
+        return tuple(PIIPolicyRule.from_mapping(rule.model_dump()) for rule in config.pii_rules)
+
+    @staticmethod
     def _policy(config: PolicyConfig):
         return build_policy(
             config.policy,
@@ -921,6 +925,7 @@ class CogniStoreGateway:
             warm_mime_prefixes=config.warm_mime_prefixes,
             cold_mime_prefixes=config.cold_mime_prefixes,
             embedding_rules=CogniStoreGateway._embedding_rules(config),
+            pii_rules=CogniStoreGateway._pii_rules(config),
         )
 
     @staticmethod
@@ -1169,6 +1174,7 @@ class CogniStoreGateway:
             warm_mime_prefixes=config.warm_mime_prefixes,
             cold_mime_prefixes=config.cold_mime_prefixes,
             embedding_rules=self._embedding_rules(config),
+            pii_rules=self._pii_rules(config),
             movement_constraints=self._movement_constraints(config),
         )
         job = JobEnvelope.create(

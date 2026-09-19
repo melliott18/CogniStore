@@ -89,6 +89,13 @@ what-if simulation](policy_budgets.md) for the charging and scoring contracts.
 Estimate-policy decisions currently use `custom_policy` with this objective
 evidence; a budget suppression takes precedence with `budget_constraint`.
 
+`constraints.locality` is null when locality policy is disabled. Otherwise it
+records the server-owned tenant/object rules, eligible physical pool bindings,
+destination region evidence, rejection reasons, and any selected scoped
+exception. `locality_constraint` identifies a suppressed geographic move.
+Locality evidence is captured before optimization and is also retained when
+another destination is selected. See [data locality](data_locality.md).
+
 No current provider has a calibrated confidence contract. `confidence.value`
 is always `null`. `confidence.source` is `not_applicable` for deterministic
 rules and movement constraints, or `not_reported` for external-provider/custom

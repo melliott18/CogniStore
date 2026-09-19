@@ -155,6 +155,39 @@ async function main() {
   assert.match(suppressed.textContent, /Cooldown active true/);
   assert.match(suppressed.textContent, /No move requested/);
 
+  for (const used of [false, true]) {
+    const locality = renderDecision({
+      ...fixture,
+      explanation: {
+        ...fixture.explanation,
+        structured_reason: {
+          ...fixture.explanation.structured_reason,
+          code: "locality_constraint", disposition: "suppressed",
+          constraints: { locality: {
+            configured: true,
+            rules: [
+              { scope: "tenant", allowed_regions: ["eu-west-1"], required_localities: ["eu"] },
+              { scope: "object", bucket: "documents", key_prefix: "regulated/", allowed_regions: null, required_localities: ["private"] },
+            ],
+            rejected: { warm: "destination locality evidence is stale" },
+            exception: { id: "approved-transfer", actor_id: "principal:sha256:operator", reason: malicious, used },
+          } },
+        },
+      },
+    });
+    assert.match(locality.textContent, /Data locality Tenant rule · Allowed regions: \["eu-west-1"\]/);
+    assert.match(locality.textContent, /Required localities: \["eu"\]/);
+    assert.match(locality.textContent, /Object rule for documents\/regulated\/\* · Allowed regions: Unrestricted/);
+    assert.match(locality.textContent, /Excluded warm: destination locality evidence is stale/);
+    assert.match(locality.textContent, /Exception approved-transfer · Actor principal:sha256:operator/);
+    assert.ok(locality.textContent.includes(used
+      ? "Exception permits the selected destination"
+      : "Exception not used for this decision"));
+    assert.ok(locality.textContent.includes(malicious));
+    assert.equal(descendants(locality, "img").length, 0);
+    assert.doesNotMatch(locality.textContent, /Move completed/);
+  }
+
   const legacy = renderDecision({
     ...fixture,
     explanation: { state: "legacy", structured_reason: null, model_details: "unavailable" },

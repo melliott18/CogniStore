@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import sys
@@ -7,9 +8,11 @@ import threading
 import time
 from dataclasses import replace
 from importlib.metadata import version
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from pypdf import PdfWriter
 
 import cognistore.core.document_extraction as document_extraction
 from cognistore.core.document_extraction import (
@@ -99,6 +102,17 @@ class _CrashParser:
         os._exit(17)
 
 
+class _NoisyParser(_StaticParser):
+    def parse(self, data: bytes, *, mime: str) -> ParsedDocument:
+        text = data.decode("ascii")
+        print(text)
+        print(text, file=sys.stderr)
+        os.write(1, data)
+        os.write(2, data)
+        logging.getLogger("parser-test").error(text)
+        raise RuntimeError(text)
+
+
 def _fixture(name: str) -> bytes:
     return (FIXTURE_ROOT / name).read_bytes()
 
@@ -153,6 +167,45 @@ def test_pdf_fixture_yields_expected_text_and_metadata() -> None:
         "language": None,
         "page_count": 1,
     }
+
+
+def test_pdf_parser_diagnostics_do_not_log_sensitive_dictionary_keys(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    sensitive = "synthetic.person@example.test"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_metadata({f"/{sensitive}": "x"})
+    output = BytesIO()
+    writer.write(output)
+    original = f"/{sensitive} (x)".encode("ascii")
+    repeated = f"/{sensitive} (x) /{sensitive} (y)".encode("ascii")
+    data = output.getvalue()
+    assert original in data
+    # pypdf recovers this malformed dictionary while logging its duplicated
+    # key verbatim unless the isolated parser worker suppresses diagnostics.
+    malformed = data.replace(original, repeated)
+
+    result = DocumentExtractionPipeline().extract(malformed, mime=PDF_MIME_TYPE)
+
+    assert result.status == "succeeded"
+    captured = capfd.readouterr()
+    assert sensitive not in captured.out + captured.err
+
+
+def test_parser_failure_suppresses_logging_python_and_native_output(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    sensitive = "synthetic.person@example.test"
+
+    result = _pipeline_for(_NoisyParser()).extract(
+        sensitive.encode("ascii"), mime=PDF_MIME_TYPE,
+    )
+
+    assert result.status == "failed"
+    assert result.failure_code == "parser_error"
+    captured = capfd.readouterr()
+    assert sensitive not in captured.out + captured.err
 
 
 def test_docx_fixture_yields_expected_text_and_metadata() -> None:

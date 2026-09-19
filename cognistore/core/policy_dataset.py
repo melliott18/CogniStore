@@ -18,6 +18,8 @@ from cognistore.utils.redaction import redact
 
 from .audit import AuditEvent, AuditEventType, AuditQuery, canonical_audit_timestamp
 from .catalog import CatalogStore
+from .pii import ClassifiedPIIFinding
+from .policy import PIIPolicyRule
 from .policy_reasons import reason_from_audit_details, validate_policy_reason
 from .policy_snapshot import _placement_estimates_from_dict, snapshot_from_audit_details
 
@@ -50,7 +52,7 @@ _MOVE_TYPES = frozenset(
     }
 )
 _TERMINAL_TYPES = frozenset({"move.completed", "move.failed"})
-_OPTIONAL_FEATURE_NAMES = frozenset({"access", "placement_estimates"})
+_OPTIONAL_FEATURE_NAMES = frozenset({"access", "placement_estimates", "pii"})
 _FEATURE_NAMES = frozenset({"schema_version", "mime", "embeddings"}) | _OPTIONAL_FEATURE_NAMES
 _LEAK_NAMES = frozenset(
     {
@@ -751,6 +753,8 @@ def _validate_policy_dataset(
                         "embedding_rules",
                     }
                 )
+                if isinstance(policy.get("config"), dict) and "pii_rules" in policy["config"]:
+                    config_fields.add("pii_rules")
             elif implementation == "unsupported":
                 config_fields = set()
             elif implementation != "simple":
@@ -767,7 +771,7 @@ def _validate_policy_dataset(
                             path + ".snapshot.policy.config." + field,
                             "Threshold must be an integer",
                         )
-                    elif field not in {"size_threshold", "threshold", "embedding_rules"} and (
+                    elif field not in {"size_threshold", "threshold", "embedding_rules", "pii_rules"} and (
                         not isinstance(configured, list)
                         or any(not isinstance(item, str) for item in configured)
                     ):
@@ -776,6 +780,26 @@ def _validate_policy_dataset(
                             path + ".snapshot.policy.config." + field,
                             "Policy rules must contain text",
                         )
+                if "pii_rules" in config:
+                    rules = config["pii_rules"]
+                    if not isinstance(rules, list) or len(rules) > 100:
+                        issue("invalid_schema", path + ".snapshot.policy.config.pii_rules",
+                              "PII rules must be a bounded list")
+                    else:
+                        for offset, rule in enumerate(rules):
+                            at = ("snapshot", "policy", "config", "pii_rules", str(offset))
+                            if shape(rule, {"finding_type", "destination_tier", "minimum_confidence"},
+                                     at, path):
+                                try:
+                                    PIIPolicyRule.from_mapping({
+                                        "finding_type": "EMAIL_ADDRESS",
+                                        "destination_tier": "hot",
+                                        "minimum_confidence": 0.5,
+                                        **rule,
+                                    })
+                                except ValueError:
+                                    issue("invalid_schema", path + "." + ".".join(at),
+                                          "Invalid PII policy rule")
             if policy.get("model") is not None:
                 shape(
                     policy["model"], {"identity", "version"}, ("snapshot", "policy", "model"), path
@@ -823,6 +847,35 @@ def _validate_policy_dataset(
             feature_times(features, path + ".snapshot.features", start)
             if set(features).difference(_FEATURE_NAMES):
                 issue("unknown_feature", path + ".snapshot.features", "Unknown feature fields")
+            if "pii" in features:
+                pii = features["pii"]
+                pii_at = ("snapshot", "features", "pii")
+                if shape(pii, {"state", "findings", "provenance"}, pii_at, path):
+                    if pii.get("state") not in {"fresh", "stale", "missing", "unavailable"}:
+                        issue("invalid_schema", path + ".snapshot.features.pii", "Invalid PII state")
+                    findings = pii.get("findings")
+                    if not isinstance(findings, list) or len(findings) > 10_000:
+                        issue("invalid_schema", path + ".snapshot.features.pii", "Invalid PII findings")
+                    else:
+                        if pii.get("state") != "fresh" and findings:
+                            issue("invalid_schema", path + ".snapshot.features.pii",
+                                  "Non-fresh PII features cannot contain findings")
+                        for offset, finding in enumerate(findings):
+                            finding_at = (*pii_at, "findings", str(offset))
+                            if shape(finding, {"type", "confidence", "provenance", "detector", "detector_version"},
+                                     finding_at, path):
+                                try:
+                                    ClassifiedPIIFinding(**{
+                                        "type": "EMAIL_ADDRESS", "confidence": 0.5,
+                                        "provenance": "rule", "detector": "redacted",
+                                        "detector_version": "1.0", **finding,
+                                    })
+                                except (TypeError, ValueError):
+                                    issue("invalid_schema", path + "." + ".".join(finding_at),
+                                          "Invalid normalized PII finding")
+                    shape(pii.get("provenance"),
+                          {"source", "source_version", "content_sha256", "details"},
+                          (*pii_at, "provenance"), path)
             if "placement_estimates" in features:
                 try:
                     estimates = _placement_estimates_from_dict(features["placement_estimates"])

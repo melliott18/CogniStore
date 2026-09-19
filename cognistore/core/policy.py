@@ -10,6 +10,7 @@ from typing import Iterable, Mapping, Protocol, Sequence, cast
 from cognistore.utils.redaction import redact
 
 from .catalog import ObjectRecord
+from .pii import PIIFinding
 from .placement_llm import (
     CallablePlacementProvider,
     PlacementInference,
@@ -318,6 +319,56 @@ class PolicyLLMProvider(Protocol):  # pragma: no cover - interface
 
 
 @dataclass(frozen=True)
+class PIIPolicyRule:
+    """Place an object with a matching redacted sensitive-content finding."""
+
+    finding_type: str
+    destination_tier: str
+    minimum_confidence: float = 0.5
+
+    def __post_init__(self) -> None:
+        # Use the detector's shared vocabulary and numeric validation. No raw
+        # match or arbitrary detector-supplied text can become a policy rule.
+        PIIFinding(self.finding_type, self.minimum_confidence, "rule")
+        destination = self.destination_tier
+        if (
+            not isinstance(destination, str)
+            or not destination
+            or destination != destination.strip()
+            or any(ord(character) < 32 for character in destination)
+        ):
+            raise ValueError("PII rule destination_tier must be non-empty text")
+        try:
+            if len(destination.encode("utf-8")) > 256:
+                raise ValueError("PII rule destination_tier must be at most 256 UTF-8 bytes")
+        except UnicodeEncodeError:
+            raise ValueError("PII rule destination_tier must be valid UTF-8") from None
+        object.__setattr__(self, "minimum_confidence", float(self.minimum_confidence))
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, object]) -> PIIPolicyRule:
+        required = {"finding_type", "destination_tier"}
+        if (
+            not isinstance(value, Mapping)
+            or required - value.keys()
+            or value.keys() - required - {"minimum_confidence"}
+        ):
+            raise ValueError("PII rule has missing or unknown fields")
+        return cls(
+            finding_type=value["finding_type"],  # type: ignore[arg-type]
+            destination_tier=value["destination_tier"],  # type: ignore[arg-type]
+            minimum_confidence=value.get("minimum_confidence", 0.5),  # type: ignore[arg-type]
+        )
+
+    def to_mapping(self) -> dict[str, object]:
+        return {
+            "finding_type": self.finding_type,
+            "destination_tier": self.destination_tier,
+            "minimum_confidence": self.minimum_confidence,
+        }
+
+
+@dataclass(frozen=True)
 class EmbeddingPolicyRule:
     """One named prototype-query classification used by content policy.
 
@@ -411,6 +462,7 @@ def validate_policy_config_size(
     warm_mime_prefixes: Iterable[str],
     cold_mime_prefixes: Iterable[str],
     embedding_rules: Iterable[EmbeddingPolicyRule],
+    pii_rules: Iterable[PIIPolicyRule] = (),
 ) -> None:
     """Enforce the aggregate policy-string limit used by public requests."""
 
@@ -427,6 +479,7 @@ def validate_policy_config_size(
             for rule in embedding_rules
             for value in (rule.name, rule.query, rule.destination_tier)
         ),
+        *(value for rule in pii_rules for value in (rule.finding_type, rule.destination_tier)),
     ]
     try:
         payload_bytes = sum(len(value.encode("utf-8")) for value in values)
@@ -442,6 +495,7 @@ class ContentAwarePolicy(NumericalHysteresis):
     """Policy that uses content metadata to decide placement.
 
     Rules are evaluated in the following order (first match wins):
+      0. Configured sensitive-content governance rules
       1. Filename patterns for hot (move to hot) and warm (move to warm)
       2. MIME prefix lists for hot and warm
       3. Configured embedding classifications/similarity rules
@@ -462,6 +516,7 @@ class ContentAwarePolicy(NumericalHysteresis):
         hot_mime_prefixes: Iterable[str] | None = None,
         warm_mime_prefixes: Iterable[str] | None = None,
         embedding_rules: Iterable[EmbeddingPolicyRule] | None = None,
+        pii_rules: Iterable[PIIPolicyRule] | None = None,
         size_hysteresis_bytes: int = 0,
         similarity_hysteresis: float = 0,
     ) -> None:
@@ -476,6 +531,13 @@ class ContentAwarePolicy(NumericalHysteresis):
         self.hot_mime_prefixes = [m for m in (hot_mime_prefixes or []) if m]
         self.warm_mime_prefixes = [m for m in (warm_mime_prefixes or []) if m]
         self.embedding_rules = tuple(embedding_rules or ())
+        self.pii_rules = tuple(pii_rules or ())
+        if len(self.pii_rules) > 100 or any(
+            not isinstance(rule, PIIPolicyRule) for rule in self.pii_rules
+        ):
+            raise ValueError("pii_rules must contain at most 100 PIIPolicyRule values")
+        if any(rule.destination_tier not in self.allowed for rule in self.pii_rules):
+            raise ValueError("PII rule destination tiers must be allowed")
         if len(self.embedding_rules) > MAX_EMBEDDING_RULES:
             raise ValueError(
                 f"content policy supports at most {MAX_EMBEDDING_RULES} embedding rules"
@@ -529,6 +591,7 @@ class ContentAwarePolicy(NumericalHysteresis):
             or self.warm_mime_prefixes
             or self.cold_mime_prefixes
             or self.embedding_rules
+            or self.pii_rules
         )
 
     # Keep compatibility: provide size-based evaluate
@@ -598,10 +661,62 @@ class ContentAwarePolicy(NumericalHysteresis):
         A configured rule may move an object only from a fresh signal. A
         missing, stale, or unavailable signal fails closed before any
         lower-priority semantic rule can select a destination whose precedence
-        cannot be established. Independent filename rules retain their
-        established highest precedence.
+        cannot be established. Sensitive-content governance is checked before
+        filename rules, so an unknown classification cannot bypass the guard.
         """
 
+        current_tier = rec.tier
+
+        pii_decision = self.evaluate_pii(current_tier, features)
+        if pii_decision is not None:
+            return pii_decision
+
+        return self._evaluate_content_features(rec, features)
+
+    def evaluate_pii(
+        self, current_tier: str, features: PolicyFeatures,
+    ) -> PolicyDecision | None:
+        """Return the governance decision, or None when complete evidence clears rules."""
+        if self.pii_rules:
+            pii = features.pii
+            if pii is None or pii.state is not FeatureState.FRESH:
+                state = FeatureState.MISSING if pii is None else pii.state
+                return PolicyDecision(
+                    "stay", f"required policy features unavailable: pii={state.value}",
+                    reason_code="required_features_unavailable",
+                    decisive_signals=[_signal("pii_state", state.value)],
+                )
+            for rule_index, rule in enumerate(self.pii_rules):
+                confidence = max(
+                    (finding.confidence for finding in pii.findings
+                     if finding.type == rule.finding_type),
+                    default=-1.0,
+                )
+                if confidence < rule.minimum_confidence:
+                    continue
+                destination = rule.destination_tier
+                signals = [
+                    _signal("pii_state", FeatureState.FRESH.value),
+                    _signal("pii_match", True, rule_index=rule_index),
+                    _signal("pii_confidence", confidence, operator=">=",
+                            threshold=rule.minimum_confidence, rule_index=rule_index),
+                ]
+                allowed = destination in self.allowed
+                move = allowed and destination != current_tier
+                return PolicyDecision(
+                    "move" if move else "stay",
+                    "sensitive content placement rule" if allowed
+                    else "sensitive content destination not allowed",
+                    destination if move else None,
+                    reason_code="pii_rule" if allowed else "destination_not_allowed",
+                    decisive_signals=signals,
+                    proposed_dst_tier=destination if not allowed else None,
+                )
+        return None
+
+    def _evaluate_content_features(
+        self, rec: ObjectRecord, features: PolicyFeatures,
+    ) -> PolicyDecision:
         current_tier = rec.tier
         key = rec.key
 

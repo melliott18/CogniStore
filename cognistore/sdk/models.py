@@ -39,6 +39,11 @@ PolicyPattern = Annotated[str, Field(min_length=1, max_length=1024)]
 MimePrefix = Annotated[str, Field(min_length=1, max_length=255)]
 EmbeddingRuleName = Annotated[str, Field(min_length=1, max_length=256)]
 EmbeddingRuleQuery = Annotated[str, Field(min_length=1, max_length=16_384)]
+PIIFindingType: TypeAlias = Literal[
+    "EMAIL_ADDRESS", "US_SSN", "PHONE_NUMBER", "CREDIT_CARD_NUMBER", "IP_ADDRESS",
+    "PERSON", "LOCATION", "DATE_OF_BIRTH", "ACCOUNT_NUMBER", "TAX_ID",
+    "PASSPORT_NUMBER", "DRIVER_LICENSE_NUMBER",
+]
 MAX_POLICY_CONFIG_BYTES = 64 * 1024
 ImportanceLevel: TypeAlias = Literal["low", "normal", "high", "critical"]
 
@@ -75,6 +80,29 @@ class AskRequest(SDKRequest):
     synthesize: bool = False
     exact_vector: bool = False
     retrieval_mode: RetrievalMode = "metadata+keyword+vector"
+
+
+class PIIPolicyRuleConfig(SDKRequest):
+    """Restrict content placement when a sanitized PII finding is present."""
+
+    finding_type: PIIFindingType
+    destination_tier: Tier
+    minimum_confidence: Annotated[
+        float, Field(ge=0.0, le=1.0, allow_inf_nan=False),
+    ] = 0.5
+
+    @model_validator(mode="after")
+    def _validate_destination(self) -> PIIPolicyRuleConfig:
+        value = self.destination_tier
+        if value != value.strip() or any(ord(character) < 32 for character in value):
+            raise ValueError("PII rule destination_tier must not have whitespace or control characters")
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("PII rule destination_tier must be valid UTF-8") from exc
+        if len(encoded) > 256:
+            raise ValueError("PII rule destination_tier must be at most 256 UTF-8 bytes")
+        return self
 
 
 class EmbeddingPolicyRuleConfig(SDKRequest):
@@ -206,10 +234,24 @@ class PolicyConfig(SDKRequest):
         Field(max_length=100),
     ] = Field(default_factory=list)
 
+    pii_rules: Annotated[
+        list[PIIPolicyRuleConfig], Field(max_length=100),
+    ] = Field(default_factory=list)
+
     @model_validator(mode="after")
     def _bound_aggregate_payload(self) -> PolicyConfig:
         if self.embedding_rules and self.policy != "content":
             raise ValueError("embedding rules require the content policy")
+        if self.pii_rules and self.policy != "content":
+            raise ValueError("PII rules require the content policy")
+        disallowed_pii_tiers = sorted({
+            rule.destination_tier for rule in self.pii_rules
+            if rule.destination_tier not in self.allowed_tiers
+        })
+        if disallowed_pii_tiers:
+            raise ValueError(
+                "PII rule destination tier(s) must be allowed: " + ", ".join(disallowed_pii_tiers)
+            )
         duplicate_names = sorted(
             name
             for name in {rule.name for rule in self.embedding_rules}
@@ -234,6 +276,10 @@ class PolicyConfig(SDKRequest):
             )
         values = [
             *self.allowed_tiers,
+            *(
+                value for rule in self.pii_rules
+                for value in (rule.finding_type, rule.destination_tier)
+            ),
             *self.hot_name_patterns,
             *self.warm_name_patterns,
             *self.cold_name_patterns,
@@ -492,6 +538,20 @@ class MimePolicyFeature(SDKResponse):
     provenance: PolicyFeatureProvenance
 
 
+class PIIFinding(SDKResponse):
+    type: PIIFindingType
+    confidence: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+    provenance: Literal["regex", "rule", "ner", "classifier"]
+    detector: str
+    detector_version: str
+
+
+class PIIPolicyFeature(SDKResponse):
+    state: PolicyFeatureState
+    findings: list[PIIFinding]
+    provenance: PolicyFeatureProvenance
+
+
 class EmbeddingPolicyFeature(SDKResponse):
     name: EmbeddingRuleName
     query: EmbeddingRuleQuery
@@ -594,6 +654,7 @@ class PolicyFeatures(SDKResponse):
     mime: MimePolicyFeature
     embeddings: Annotated[list[EmbeddingPolicyFeature], Field(max_length=100)]
     access: AccessPolicyFeature | None = None
+    pii: PIIPolicyFeature | None = None
     placement_estimates: ObjectPlacementEstimates | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -640,7 +701,8 @@ class JobStatus(SDKResponse):
 class DecisiveSignal(SDKResponse):
     name: Literal[
         "size_bytes", "name_match", "mime_match", "mime_state", "embedding_state",
-        "features_evaluated", "embedding_similarity",
+        "features_evaluated", "embedding_similarity", "pii_state", "pii_match",
+        "pii_confidence",
     ]
     value: (
         Annotated[int | float, Field(allow_inf_nan=False)]
@@ -685,6 +747,7 @@ class ReasonConstraints(SDKResponse):
     objectives: dict[str, Any] | None = None
     legal_hold: bool = False
     legal_hold_ids: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
+    locality: dict[str, Any] | None = None
 
 
 class ReasonModel(SDKResponse):
@@ -706,12 +769,13 @@ class ReasonConfidence(SDKResponse):
 class PolicyReason(SDKResponse):
     schema_version: Literal[1]
     code: Literal[
-        "size_threshold", "name_rule", "mime_rule", "embedding_rule",
+        "size_threshold", "name_rule", "mime_rule", "embedding_rule", "pii_rule",
         "required_features_unavailable", "provider_decision", "provider_error",
         "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
         "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
         "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
         "legal_hold",
+        "locality_constraint",
     ]
     disposition: Literal["move", "stay", "suppressed", "rejected"]
     decisive_signals: list[DecisiveSignal]
@@ -823,6 +887,8 @@ RetrievalResultResponse: TypeAlias = RetrievalResult
 ProviderDiagnosticResponse: TypeAlias = ProviderDiagnostic
 GeneratedAnswerResponse: TypeAlias = GeneratedAnswer
 PolicyFeatureProvenanceResponse: TypeAlias = PolicyFeatureProvenance
+PIIPolicyFeatureResponse: TypeAlias = PIIPolicyFeature
+PIIFindingResponse: TypeAlias = PIIFinding
 MimePolicyFeatureResponse: TypeAlias = MimePolicyFeature
 EmbeddingPolicyFeatureResponse: TypeAlias = EmbeddingPolicyFeature
 AccessPolicyFeatureResponse: TypeAlias = AccessPolicyFeature

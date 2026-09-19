@@ -772,7 +772,10 @@
               "mime_state",
               "embedding_state",
               "features_evaluated",
-              "embedding_similarity"
+              "embedding_similarity",
+              "pii_state",
+              "pii_match",
+              "pii_confidence"
             ],
             "title": "Name",
             "type": "string"
@@ -1999,6 +2002,137 @@
         "title": "ObjectResource",
         "type": "object"
       },
+      "PIIFindingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "detector_version": {
+            "title": "Detector Version",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "regex",
+              "rule",
+              "ner",
+              "classifier"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "EMAIL_ADDRESS",
+              "US_SSN",
+              "PHONE_NUMBER",
+              "CREDIT_CARD_NUMBER",
+              "IP_ADDRESS",
+              "PERSON",
+              "LOCATION",
+              "DATE_OF_BIRTH",
+              "ACCOUNT_NUMBER",
+              "TAX_ID",
+              "PASSPORT_NUMBER",
+              "DRIVER_LICENSE_NUMBER"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "confidence",
+          "provenance",
+          "detector",
+          "detector_version"
+        ],
+        "title": "PIIFindingResponse",
+        "type": "object"
+      },
+      "PIIPolicyFeatureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/PIIFindingResponse"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/PolicyFeatureProvenanceResponse"
+          },
+          "state": {
+            "enum": [
+              "fresh",
+              "missing",
+              "stale",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "findings",
+          "provenance"
+        ],
+        "title": "PIIPolicyFeatureResponse",
+        "type": "object"
+      },
+      "PIIPolicyRuleConfig": {
+        "additionalProperties": false,
+        "description": "Restrict content placement when a sanitized PII finding is present.",
+        "properties": {
+          "destination_tier": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Destination Tier",
+            "type": "string"
+          },
+          "finding_type": {
+            "enum": [
+              "EMAIL_ADDRESS",
+              "US_SSN",
+              "PHONE_NUMBER",
+              "CREDIT_CARD_NUMBER",
+              "IP_ADDRESS",
+              "PERSON",
+              "LOCATION",
+              "DATE_OF_BIRTH",
+              "ACCOUNT_NUMBER",
+              "TAX_ID",
+              "PASSPORT_NUMBER",
+              "DRIVER_LICENSE_NUMBER"
+            ],
+            "title": "Finding Type",
+            "type": "string"
+          },
+          "minimum_confidence": {
+            "default": 0.5,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Minimum Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "finding_type",
+          "destination_tier"
+        ],
+        "title": "PIIPolicyRuleConfig",
+        "type": "object"
+      },
       "PageMetadata": {
         "additionalProperties": false,
         "properties": {
@@ -2371,6 +2505,14 @@
                 "type": "null"
               }
             ]
+          },
+          "pii_rules": {
+            "items": {
+              "$ref": "#/components/schemas/PIIPolicyRuleConfig"
+            },
+            "maxItems": 100,
+            "title": "Pii Rules",
+            "type": "array"
           },
           "policy": {
             "default": "simple",
@@ -2747,6 +2889,16 @@
           "mime": {
             "$ref": "#/components/schemas/MimePolicyFeatureResponse"
           },
+          "pii": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PIIPolicyFeatureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "placement_estimates": {
             "anyOf": [
               {
@@ -2780,6 +2932,7 @@
               "name_rule",
               "mime_rule",
               "embedding_rule",
+              "pii_rule",
               "required_features_unavailable",
               "provider_decision",
               "provider_error",
@@ -2795,7 +2948,8 @@
               "already_in_tier",
               "invalid_action",
               "budget_constraint",
-              "legal_hold"
+              "legal_hold",
+              "locality_constraint"
             ],
             "title": "Code",
             "type": "string"
@@ -3072,6 +3226,18 @@
             },
             "title": "Legal Hold Ids",
             "type": "array"
+          },
+          "locality": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locality"
           },
           "minimum_residency_seconds": {
             "minimum": 0.0,

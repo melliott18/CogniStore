@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import multiprocessing
+import os
 import pickle
 import re
 import sys
@@ -561,6 +563,35 @@ def normalize_document_text(value: str) -> str:
 
 
 def _parser_worker(
+    connection: Connection,
+    shared_input_name: str,
+    input_size: int,
+    shared_adapter_name: str,
+    adapter_size: int,
+    mime_size: int,
+    max_output_bytes: int,
+) -> None:
+    # Parser diagnostics can quote arbitrary document strings (for example,
+    # malformed PDF dictionary keys). Silence Python and native output before
+    # adapter unpickling; the parent receives only the structured outcome.
+    with open(os.devnull, "w") as sink:
+        os.dup2(sink.fileno(), 1)
+        os.dup2(sink.fileno(), 2)
+        sys.stdout = sink
+        sys.stderr = sink
+        logging.disable(sys.maxsize)
+        _run_parser_worker(
+            connection,
+            shared_input_name,
+            input_size,
+            shared_adapter_name,
+            adapter_size,
+            mime_size,
+            max_output_bytes,
+        )
+
+
+def _run_parser_worker(
     connection: Connection,
     shared_input_name: str,
     input_size: int,
