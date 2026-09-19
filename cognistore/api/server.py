@@ -13,6 +13,7 @@ from cognistore.auth.jwt import JWTAuthConfig
 from cognistore.auth.tenancy import TenantResolver
 from cognistore.db import open_catalog
 from cognistore.drivers.driver_loader import load_drivers
+from cognistore.encryption import require_at_rest, server_tls_context
 from cognistore.jobs.nats_queue import NatsJetStreamConfig, NatsJetStreamQueue
 from cognistore.observability import configure_observability
 from cognistore.policy_feature_runtime import load_access_config, load_policy_feature_loader
@@ -48,6 +49,8 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
     )
     parser.add_argument("--log-level", default="info")
+    parser.add_argument("--tls-certfile", default=os.environ.get("COGNISTORE_API_TLS_CERTFILE"))
+    parser.add_argument("--tls-keyfile", default=os.environ.get("COGNISTORE_API_TLS_KEYFILE"))
     parser.add_argument(
         "--auth-issuer", default=os.environ.get("COGNISTORE_AUTH_ISSUER"),
         help="trusted HTTPS token issuer (or COGNISTORE_AUTH_ISSUER)",
@@ -132,13 +135,16 @@ def _authorization_config(
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    configure_observability()
     if not args.drivers:
         raise SystemExit("--drivers or COGNISTORE_DRIVERS is required")
     if not args.catalog_db:
         raise SystemExit("--catalog-db or COGNISTORE_CATALOG_DB is required")
     if not 1 <= args.port <= 65_535:
         raise SystemExit("--port must be between 1 and 65535")
+
+    server_tls_context(args.tls_certfile, args.tls_keyfile)
+    require_at_rest("runtime")
+    configure_observability()
 
     authentication = _auth_config(args)
     authorization = _authorization_config(args, authentication)
@@ -180,6 +186,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             port=args.port,
             log_level=args.log_level,
             access_log=False,
+            ssl_certfile=args.tls_certfile,
+            ssl_keyfile=args.tls_keyfile,
             log_config=(
                 None if os.environ.get("COGNISTORE_LOG_FORMAT", "").lower() == "json"
                 else uvicorn.config.LOGGING_CONFIG

@@ -19,6 +19,7 @@ import yaml
 
 from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import EmbeddingPolicyRule
+from cognistore.encryption import require_at_rest
 
 from .handlers import (
     CATALOG_SCAN_JOB,
@@ -654,6 +655,8 @@ class SQLiteScheduleStore:
     """Durable timing, publication, and execution leases for recurring jobs."""
 
     def __init__(self, db_path: str | Path, *, read_only: bool = False) -> None:
+        if str(db_path) != ":memory:":
+            require_at_rest("runtime")
         self.db_path = str(db_path)
         self.read_only = read_only
         self._lock = threading.RLock()

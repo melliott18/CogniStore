@@ -15,6 +15,7 @@ from cognistore.api import create_app
 from cognistore.core.embedding_index import EmbeddingBackendUnsupportedError
 from cognistore.db import SQLCatalog, open_catalog
 from cognistore.drivers.driver_loader import load_drivers
+from cognistore.encryption import production_mode
 from cognistore.observability import configure_observability
 
 from .manifest import SampleManifestError, read_sample_corpus
@@ -102,6 +103,8 @@ def _required_runtime_values(args: argparse.Namespace) -> tuple[str, str]:
 def _open_runtime(
     args: argparse.Namespace,
 ) -> tuple[SQLCatalog, ContentSearchRuntime]:
+    if production_mode():
+        raise ValueError("The content-search sample requires COGNISTORE_SECURITY_PROFILE=development")
     driver_path, catalog_locator = _required_runtime_values(args)
     drivers = load_drivers(driver_path)
     catalog = open_catalog(catalog_locator)

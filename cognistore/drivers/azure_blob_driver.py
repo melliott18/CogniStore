@@ -13,12 +13,15 @@ from azure.core.exceptions import AzureError, ClientAuthenticationError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
+from cognistore.encryption import ca_bundle, require_at_rest, require_tls_url
+
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    external_encryption_status,
     validate_object_generation,
 )
 
@@ -163,7 +166,13 @@ class AzureBlobDriver(StorageDriver):
         list_page_size: Optional[int] = None,
         chunk_size: int = DEFAULT_STREAM_CHUNK_SIZE,
         client: Any = None,
+        encryption_scope: Optional[str] = None,
     ) -> None:
+        if encryption_scope is not None and (
+            not isinstance(encryption_scope, str) or not encryption_scope.strip()
+        ):
+            raise ValueError("Azure encryption_scope must be a non-empty string")
+        self._encryption_scope = encryption_scope
         if connection_string is not None:
             if not isinstance(connection_string, str) or not connection_string.strip():
                 raise ValueError("Azure connection_string must be a non-empty string")
@@ -171,6 +180,17 @@ class AzureBlobDriver(StorageDriver):
                 raise ValueError(
                     "Azure connection_string cannot be combined with account_url or credential"
                 )
+            fields = dict(
+                (name.strip().lower(), value.strip())
+                for part in connection_string.split(";")
+                if "=" in part
+                for name, value in [part.split("=", 1)]
+            )
+            for name in ("blobendpoint", "blobsecondaryendpoint"):
+                if name in fields:
+                    require_tls_url(fields[name], "Azure Blob")
+            if fields.get("usedevelopmentstorage", "").lower() == "true":
+                require_tls_url("http://127.0.0.1", "Azure Blob development storage")
         if isinstance(credential, str) and not credential.strip():
             raise ValueError("Azure credential must not be empty")
         if not isinstance(auto_create_container, bool):
@@ -188,6 +208,8 @@ class AzureBlobDriver(StorageDriver):
         ):
             raise ValueError("Azure chunk_size must be an integer from 1 byte through 4000 MiB")
         self.account_url = _normalized_endpoint(account_url) if account_url is not None else None
+        if self.account_url is not None:
+            require_tls_url(self.account_url, "Azure Blob")
         self.auto_create_container = auto_create_container
         self.list_page_size = list_page_size
         self.chunk_size = chunk_size
@@ -204,6 +226,7 @@ class AzureBlobDriver(StorageDriver):
                 "max_block_size": chunk_size,
                 "logging_enable": False,
                 "retry_total": 3,
+                "connection_verify": ca_bundle(),
             }
             try:
                 if connection_string is not None:
@@ -213,7 +236,9 @@ class AzureBlobDriver(StorageDriver):
                 elif account_url is not None:
                     has_sas = "sig" in parse_qs(urlsplit(account_url).query)
                     if credential is None and not has_sas:
-                        self._owned_credential = DefaultAzureCredential()
+                        self._owned_credential = DefaultAzureCredential(
+                            connection_verify=ca_bundle()
+                        )
                         credential = self._owned_credential
                     self._client = BlobServiceClient(account_url, credential=credential, **options)
             except (AzureError, ValueError, TypeError):
@@ -222,10 +247,33 @@ class AzureBlobDriver(StorageDriver):
                 raise ValueError(
                     "Could not initialize Azure Blob client; check account and credential configuration"
                 ) from None
-        if self.account_url is None:
+        try:
+            transport = getattr(getattr(self._client, "_pipeline", None), "_transport", None)
+            if getattr(getattr(transport, "connection_config", None), "verify", None) is False:
+                raise ValueError("Azure Blob TLS certificate verification must be enabled")
             endpoint = getattr(self._client, "url", None)
             if isinstance(endpoint, str):
-                self.account_url = _normalized_endpoint(endpoint)
+                require_tls_url(endpoint, "Azure Blob")
+                if self.account_url is None:
+                    self.account_url = _normalized_endpoint(endpoint)
+            host = urlsplit(endpoint).hostname if isinstance(endpoint, str) else None
+            self._native_encryption = host is not None and host.endswith((
+                ".blob.core.windows.net", ".blob.core.usgovcloudapi.net",
+                ".blob.core.chinacloudapi.cn", ".blob.core.cloudapi.de",
+            ))
+            require_at_rest("storage", mode="provider-managed" if self._native_encryption else None)
+        except BaseException:
+            self.close()
+            raise
+
+    def encryption_status(self) -> Dict[str, Any]:
+        if not self._native_encryption:
+            return external_encryption_status(key_configured=self._encryption_scope is not None)
+        return {
+            "source": "provider",
+            "mode": "encryption-scope" if self._encryption_scope else "provider-default",
+            "key_configured": self._encryption_scope is not None,
+        }
 
     def close(self) -> None:
         """Release owned connections and default identity credentials."""
@@ -380,6 +428,10 @@ class AzureBlobDriver(StorageDriver):
                 "Object requires more than 50,000 blocks; configure a larger Azure chunk_size"
             )
         options = self._stream_options(metadata)
+        encryption_options = (
+            {"encryption_scope": self._encryption_scope} if self._encryption_scope else {}
+        )
+        options.update(encryption_options)
         blob = self._client.get_blob_client(container=bucket, blob=key)
         upload_id = uuid.uuid4().hex
         blocks: list[str] = []
@@ -394,7 +446,8 @@ class AzureBlobDriver(StorageDriver):
                 bucket,
                 key,
                 lambda: blob.stage_block(
-                    block_id=block_id, data=chunk, length=len(chunk), logging_enable=False
+                    block_id=block_id, data=chunk, length=len(chunk), logging_enable=False,
+                    **encryption_options,
                 ),
             )
             blocks.append(block_id)

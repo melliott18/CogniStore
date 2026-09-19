@@ -17,6 +17,8 @@ import httpx
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
+from cognistore.encryption import require_tls_url, require_verified_httpx, tls_context
+
 from .errors import (
     APIError,
     AuthenticationError,
@@ -257,7 +259,12 @@ class CogniStoreClient:
             )
 
         self.config = config
-        self._http = http_client or httpx.Client(follow_redirects=False)
+        require_tls_url(config.base_url, "CogniStore API")
+        if http_client is not None:
+            require_verified_httpx(http_client)
+        self._http = http_client or httpx.Client(
+            follow_redirects=False, verify=tls_context(), trust_env=False,
+        )
         self._owns_http_client = http_client is None
         self._closed = False
         self._poll_intervals: dict[UUID, float] = {}
@@ -323,6 +330,7 @@ class CogniStoreClient:
                 json=json,
                 content=content,
                 headers=self._headers(headers),
+                follow_redirects=False,
                 timeout=(
                     self.config.timeout
                     if request_timeout is None

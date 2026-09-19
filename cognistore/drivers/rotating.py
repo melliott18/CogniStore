@@ -220,6 +220,10 @@ class RotatingStorageDriver(StorageDriver):
         with self._lease() as driver:
             return _safe_call(getattr(driver, method), *args, **kwargs)
 
+    def encryption_status(self) -> dict[str, Any]:
+        with self._lease() as driver:
+            return _safe_call(driver.encryption_status)
+
     def put_object(
         self, bucket: str, key: str, data: bytes, range: str | None = None,
         overwrite: bool = True, **opts: Any,

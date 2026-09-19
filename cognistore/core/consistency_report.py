@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from cognistore.core.audit import AuditContext, AuditEvent, AuditOutcome, AuditRetentionPolicy
+from cognistore.encryption import require_at_rest
 from cognistore.utils.redaction import redact
 
 REPORT_VERSION = 1
@@ -25,6 +26,7 @@ def encode(value: object) -> str:
 @contextmanager
 def open_report(path: Path, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
     """Open only a recognized, existing report; never initialize arbitrary files."""
+    require_at_rest("runtime")
     path = Path(path).resolve(strict=True)
     if not read_only:
         for candidate in (path, *(Path(str(path) + suffix) for suffix in ("-journal", "-wal", "-shm"))):
@@ -47,6 +49,7 @@ def open_report(path: Path, *, read_only: bool = False) -> Iterator[sqlite3.Conn
 
 def create_report(path: Path, state: dict[str, Any], actor_id: str) -> None:
     """Exclusive creation prevents a report from overwriting any existing data."""
+    require_at_rest("runtime")
     for suffix in ("-journal", "-wal", "-shm"):
         if os.path.lexists(str(path) + suffix):
             raise FileExistsError("new report must not reuse existing SQLite sidecars")

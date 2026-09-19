@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from contextlib import contextmanager
 from tempfile import SpooledTemporaryFile
@@ -11,6 +12,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from botocore.session import Session as BotocoreSession
 
+from cognistore.encryption import ca_bundle, require_at_rest, require_tls_url
 from cognistore.observability import instrument
 
 from .storage_driver import (
@@ -22,6 +24,7 @@ from .storage_driver import (
     StorageListingPage,
     decode_listing_cursor,
     encode_listing_cursor,
+    external_encryption_status,
     validate_listing_request,
     validate_object_generation,
 )
@@ -123,8 +126,28 @@ class S3Driver(StorageDriver):
         client: Any = None,
         chunk_size: int = DEFAULT_STREAM_CHUNK_SIZE,
         multipart_threshold: int = DEFAULT_STREAM_CHUNK_SIZE,
+        server_side_encryption: Optional[str] = None,
+        kms_key_id: Optional[str] = None,
     ) -> None:
         self.endpoint_url = _normalized_endpoint(endpoint_url)
+        if server_side_encryption is not None and (
+            not isinstance(server_side_encryption, str)
+            or server_side_encryption not in {"AES256", "aws:kms"}
+        ):
+            raise ValueError("S3 server_side_encryption must be AES256 or aws:kms")
+        if kms_key_id is not None and (
+            not isinstance(kms_key_id, str) or not kms_key_id.strip()
+        ):
+            raise ValueError("S3 kms_key_id must be a non-empty string")
+        if (server_side_encryption == "aws:kms") != (kms_key_id is not None):
+            raise ValueError("S3 aws:kms encryption and kms_key_id must be configured together")
+        self._encryption_options: Dict[str, Any] = {}
+        if server_side_encryption is not None:
+            self._encryption_options["ServerSideEncryption"] = server_side_encryption
+        if kms_key_id is not None:
+            self._encryption_options["SSEKMSKeyId"] = kms_key_id
+        if self.endpoint_url is not None:
+            require_tls_url(self.endpoint_url, "S3")
         self.addressing_style = addressing_style
         self.auto_create_bucket = auto_create_bucket
         self.list_page_size = list_page_size
@@ -148,6 +171,7 @@ class S3Driver(StorageDriver):
                 BotocoreSession().get_partition_for_region(self.region_name)
             )
             self._client = client
+            self._validate_encryption()
             return
 
         session = boto3.Session(
@@ -161,6 +185,7 @@ class S3Driver(StorageDriver):
         self.partition = session.get_partition_for_region(self.region_name)
         client_options: Dict[str, Any] = {
             "region_name": self.region_name,
+            "verify": ca_bundle(),
             "config": Config(
                 signature_version="s3v4",
                 retries={"total_max_attempts": 4, "mode": "standard"},
@@ -171,6 +196,40 @@ class S3Driver(StorageDriver):
         if self.endpoint_url is not None:
             client_options["endpoint_url"] = self.endpoint_url
         self._client = session.client("s3", **client_options)
+        try:
+            self._validate_encryption()
+        except BaseException:
+            self._client.close()
+            raise
+
+    def _validate_encryption(self) -> None:
+        # Validate the effective SDK endpoint as environment/profile endpoint
+        # overrides can differ from the explicit constructor argument.
+        endpoint = getattr(getattr(self._client, "meta", None), "endpoint_url", None)
+        if not isinstance(endpoint, str):
+            endpoint = self.endpoint_url
+        if endpoint is not None:
+            require_tls_url(endpoint, "S3")
+        host = urlsplit(endpoint).hostname if endpoint is not None else None
+        native = host is not None and re.search(
+            r"(?:^|\.)s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com(?:\.cn)?$", host
+        ) is not None
+        http_session = getattr(getattr(self._client, "_endpoint", None), "http_session", None)
+        if getattr(http_session, "_verify", None) is False:
+            raise ValueError("S3 TLS certificate verification must be enabled")
+        require_at_rest("storage", mode="provider-managed" if native else None)
+        self._native_encryption = native
+
+    def encryption_status(self) -> Dict[str, Any]:
+        if not self._native_encryption:
+            return external_encryption_status(
+                key_configured="SSEKMSKeyId" in self._encryption_options
+            )
+        return {
+            "source": "provider",
+            "mode": self._encryption_options.get("ServerSideEncryption", "provider-default"),
+            "key_configured": "SSEKMSKeyId" in self._encryption_options,
+        }
 
     def _validate_configuration(
         self,
@@ -242,6 +301,18 @@ class S3Driver(StorageDriver):
             raise NotImplementedError("S3 does not support in-place ranged writes")
 
         request = dict(opts)
+        # Tier encryption is authoritative: callers cannot downgrade writes or
+        # substitute another key through arbitrary provider options.
+        if self._encryption_options and any(
+            name in opts and opts[name] != self._encryption_options.get(name)
+            for name in ("ServerSideEncryption", "SSEKMSKeyId")
+        ):
+            raise ValueError("S3 write options cannot override configured encryption")
+        if self._encryption_options and any(
+            name in opts for name in ("SSECustomerAlgorithm", "SSECustomerKey", "SSECustomerKeyMD5")
+        ):
+            raise ValueError("S3 write options cannot override configured encryption")
+        request.update(self._encryption_options)
         request.update({"Bucket": bucket, "Key": key, "Body": data})
         if not overwrite:
             # S3 evaluates this condition atomically with PutObject.  A
@@ -383,6 +454,7 @@ class S3Driver(StorageDriver):
 
         self._validate_stream_size(size)
         request_options = self._stream_request_options(metadata)
+        request_options.update(self._encryption_options)
         if size == 0 or (
             size < self.multipart_threshold and size <= _MAX_SINGLE_PUT_SIZE
         ):
@@ -637,6 +709,8 @@ class S3Driver(StorageDriver):
     ) -> int:
         """Validate a single-put source using bounded memory and disk spillover."""
 
+        if size > self.chunk_size:
+            require_at_rest("runtime")
         with SpooledTemporaryFile(max_size=self.chunk_size, mode="w+b") as staged:
             self._copy_exact_stream(source, staged, size)
             staged.seek(0)

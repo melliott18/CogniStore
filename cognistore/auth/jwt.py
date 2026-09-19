@@ -20,6 +20,7 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from cognistore.auth.principal import Principal
+from cognistore.encryption import require_verified_httpx, tls_context
 
 _ASYMMETRIC_ALGORITHMS = frozenset(
     {"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"}
@@ -158,11 +159,14 @@ class JWTAuthenticator:
     ) -> None:
         self.config = config
         self._clock = clock
+        if http_client is not None:
+            require_verified_httpx(http_client)
         self._client = (
             http_client
             if http_client is not None
             else httpx.Client(
-                timeout=config.timeout_seconds, follow_redirects=False, trust_env=False
+                timeout=config.timeout_seconds, follow_redirects=False, trust_env=False,
+                verify=tls_context(),
             )
         )
         self._owns_client = http_client is None

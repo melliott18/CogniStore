@@ -598,7 +598,13 @@ def test_default_identity_and_sdk_connections_are_owned_and_closed_once(
         calls.append({"account_url": account_url, **kwargs})
         return client
 
-    monkeypatch.setattr(azure_blob_driver, "DefaultAzureCredential", lambda: credential)
+    credential_options: dict[str, Any] = {}
+
+    def make_credential(**kwargs: Any) -> OwnedCredential:
+        credential_options.update(kwargs)
+        return credential
+
+    monkeypatch.setattr(azure_blob_driver, "DefaultAzureCredential", make_credential)
     monkeypatch.setattr(azure_blob_driver, "BlobServiceClient", make_client)
 
     driver = AzureBlobDriver(account_url=client.url, chunk_size=4096)
@@ -611,6 +617,8 @@ def test_default_identity_and_sdk_connections_are_owned_and_closed_once(
     assert calls[0]["max_block_size"] == 4096
     assert calls[0]["logging_enable"] is False
     assert calls[0]["retry_total"] == 3
+    assert calls[0]["connection_verify"] is True
+    assert credential_options["connection_verify"] is True
 
 
 def test_explicit_sdk_client_lifetime_stays_with_caller(monkeypatch: pytest.MonkeyPatch) -> None:

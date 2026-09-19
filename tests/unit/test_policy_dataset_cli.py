@@ -23,6 +23,7 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for variable in tuple(os.environ):
         if variable.startswith("COGNISTORE_"):
             monkeypatch.delenv(variable)
+    monkeypatch.setenv("COGNISTORE_SECURITY_PROFILE", "development")
 
 
 def _forbid(*args: object, **kwargs: object) -> None:

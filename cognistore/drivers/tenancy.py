@@ -61,6 +61,10 @@ class TenantStorageDriver(StorageDriver):
     def for_tenant(self, tenant_id: str) -> TenantStorageDriver:
         return self if tenant_id == self.tenant_id else TenantStorageDriver(self.driver, tenant_id)
 
+    def encryption_status(self) -> dict[str, Any]:
+        require_tenant(self.tenant_id)
+        return self.driver.encryption_status()
+
     def _bucket(self, bucket: str) -> str:
         require_tenant(self.tenant_id)
         if (

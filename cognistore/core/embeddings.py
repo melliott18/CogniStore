@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import math
+import os
 import re
 import socket
 import ssl
@@ -22,8 +23,10 @@ from pathlib import Path
 from typing import IO, Any, Protocol, TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import SplitResult, urlsplit, urlunsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 from uuid import NAMESPACE_URL, UUID, uuid5
+
+from cognistore.encryption import require_tls_url, tls_context
 
 EMBEDDING_SPACE_SCHEMA_VERSION = 1
 EMBEDDING_PROVIDER_PROTOCOL_VERSION = 1
@@ -445,6 +448,7 @@ class SentenceTransformersEmbeddingProvider:
     ) -> None:
         model = _required_identity_text(model, field="model")
         if model_factory is None:
+            _require_hub_tls()
             if not _SENTENCE_TRANSFORMER_MODEL_ID.fullmatch(model) or _existing_local_model_path(
                 model
             ):
@@ -568,7 +572,17 @@ class SentenceTransformersEmbeddingProvider:
         return self.embed_documents((text,))[0]
 
 
+def _require_hub_tls() -> None:
+    try:
+        require_tls_url(os.environ.get("HF_ENDPOINT", "https://huggingface.co"), "Model hub")
+    except ValueError:
+        raise EmbeddingProviderConfigurationError(
+            "Production model hub endpoints require verified HTTPS"
+        ) from None
+
+
 def _load_sentence_transformer(model: str, revision: str) -> _SentenceTransformerModel:
+    _require_hub_tls()
     if _existing_local_model_path(model):
         raise EmbeddingProviderConfigurationError(
             "the configured Hub model ID resolves to a mutable local path"
@@ -665,7 +679,7 @@ class OpenAICompatibleEmbeddingProvider:
             ),
             preprocessing_version=1,
         )
-        self._opener = build_opener(_RejectRedirects())
+        self._opener = build_opener(_RejectRedirects(), HTTPSHandler(context=tls_context()))
 
     @property
     def space(self) -> EmbeddingSpace:
@@ -856,6 +870,12 @@ def _embedding_endpoint(base_url: object) -> str:
         raise EmbeddingProviderConfigurationError(
             "base_url must not contain a query string or fragment"
         )
+    try:
+        require_tls_url(base_url, "Embedding")
+    except ValueError:
+        raise EmbeddingProviderConfigurationError(
+            "Production embedding endpoints require verified HTTPS"
+        ) from None
     if parsed.scheme == "http" and not _is_loopback_host(parsed.hostname):
         raise EmbeddingProviderConfigurationError(
             "unencrypted HTTP embedding endpoints are restricted to loopback hosts"

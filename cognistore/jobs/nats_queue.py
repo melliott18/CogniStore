@@ -27,6 +27,7 @@ from nats.js.api import (
 )
 from nats.js.errors import APIError, NotFoundError, ServiceUnavailableError
 
+from cognistore.encryption import production_mode, require_at_rest, require_tls_url, tls_context
 from cognistore.observability import (
     inject_trace_context,
     instrument,
@@ -125,6 +126,8 @@ class NatsJetStreamConfig:
     def __post_init__(self) -> None:
         if not self.servers or any(not value.strip() for value in self.servers):
             raise ValueError("at least one non-empty NATS server URL is required")
+        for server in self.servers:
+            require_tls_url(server, "NATS", schemes=("tls",))
         for field_name in ("stream", "subject", "consumer", "client_name"):
             if not getattr(self, field_name).strip():
                 raise ValueError(f"{field_name} must be non-empty")
@@ -256,6 +259,7 @@ class NatsJetStreamQueue:
     """Durable, at-least-once job queue backed by NATS JetStream."""
 
     def __init__(self, config: NatsJetStreamConfig, *, consume: bool = True) -> None:
+        require_at_rest("queue")
         self.config = config
         self._consume = consume
         self._connection: Any | None = None
@@ -267,6 +271,9 @@ class NatsJetStreamQueue:
     async def connect(self) -> None:
         if self._connection is not None and not self._connection.is_closed:
             return
+        require_at_rest("queue")
+        for server in self.config.servers:
+            require_tls_url(server, "NATS", schemes=("tls",))
         connection_options: dict[str, Any] = {
             "error_cb": (
                 _report_connection_error
@@ -274,6 +281,11 @@ class NatsJetStreamQueue:
                 else _ignore_connection_error
             )
         }
+        if production_mode():
+            # nats-py otherwise trusts a plaintext INFO's tls_required flag,
+            # even for tls:// URLs. A TLS-first handshake also protects every
+            # reconnect, including the broker's discovered cluster members.
+            connection_options.update(tls=tls_context(), tls_handshake_first=True)
         connection = await nats.connect(
             servers=list(self.config.servers),
             name=self.config.client_name,

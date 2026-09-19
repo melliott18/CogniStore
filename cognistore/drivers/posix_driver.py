@@ -18,6 +18,7 @@ try:
 except ImportError:  # pragma: no cover - unavailable on non-POSIX platforms
     _fcntl = None  # type: ignore[assignment]
 
+from cognistore.encryption import require_at_rest
 from cognistore.observability import instrument
 
 from .storage_driver import (
@@ -29,6 +30,7 @@ from .storage_driver import (
     StorageListingPage,
     decode_listing_cursor,
     encode_listing_cursor,
+    external_encryption_status,
     validate_listing_request,
     validate_object_generation,
 )
@@ -147,6 +149,7 @@ class PosixDriver(StorageDriver):
         *,
         chunk_size: int = DEFAULT_STREAM_CHUNK_SIZE,
     ) -> None:
+        require_at_rest("storage")
         if (
             isinstance(chunk_size, bool)
             or not isinstance(chunk_size, int)
@@ -170,6 +173,9 @@ class PosixDriver(StorageDriver):
                 pass
         except FileNotFoundError:
             pass
+
+    def encryption_status(self) -> Dict[str, Any]:
+        return external_encryption_status()
 
     @contextmanager
     def _object_lock(self, bucket: str, key: str) -> Generator[None, None, None]:

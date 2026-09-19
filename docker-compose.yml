@@ -144,6 +144,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_CATALOG_DB: postgresql://cognistore@postgres:5432/cognistore
       COGNISTORE_MINIO_ACCESS_KEY: ${COGNISTORE_MINIO_ACCESS_KEY:-cognistore}
@@ -216,6 +217,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
       PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
     entrypoint: ["cognistore-sample"]
@@ -252,6 +254,7 @@ services:
       sample-loader:
         condition: service_completed_successfully
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       PGPASSWORD: ${COGNISTORE_POSTGRES_PASSWORD:-cognistore-development-only}
       PYTHONPYCACHEPREFIX: /tmp/cognistore-pycache
     entrypoint: ["cognistore-sample"]
@@ -305,6 +308,7 @@ services:
       cognistore:
         condition: service_healthy
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_DRIVERS: /etc/cognistore/drivers.yaml
       COGNISTORE_CATALOG_DB: postgresql://cognistore@postgres:5432/cognistore
@@ -434,6 +438,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://azurite:10000/cognistore;"
       COGNISTORE_NATS_URL: nats://nats:4222
@@ -480,6 +485,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      COGNISTORE_SECURITY_PROFILE: development
       AWS_EC2_METADATA_DISABLED: "true"
       COGNISTORE_AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://azurite:10000/cognistore;"
       COGNISTORE_NATS_URL: nats://nats:4222

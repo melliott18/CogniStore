@@ -146,6 +146,9 @@ class ObservedStorageDriver(StorageDriver):
         self.tier = tier
         self.source = source
 
+    def encryption_status(self) -> dict[str, Any]:
+        return self.raw_driver.encryption_status()
+
     def _event(self, kind: AccessKind, bucket: str, key: str | None = None) -> AccessEvent | None:
         return self.recorder.event(kind, bucket, key, tier=self.tier, source=self.source)
 

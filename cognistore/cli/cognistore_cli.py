@@ -84,6 +84,7 @@ from cognistore.db import (
 from cognistore.drivers.driver_loader import load_drivers
 from cognistore.drivers.posix_driver import PosixDriver
 from cognistore.drivers.storage_driver import StorageDriver
+from cognistore.encryption import encryption_status, require_at_rest
 from cognistore.jobs.handlers import (
 	CATALOG_SCAN_JOB,
 	POLICY_RUN_JOB,
@@ -1054,10 +1055,10 @@ async def _serve_worker(
 			"ready",
 			json_output=bool(getattr(args, "json", False)),
 			human=(
-				f"worker ready health=http://{args.health_host}:{health.bound_port} "
+				f"worker ready health={health.scheme}://{args.health_host}:{health.bound_port} "
 				f"stream={args.job_stream} consumer={args.job_consumer}"
 			),
-			health_url=f"http://{args.health_host}:{health.bound_port}",
+			health_url=f"{health.scheme}://{args.health_host}:{health.bound_port}",
 			stream=args.job_stream,
 			consumer=args.job_consumer,
 		)
@@ -1368,6 +1369,7 @@ def _run_cli(
 			)
 		return command_parser
 
+	command("encryption-status", help="Show redacted encryption configuration and attestations")
 	p_put = command("put")
 	p_put.add_argument("bucket")
 	p_put.add_argument("key")
@@ -1725,6 +1727,22 @@ def _run_cli(
 		values=effective_values,
 		sources=effective_sources,
 	)
+	if args.cmd == "encryption-status":
+		encryption_report = encryption_status()
+		if args.drivers:
+			status_drivers = load_drivers(args.drivers)
+			try:
+				encryption_report["tiers"] = {
+					name: driver.encryption_status() for name, driver in status_drivers.items()
+				}
+			finally:
+				for status_driver in status_drivers.values():
+					close = getattr(status_driver, "close", None)
+					if callable(close):
+						close()
+		emit_json(encryption_report)
+		return 0
+	require_at_rest("runtime")
 	dry_run = bool(getattr(args, "dry_run", False))
 	from cognistore.cli.consistency_commands import COMMANDS as consistency_commands
 	if args.cmd in consistency_commands:

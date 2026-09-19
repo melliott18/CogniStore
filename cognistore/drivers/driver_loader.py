@@ -41,6 +41,8 @@ _S3_FIELDS = frozenset(
         "chunk_size",
         "list_page_size",
         "multipart_threshold",
+        "server_side_encryption",
+        "kms_key_id",
     }
 )
 
@@ -55,6 +57,7 @@ _AZURE_BLOB_FIELDS = frozenset(
         "credential_env",
         "credential_ref",
         "auto_create_container",
+        "encryption_scope",
         "chunk_size",
         "list_page_size",
     }
@@ -69,6 +72,7 @@ _GCS_FIELDS = frozenset(
         "credentials_file_env",
         "credentials_ref",
         "emulator_endpoint",
+        "kms_key_name",
         "auto_create_bucket",
         "chunk_size",
         "list_page_size",
@@ -289,7 +293,9 @@ def load_drivers(
                     "auto_create_bucket": info.get("auto_create_bucket", False),
                     "list_page_size": info.get("list_page_size"),
                 }
-                for transfer_field in ("chunk_size", "multipart_threshold"):
+                for transfer_field in (
+                    "chunk_size", "multipart_threshold", "server_side_encryption", "kms_key_id"
+                ):
                     if transfer_field in info:
                         driver_options[transfer_field] = info[transfer_field]
                 out[tier] = configured_driver(
@@ -318,6 +324,8 @@ def load_drivers(
                 }
                 if "chunk_size" in info:
                     azure_options["chunk_size"] = info["chunk_size"]
+                if "encryption_scope" in info:
+                    azure_options["encryption_scope"] = info["encryption_scope"]
                 out[tier] = configured_driver(
                     AzureBlobDriver, azure_options,
                     _secret_references(info, "connection_string", "credential"),
@@ -356,6 +364,7 @@ def load_drivers(
                     "list_page_size",
                     "max_retries",
                     "timeout",
+                    "kms_key_name",
                 ):
                     if field in info:
                         gcs_options[field] = info[field]
