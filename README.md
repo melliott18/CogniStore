@@ -6,6 +6,11 @@ AI-Powered Data Lifecycle Manager
 CogniStore supports CPython 3.10 through 3.14. CI exercises every supported
 minor version.
 
+Production is the default security profile: data connections require verified
+TLS and persistent volumes require current encryption attestations. Follow the
+[encryption deployment and recovery guide](docs/encryption.md) before deploying.
+The local Docker stack explicitly selects the isolated `development` profile.
+
 ### Docker stack
 
 Start the non-root CogniStore worker, PostgreSQL with pgvector, file-backed
@@ -51,6 +56,8 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev,azure]"
+# Isolated local tutorials and emulators use explicit development settings.
+export COGNISTORE_SECURITY_PROFILE=development
 ```
 
 Content-aware MIME detection uses the native libmagic library. The Docker
@@ -125,6 +132,7 @@ Start the version 1 FastAPI service against the same driver and catalog
 configuration used by workers:
 
 ```bash
+COGNISTORE_SECURITY_PROFILE=development \
 COGNISTORE_DRIVERS=./drivers.yaml \
 COGNISTORE_CATALOG_DB=./catalog.sqlite3 \
 cognistore-api --host 127.0.0.1 --port 8080
@@ -135,7 +143,7 @@ policy evaluation, queued scans and policy runs, and durable job polling under
 `/v1`. See the [REST API reference](docs/rest_api.md) and the checked
 [OpenAPI 3.1 contract](docs/openapi/v1.json).
 
-The local default permits anonymous requests. Set `COGNISTORE_AUTH_ISSUER`
+The local development example permits anonymous requests. Set `COGNISTORE_AUTH_ISSUER`
 and `COGNISTORE_AUTH_AUDIENCE` to require JWT access tokens on every `/v1`
 request, and set `COGNISTORE_AUTHORIZATION_POLICY` to a JSON role-binding file
 to grant protected operations. Authenticated deployments without a policy deny

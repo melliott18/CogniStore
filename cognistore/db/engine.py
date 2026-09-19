@@ -3,13 +3,14 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 
 from cognistore.auth.tenancy import tenant_namespace
+from cognistore.encryption import ca_bundle, production_mode, require_at_rest
 
 
 def is_database_url(locator: str | Path) -> bool:
@@ -64,6 +65,7 @@ def create_catalog_engine(
                 poolclass=StaticPool,
             )
             return engine, connection
+        require_at_rest("catalog")
         engine_url: str | sa.URL = url
         if read_only:
             engine_url = sa.URL.create(
@@ -100,6 +102,30 @@ def create_catalog_engine(
     if not url.startswith("postgresql+psycopg://"):
         raise ValueError("catalog URL must use sqlite or postgresql")
     connect_args: dict[str, Any] = {}
+    if production_mode():
+        parsed_url = sa.engine.make_url(url)
+        hostname = unquote(parsed_url.host or "")
+        database_name = unquote(parsed_url.database or "")
+        # libpq skips TLS over Unix-domain sockets. Keep the verified hostname
+        # explicit and reject alternate hosts/services hidden in query options.
+        if (
+            not hostname
+            or any(char in hostname for char in ("/", "\\", ",", "@"))
+            or any(key in parsed_url.query for key in ("host", "hostaddr", "service"))
+            or "=" in database_name or "://" in database_name
+        ):
+            raise ValueError("Production catalog requires an explicit PostgreSQL TLS hostname")
+        if parsed_url.query.get("sslmode", "verify-full") != "verify-full":
+            raise ValueError("Production catalog requires sslmode=verify-full")
+        connect_args.update(
+            sslmode="verify-full",
+            gssencmode="disable",
+            ssl_min_protocol_version="TLSv1.2",
+        )
+        bundle = ca_bundle()
+        if isinstance(bundle, str):
+            connect_args["sslrootcert"] = bundle
+    require_at_rest("catalog")
     options = []
     if read_only:
         options.append("-c default_transaction_read_only=on")

@@ -30,6 +30,8 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram
 from prometheus_client import generate_latest as _generate_latest
 
+from cognistore.encryption import ca_bundle, require_tls_url
+
 _COMPONENTS = frozenset({"api", "driver", "catalog", "index", "policy", "movement", "queue", "job"})
 _OPERATIONS = frozenset({
     "request", "put_object", "get_object", "open_object_reader", "open_object_reader_if_generation",
@@ -247,7 +249,7 @@ class _SafeExporter(SpanExporter):
 
 
 def configure_observability() -> None:
-    """Configure process-local telemetry once, never failing application startup.
+    """Configure telemetry once; insecure transport configuration fails startup.
 
     COGNISTORE_LOG_FORMAT=json enables JSON operational events. Traces require
     COGNISTORE_OTEL_ENABLED=true. COGNISTORE_OTEL_ENDPOINT is an OTLP HTTP trace
@@ -255,6 +257,11 @@ def configure_observability() -> None:
     cognistore, cognistore-api, and cognistore-worker. No exporter runs by default.
     """
     global _configured, _tracer, _provider
+    # Reject a plaintext exporter before the best-effort telemetry fallback.
+    endpoint = os.getenv("COGNISTORE_OTEL_ENDPOINT", "http://localhost:4318/v1/traces")
+    if os.getenv("COGNISTORE_OTEL_ENABLED", "").lower() in {"true", "1", "yes"}:
+        require_tls_url(endpoint, "OTLP")
+        ca_bundle()
     with _config_lock:
         if _configured:
             return
@@ -291,7 +298,18 @@ def configure_observability() -> None:
                 service = "cognistore"
             exporter_logger = logging.getLogger("opentelemetry.exporter.otlp.proto.http.trace_exporter")
             exporter_logger.addFilter(_RedactExporterLogs())
-            exporter = _SafeExporter(OTLPSpanExporter(endpoint=endpoint, timeout=2))
+            # Override SDK environment trust/endpoint settings with validated values.
+            import requests
+
+            session = requests.Session()
+            session.trust_env = False
+            session.max_redirects = 0  # Never redirect trace payloads to a plaintext endpoint.
+            bundle = ca_bundle()
+            session.verify = bundle
+            exporter = _SafeExporter(OTLPSpanExporter(
+                endpoint=endpoint, timeout=2, session=session,
+                certificate_file=bundle if isinstance(bundle, str) else requests.certs.where(),
+            ))
             provider = TracerProvider(resource=Resource({"service.name": service}))
             provider.add_span_processor(BatchSpanProcessor(exporter))
             _provider = provider

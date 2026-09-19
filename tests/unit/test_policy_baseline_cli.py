@@ -18,6 +18,7 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for variable in tuple(os.environ):
         if variable.startswith("COGNISTORE_"):
             monkeypatch.delenv(variable)
+    monkeypatch.setenv("COGNISTORE_SECURITY_PROFILE", "development")
     for name in (
         "open_catalog", "load_drivers", "load_policy_feature_loader",
         "NatsJetStreamQueue", "PosixDriver", "Catalog",

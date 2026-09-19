@@ -7,6 +7,14 @@ development image containing the test and quality tooling. Every application
 image in the stack runs as an unprivileged user, and credentials are injected
 only when containers start.
 
+Every CogniStore service in this Compose file explicitly sets
+`COGNISTORE_SECURITY_PROFILE=development`. Its plaintext endpoints and local
+volumes are for isolated development and synthetic test data. The application
+defaults to `production` outside this stack; see the
+[encryption guide](encryption.md) for verified TLS, encrypted volumes, and
+deployment attestations. Changing local passwords alone does not turn this
+Compose stack into a production deployment.
+
 Base images are digest-pinned. Python dependency versions are resolved from
 the bounds in `pyproject.toml` at build time, so identical source is not yet a
 byte-for-byte reproducible dependency build. Rebuild and rerun the integration
@@ -133,6 +141,7 @@ CogniStore data volume, the Compose driver configuration, and these internal
 endpoints:
 
 ```bash
+export COGNISTORE_SECURITY_PROFILE=development
 export COGNISTORE_NATS_URL=nats://nats:4222
 export COGNISTORE_MINIO_ENDPOINT_URL=http://minio:9000
 export COGNISTORE_TEST_POSTGRES_DSN=postgresql://cognistore@postgres:5432/postgres

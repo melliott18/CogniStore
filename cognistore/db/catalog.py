@@ -83,6 +83,7 @@ from cognistore.core.topology import (
     Tier,
     eligible_candidates,
 )
+from cognistore.encryption import require_at_rest
 from cognistore.observability import observe
 from cognistore.utils.redaction import redact, redact_text
 
@@ -742,6 +743,7 @@ class SQLCatalog(Catalog):
     ) -> Iterator[Iterator[tuple[str, str, int, str]]]:
         """Spool unique blob writes in one bounded global acquisition order."""
 
+        require_at_rest("runtime")
         with tempfile.TemporaryDirectory(
             prefix="cognistore-content-blobs-"
         ) as spool_directory:

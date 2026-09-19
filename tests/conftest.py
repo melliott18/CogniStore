@@ -4,7 +4,18 @@ The repository root is now added by the root-level conftest.py.
 This file remains for future per-tests fixtures and settings.
 """
 
+import os
+
 import pytest
+
+# Test fixtures intentionally use local emulators and unencrypted temporary
+# volumes. Production-policy tests override this explicitly.
+os.environ.setdefault("COGNISTORE_SECURITY_PROFILE", "development")
+
+
+@pytest.fixture(autouse=True)
+def development_security_profile(monkeypatch):
+    monkeypatch.setenv("COGNISTORE_SECURITY_PROFILE", "development")
 
 
 @pytest.fixture(autouse=True)

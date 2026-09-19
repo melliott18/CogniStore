@@ -23,12 +23,21 @@ import google.auth
 import httpx
 from google.auth.transport.requests import Request as AuthRequest
 
+from cognistore.encryption import (
+    ca_bundle,
+    require_at_rest,
+    require_tls_url,
+    require_verified_httpx,
+    tls_context,
+)
+
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
     ObjectGenerationMismatchError,
     ReadableStream,
     StorageDriver,
+    external_encryption_status,
     validate_object_generation,
 )
 
@@ -193,9 +202,19 @@ class GCSDriver(StorageDriver):
         timeout: float = 60.0,
         client: httpx.Client | None = None,
         credentials: Any = None,
+        kms_key_name: str | None = None,
     ) -> None:
         self.endpoint_url = _endpoint(emulator_endpoint)
+        require_tls_url(self.endpoint_url, "GCS")
         self._emulator = emulator_endpoint is not None
+        if kms_key_name is not None and (
+            not isinstance(kms_key_name, str) or not kms_key_name.strip()
+        ):
+            raise ValueError("GCS kms_key_name must be a non-empty string")
+        self._kms_key_name = kms_key_name
+        require_at_rest("storage", mode=None if self._emulator else "provider-managed")
+        if client is not None:
+            require_verified_httpx(client)
         for name, value in (("project", project), ("credentials_file", credentials_file)):
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"GCS {name} must be a non-empty string")
@@ -229,6 +248,8 @@ class GCSDriver(StorageDriver):
             try:
                 with _private_transport():
                     self._auth_request = AuthRequest()
+                    self._auth_request.session.verify = ca_bundle()
+                    self._auth_request.session.trust_env = False
                     if credentials is None:
                         if credentials_file is not None:
                             self._credentials, inferred_project = (
@@ -243,7 +264,17 @@ class GCSDriver(StorageDriver):
                             )
                         project = project or inferred_project
             except Exception:
+                if self._auth_request is not None:
+                    self._auth_request.session.close()
                 raise PermissionError("GCS credentials could not be loaded") from None
+            try:
+                for field in ("_token_uri", "_token_url", "_service_account_impersonation_url"):
+                    token_url = getattr(self._credentials, field, None)
+                    if isinstance(token_url, str):
+                        require_tls_url(token_url, "GCS authentication")
+            except BaseException:
+                self._auth_request.session.close()
+                raise
         if auto_create_bucket and not project:
             raise ValueError("GCS auto_create_bucket requires a project")
         self.project = project
@@ -253,7 +284,18 @@ class GCSDriver(StorageDriver):
         self.max_retries = max_retries
         self.timeout = timeout
         self._owns_client = client is None
-        self._client = client if client is not None else httpx.Client(timeout=timeout)
+        self._client = client if client is not None else httpx.Client(
+            timeout=timeout, verify=tls_context(), trust_env=False
+        )
+
+    def encryption_status(self) -> dict[str, Any]:
+        if self._emulator:
+            return external_encryption_status(key_configured=self._kms_key_name is not None)
+        return {
+            "source": "provider",
+            "mode": "customer-managed" if self._kms_key_name else "provider-default",
+            "key_configured": self._kms_key_name is not None,
+        }
 
     def close(self) -> None:
         if self._owns_client:
@@ -544,6 +586,8 @@ class GCSDriver(StorageDriver):
     ) -> str:
         url = f"{self.endpoint_url}/upload/storage/v1/b/{quote(bucket, safe='')}/o"
         params = {"uploadType": "resumable"}
+        if self._kms_key_name is not None:
+            params["kmsKeyName"] = self._kms_key_name
         if not overwrite:
             params["ifGenerationMatch"] = "0"
         kwargs = {
@@ -695,6 +739,8 @@ class GCSDriver(StorageDriver):
         # Validate the *entire* source before publication. A seekable spool also
         # makes arbitrary partially acknowledged offsets safe to replay, even
         # when the caller supplied a non-seekable stream. Large spools use disk.
+        if size > self.chunk_size:
+            require_at_rest("runtime")
         with SpooledTemporaryFile(max_size=self.chunk_size, mode="w+b") as staged:
             remaining = size
             checksum = hashlib.md5(usedforsecurity=False)

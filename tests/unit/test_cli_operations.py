@@ -752,6 +752,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             return None
 
     class FakeHealth:
+        scheme = "http"
         bound_port = 8123
 
         def __init__(self, worker, *, host, port) -> None:

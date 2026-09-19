@@ -19,6 +19,14 @@ import httpx
 from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
+from cognistore.encryption import (
+    ca_bundle,
+    production_mode,
+    require_tls_url,
+    require_verified_httpx,
+    tls_context,
+)
+
 from .core import (
     KeyReference,
     SecretAccessError,
@@ -92,8 +100,11 @@ class _VaultProvider:
         failed = False
         with secret_operation():
             try:
+                if transport is not None:
+                    require_verified_httpx(transport)
                 self._client = httpx.Client(
                     timeout=timeout, follow_redirects=False, transport=transport,
+                    trust_env=False, verify=tls_context(),
                 )
             except Exception:
                 failed = True
@@ -109,7 +120,8 @@ class _VaultProvider:
         if self._namespace is not None:
             headers["X-Vault-Namespace"] = self._namespace
         response = self._client.request(
-            method, f"{self._address}/v1/{self._mount}/{path}", headers=headers, **kwargs,
+            method, f"{self._address}/v1/{self._mount}/{path}", headers=headers,
+            follow_redirects=False, **kwargs,
         )
         # Do not include the URL, response body, or HTTP exception in errors.
         if response.status_code != 200:
@@ -262,14 +274,23 @@ class _AWSProvider:
         # Lazily resolve credentials, then reuse this thread-safe SDK client.
         with self._client_lock:
             if self._client is None:
+                endpoint_policy: dict[str, Any] = {
+                    "ignore_configured_endpoint_urls": production_mode(),
+                }
                 self._client = boto3.session.Session(region_name=self._region_name).client(
                     self._service,
+                    use_ssl=True,
+                    verify=ca_bundle(),
                     config=Config(
                         connect_timeout=self._timeout_seconds,
                         read_timeout=self._timeout_seconds,
                         retries={"total_max_attempts": 2, "mode": "standard"},
+                        **endpoint_policy,
                     ),
                 )
+            endpoint = getattr(getattr(self._client, "meta", None), "endpoint_url", None)
+            if isinstance(endpoint, str):
+                require_tls_url(endpoint, "AWS secrets")
         return self._client
 
 

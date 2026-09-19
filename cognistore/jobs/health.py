@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Any
 
+from cognistore.encryption import server_tls_context
 from cognistore.observability import metrics_response
 
 from .runtime import AsyncWorker
@@ -24,7 +26,15 @@ class HealthServer:
         self.host = host
         self.port = port
         self.request_timeout = request_timeout
+        self._tls = server_tls_context(
+            os.environ.get("COGNISTORE_HEALTH_TLS_CERTFILE"),
+            os.environ.get("COGNISTORE_HEALTH_TLS_KEYFILE"),
+        )
         self._server: asyncio.Server | None = None
+
+    @property
+    def scheme(self) -> str:
+        return "https" if self._tls is not None else "http"
 
     @property
     def bound_port(self) -> int | None:
@@ -36,7 +46,7 @@ class HealthServer:
         if self._server is not None:
             raise RuntimeError("health server has already been started")
         self._server = await asyncio.start_server(
-            self._handle_request, self.host, self.port
+            self._handle_request, self.host, self.port, ssl=self._tls
         )
 
     async def close(self) -> None:

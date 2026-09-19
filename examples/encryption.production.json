@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "components": {
+    "catalog": {
+      "mode": "provider-managed",
+      "owner": "REPLACE: database operations team",
+      "evidence": "REPLACE: reviewed catalog, WAL, replica, and backup encryption evidence",
+      "expires_at": "2026-12-31T00:00:00Z",
+      "rotation_days": 90
+    },
+    "queue": {
+      "mode": "encrypted-volume",
+      "owner": "REPLACE: messaging operations team",
+      "evidence": "REPLACE: reviewed JetStream volume, snapshot, and backup encryption evidence",
+      "expires_at": "2026-12-31T00:00:00Z",
+      "rotation_days": 90
+    },
+    "storage": {
+      "mode": "encrypted-volume",
+      "owner": "REPLACE: storage operations team",
+      "evidence": "REPLACE: inventory and encryption evidence for every POSIX tier and custom endpoint",
+      "expires_at": "2026-12-31T00:00:00Z",
+      "rotation_days": 90
+    },
+    "runtime": {
+      "mode": "encrypted-volume",
+      "owner": "REPLACE: platform operations team",
+      "evidence": "REPLACE: reviewed scheduler, index, staging, temporary, swap, and backup volumes",
+      "expires_at": "2026-12-31T00:00:00Z",
+      "rotation_days": 90
+    }
+  }
+}

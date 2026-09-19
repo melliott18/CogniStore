@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from cognistore.encryption import require_tls_url, require_verified_httpx, tls_context
+
 from .placement_llm import MAX_RESPONSE_BYTES, PlacementInference, TransientPlacementError
 
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503})
@@ -63,6 +65,7 @@ def _endpoint(value: object) -> str:
         httpx.URL(value)
     except (ValueError, httpx.InvalidURL):
         raise ValueError(message) from None
+    require_tls_url(value, "LLM")
     return value
 
 
@@ -135,6 +138,8 @@ class HTTPPlacementProvider:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._endpoint = _endpoint(endpoint)
+        if transport is not None:
+            require_verified_httpx(transport)
         self.model = _identity(model, "LLM model")
         self.model_version = _identity(model_version, "LLM model version")
         if api_key is not None and (
@@ -160,7 +165,9 @@ class HTTPPlacementProvider:
         if self._api_key is not None:
             headers["Authorization"] = f"Bearer {self._api_key}"
         try:
-            transport = self._transport or httpx.HTTPTransport(retries=0, trust_env=False)
+            transport = self._transport or httpx.HTTPTransport(
+                retries=0, trust_env=False, verify=tls_context(),
+            )
             with httpx.Client(
                 transport=transport,
                 timeout=timeout_seconds,

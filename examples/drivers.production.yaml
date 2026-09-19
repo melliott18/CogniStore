@@ -1,6 +1,8 @@
 # Copy and adapt endpoints, secret names, and resource identities for deployment.
 # Use native workload identity whenever the storage service supports it.
 # This example contains references only; inject the Vault token file at runtime.
+# Use with COGNISTORE_SECURITY_PROFILE=production and an operator-completed
+# COGNISTORE_ENCRYPTION_CONFIG. See docs/encryption.md and encryption.production.json.
 secrets:
   cache_ttl_seconds: 300
   providers:
@@ -16,6 +18,7 @@ secrets:
 tiers:
   hot:
     driver: posix
+    # The storage attestation must cover this encrypted volume and snapshots.
     path: /var/lib/cognistore/hot
 
   # Store access_key and secret_key in the same Vault KV v2 record so one
@@ -23,6 +26,9 @@ tiers:
   object:
     driver: s3
     endpoint_url: https://objects.example.com
+    # Custom endpoints also require the storage attestation. Confirm that this
+    # service implements the selected SSE mode before admitting production data.
+    server_side_encryption: AES256
     region_name: us-east-1
     access_key_ref:
       provider: vault
@@ -39,18 +45,22 @@ tiers:
   archive:
     driver: s3
     region_name: us-east-1
+    server_side_encryption: aws:kms
+    kms_key_id: arn:aws:kms:us-east-1:111122223333:key/00000000-0000-4000-8000-000000000000
     auto_create_bucket: false
 
   # Azure uses DefaultAzureCredential; install cognistore[azure].
   azure:
     driver: azure_blob
     account_url: https://example.blob.core.windows.net
+    encryption_scope: cognistore-production
     auto_create_container: false
 
   # Google Cloud Storage uses Application Default Credentials / workload identity.
   cloud:
     driver: gcs
     project: example-project
+    kms_key_name: projects/example-project/locations/us/keyRings/cognistore/cryptoKeys/objects
     auto_create_bucket: false
 
   # For services without native identity, alternative reference forms are:

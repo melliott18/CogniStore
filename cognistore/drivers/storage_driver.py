@@ -93,6 +93,18 @@ class ObjectGenerationMismatchError(RuntimeError):
 	"""Raised when a conditional operation observes another object generation."""
 
 
+def external_encryption_status(*, key_configured: bool = False) -> Dict[str, Any]:
+	"""Describe operator evidence without implying an unattested volume is encrypted."""
+	from cognistore.encryption import encryption_status
+
+	status = encryption_status()["at_rest"]["storage"]
+	return {
+		"source": status["source"],
+		"mode": status["mode"] if status["current"] else "unattested",
+		"key_configured": key_configured,
+	}
+
+
 class StorageDriver(ABC):
 	"""Abstract base class for storage drivers.
 
@@ -100,6 +112,10 @@ class StorageDriver(ABC):
 	"""
 
 	capabilities = DriverCapabilities()
+
+	def encryption_status(self) -> Dict[str, Any]:
+		"""Report modes without credentials, paths, or key identifiers."""
+		return {"source": "unknown", "mode": "unknown", "key_configured": False}
 
 	@abstractmethod
 	def put_object(
