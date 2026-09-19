@@ -1,0 +1,49 @@
+# Disposable single-node acceptance environment; never use these for production.
+securityProfile: development
+image:
+  repository: cognistore
+  tag: helm-acceptance
+  pullPolicy: Never
+config:
+  existingSecret: cognistore-config
+credentials:
+  existingSecret: cognistore-credentials
+networkPolicy:
+  enabled: false
+scheduler:
+  enabled: true
+api:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 30
+        policies: [{type: Percent, value: 100, periodSeconds: 15}]
+    metrics:
+      - type: Pods
+        pods:
+          metric: {name: cognistore_http_requests_per_second}
+          target: {type: AverageValue, averageValue: "1"}
+worker:
+  maxInFlight: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    pollingInterval: 5
+    natsMonitoringEndpoint: nats.cognistore-acceptance.svc:8222
+    useHttps: false
+    lagThreshold: "5"
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 30
+        policies: [{type: Percent, value: 100, periodSeconds: 15}]

@@ -513,6 +513,102 @@ def test_postgres_worker_requires_separate_sqlite_scheduler_state(
     assert "--schedule-db is required with a PostgreSQL worker catalog" in capsys.readouterr().err
 
 
+def test_postgres_worker_can_explicitly_disable_scheduled_jobs(monkeypatch) -> None:
+    from cognistore.core.catalog import Catalog
+
+    monkeypatch.setattr(cognistore_cli, "load_drivers", lambda _path: {"hot": object()})
+    monkeypatch.setattr(cognistore_cli, "open_catalog", lambda *args, **kwargs: Catalog())
+    seen = []
+
+    async def serve_worker(args, drivers, catalog):
+        seen.append((args.disable_scheduled_jobs, args.schedule_db))
+        return 0
+
+    monkeypatch.setattr(cognistore_cli, "_serve_worker", serve_worker)
+    assert cognistore_cli.main([
+        "--no-config", "--drivers", "drivers.yaml", "--catalog-db",
+        "postgresql://catalog.example/cognistore", "worker", "--disable-scheduled-jobs",
+    ]) == 0
+    assert seen == [(True, None)]
+
+
+def test_scheduler_identity_resolves_tenant_and_requires_a_complete_identity(tmp_path) -> None:
+    from cognistore.auth.principal import Principal
+    from cognistore.auth.tenancy import TenantIsolationError
+
+    tenant_policy = tmp_path / "tenants.json"
+    tenant_policy.write_text(json.dumps({"bindings": [{
+        "issuer": "https://identity.example", "subject": "scheduler", "tenant_id": "team-a",
+    }]}))
+    args = argparse.Namespace(
+        principal_issuer="https://identity.example", principal_subject="scheduler",
+        tenant_policy=str(tenant_policy),
+    )
+    assert cognistore_cli._scheduler_identity(args) == (
+        Principal("https://identity.example", "scheduler"), "team-a",
+    )
+    args.principal_subject = "unknown"
+    with pytest.raises(TenantIsolationError):
+        cognistore_cli._scheduler_identity(args)
+    args.principal_subject = None
+    with pytest.raises(ValueError, match="both --principal-issuer and --principal-subject"):
+        cognistore_cli._scheduler_identity(args)
+
+
+def test_scheduler_cycle_health_handles_broker_outage_and_shutdown(tmp_path, monkeypatch) -> None:
+    callbacks = {}
+    statuses = []
+    health_file = tmp_path / "scheduler-health.json"
+
+    class Loop:
+        def add_signal_handler(self, signum, callback):
+            callbacks[signum] = callback
+
+        def remove_signal_handler(self, signum):
+            callbacks.pop(signum)
+
+    class Queue:
+        async def probe(self):
+            return SimpleNamespace(ready=True)
+
+    class Scheduler:
+        calls = 0
+
+        def __init__(self, queue, store, schedules, **kwargs):
+            pass
+
+        async def start(self):
+            assert not health_file.exists()
+
+        async def run_due(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise ConnectionError("broker unavailable")
+            callbacks[signal.SIGTERM]()
+
+        async def close(self):
+            pass
+
+    def write_status(path, *, ready):
+        statuses.append(ready)
+        path.write_text(json.dumps({"ready": ready}))
+
+    health_file.write_text("stale state from earlier process")
+    monkeypatch.setattr(cognistore_cli, "NatsJetStreamQueue", lambda *args, **kwargs: Queue())
+    monkeypatch.setattr(cognistore_cli, "PeriodicScheduler", Scheduler)
+    monkeypatch.setattr(cognistore_cli, "_queue_config", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cognistore_cli, "write_scheduler_status", write_status)
+    monkeypatch.setattr(cognistore_cli.asyncio, "get_running_loop", lambda: Loop())
+    args = argparse.Namespace(
+        schedule_db=str(tmp_path / "scheduler.db"), catalog_db=None,
+        health_file=health_file, once=False, job_stream="JOBS", poll_interval=0.001,
+    )
+    assert asyncio.run(cognistore_cli._serve_scheduler(args, [])) == 0
+    assert statuses == [True, False, True]
+    assert not health_file.exists()
+    assert callbacks == {}
+
+
 @pytest.mark.parametrize(
     ("ttl", "message"),
     (("0.0000006", "at least one microsecond"), ("0.0000011", "whole-microsecond")),
@@ -673,8 +769,9 @@ def test_plain_redrive_output_distinguishes_existing_completion(
 
 
 @pytest.mark.parametrize("protected", [False, True])
+@pytest.mark.parametrize("disabled_schedules", [False, True])
 def test_serve_worker_lifecycle_and_live_limit_reload(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, protected: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, protected: bool, disabled_schedules: bool,
 ) -> None:
     events: list[str] = []
     callbacks = {}
@@ -727,6 +824,9 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
             self.state = WorkerState.STARTING
             self.throughput = throughput
             assert coordinator is not None
+            assert isinstance(
+                coordinator, cognistore_cli.DisabledScheduledRunCoordinator
+            ) == disabled_schedules
             assert audit_catalog is catalog_sentinel
             assert isinstance(authorization, cognistore_cli.RBACAuthorizer) == protected
 
@@ -808,6 +908,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
         health_port=0,
         drivers="runtime.yaml",
         authorization_policy=str(authorization_path) if protected else None,
+        disable_scheduled_jobs=disabled_schedules,
         schedule_db=str(tmp_path / "schedule.db"),
         tier_limits=str(limits_path),
         _throughput_config=cognistore_cli.ThroughputConfig(
@@ -837,6 +938,7 @@ def test_serve_worker_lifecycle_and_live_limit_reload(
     ]
     assert reload_calls == 2
     assert seen_feature_loader is feature_loader_sentinel
+    assert (tmp_path / "schedule.db").exists() is not disabled_schedules
 
 
 @pytest.mark.parametrize("explicit", [False, True])

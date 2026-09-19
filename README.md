@@ -46,6 +46,14 @@ The [operational SLOs and runbooks](docs/operational_slos.md) cover rolling erro
 budgets, throughput, capacity, and policy cost/carbon alerts. The provisioned SLO
 dashboard and [M1 evidence evaluator](docs/slo_model.md) use the versioned model.
 
+### Kubernetes
+
+The [Helm deployment guide](docs/kubernetes.md) covers production API/UI and
+worker deployments, external persistent dependencies, migrations, upgrades,
+rollback, and API/queue autoscaling. It also documents the single-node storage
+constraint for the optional recurring scheduler and the automated cluster
+qualification workflow.
+
 ### Local Python environment
 
 - Create a virtual environment and install the package with its development
@@ -610,9 +618,11 @@ For authenticated API jobs, configure the worker with the same
 permissions; an authenticated job is denied if the worker has no policy.
 Tenant-enabled workers also need the API's `COGNISTORE_TENANT_POLICY` to
 validate each job's immutable owner before execution.
-The CLI and recurring-schedule examples below describe trusted local workloads:
-these producers do not authenticate principals, so their jobs are rejected by
-workers with a policy. Use authenticated REST actions for protected workloads.
+The CLI and recurring-schedule examples below describe trusted local workloads
+without a principal, so their jobs are rejected by workers with a policy. Use
+authenticated REST actions for protected manual workloads, or configure a
+dedicated scheduler service identity for
+[protected recurring schedules](docs/background_workers.md#protected-schedules).
 
 Recurring scans and policy passes are declared in a YAML `jobs` mapping keyed
 by stable schedule IDs:

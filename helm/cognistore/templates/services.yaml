@@ -1,0 +1,19 @@
+{{- range $component := list "api" "worker" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cognistore.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "cognistore.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $component }}
+  ports:
+    - name: http
+      port: {{ if eq $component "api" }}8080{{ else }}8081{{ end }}
+      targetPort: http
+{{- end }}

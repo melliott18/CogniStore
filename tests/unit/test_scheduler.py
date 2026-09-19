@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from cognistore.auth.principal import Principal
 from cognistore.jobs.models import (
     JOB_SCHEMA_VERSION_V1,
     JOB_SCHEMA_VERSION_V2,
@@ -179,6 +180,46 @@ async def _succeed_scheduled_job(
     ).begin(job, _context())
     assert execution is not None and execution.execute is True
     await execution.succeed()
+
+
+def test_scheduler_persists_trusted_identity_and_tenant_across_publication_retry(tmp_path: Path) -> None:
+    config_path = tmp_path / "schedules.yaml"
+    _write_schedules(config_path, _scan_job("scan-reports"))
+    principal = Principal("https://identity.example", "service:scheduler")
+
+    async def scenario() -> None:
+        store = SQLiteScheduleStore(tmp_path / "scheduler.db")
+        failing_queue = RecordingQueue(failures=1)
+        scheduler = PeriodicScheduler(
+            failing_queue, store, _load(config_path),
+            principal=principal, tenant_id="team-a",
+        )
+        await scheduler.start()
+        with pytest.raises(ConnectionError):
+            await scheduler.run_due()
+        original = failing_queue.attempted[0][0]
+        assert original.principal == principal
+        assert original.tenant_id == "team-a"
+        await scheduler.close()
+        store.close()
+
+        reopened = SQLiteScheduleStore(tmp_path / "scheduler.db")
+        retry_queue = RecordingQueue()
+        restarted = PeriodicScheduler(
+            retry_queue, reopened, _load(config_path),
+            principal=Principal("https://identity.example", "service:replacement"),
+            tenant_id="team-b",
+        )
+        await restarted.start()
+        assert await restarted.run_due() == 1
+        retried = retry_queue.enqueued[0]
+        assert retried.to_bytes() == original.to_bytes()
+        assert retried.principal == principal
+        assert retried.tenant_id == "team-a"
+        await restarted.close()
+        reopened.close()
+
+    asyncio.run(scenario())
 
 
 def test_due_catalog_scan_and_policy_pass_are_only_enqueued(tmp_path: Path) -> None:

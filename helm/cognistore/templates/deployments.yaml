@@ -1,0 +1,200 @@
+{{- $root := . -}}
+{{- range $component := list "api" "worker" "scheduler" }}
+{{- if or (ne $component "scheduler") $root.Values.scheduler.enabled }}
+{{- $settings := index $root.Values $component }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cognistore.fullname" $root }}-{{ $component }}
+  labels:
+    {{- include "cognistore.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  {{- if eq $component "scheduler" }}
+  replicas: 1
+  strategy:
+    type: Recreate
+  {{- else }}
+  {{- if not $settings.autoscaling.enabled }}
+  replicas: {{ $settings.replicas }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+      app.kubernetes.io/component: {{ $component }}
+  template:
+    metadata:
+      labels:
+        {{- include "cognistore.labels" $root | nindent 8 }}
+        app.kubernetes.io/component: {{ $component }}
+        {{- if and $root.Values.scheduler.enabled (ne $component "api") }}
+        cognistore.io/schedule-group: {{ include "cognistore.fullname" $root }}
+        {{- end }}
+      annotations:
+        cognistore.io/config-revision: {{ $root.Values.config.revision | quote }}
+        {{- with $root.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "cognistore.fullname" $root }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        {{- include "cognistore.podSecurityContext" $root | nindent 8 }}
+      terminationGracePeriodSeconds: {{ if eq $component "worker" }}{{ $settings.terminationGracePeriodSeconds }}{{ else }}60{{ end }}
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and $root.Values.scheduler.enabled (ne $component "api") }}
+      # SQLite WAL requires local POSIX locking: never distribute this group.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  cognistore.io/schedule-group: {{ include "cognistore.fullname" $root }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "cognistore.image" $root | quote }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          securityContext:
+            {{- include "cognistore.securityContext" $root | nindent 12 }}
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ $root.Values.credentials.existingSecret }}
+          env:
+            {{- include "cognistore.env" $root | nindent 12 }}
+            - name: OTEL_SERVICE_NAME
+              value: cognistore-{{ $component }}
+          {{- if eq $component "api" }}
+          command: [cognistore-api]
+          args: [--host, "0.0.0.0", --port, "8080"]
+          {{- else }}
+          command: [cognistore]
+          args:
+            - --no-config
+            - --drivers
+            - /etc/cognistore/config/drivers.yaml
+            - --job-stream
+            - {{ $root.Values.queue.stream | quote }}
+            - --job-subject
+            - {{ $root.Values.queue.subject | quote }}
+            - --job-consumer
+            - {{ $root.Values.queue.consumer | quote }}
+            {{- if $root.Values.scheduler.enabled }}
+            - --schedule-db
+            - /var/lib/cognistore/schedule/schedule.sqlite3
+            {{- end }}
+            - {{ $component }}
+            {{- if eq $component "worker" }}
+            {{- if not $root.Values.scheduler.enabled }}
+            - --disable-scheduled-jobs
+            {{- end }}
+            {{- if eq $root.Values.securityProfile "production" }}
+            - --authorization-policy
+            - /etc/cognistore/config/authorization.json
+            - --tenant-policy
+            - /etc/cognistore/config/tenants.json
+            {{- end }}
+            - --health-host
+            - "0.0.0.0"
+            - --health-port
+            - "8081"
+            - --max-in-flight
+            - {{ $settings.maxInFlight | quote }}
+            - --shutdown-grace
+            - {{ $settings.shutdownGrace | quote }}
+            - --settlement-timeout
+            - {{ $settings.settlementTimeout | quote }}
+            {{- else }}
+            - --schedule-config
+            - /etc/cognistore/config/schedules.yaml
+            - --health-file
+            - /tmp/scheduler-health.json
+            {{- if $settings.principalIssuer }}
+            - --principal-issuer
+            - {{ $settings.principalIssuer | quote }}
+            - --principal-subject
+            - {{ $settings.principalSubject | quote }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if ne $component "scheduler" }}
+          ports:
+            - name: http
+              containerPort: {{ if eq $component "api" }}8080{{ else }}8081{{ end }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: {{ if eq $root.Values.securityProfile "production" }}HTTPS{{ else }}HTTP{{ end }}
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: {{ if eq $root.Values.securityProfile "production" }}HTTPS{{ else }}HTTP{{ end }}
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              scheme: {{ if eq $root.Values.securityProfile "production" }}HTTPS{{ else }}HTTP{{ end }}
+            periodSeconds: 5
+            timeoutSeconds: 6
+          {{- else }}
+          startupProbe:
+            exec:
+              command: [python, -m, cognistore.jobs.scheduler_probe, --health-file, /tmp/scheduler-health.json, --max-age, {{ $settings.livenessMaxAge | quote }}]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            exec:
+              command: [python, -m, cognistore.jobs.scheduler_probe, --health-file, /tmp/scheduler-health.json, --max-age, {{ $settings.livenessMaxAge | quote }}]
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: [python, -m, cognistore.jobs.scheduler_probe, --health-file, /tmp/scheduler-health.json, --max-age, {{ $settings.readinessMaxAge | quote }}, --readiness]
+            periodSeconds: 5
+            timeoutSeconds: 5
+          {{- end }}
+          volumeMounts:
+            {{- include "cognistore.mounts" $root | nindent 12 }}
+            {{- if and $root.Values.scheduler.enabled (ne $component "api") }}
+            - name: schedule
+              mountPath: /var/lib/cognistore/schedule
+            {{- end }}
+      volumes:
+        {{- include "cognistore.volumes" $root | nindent 8 }}
+        {{- if and $root.Values.scheduler.enabled (ne $component "api") }}
+        - name: schedule
+          persistentVolumeClaim:
+            claimName: {{ include "cognistore.scheduleClaim" $root }}
+        {{- end }}
+{{- end }}
+{{- end }}

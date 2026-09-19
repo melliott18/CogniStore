@@ -4,6 +4,7 @@ docs_dir: docs
 nav:
   - Setup:
       - Docker development: setup_guide.md
+      - Kubernetes and Helm: kubernetes.md
       - CLI reference: cli.md
       - PostgreSQL catalog: postgres_catalog.md
       - Operational audit events: audit_events.md

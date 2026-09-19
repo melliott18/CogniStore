@@ -1,0 +1,7 @@
+apiVersion: v2
+name: cognistore
+description: Secure CogniStore API, administration UI, workers, and scheduler
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"

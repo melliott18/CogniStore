@@ -173,6 +173,8 @@ class APIGateway(Protocol):
 
     async def shutdown(self) -> None: ...
 
+    async def check_readiness(self) -> bool: ...
+
     def put_object(
         self,
         tier: str,
@@ -262,6 +264,9 @@ class UnavailableGateway:
     async def shutdown(self) -> None:
         return None
 
+    async def check_readiness(self) -> bool:
+        return False
+
     def __getattr__(self, _name: str):
         def unavailable(*_args, **_kwargs):
             raise BackendUnavailableError("API services are not configured")
@@ -306,6 +311,7 @@ class CogniStoreGateway:
         )
         self.queue = queue
         self.manage_queue = manage_queue
+        self._readiness_task: asyncio.Task[bool] | None = None
 
     def for_tenant(self, tenant_id: str) -> CogniStoreGateway:
         tenant_id = validate_tenant_id(tenant_id)
@@ -411,8 +417,30 @@ class CogniStoreGateway:
             await self.queue.connect()
 
     async def shutdown(self) -> None:
+        if self._readiness_task is not None and not self._readiness_task.done():
+            self._readiness_task.cancel()
+            await asyncio.gather(self._readiness_task, return_exceptions=True)
         if self.manage_queue and self.queue is not None:
             await self.queue.close(graceful=True)
+
+    async def check_readiness(self) -> bool:
+        # Cancelling asyncio.to_thread cannot stop an in-flight database query.
+        # Keep one shared probe across timed-out HTTP requests so an outage
+        # cannot create a new blocked thread/connection on every kubelet poll.
+        if self._readiness_task is None or self._readiness_task.done():
+            self._readiness_task = asyncio.create_task(self._probe_dependencies())
+        return await asyncio.shield(self._readiness_task)
+
+    async def _probe_dependencies(self) -> bool:
+        # Query an owned catalog table without reading or exposing user objects.
+        # Readiness must detect dependencies lost after successful startup.
+        try:
+            await asyncio.to_thread(self._catalog.get_tier, "cognistore-readiness")
+            if self.queue is not None:
+                return (await self.queue.probe()).ready
+            return True
+        except Exception:
+            return False
 
     def _driver(self, tier: str) -> StorageDriver:
         try:
