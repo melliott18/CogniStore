@@ -79,6 +79,7 @@ SUPPORTED_OPERATION_IDS = frozenset(
         "evaluatePolicy",
         "getCatalogObject",
         "getHealth",
+        "getReadiness",
         "getJobStatus",
         "getObject",
         "getPolicyDecision",
@@ -496,6 +497,11 @@ class CogniStoreClient:
 
     def get_health(self) -> HealthResponse:
         response = self._send("GET", "/healthz", expected_statuses={200})
+        return self._parse_model(response, HealthResponse)
+
+    def get_readiness(self) -> HealthResponse:
+        """Check dependencies; raise ServiceUnavailableError while unavailable."""
+        response = self._send("GET", "/readyz", expected_statuses={200})
         return self._parse_model(response, HealthResponse)
 
     def put_object(

@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acceptance-prometheus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acceptance-prometheus
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acceptance-prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: acceptance-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: acceptance-prometheus
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acceptance-prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+    scrape_configs:
+      - job_name: cognistore-api
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              own_namespace: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            regex: api
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "8080"
+            action: keep
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acceptance-prometheus
+spec:
+  selector:
+    app: acceptance-prometheus
+  ports:
+    - port: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acceptance-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acceptance-prometheus
+  template:
+    metadata:
+      labels:
+        app: acceptance-prometheus
+    spec:
+      serviceAccountName: acceptance-prometheus
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+          args: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus]
+          ports:
+            - containerPort: 9090
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /-/ready, port: 9090}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus, readOnly: true}
+            - {name: data, mountPath: /prometheus}
+      volumes:
+        - name: config
+          configMap: {name: acceptance-prometheus}
+        - name: data
+          emptyDir: {}

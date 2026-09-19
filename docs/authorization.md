@@ -194,20 +194,21 @@ dead-letter flow. Redrive retains the original principal and does not bypass
 revalidation. Missing or malformed identity, an unknown operation, or a failed
 policy reload cannot authorize execution.
 
-The existing CLI job producers and scheduler do not authenticate a submitting
-principal. Their anonymous jobs are rejected by workers with a policy. For
-protected workloads, submit through the authenticated REST action endpoints.
-Keep anonymous scheduler/CLI workloads in a separate trusted deployment until
-those producers have an authenticated identity integration. Drain existing
+CLI job producers do not authenticate a submitting principal. Their anonymous
+jobs are rejected by workers with a policy; submit protected manual work through
+the authenticated REST action endpoints. The scheduler supports an
+operator-configured service identity for [protected schedules](background_workers.md#protected-schedules).
+That configuration is a trusted assertion, not JWT verification. Keep anonymous
+scheduler/CLI workloads in a separate trusted deployment. Drain existing
 anonymous scheduled runs before enabling a policy on their consumer; rejection
 before scheduler coordination can leave their old scope reservations requiring
-operator recovery. Do not assign an
-invented identity to an anonymous job to get it accepted.
+operator recovery. Do not rewrite an anonymous job's identity to get it accepted.
 
 Reserved principal metadata is an internal propagation contract, not signed
 proof. Restrict NATS publication and broker access to trusted producers that
-verify the identity they propagate. Permission lookup cannot distinguish a
-forged principal supplied by a publisher that already has that privilege.
+verify client identities or assert an explicitly approved scheduler service
+identity. Permission lookup cannot distinguish a forged principal supplied by
+a publisher that already has that privilege.
 
 ## Trusted local process boundary
 

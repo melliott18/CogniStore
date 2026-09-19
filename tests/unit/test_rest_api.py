@@ -4,9 +4,11 @@ import asyncio
 import hashlib
 import json
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -1441,6 +1443,65 @@ def test_authorization_hook_protects_v1_but_not_health() -> None:
     assert calls == [None, "test-secret"]
 
 
+@pytest.mark.parametrize("failure", [None, "catalog", "queue", "timeout"])
+def test_readiness_probes_dependencies_without_changing_liveness(failure, monkeypatch) -> None:
+    class Queue:
+        async def probe(self):
+            if failure == "timeout":
+                raise asyncio.TimeoutError("private broker address")
+            return SimpleNamespace(ready=failure != "queue")
+
+    catalog = Catalog()
+    if failure == "catalog":
+        def failed_catalog(_name):
+            raise RuntimeError("private database credentials")
+        monkeypatch.setattr(catalog, "get_tier", failed_catalog)
+
+    def protected():
+        raise HTTPException(status_code=401)
+
+    gateway = CogniStoreGateway(catalog, {}, queue=Queue())
+    with TestClient(create_app(gateway, authorization_hook=protected)) as client:
+        response = client.get("/readyz")
+        assert response.status_code == (200 if failure is None else 503)
+        assert "private" not in response.text
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/v1/catalog/objects?bucket=docs").status_code == 401
+
+
+def test_unconfigured_api_is_live_but_not_ready() -> None:
+    with TestClient(create_app()) as client:
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/readyz").status_code == 503
+
+
+def test_timed_out_readiness_reuses_one_blocked_catalog_probe(monkeypatch) -> None:
+    release = threading.Event()
+    calls = []
+    catalog = Catalog()
+
+    def blocked_query(name):
+        calls.append(name)
+        assert release.wait(timeout=5)
+        return None
+
+    monkeypatch.setattr(catalog, "get_tier", blocked_query)
+    gateway = CogniStoreGateway(catalog, {})
+
+    async def scenario():
+        try:
+            for _ in range(3):
+                with pytest.raises(asyncio.TimeoutError):
+                    await asyncio.wait_for(gateway.check_readiness(), timeout=0.01)
+            assert calls == ["cognistore-readiness"]
+        finally:
+            release.set()
+        assert await gateway.check_readiness()
+        await gateway.shutdown()
+
+    asyncio.run(scenario())
+
+
 def test_openapi_contract_is_deterministic_and_checked_in() -> None:
     first = render_document()
     second = render_document()
@@ -1492,6 +1553,7 @@ def test_openapi_contract_is_deterministic_and_checked_in() -> None:
             "evaluatePolicy",
             "getCatalogObject",
             "getHealth",
+            "getReadiness",
             "getJobStatus",
             "getObject",
             "getPolicyDecision",

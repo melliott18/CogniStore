@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["securityProfile", "config", "credentials", "api", "worker", "scheduler"],
+  "properties": {
+    "securityProfile": {"enum": ["production", "development"]},
+    "config": {"type": "object", "properties": {"existingSecret": {"type": "string"}, "revision": {"type": "string"}}},
+    "credentials": {"type": "object", "properties": {"existingSecret": {"type": "string"}}},
+    "image": {"type": "object", "properties": {
+      "repository": {"type": "string", "minLength": 1},
+      "tag": {"type": "string", "minLength": 1},
+      "digest": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+      "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+    }},
+    "api": {"type": "object", "properties": {
+      "replicas": {"type": "integer", "minimum": 1},
+      "autoscaling": {"$ref": "#/definitions/apiScaling"}
+    }},
+    "worker": {"type": "object", "properties": {
+      "replicas": {"type": "integer", "minimum": 1},
+      "maxInFlight": {"type": "integer", "minimum": 1, "maximum": 64},
+      "shutdownGrace": {"type": "integer", "minimum": 1},
+      "settlementTimeout": {"type": "integer", "minimum": 1},
+      "terminationGracePeriodSeconds": {"type": "integer", "minimum": 1},
+      "autoscaling": {"$ref": "#/definitions/workerScaling"}
+    }},
+    "scheduler": {"type": "object", "properties": {
+      "enabled": {"type": "boolean"},
+      "readinessMaxAge": {"type": "integer", "minimum": 1},
+      "livenessMaxAge": {"type": "integer", "minimum": 1}
+    }},
+    "networkPolicy": {"type": "object", "properties": {
+      "enabled": {"type": "boolean"}, "ingress": {"type": "array"}, "egress": {"type": "array"}
+    }},
+    "extraEnv": {"type": "array"}, "extraVolumes": {"type": "array"}, "extraVolumeMounts": {"type": "array"}
+  },
+  "definitions": {
+    "apiScaling": {"type": "object", "properties": {
+      "enabled": {"type": "boolean"},
+      "minReplicas": {"type": "integer", "minimum": 1},
+      "maxReplicas": {"type": "integer", "minimum": 1},
+      "metrics": {"type": "array", "minItems": 1}
+    }},
+    "workerScaling": {"type": "object", "properties": {
+      "enabled": {"type": "boolean"},
+      "minReplicas": {"type": "integer", "minimum": 1},
+      "maxReplicas": {"type": "integer", "minimum": 1},
+      "pollingInterval": {"type": "integer", "minimum": 1},
+      "cooldownPeriod": {"type": "integer", "minimum": 0},
+      "lagThreshold": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+      "useHttps": {"type": "boolean"}
+    }}
+  }
+}

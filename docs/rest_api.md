@@ -51,8 +51,10 @@ with the same authorization policy for authenticated jobs.
 Without one, accepted jobs remain durably visible in `queued` state.
 
 Interactive documentation is available at `/docs`; the runtime OpenAPI JSON is
-at `/openapi.json`. `/healthz` reports process-level API availability. Backend
-health remains observable through its own service probes. Health, documentation,
+at `/openapi.json`. `/healthz` reports process-level API availability. `/readyz`
+checks catalog and queue availability and returns a sanitized `503` when the
+dependencies are unavailable or its two-second probe deadline expires. Backend
+health also remains observable through its own service probes. Health, documentation,
 metrics, and static UI routes remain public; the UI does not supply an OIDC
 login flow.
 

@@ -22,6 +22,7 @@ from typing import Any, Literal, NoReturn, Sequence
 from uuid import uuid4
 
 from cognistore.auth.authorization import RBACAuthorizer
+from cognistore.auth.principal import Principal
 from cognistore.auth.tenancy import DEFAULT_TENANT_ID, TenantResolver, current_tenant_id
 from cognistore.cli.config import (
 	CliConfigError,
@@ -106,6 +107,7 @@ from cognistore.jobs.nats_queue import (
 from cognistore.jobs.runtime import AsyncWorker, WorkerConfig, WorkerState
 from cognistore.jobs.scheduler import (
 	SCHEDULED_RUN_STATES,
+	DisabledScheduledRunCoordinator,
 	PeriodicScheduler,
 	ScheduledRunCoordinator,
 	ScheduledRunRecord,
@@ -114,6 +116,7 @@ from cognistore.jobs.scheduler import (
 	SQLiteScheduleStore,
 	load_schedule_config,
 )
+from cognistore.jobs.scheduler_probe import write_status as write_scheduler_status
 from cognistore.observability import StructuredLogFormatter, configure_observability
 from cognistore.pii_runtime import load_pii_config
 from cognistore.policy_feature_runtime import load_policy_feature_loader
@@ -945,20 +948,28 @@ async def _serve_worker(
 		else None
 	)
 	queue = NatsJetStreamQueue(_queue_config(args, client_name="cognistore-worker"))
-	schedule_locator = getattr(args, "schedule_db", None)
-	if schedule_locator is None:
-		catalog_locator = getattr(args, "catalog_db", None)
-		if catalog_locator is None:
-			catalog_locator = getattr(catalog, "db_path", ":memory:")
-		if not isinstance(catalog_locator, (str, Path)):
-			catalog_locator = ":memory:"
-		schedule_locator = catalog_locator
-	if not isinstance(schedule_locator, (str, Path)):
-		raise ValueError("worker scheduler state requires a persistent SQLite database")
-	schedule_path = sqlite_catalog_path(schedule_locator)
-	if schedule_path is None:  # guarded by CLI validation before serving
-		raise ValueError("worker scheduler state requires a persistent SQLite database")
-	schedule_store = SQLiteScheduleStore(schedule_path)
+	schedule_store = None
+	coordinator: ScheduledRunCoordinator | DisabledScheduledRunCoordinator
+	if getattr(args, "disable_scheduled_jobs", False):
+		coordinator = DisabledScheduledRunCoordinator()
+	else:
+		schedule_locator = getattr(args, "schedule_db", None)
+		if schedule_locator is None:
+			catalog_locator = getattr(args, "catalog_db", None)
+			if catalog_locator is None:
+				catalog_locator = getattr(catalog, "db_path", ":memory:")
+			if not isinstance(catalog_locator, (str, Path)):
+				catalog_locator = ":memory:"
+			schedule_locator = catalog_locator
+		if not isinstance(schedule_locator, (str, Path)):
+			raise ValueError("worker scheduler state requires a persistent SQLite database")
+		schedule_path = sqlite_catalog_path(schedule_locator)
+		if schedule_path is None:  # guarded by CLI validation before serving
+			raise ValueError("worker scheduler state requires a persistent SQLite database")
+		schedule_store = SQLiteScheduleStore(schedule_path)
+		coordinator = ScheduledRunCoordinator(
+			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
+		)
 	worker = AsyncWorker(
 		queue,
 		build_handlers(
@@ -984,9 +995,7 @@ async def _serve_worker(
 		audit_catalog=catalog,
 		authorization=authorization,
 		tenant_resolver=tenant_resolver,
-		coordinator=ScheduledRunCoordinator(
-			schedule_store, lease_seconds=getattr(args, "schedule_lock_ttl", 60.0)
-		),
+		coordinator=coordinator,
 	)
 	health = HealthServer(worker, host=args.health_host, port=args.health_port)
 	loop = asyncio.get_running_loop()
@@ -1080,10 +1089,27 @@ async def _serve_worker(
 		if worker.state not in (WorkerState.STOPPED, WorkerState.FAILED):
 			await worker.shutdown()
 		await health.close()
-		schedule_store.close()
+		if schedule_store is not None:
+			schedule_store.close()
+
+
+def _scheduler_identity(args: argparse.Namespace) -> tuple[Principal | None, str | None]:
+	issuer = getattr(args, "principal_issuer", None)
+	subject = getattr(args, "principal_subject", None)
+	if (issuer is None) != (subject is None):
+		raise ValueError("scheduler requires both --principal-issuer and --principal-subject")
+	principal = Principal(issuer, subject) if issuer is not None and subject is not None else None
+	tenant_policy = getattr(args, "tenant_policy", None)
+	tenant_id = TenantResolver(policy_path=tenant_policy).resolve(principal) if tenant_policy else None
+	return principal, tenant_id
 
 
 async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
+	principal, tenant_id = _scheduler_identity(args)
+	health_file = getattr(args, "health_file", None)
+	if health_file is not None:
+		health_file = Path(health_file)
+		health_file.unlink(missing_ok=True)
 	schedule_path = sqlite_catalog_path(args.schedule_db or args.catalog_db)
 	if schedule_path is None:  # guarded by CLI validation before serving
 		raise ValueError("scheduler state requires a persistent SQLite database")
@@ -1091,13 +1117,15 @@ async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
 	queue = NatsJetStreamQueue(
 		_queue_config(args, client_name="cognistore-scheduler"), consume=False
 	)
-	scheduler = PeriodicScheduler(queue, store, schedules)
+	scheduler = PeriodicScheduler(queue, store, schedules, principal=principal, tenant_id=tenant_id)
 	stop_requested = asyncio.Event()
 	loop = asyncio.get_running_loop()
 	installed_signals: list[signal.Signals] = []
 
 	try:
 		await scheduler.start()
+		if health_file is not None:
+			write_scheduler_status(health_file, ready=True)
 		for signum in (signal.SIGINT, signal.SIGTERM):
 			try:
 				loop.add_signal_handler(signum, stop_requested.set)
@@ -1118,13 +1146,19 @@ async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
 			return 0
 
 		while not stop_requested.is_set():
+			ready = True
 			try:
 				await scheduler.run_due()
+				if health_file is not None:
+					ready = (await queue.probe()).ready
 			except Exception as exc:
+				ready = False
 				LOGGER.error(
 					"scheduler publication cycle completed with one or more errors: %s",
 					redact_text(str(exc)),
 				)
+			if health_file is not None:
+				write_scheduler_status(health_file, ready=ready)
 			try:
 				await asyncio.wait_for(
 					stop_requested.wait(), timeout=args.poll_interval
@@ -1137,6 +1171,8 @@ async def _serve_scheduler(args: argparse.Namespace, schedules) -> int:
 			loop.remove_signal_handler(signum)
 		await scheduler.close()
 		store.close()
+		if health_file is not None:
+			health_file.unlink(missing_ok=True)
 
 
 def _render_actions(
@@ -1612,6 +1648,10 @@ def _run_cli(
 
 	p_worker = command("worker", help="Run the durable background worker")
 	p_worker.add_argument(
+		"--disable-scheduled-jobs", action="store_true",
+		help="Run without SQLite schedule state; reject every scheduled delivery before execution",
+	)
+	p_worker.add_argument(
 		"--authorization-policy",
 		default=os.environ.get("COGNISTORE_AUTHORIZATION_POLICY"),
 		help=(
@@ -1663,6 +1703,22 @@ def _run_cli(
 	)
 	p_scheduler.add_argument(
 		"--schedule-config", required=True, help="Path to periodic jobs YAML"
+	)
+	p_scheduler.add_argument(
+		"--health-file", type=Path,
+		help="Write atomic cycle status for cognistore.jobs.scheduler_probe exec probes",
+	)
+	p_scheduler.add_argument(
+		"--principal-issuer", default=os.environ.get("COGNISTORE_SCHEDULER_PRINCIPAL_ISSUER"),
+		help="Trusted operator-configured service issuer for scheduled jobs; requires --principal-subject",
+	)
+	p_scheduler.add_argument(
+		"--principal-subject", default=os.environ.get("COGNISTORE_SCHEDULER_PRINCIPAL_SUBJECT"),
+		help="Trusted service subject; workers recheck its current RBAC grants for every delivery",
+	)
+	p_scheduler.add_argument(
+		"--tenant-policy", default=os.environ.get("COGNISTORE_TENANT_POLICY"),
+		help="Tenant policy JSON used to resolve the scheduler service principal's job ownership",
 	)
 	p_scheduler.add_argument(
 		"--poll-interval",
@@ -2225,10 +2281,12 @@ def _run_cli(
 		parser.error("--catalog-db is required for worker")
 	if args.cmd == "worker" and not catalog_locator_is_persistent(args.catalog_db):
 		parser.error("--catalog-db must be a persistent catalog for worker")
-	if args.cmd == "worker" and catalog_locator_is_postgres(args.catalog_db):
+	if args.cmd == "worker" and args.disable_scheduled_jobs and args.schedule_db:
+		parser.error("--schedule-db cannot be used with --disable-scheduled-jobs")
+	if args.cmd == "worker" and not args.disable_scheduled_jobs and catalog_locator_is_postgres(args.catalog_db):
 		if not args.schedule_db:
 			parser.error("--schedule-db is required with a PostgreSQL worker catalog")
-	if args.cmd == "worker":
+	if args.cmd == "worker" and not args.disable_scheduled_jobs:
 		schedule_locator = args.schedule_db or args.catalog_db
 		if sqlite_catalog_path(schedule_locator) is None:
 			parser.error("--schedule-db must be a persistent SQLite file")
@@ -2279,6 +2337,10 @@ def _run_cli(
 		except (OSError, ValueError) as exc:
 			parser.error(f"invalid --tier-limits configuration: {exc}")
 	if args.cmd == "scheduler":
+		try:
+			_scheduler_identity(args)
+		except (OSError, ValueError) as exc:
+			parser.error(f"invalid scheduler identity: {exc}")
 		if not math.isfinite(args.poll_interval) or args.poll_interval <= 0:
 			parser.error("--poll-interval must be positive and finite")
 		assert drivers is not None
