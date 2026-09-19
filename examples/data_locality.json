@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "tenants": {
+    "default": {
+      "allowed_regions": ["eu-west-1", "eu-central-1"],
+      "required_localities": ["EU"],
+      "tier_pools": {
+        "hot": "hot-eu-west",
+        "warm": "warm-eu-central",
+        "cold": "cold-us-east"
+      },
+      "objects": [
+        {
+          "bucket": "regulated-records",
+          "key_prefix": "patient/",
+          "allowed_regions": ["eu-west-1"],
+          "required_localities": ["regulated"]
+        }
+      ],
+      "exceptions": [
+        {
+          "id": "emergency-recovery-64",
+          "bucket": "regulated-records",
+          "key": "patient/example.json",
+          "destination_pool_id": "cold-us-east",
+          "issuer": "https://identity.example.test",
+          "subject": "approved-operator",
+          "reason": "Illustrative approval for emergency recovery of this object",
+          "expires_at": "2026-09-18T13:00:00Z"
+        }
+      ]
+    }
+  }
+}

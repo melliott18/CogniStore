@@ -202,6 +202,7 @@ def test_sdk_budget_reason_preserves_unknown_amounts_and_objective_evidence() ->
                 "weights": {"cost": "1", "carbon": "0", "latency": "0", "locality": "0"},
                 "selected": {"pool_id": "warm-east", "tier": "warm", "score": "0"},
             },
+            "locality": None,
         },
         "policy": {"name": "estimate", "version": "1", "model": None},
         "confidence": {"value": None, "source": "not_applicable"},

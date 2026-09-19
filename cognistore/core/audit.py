@@ -57,6 +57,8 @@ class AuditEventType(str, Enum):
     CONSISTENCY_FAILED = "consistency.failed"
     CONSISTENCY_EXPORTED = "consistency.exported"
     AUTHORIZATION_DECISION = "authorization.decision"
+    LOCALITY_DECISION = "locality.decision"
+    LOCALITY_EXCEPTION = "locality.exception"
 
 
 class AuditOutcome(str, Enum):

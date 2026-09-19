@@ -2337,7 +2337,7 @@ class SQLCatalog(Catalog):
     def _assert_move_controls(
         self, connection: Connection, bucket: str, key: str,
         src_tier: str, dst_tier: str, source_metadata: Mapping[str, Any], now: str,
-    ) -> None:
+    ) -> dict[str, Any]:
         # The caller holds the object fence; topology changes use this lock too.
         self._lock_topology(connection)
         row = connection.execute(self._object_select().where(
@@ -2346,9 +2346,16 @@ class SQLCatalog(Catalog):
         tier_metadata = connection.execute(
             sa.select(tiers.c.metadata).where(tiers.c.name == src_tier)
         ).scalar_one_or_none()
-        _assert_catalog_move_allowed(
+        return _assert_catalog_move_allowed(
             None if row is None else self._record(row), src_tier, dst_tier,
             source_metadata, tier_metadata, now,
+            tenant_id=self.tenant_id, bucket=bucket, key=key,
+            tiers=[self._tier_record(item) for item in connection.execute(
+                sa.select(tiers)
+            ).mappings()],
+            pools=[self._pool_record(item) for item in connection.execute(
+                sa.select(pools)
+            ).mappings()],
         )
 
     def claim_move_job(
@@ -2381,13 +2388,18 @@ class SQLCatalog(Catalog):
             if existing is not None:
                 if existing.state.terminal:
                     return existing
+            source_metadata = existing.source_metadata if existing is not None else source_metadata
             if existing is None or existing.state in {
                 MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
             }:
-                self._assert_move_controls(
+                locality = self._assert_move_controls(
                     connection, bucket, key, src_tier, dst_tier,
-                    existing.source_metadata if existing is not None else source_metadata, now,
+                    source_metadata, now,
                 )
+                if locality["configured"] and (
+                    existing is None or "cognistore_locality" not in source_metadata
+                ):
+                    source_metadata = {**source_metadata, "cognistore_locality": locality}
             if existing is not None and (existing.owner_id not in (None, owner_id)
                 and existing.lease_expires_at is not None and existing.lease_expires_at > now):
                 raise MoveJobLeaseError(f"Move job {idempotency_key!r} is leased by {existing.owner_id!r}")
@@ -2395,7 +2407,7 @@ class SQLCatalog(Catalog):
                 connection, move_id=idempotency_key, bucket=bucket, key=key,
                 src_tier=src_tier, dst_tier=dst_tier,
                 size=existing.expected_size if existing else expected_size,
-                source_metadata=existing.source_metadata if existing else source_metadata,
+                source_metadata=source_metadata,
                 now=now, owner_id=owner_id, audit_context=audit_context,
                 trusted_override=existing is not None,
             )
@@ -2697,9 +2709,12 @@ class SQLCatalog(Catalog):
             )
             if tier != job.dst_tier:
                 raise MoveJobConflictError("Committed tier must match move destination")
-            self._assert_move_controls(
+            locality = self._assert_move_controls(
                 connection, job.bucket, job.key, job.src_tier, tier, job.source_metadata, now,
             )
+            committed_metadata = dict(job.source_metadata)
+            if locality["configured"] and "cognistore_locality" not in committed_metadata:
+                committed_metadata["cognistore_locality"] = locality
             pool_id = job.source_metadata.get("cognistore_destination_pool_id")
             if pool_id is not None:
                 bound_pool = connection.execute(sa.select(pools.c.tier_name, pools.c.active).where(
@@ -2754,6 +2769,7 @@ class SQLCatalog(Catalog):
                 .where(move_jobs.c.idempotency_key == idempotency_key)
                 .values(
                     state=MoveJobState.COMMITTED.value,
+                    source_metadata=committed_metadata,
                     lease_expires_at=lease_expires_at,
                     updated_at=now,
                 )
@@ -3127,6 +3143,9 @@ class SQLCatalog(Catalog):
             "expected_size": job.expected_size,
         }
         controls = job.source_metadata.get("cognistore_movement_constraints")
+        locality = job.source_metadata.get("cognistore_locality")
+        if isinstance(locality, Mapping):
+            details["locality"] = deepcopy(dict(locality))
         if isinstance(controls, Mapping):
             details["movement_constraints"] = deepcopy(dict(controls))
             override = controls.get("stability_override")

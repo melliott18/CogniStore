@@ -662,6 +662,10 @@ migrations and the supported offline SQLite import.
 The [tier and pool topology guide](docs/tier_pools.md) describes multi-pool tiers,
 region and locality constraints, attribute freshness, and backend-neutral
 placement assignment, with JSON and YAML configuration examples.
+The [data locality guide](docs/data_locality.md) describes server-owned tenant
+and object rules, expiring region evidence, execution and recovery checks, and
+explicit authorized exceptions. Set `COGNISTORE_LOCALITY_CONFIG` on every
+process that plans or executes moves to enable these controls.
 The [storage estimation guide](docs/storage_estimation.md) covers versioned
 cost and operational carbon estimates, explicit workload forecasts, evidence
 freshness, uncertainty, deterministic replay, and policy feature injection.

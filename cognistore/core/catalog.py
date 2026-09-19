@@ -49,6 +49,7 @@ from .content_references import (
 	ContentReferenceSnapshot,
 	build_content_reference_report,
 )
+from .locality import LocalityConstraintError, assert_locality_allowed
 from .move_jobs import (
 	EXPECTED_SOURCE_SHA256_METADATA_KEY,
 	MoveJob,
@@ -179,11 +180,12 @@ def _validate_importance_actor(
 def _assert_catalog_move_allowed(
 	record: ObjectRecord | None, src_tier: str, dst_tier: str,
 	source_metadata: Mapping[str, Any], tier_metadata: Mapping[str, object] | None,
-	now: str,
-) -> None:
+	now: str, *, tenant_id: str, bucket: str, key: str,
+	tiers: list[Tier], pools: list[Pool],
+) -> dict[str, Any]:
 	if record is None:
 		# Unscanned or deleted sources have unknown residency, never an expired clock.
-		record = ObjectRecord(bucket="", key="", size=0, tier=src_tier)
+		record = ObjectRecord(bucket=bucket, key=key, size=0, tier=src_tier)
 	if record.tier != src_tier:
 		raise MoveJobConflictError("Object placement changed since the move was planned")
 	assert_move_allowed(
@@ -191,6 +193,17 @@ def _assert_catalog_move_allowed(
 		controls=source_metadata.get("cognistore_movement_constraints"),
 		tier_metadata=tier_metadata, as_of=now,
 	)
+	expected_pool = source_metadata.get("cognistore_expected_destination_pool_id")
+	evidence = assert_locality_allowed(
+		record, dst_tier, tenant_id=tenant_id, tiers=tiers, pools=pools, as_of=now,
+		exception_id=source_metadata.get("cognistore_locality_exception_id"),
+		destination_pool_id=expected_pool,
+	)
+	if evidence["configured"] and expected_pool is None:
+		raise LocalityConstraintError("locality requires a durable destination pool binding", evidence)
+	if "cognistore_locality" in source_metadata and not evidence["configured"]:
+		raise LocalityConstraintError("locality policy is required by the durable move contract", evidence)
+	return evidence
 
 
 def _importance_event(
@@ -1551,15 +1564,24 @@ class Catalog(CatalogStore):
 			if existing is not None:
 				if existing.state.terminal:
 					return existing
+			source_metadata = existing.source_metadata if existing is not None else source_metadata
 			if existing is None or existing.state in {
 				MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
 			}:
 				tier_definition = self._tiers.get(src_tier)
-				_assert_catalog_move_allowed(
+				locality = _assert_catalog_move_allowed(
 					self._objects.get((bucket, key)), src_tier, dst_tier,
-					existing.source_metadata if existing is not None else source_metadata,
+					source_metadata,
 					tier_definition.metadata if tier_definition else None, now,
+					tenant_id=self.tenant_id, bucket=bucket, key=key,
+					tiers=list(self._tiers.values()), pools=list(self._pools.values()),
 				)
+				if locality["configured"] and (
+					existing is None or "cognistore_locality" not in source_metadata
+				):
+					# The atomic admission owns this evidence. Direct catalog
+					# callers cannot omit or forge the durable enforcement flag.
+					source_metadata = {**source_metadata, "cognistore_locality": locality}
 			if existing is not None and (existing.owner_id not in (None, owner_id)
 				and existing.lease_expires_at is not None and existing.lease_expires_at > now):
 				raise MoveJobLeaseError(f"Move job {idempotency_key!r} is leased by {existing.owner_id!r}")
@@ -1568,7 +1590,7 @@ class Catalog(CatalogStore):
 				self._pools, self._objects.get((bucket, key)),
 				move_id=idempotency_key, bucket=bucket, key=key, src_tier=src_tier,
 				dst_tier=dst_tier, size=existing.expected_size if existing else expected_size,
-				source_metadata=existing.source_metadata if existing else source_metadata,
+				source_metadata=source_metadata,
 				now=now, audit_context=audit_context, trusted_override=existing is not None,
 			)
 			for reservation in reservations:
@@ -1810,10 +1832,15 @@ class Catalog(CatalogStore):
 			if tier != job.dst_tier:
 				raise MoveJobConflictError("Committed tier must match move destination")
 			tier_definition = self._tiers.get(job.src_tier)
-			_assert_catalog_move_allowed(
+			locality = _assert_catalog_move_allowed(
 				previous_object, job.src_tier, tier, job.source_metadata,
 				tier_definition.metadata if tier_definition else None, now,
+				tenant_id=self.tenant_id, bucket=job.bucket, key=job.key,
+				tiers=list(self._tiers.values()), pools=list(self._pools.values()),
 			)
+			committed_metadata = dict(job.source_metadata)
+			if locality["configured"] and "cognistore_locality" not in committed_metadata:
+				committed_metadata["cognistore_locality"] = locality
 			pool_id = job.source_metadata.get("cognistore_destination_pool_id")
 			if pool_id is not None:
 				pool = self._pools.get(pool_id)
@@ -1833,6 +1860,7 @@ class Catalog(CatalogStore):
 			updated = self._replace_move_job(
 				job,
 				state=MoveJobState.COMMITTED,
+				source_metadata=committed_metadata,
 				updated_at=now,
 				lease_expires_at=lease_expires_at,
 			)
@@ -1951,7 +1979,10 @@ class Catalog(CatalogStore):
 				f"Idempotency key {job.idempotency_key!r} already identifies "
 				f"{job.src_tier}:{job.bucket}/{job.key} -> {job.dst_tier}"
 			)
-		for name in ("cognistore_budget_override", "cognistore_expected_destination_pool_id"):
+		for name in (
+			"cognistore_budget_override", "cognistore_expected_destination_pool_id",
+			"cognistore_locality_exception_id",
+		):
 			if name in source_metadata and source_metadata[name] != job.source_metadata.get(name):
 				raise MoveJobConflictError(f"{name} differs from the durable move contract")
 		requested_digest = source_metadata.get(
@@ -2060,6 +2091,9 @@ class Catalog(CatalogStore):
 			"expected_size": job.expected_size,
 		}
 		controls = job.source_metadata.get("cognistore_movement_constraints")
+		locality = job.source_metadata.get("cognistore_locality")
+		if isinstance(locality, Mapping):
+			details["locality"] = deepcopy(dict(locality))
 		if isinstance(controls, Mapping):
 			details["movement_constraints"] = deepcopy(dict(controls))
 			override = controls.get("stability_override")
