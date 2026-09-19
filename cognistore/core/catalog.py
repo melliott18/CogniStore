@@ -649,6 +649,7 @@ class CatalogStore(Protocol):
 		now: str,
 		lease_expires_at: str,
 		audit_context: AuditContext | None = None,
+		expected_record: ObjectRecord | None = None,
 	) -> MoveJob: ...
 
 
@@ -2095,6 +2096,7 @@ class Catalog(CatalogStore):
 		now: str,
 		lease_expires_at: str,
 		audit_context: AuditContext | None = None,
+		expected_record: ObjectRecord | None = None,
 	) -> MoveJob:
 		"""Atomically commit placement and the verified job checkpoint."""
 
@@ -2108,6 +2110,8 @@ class Catalog(CatalogStore):
 			)
 			object_key = (job.bucket, job.key)
 			previous_object = self._objects.get(object_key)
+			if expected_record is not None and previous_object != expected_record:
+				raise MoveJobConflictError("Catalog record changed since repair verification")
 			if tier != job.dst_tier:
 				raise MoveJobConflictError("Committed tier must match move destination")
 			tier_definition = self._tiers.get(job.src_tier)

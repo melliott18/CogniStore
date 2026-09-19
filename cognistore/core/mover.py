@@ -160,6 +160,7 @@ class Mover:
         lease_seconds: float = 30.0,
         clock: Callable[[], datetime] | None = None,
         transition_hook: Callable[[MoveJob], None] | None = None,
+        checkpoint_guard: Callable[[MoveJob], None] | None = None,
         throughput: ByteThroughputController | None = None,
         audit_context: AuditContext | None = None,
     ) -> None:
@@ -171,6 +172,7 @@ class Mover:
         self.lease_seconds = lease_seconds
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._transition_hook = transition_hook
+        self._checkpoint_guard = checkpoint_guard
         self._throughput = throughput
         self.audit_context = audit_context
 
@@ -873,6 +875,11 @@ class Mover:
 
         while True:
             if not job.state.terminal:
+                # Recovery callers may require stricter evidence than a manual
+                # move. Revalidate before every phase, especially placement
+                # commit and source cleanup; guard failure leaves copies intact.
+                if self._checkpoint_guard is not None:
+                    self._checkpoint_guard(job)
                 self.catalog.assert_not_held(
                     job.bucket, job.key,
                     operation=f"move.{job.state.value}", context=audit_context,
@@ -922,6 +929,8 @@ class Mover:
                             job.key,
                             source_generation,
                         ) as source_stream:
+                            if self._checkpoint_guard is not None:
+                                self._checkpoint_guard(job)
                             source = _HashingReader(
                                 source_stream,
                                 on_bytes=lambda amount: self._consume_transfer_bytes(
@@ -1054,6 +1063,15 @@ class Mover:
                 assert job.destination_size is not None
                 assert job.destination_generation is not None
                 now, lease_expires_at = self._lease_window()
+                commit_options: dict[str, Any] = {}
+                if self._checkpoint_guard is not None:
+                    expected_record = self.catalog.get(job.bucket, job.key)
+                    if expected_record is None:
+                        raise MoveJobConflictError("Repair cannot restore a missing catalog record")
+                    self._checkpoint_guard(job)
+                    # Compare under the catalog's commit lock, closing the gap
+                    # between read-only repair verification and placement write.
+                    commit_options["expected_record"] = expected_record
                 job = self.catalog.commit_move_job_placement(
                     job.idempotency_key,
                     owner_id=self.owner_id,
@@ -1063,6 +1081,7 @@ class Mover:
                     now=now,
                     lease_expires_at=lease_expires_at,
                     audit_context=audit_context,
+                    **commit_options,
                 )
                 self._after_transition(job)
 
@@ -1096,6 +1115,11 @@ class Mover:
                             job.bucket, job.key,
                             operation="move.source_cleanup", context=audit_context,
                         ), source_reader as retained_source:
+                            # Destination verification may have streamed for a
+                            # long time. Recheck repair policy/catalog evidence
+                            # under the hold fence immediately before deletion.
+                            if self._checkpoint_guard is not None:
+                                self._checkpoint_guard(job)
                             src.delete_object_if_generation(
                                 job.bucket, job.key, source_generation
                             )
@@ -1137,6 +1161,8 @@ class Mover:
                         audit_context=audit_context,
                     )
                     raise MoveGenerationMismatchError(plan, role) from error
+                if self._checkpoint_guard is not None:
+                    self._checkpoint_guard(job)
                 job = self._transition(
                     job,
                     MoveJobState.COMPLETED,

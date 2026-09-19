@@ -1,4 +1,4 @@
-"""Operator-scoped, read-only catalog-to-storage consistency commands."""
+"""Operator-scoped consistency scans, exports, and explicitly enabled repair."""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +27,7 @@ from cognistore.db import catalog_locator_is_persistent, open_catalog, sqlite_ca
 from cognistore.db.engine import normalize_database_url
 from cognistore.drivers.driver_loader import load_drivers
 
-COMMANDS = {"consistency-scan", "consistency-export"}
+COMMANDS = {"consistency-scan", "consistency-export", "consistency-repair"}
 _SQLITE_SUFFIXES = ("", "-wal", "-shm", "-journal")
 
 
@@ -62,6 +62,18 @@ def add_commands(command: Callable[..., argparse.ArgumentParser]) -> None:
     export.add_argument("--scope-config", required=True, type=Path)
     export.add_argument("--report", required=True, type=Path)
     export.add_argument("--output", required=True, type=Path, help="New JSONL path; existing files are refused")
+    repair = command("consistency-repair", help="Plan or explicitly enable safe repair of a completed scan")
+    repair.add_argument("--tenant", required=True)
+    repair.add_argument("--scope-config", required=True, type=Path)
+    repair.add_argument("--report", required=True, type=Path, help="Completed consistency scan report")
+    repair.add_argument("--prefix", help="Original scan prefix within the configured tenant binding")
+    repair.add_argument("--tier", action="append", help="Original scan tiers (repeatable)")
+    repair.add_argument(
+        "--enable-repair", action="store_true",
+        help="Resume eligible existing moves; default only plans and audits decisions",
+    )
+    repair.add_argument("--requests-per-second", type=_positive_float, default=20.0)
+    repair.add_argument("--bytes-per-second", type=_positive_float, default=8 * 1024 * 1024)
 
 
 class _UniqueLoader(yaml.SafeLoader):
@@ -235,6 +247,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 )
         return {"summary": summary, "output": str(args.output)}
 
+    if args.cmd == "consistency-repair":
+        return _repair(args, scope, binding_id)
+
     if not args.resume and (args.report.exists() or args.report.is_symlink()):
         raise FileExistsError("--report already exists; use --resume with a matching report")
     # This branch runs before the CLI's ordinary mutable catalog/driver setup.
@@ -263,6 +278,42 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             summary = scanner.run(args.report, resume=args.resume, max_items=args.max_items)
         return {"summary": summary, "report": str(args.report)}
     finally:
+        close = getattr(catalog, "close", None)
+        if callable(close):
+            close()
+
+
+def _repair(args: argparse.Namespace, scope: ScanScope, binding_id: str) -> dict[str, Any]:
+    from cognistore.core.consistency_repair import ConsistencyRepairer
+
+    # Validate the original report before opening any writable source handle.
+    saved = report_summary(args.report, tenant_id=args.tenant, binding_id=binding_id)
+    if not saved["complete"]:
+        raise ValueError("consistency-repair requires a completed scan report")
+    if saved["scope"] != scope.to_dict():
+        raise ValueError("repair scope must match the original scan prefix and tiers exactly")
+    catalog_path = sqlite_catalog_path(args.catalog_db)
+    if catalog_path is not None and not catalog_path.expanduser().is_file():
+        raise ValueError("consistency-repair requires an existing persistent --catalog-db")
+    enabled = args.enable_repair and not args.dry_run
+    catalog = open_catalog(args.catalog_db, read_only=not enabled, migrate=False)
+    drivers = {}
+    try:
+        drivers = load_drivers(args.drivers)
+        if not set(scope.tiers).issubset(drivers):
+            raise ValueError("tenant binding references an unconfigured driver tier")
+        repairer = ConsistencyRepairer(
+            catalog, {tier: drivers[tier] for tier in scope.tiers}, scope,
+            binding_id=binding_id, requests_per_second=args.requests_per_second,
+            bytes_per_second=args.bytes_per_second,
+        )
+        summary = repairer.run(args.report, enabled=enabled, dry_run=args.dry_run)
+        return {"summary": summary, "report": str(args.report)}
+    finally:
+        for driver in drivers.values():
+            close = getattr(driver, "close", None)
+            if callable(close):
+                close()
         close = getattr(catalog, "close", None)
         if callable(close):
             close()

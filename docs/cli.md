@@ -174,12 +174,14 @@ and dataset export require an existing catalog and open it read-only, without
 `--drivers` or `--base`. `policy-dataset-validate` reads a local JSON file or stdin
 and requires no catalog. `policy-baseline-train` and `policy-baseline-evaluate`
 read local JSON artifacts and require no catalog, drivers, or queue service.
-`consistency-scan` and `consistency-export` require a persistent catalog locator,
+`consistency-scan`, `consistency-export`, and `consistency-repair` require a persistent catalog locator,
 `--drivers`, and a trusted `--scope-config` tenant binding. The scan opens the
 existing catalog read-only; export verifies the binding without contacting it.
 `orphan-cleanup` requires those same inputs and an existing tenant catalog
 partition. It defaults to a read-only report; `--quarantine` and explicit
 `--execute --candidate-id` open that partition writable without migrations.
+Repair plans open the catalog read-only; `--enable-repair` allows safe move
+resumption using the existing catalog schema, without installing migrations.
 Scheduler state is always SQLite: a PostgreSQL worker requires an
 explicit persistent `schedule_db`, while a SQLite worker may reuse its catalog
 file when `schedule_db` is omitted. A non-preview scheduler requires a
@@ -288,6 +290,7 @@ their query. The complete command matrix is:
 | `consistency-scan` | Always read-only toward source catalog and storage. Dry-run scans into a disposable temporary report; with `--resume`, previews a snapshot of the checkpoint. No report, checkpoint, or audit changes are retained. |
 | `consistency-export` | Validates the report's tenant/source binding and new output target, returning the saved summary without creating an export or audit event. |
 | `orphan-cleanup` | Reports current protections without writes by default. `--dry-run` previews either quarantine or execution; `--no-dry-run` alone does not authorize deletion. |
+| `consistency-repair` | Returns current repair decisions without changing the report, catalog, or storage; overrides `--enable-repair`. Without either flag, plans are audited only in the report. |
 | `schedule-run-list` | Read-only. Lists durable scheduled occurrences, with optional state, schedule-ID, and expired-running-lease filters. |
 | `schedule-run-status` | Read-only. Returns one occurrence plus its immutable fenced-recovery audit records. |
 | `schedule-run-recover` | Requires `--confirm-former-worker-fenced` in both modes. Dry-run opens the SQLite scheduler store read-only and checks the exact run, expected owner, expired lease, and scope lock. It does not clear ownership or write an audit record; the writable command atomically rechecks every condition. |
@@ -365,6 +368,13 @@ cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-scan \
 cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-export \
   --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 \
   --output reports/acme.jsonl --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-repair \
+  --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 --json
+
+cognistore --drivers drivers.yaml --catalog-db catalog.db consistency-repair \
+  --tenant acme --scope-config tenants.yaml --report reports/acme.sqlite3 \
+  --enable-repair --json
 ```
 
 The scope configuration binds each tenant to one bucket, key prefix, and set of
@@ -372,7 +382,15 @@ tiers. Scan `--prefix` and repeated `--tier` options can only narrow that bindin
 `--page-size`, `--requests-per-second`, and `--bytes-per-second` bound inventory
 pages and throttle backend reads. Inspect `summary.complete` before treating a
 report as finished, and `summary.consistent` to distinguish completion from a
-clean result. These consistency commands never repair catalog state or delete stored objects.
+clean result. Scan and export never modify catalog or backend state.
+
+Repair requires a completed report and its exact original scope. It defaults
+to a plan audited in the report, with `status: "planned"` and
+`summary.plan_only: true`. `--enable-repair` permits resuming eligible existing
+moves using their original idempotency keys after current generation and
+checksum validation. Unsafe or ambiguous findings receive a quarantine
+decision for operator review without moving or deleting their data. Inspect
+`summary.actions` and `summary.counts`, and run a new scan after repairs.
 See the [consistency checks guide](consistency_checks.md) for the configuration
 schema, trust boundary, report/export contracts, and scan limitations.
 

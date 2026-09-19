@@ -147,6 +147,7 @@ _COMMAND_NAMES = frozenset(
 		"consistency-scan",
 		"consistency-export",
 		"orphan-cleanup",
+		"consistency-repair",
 		"schedule-run-list",
 		"schedule-run-status",
 		"schedule-run-recover",
@@ -1844,8 +1845,9 @@ def _run_cli(
 	if args.cmd in consistency_commands:
 		from cognistore.cli.consistency_commands import run as run_consistency_command
 		result = run_consistency_command(args)
+		planned = dry_run or bool(result["summary"].get("plan_only", False))
 		_emit_result(
-			args.cmd, "planned" if dry_run else "success", json_output=args.json,
+			args.cmd, "planned" if planned else "success", json_output=args.json,
 			human=json.dumps(result["summary"], sort_keys=True),
 			dry_run=dry_run, **result,
 		)

@@ -3023,6 +3023,7 @@ class SQLCatalog(Catalog):
         now: str,
         lease_expires_at: str,
         audit_context: AuditContext | None = None,
+        expected_record: ObjectRecord | None = None,
     ) -> MoveJob:
         validate_move_job_transition(MoveJobState.VERIFIED, MoveJobState.COMMITTED)
         validate_catalog_size(size)
@@ -3032,6 +3033,12 @@ class SQLCatalog(Catalog):
             if initial is None:
                 raise KeyError(f"Move job not found: {idempotency_key}")
             self._lock_object(connection, initial.bucket, initial.key)
+            if expected_record is not None:
+                row = connection.execute(self._object_select().where(
+                    objects.c.bucket == initial.bucket, objects.c.object_key == initial.key,
+                )).mappings().first()
+                if row is None or self._record(row) != expected_record:
+                    raise MoveJobConflictError("Catalog record changed since repair verification")
             job = self._select_owned_move_job(
                 connection,
                 idempotency_key,
