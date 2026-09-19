@@ -17,6 +17,8 @@ from uuid import UUID, uuid4
 
 import yaml
 
+from cognistore.auth.principal import PRINCIPAL_METADATA, Principal
+from cognistore.auth.tenancy import validate_tenant_id
 from cognistore.core.placement_controls import MovementConstraints
 from cognistore.core.policy import EmbeddingPolicyRule, PIIPolicyRule
 from cognistore.encryption import require_at_rest
@@ -1188,6 +1190,8 @@ class SQLiteScheduleStore:
         *,
         publisher_id: str,
         publication_lease_seconds: float,
+        principal: Principal | None = None,
+        tenant_id: str | None = None,
     ) -> ScheduledRun | None:
         current = _aware_utc(now)
         now_text = _timestamp(current)
@@ -1217,7 +1221,9 @@ class SQLiteScheduleStore:
                         SCHEDULE_ID_METADATA: schedule.schedule_id,
                         SCHEDULE_SCOPE_METADATA: schedule.scope,
                         SCHEDULED_FOR_METADATA: _timestamp(scheduled_for),
+                        **({PRINCIPAL_METADATA: principal.to_json()} if principal else {}),
                     },
+                    tenant_id=tenant_id,
                     created_at=current,
                     schema_version=(
                         policy_job_schema_version(schedule.payload)
@@ -1861,11 +1867,15 @@ class PeriodicScheduler:
         *,
         clock: Clock | None = None,
         publication_lease_seconds: float = 30.0,
+        principal: Principal | None = None,
+        tenant_id: str | None = None,
     ) -> None:
         self.queue = queue
         self.store = store
         self.schedules = tuple(schedules)
         self._clock = clock or _utc_now
+        self.principal = principal
+        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id is not None else None
         self.publication_lease_seconds = _positive_duration_seconds(
             publication_lease_seconds, "publication_lease_seconds"
         )
@@ -1917,6 +1927,8 @@ class PeriodicScheduler:
                 reservation_time,
                 publisher_id=self.publisher_id,
                 publication_lease_seconds=self.publication_lease_seconds,
+                principal=self.principal,
+                tenant_id=self.tenant_id,
             )
             if reserved is None:
                 continue
@@ -2038,6 +2050,17 @@ class ScheduledRunExecution:
             outcome=disposition.value,
             now=_aware_utc(self._clock()),
         )
+
+
+class DisabledScheduledRunCoordinator:
+    """Reject scheduled deliveries when a worker has no shared schedule store."""
+
+    async def begin(self, job: JobEnvelope, context: JobContext) -> None:
+        if any(
+            key in job.metadata
+            for key in (SCHEDULE_ID_METADATA, SCHEDULE_SCOPE_METADATA, SCHEDULED_FOR_METADATA)
+        ):
+            raise InvalidJobError("scheduled jobs are disabled on this worker")
 
 
 class ScheduledRunCoordinator:

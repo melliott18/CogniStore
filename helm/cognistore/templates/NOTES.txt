@@ -1,0 +1,8 @@
+CogniStore API and administration UI use the {{ include "cognistore.fullname" . }}-api ClusterIP Service on port 8080.
+
+Run: helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }} --logs
+Allow smoke-to-API traffic in networkPolicy.ingress and networkPolicy.egress first.
+
+Before upgrades or rollbacks, follow docs/kubernetes.md and back up PostgreSQL,
+JetStream, object storage, and scheduler state when enabled. Helm rollback does
+not downgrade the database or delete retained data.

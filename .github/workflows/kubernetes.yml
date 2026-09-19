@@ -1,0 +1,83 @@
+name: Kubernetes acceptance
+
+on:
+  pull_request:
+    paths:
+      - helm/**
+      - scripts/kubernetes/**
+      - cognistore/**
+      - Dockerfile
+      - pyproject.toml
+      - .github/workflows/kubernetes.yml
+  push:
+    branches: [main]
+    paths:
+      - helm/**
+      - scripts/kubernetes/**
+      - cognistore/**
+      - Dockerfile
+      - pyproject.toml
+      - .github/workflows/kubernetes.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind:
+    name: Install, upgrade, rollback and autoscale
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned kind and Helm
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/kubernetes-tools"
+          cd "$RUNNER_TEMP/kubernetes-tools"
+          curl --fail --silent --show-error --location --output kind-linux-amd64 \
+            https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
+          curl --fail --silent --show-error --location --output kind-linux-amd64.sha256sum \
+            https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64.sha256sum
+          sha256sum --check kind-linux-amd64.sha256sum
+          chmod +x kind-linux-amd64
+          mv kind-linux-amd64 kind
+          curl --fail --silent --show-error --location --output helm.tar.gz \
+            https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --output helm.sha256 \
+            https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz.sha256sum
+          sed 's/helm-v3.19.0-linux-amd64.tar.gz/helm.tar.gz/' helm.sha256 | sha256sum --check
+          tar -xzf helm.tar.gz
+          mv linux-amd64/helm helm
+          echo "$RUNNER_TEMP/kubernetes-tools" >> "$GITHUB_PATH"
+
+      - name: Verify chart security and migration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm version --short
+          python3 -m venv "$RUNNER_TEMP/chart-tests"
+          "$RUNNER_TEMP/chart-tests/bin/python" -m pip install 'pytest>=7' 'PyYAML>=6.0'
+          "$RUNNER_TEMP/chart-tests/bin/python" -m pytest \
+            tests/unit/test_helm_chart.py -c /dev/null -p no:cacheprovider
+
+      - name: Run clean-cluster acceptance
+        run: ./scripts/kubernetes/verify.sh
+
+      - name: Upload Kubernetes acceptance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kubernetes-acceptance
+          path: |
+            test-results/kubernetes/*.json
+            test-results/kubernetes/*.txt
+            test-results/kubernetes/*.log
+          if-no-files-found: warn
+          retention-days: 14

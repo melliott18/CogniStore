@@ -1,0 +1,19 @@
+# Isolated synthetic tests only; dependencies and Secrets are provisioned separately.
+securityProfile: development
+image:
+  tag: kubernetes-test
+config:
+  existingSecret: cognistore-config
+credentials:
+  existingSecret: cognistore-credentials
+api:
+  replicas: 1
+  pdb:
+    enabled: false
+networkPolicy:
+  ingress:
+    - from: [{podSelector: {}}]
+      ports: [{port: 8080}, {port: 8081}]
+  egress:
+    - to: [{podSelector: {}}]
+      ports: [{port: 5432}, {port: 4222}, {port: 9000}, {port: 8080}, {port: 8081}]

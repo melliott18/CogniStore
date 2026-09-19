@@ -1,0 +1,77 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "cognistore.fullname" . }}-migrate
+  labels:
+    {{- include "cognistore.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "cognistore.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      # The release ServiceAccount does not exist during pre-install. No API access.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "cognistore.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "cognistore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "cognistore.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          command: [python, -c]
+          args:
+            - |
+              import json, os
+              from cognistore.auth.tenancy import TenantResolver
+              from cognistore.db import open_catalog
+              locator = os.environ['COGNISTORE_CATALOG_DB']
+              if not locator.startswith(('postgresql://', 'postgres://', 'postgresql+psycopg://')):
+                  raise SystemExit('Kubernetes deployment requires PostgreSQL')
+              catalog = open_catalog(locator)
+              try:
+                  policy_path = os.environ.get('COGNISTORE_TENANT_POLICY')
+                  if policy_path:
+                      with open(policy_path) as source:
+                          policy = json.load(source)
+                      TenantResolver.from_dict(policy)
+                      for tenant_id in sorted({entry['tenant_id'] for entry in policy['bindings']}):
+                          catalog.for_tenant(tenant_id)
+              finally:
+                  catalog.close()
+              print('Catalog migration complete')
+          envFrom:
+            - secretRef:
+                name: {{ .Values.credentials.existingSecret }}
+          env:
+            {{- include "cognistore.env" . | nindent 12 }}
+          volumeMounts:
+            {{- include "cognistore.mounts" . | nindent 12 }}
+      volumes:
+        {{- include "cognistore.volumes" . | nindent 8 }}
+{{- end }}

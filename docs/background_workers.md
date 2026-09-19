@@ -44,10 +44,11 @@ recovers and executes moves. A worker without a policy rejects any job that
 carries an authenticated principal. See the [authorization matrix and policy
 format](authorization.md).
 
-Workers with a policy reject jobs missing an authenticated principal. Existing
-CLI producers and the scheduler do not authenticate principals; use the REST
-action endpoints for protected workloads. The CLI and schedule examples in
-this guide apply to trusted local deployments with unconfigured workers.
+Workers with a policy reject jobs missing a principal. CLI producers do not
+authenticate principals; use the REST action endpoints for protected manual
+workloads. A scheduler can assert a trusted service identity as described in
+[protected schedules](#protected-schedules). Examples without identity
+configuration apply to trusted local deployments with unconfigured workers.
 
 ```bash
 export COGNISTORE_CATALOG_DB='postgresql://cognistore@db.example/cognistore'
@@ -79,6 +80,13 @@ for backward compatibility. Every scheduler and worker that handles scheduled
 jobs must use the same scheduler-state file. That topology is suitable for a
 single host; do not place SQLite on an unsafe network filesystem to simulate a
 multi-host coordinator.
+
+Workers that intentionally accept only manually submitted jobs can use
+`worker --disable-scheduled-jobs`. They do not open a scheduler SQLite store
+and reject any delivery carrying scheduler metadata before its handler runs.
+This mode supports workers on separate Kubernetes nodes against the same
+PostgreSQL catalog. Do not attach them to a consumer that receives scheduled
+jobs; use the shared persistent scheduler-state topology for that consumer.
 
 The URL can instead be set with `COGNISTORE_NATS_URL`. The default topology is
 stream `COGNISTORE_JOBS`, subject `cognistore.jobs`, and durable consumer
@@ -156,6 +164,36 @@ cognistore --drivers drivers.yaml \
   --schedule-db /var/lib/cognistore/schedule.sqlite3 \
   scheduler --schedule-config schedules.yaml
 ```
+
+### Protected schedules
+
+Configure a dedicated operator-controlled service identity for recurring jobs
+that run on protected workers:
+
+```bash
+export COGNISTORE_SCHEDULER_PRINCIPAL_ISSUER=https://identity.example.com
+export COGNISTORE_SCHEDULER_PRINCIPAL_SUBJECT=cognistore-scheduler
+export COGNISTORE_TENANT_POLICY=/etc/cognistore/tenants.json
+cognistore --drivers drivers.yaml \
+  --schedule-db /var/lib/cognistore/schedule.sqlite3 \
+  scheduler --schedule-config schedules.yaml
+```
+
+The equivalent flags are `scheduler --principal-issuer` and
+`--principal-subject`; both must be supplied together. This is a trusted
+operator identity assertion, not a JWT login or token-verification flow. Grant
+that exact issuer/subject pair the required permissions in the workers'
+authorization policy, restrict writes to scheduler configuration, and restrict
+NATS publication to trusted processes. When a tenant policy is configured, it
+resolves the identity to one tenant. Every worker delivery revalidates current
+roles and membership as it does for API jobs.
+
+The durable occurrence captures the principal and tenant before publication.
+Restarting with a new scheduler identity does not rewrite already pending
+occurrences; new occurrences use the new identity. Drain anonymous scheduled
+runs before enabling a worker policy, and resolve any quarantined scopes with
+the fenced recovery workflow. Never rewrite an existing job's identity to
+bypass a policy rejection.
 
 The shared persistent scheduler database is mandatory: it holds schedule
 timing, the full pending job envelope, active-scope state, worker execution

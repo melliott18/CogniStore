@@ -39,6 +39,7 @@ from cognistore.jobs.scheduler import (
     SCHEDULE_ID_METADATA,
     SCHEDULE_SCOPE_METADATA,
     SCHEDULED_FOR_METADATA,
+    DisabledScheduledRunCoordinator,
     ScheduledRunCoordinator,
     ScheduledRunLockedError,
     SQLiteScheduleStore,
@@ -471,6 +472,49 @@ def test_success_is_acked_only_after_handler_returns() -> None:
         assert report.completed == 1
         assert delivery.nack_count == 0
         assert queue.closed == 1
+
+    asyncio.run(scenario())
+
+
+def test_disabled_scheduled_jobs_reject_partial_and_complete_metadata_before_handler() -> None:
+    async def scenario() -> None:
+        queue = FakeQueue()
+        handled = []
+        metadata_cases = [
+            {SCHEDULE_ID_METADATA: "scan"},
+            {SCHEDULE_SCOPE_METADATA: "scope"},
+            {SCHEDULED_FOR_METADATA: "2026-09-18T00:00:00Z"},
+            {
+                SCHEDULE_ID_METADATA: "scan",
+                SCHEDULE_SCOPE_METADATA: "scope",
+                SCHEDULED_FOR_METADATA: "2026-09-18T00:00:00Z",
+            },
+            {},
+        ]
+        deliveries = []
+        for index, metadata in enumerate(metadata_cases, start=1):
+            delivery = FakeDelivery(
+                JobEnvelope.create("test.disabled-schedules", {}, metadata=metadata),
+                stream_sequence=index, consumer_sequence=index,
+            )
+            deliveries.append(delivery)
+            await queue.deliveries.put(delivery)
+
+        async def handler(job, context):
+            handled.append(job.job_id)
+
+        worker = AsyncWorker(
+            queue, {"test.disabled-schedules": handler},
+            coordinator=DisabledScheduledRunCoordinator(),
+            config=_worker_config(stop_after_jobs=len(deliveries)),
+        )
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        report = await worker.shutdown()
+        assert report.graceful
+        assert handled == [deliveries[-1].job.job_id]
+        assert len(queue.dead_letters) == 4
+        assert all(delivery.ack_count == 1 for delivery in deliveries)
 
     asyncio.run(scenario())
 

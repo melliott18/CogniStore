@@ -441,6 +441,9 @@ class _ContractGateway:
     async def startup(self) -> None:
         return None
 
+    async def check_readiness(self) -> bool:
+        return True
+
     async def shutdown(self) -> None:
         return None
 
@@ -767,6 +770,7 @@ def test_all_public_api_operations_round_trip_as_typed_models(
     content = b"hello sdk"
 
     health = sdk.get_health()
+    readiness = sdk.get_readiness()
     created = sdk.put_object(
         "hot",
         "documents",
@@ -818,6 +822,7 @@ def test_all_public_api_operations_round_trip_as_typed_models(
 
     assert isinstance(health, HealthResponse)
     assert (health.status, health.api_version) == ("ok", 1)
+    assert readiness == health
     assert isinstance(created, ObjectResource)
     assert (created.key, created.size) == ("reports/example.txt", len(content))
     assert isinstance(head, HeadObjectResponse)
@@ -1326,6 +1331,7 @@ def test_sdk_embedding_policy_rules_enforce_the_api_request_constraints() -> Non
 def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> None:
     expected = {
         "getHealth": ("get", "/healthz", "get_health"),
+        "getReadiness": ("get", "/readyz", "get_readiness"),
         "putObject": (
             "put",
             "/v1/objects/{tier}/{bucket}/{key}",
