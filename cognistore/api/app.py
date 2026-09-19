@@ -55,6 +55,14 @@ from cognistore.observability import (
 )
 from cognistore.ui import register_content_search_ui
 
+from .admin import AdminSession, AdminStorage, JobHistoryPage
+from .admin_repairs import (
+    RepairListResponse,
+    RepairPreviewRequest,
+    RepairPreviewResponse,
+    RepairStatusResponse,
+    RepairSubmitRequest,
+)
 from .errors import APIError, PayloadTooLargeError, RequestContractError
 from .gateway import APIGateway, CogniStoreGateway, UnavailableGateway
 from .models import (
@@ -86,6 +94,7 @@ from .models import (
     ValidationIssue,
 )
 from .permissions import (
+    ANY_PERMISSION_OPERATIONS,
     AUTHENTICATED_OPERATIONS,
     ENDPOINT_OPERATIONS,
     OPERATION_PERMISSIONS,
@@ -105,6 +114,8 @@ _JSON_BODY_PATHS = frozenset(
         "/v1/catalog/importance",
         "/v1/legal-holds",
         "/v1/audit/verify",
+        "/v1/admin/repairs",
+        "/v1/admin/repairs/preview",
     }
 )
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -295,7 +306,7 @@ def _error_response(
             details=details or [],
         ),
     )
-    response_headers = {"X-Request-ID": request_id}
+    response_headers = {"X-Request-ID": request_id, "Cache-Control": "no-store"}
     if headers is not None:
         response_headers.update(headers)
     return JSONResponse(
@@ -381,12 +392,16 @@ def create_app(
         request.state.principal = None
         request.state.tenant_id = None
         route_path = get_route_path(request.scope)
-        is_audit_request = route_path == "/v1/audit" or route_path.startswith("/v1/audit/")
-        if is_audit_request and authenticator is None:
+        is_protected_view = (
+            route_path == "/v1/audit" or route_path.startswith("/v1/audit/")
+            or route_path == "/v1/admin" or route_path.startswith("/v1/admin/")
+            or route_path.rstrip("/") == "/v1/jobs"
+        )
+        if is_protected_view and authenticator is None:
             await audit_http_denial(request)
             return _error_response(
                 request, status_code=401, code="authentication_required",
-                message="Audit access requires bearer authentication",
+                message="Operational access requires bearer authentication",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         if authenticator is not None and (route_path == "/v1" or route_path.startswith("/v1/")):
@@ -434,6 +449,7 @@ def create_app(
                         catalog=audit_catalog(),
                         correlation_id=request.state.request_id,
                         require_authenticated=operation in AUTHENTICATED_OPERATIONS,
+                        require_any=operation in ANY_PERMISSION_OPERATIONS,
                     )
             except (AuthorizationError, TenantIsolationError) as exc:
                 if isinstance(exc, TenantIsolationError):
@@ -519,6 +535,8 @@ def create_app(
         ):
             response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        if route_path.startswith("/v1/"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     async def audit_http_denial(request: Request) -> None:
@@ -1221,6 +1239,61 @@ def create_app(
     ) -> JobStatusResponse:
         return services.get_job(job_id)
 
+    @router.get(
+        "/admin/session", response_model=AdminSession, operation_id="getAdminSession",
+        tags=["administration"], responses=_COMMON_ERROR_RESPONSES,
+    )
+    def get_admin_session() -> AdminSession:
+        return services.get_admin_session()
+
+    @router.get(
+        "/admin/storage", response_model=AdminStorage, operation_id="getAdminStorage",
+        tags=["administration"], responses=_COMMON_ERROR_RESPONSES,
+    )
+    async def get_admin_storage() -> AdminStorage:
+        return await services.get_admin_storage()
+
+    @router.get(
+        "/jobs", response_model=JobHistoryPage, operation_id="listJobs",
+        tags=["actions"], responses=_COMMON_ERROR_RESPONSES,
+    )
+    def list_jobs(
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        cursor: Annotated[str | None, Query(min_length=1, max_length=16_384)] = None,
+    ) -> JobHistoryPage:
+        return services.list_jobs(limit=limit, cursor=cursor)
+
+    @router.get(
+        "/admin/repairs", response_model=RepairListResponse, operation_id="listRepairs",
+        tags=["administration"], responses=_COMMON_ERROR_RESPONSES,
+    )
+    def list_repairs() -> RepairListResponse:
+        return services.list_repairs()
+
+    @router.get(
+        "/admin/repairs/{repair_id}", response_model=RepairStatusResponse,
+        operation_id="getRepair", tags=["administration"],
+        responses={404: _NOT_FOUND_RESPONSE, **_COMMON_ERROR_RESPONSES},
+    )
+    def get_repair(repair_id: Annotated[str, Path(min_length=1, max_length=128)]) -> RepairStatusResponse:
+        return services.get_repair(repair_id)
+
+    @router.post(
+        "/admin/repairs/preview", response_model=RepairPreviewResponse,
+        operation_id="previewRepair", tags=["administration"],
+        responses={404: _NOT_FOUND_RESPONSE, 409: _CONFLICT_RESPONSE, **_JSON_ERROR_RESPONSES},
+    )
+    def preview_repair(request: RepairPreviewRequest) -> RepairPreviewResponse:
+        return services.preview_repair(request)
+
+    @router.post(
+        "/admin/repairs", response_model=RepairStatusResponse,
+        operation_id="submitRepair", tags=["administration"],
+        responses={404: _NOT_FOUND_RESPONSE, 409: _CONFLICT_RESPONSE, **_JSON_ERROR_RESPONSES},
+    )
+    def submit_repair(request: RepairSubmitRequest) -> RepairStatusResponse:
+        return services.submit_repair(request)
+
     # Keep permission requirements visible in the deterministic API contract.
     for route in router.routes:
         if isinstance(route, APIRoute):
@@ -1229,6 +1302,7 @@ def create_app(
                 route.openapi_extra = {
                     **(route.openapi_extra or {}),
                     "x-required-permissions": [p.value for p in OPERATION_PERMISSIONS[operation]],
+                    "x-permission-mode": "any" if operation in ANY_PERMISSION_OPERATIONS else "all",
                 }
     app.include_router(router)
     register_content_search_ui(app)

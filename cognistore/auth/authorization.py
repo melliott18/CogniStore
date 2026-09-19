@@ -190,6 +190,20 @@ class RBACAuthorizer:
         if self._policy_path is not None:
             _read_policy(self._policy_path)
 
+    def permissions_for(self, principal: Principal | None) -> frozenset[Permission]:
+        """Discover this identity's current grants without exposing role bindings.
+
+        A missing or invalid replacement policy yields no capabilities. Callers
+        must still authorize every operation; discovery is not a grant cache.
+        """
+        if not isinstance(principal, Principal):
+            return frozenset()
+        try:
+            policy = self._policy if self._policy_path is None else _read_policy(self._policy_path)
+        except ValueError:
+            return frozenset()
+        return policy.permissions_for(principal)
+
     def require(
         self,
         principal: Principal | None,
@@ -200,8 +214,12 @@ class RBACAuthorizer:
         catalog: CatalogStore | None = None,
         correlation_id: str | None = None,
         job_id: str | None = None,
+        require_any: bool = False,
     ) -> None:
-        """Require every named permission, failing closed before side effects."""
+        """Require every named permission, or any one for capability discovery.
+
+        Empty or unknown permission sets always fail closed in either mode.
+        """
         valid = True
         required: set[Permission] = set()
         try:
@@ -225,7 +243,10 @@ class RBACAuthorizer:
             policy = self._policy if self._policy_path is None else _read_policy(self._policy_path)
         except ValueError:
             policy, valid = RBACPolicy(), False
-        allowed = valid and principal is not None and required <= policy.permissions_for(principal)
+        granted = frozenset() if principal is None else policy.permissions_for(principal)
+        allowed = valid and principal is not None and (
+            bool(required & granted) if require_any else required <= granted
+        )
         actor_id = "anonymous" if principal is None else principal.actor_id
         safe_correlation = _safe_reference(
             correlation_id or current_audit_correlation_id(), prefix="correlation"
@@ -310,6 +331,7 @@ def authorize_operation(
     job_id: str | None = None,
     principal: Principal | None | object = _CURRENT_PRINCIPAL,
     require_authenticated: bool = False,
+    require_any: bool = False,
 ) -> None:
     """Authorize an operation, preserving explicit trusted local use.
 
@@ -331,6 +353,7 @@ def authorize_operation(
         catalog=catalog,
         correlation_id=correlation_id,
         job_id=job_id,
+        require_any=require_any,
     )
 
 

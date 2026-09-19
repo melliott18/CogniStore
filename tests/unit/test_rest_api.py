@@ -1544,6 +1544,13 @@ def test_openapi_contract_is_deterministic_and_checked_in() -> None:
     )
     assert operation_ids == sorted(
         [
+            "getAdminSession",
+            "getAdminStorage",
+            "listJobs",
+            "listRepairs",
+            "getRepair",
+            "previewRepair",
+            "submitRepair",
             "ask",
             "listAuditEvents",
             "getAuditEvent",

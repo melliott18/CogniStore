@@ -59,6 +59,15 @@ from cognistore.jobs.protocols import JobQueue
 from cognistore.observability import current_audit_correlation_id
 from cognistore.search import AskFilters, AskQuery, AskService, RetrievalMode
 
+from .admin import AdminAccessMixin, AdminSession, AdminStorage, JobHistoryPage
+from .admin_repairs import (
+    AdminRepairMixin,
+    RepairListResponse,
+    RepairPreviewRequest,
+    RepairPreviewResponse,
+    RepairStatusResponse,
+    RepairSubmitRequest,
+)
 from .audit import AuditAccessMixin
 from .errors import (
     BackendUnavailableError,
@@ -106,7 +115,11 @@ from .models import (
     ScoreComponentResponse,
 )
 from .pagination import CursorError, decode_cursor, encode_cursor
-from .permissions import AUTHENTICATED_OPERATIONS, OPERATION_PERMISSIONS
+from .permissions import (
+    ANY_PERMISSION_OPERATIONS,
+    AUTHENTICATED_OPERATIONS,
+    OPERATION_PERMISSIONS,
+)
 from .policy_decisions import persisted_execution, project_decision
 
 _CATALOG_CURSOR_RESOURCE = "catalog.objects"
@@ -176,6 +189,20 @@ class _DownloadSource(Iterator[bytes]):
 
 
 class APIGateway(Protocol):
+    def get_admin_session(self) -> AdminSession: ...
+
+    async def get_admin_storage(self) -> AdminStorage: ...
+
+    def list_jobs(self, *, limit: int, cursor: str | None) -> JobHistoryPage: ...
+
+    def preview_repair(self, request: RepairPreviewRequest) -> RepairPreviewResponse: ...
+
+    def submit_repair(self, request: RepairSubmitRequest) -> RepairStatusResponse: ...
+
+    def get_repair(self, repair_id: str) -> RepairStatusResponse: ...
+
+    def list_repairs(self) -> RepairListResponse: ...
+
     async def startup(self) -> None: ...
 
     async def shutdown(self) -> None: ...
@@ -296,7 +323,7 @@ class UnavailableGateway:
         return unavailable
 
 
-class CogniStoreGateway(AuditAccessMixin):
+class CogniStoreGateway(AdminAccessMixin, AdminRepairMixin, AuditAccessMixin):
     """Application services composed from storage, catalog, search, and queue contracts."""
 
     def __init__(
@@ -385,6 +412,7 @@ class CogniStoreGateway(AuditAccessMixin):
             self.authorization, OPERATION_PERMISSIONS.get(operation, ()),
             operation=operation, boundary="service", catalog=self.catalog,
             require_authenticated=operation in AUTHENTICATED_OPERATIONS,
+            require_any=operation in ANY_PERMISSION_OPERATIONS,
         )
 
     @staticmethod

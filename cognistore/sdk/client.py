@@ -37,6 +37,8 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    AdminSession,
+    AdminStorage,
     AskRequest,
     AskResponse,
     AuditEventPage,
@@ -52,6 +54,7 @@ from .models import (
     HeadObjectResponse,
     HealthResponse,
     ImportanceChangeRequest,
+    JobHistoryPage,
     JobStatus,
     LegalHoldList,
     LegalHoldReleaseRequest,
@@ -64,6 +67,11 @@ from .models import (
     PolicyEvaluationRequest,
     PolicyEvaluationResponse,
     PolicyRunRequest,
+    RepairListResponse,
+    RepairPreviewRequest,
+    RepairPreviewResponse,
+    RepairStatusResponse,
+    RepairSubmitRequest,
     SDKRequest,
 )
 from .models import ValidationIssue as ValidationIssueModel
@@ -74,6 +82,13 @@ DEFAULT_MAX_POLL_INTERVAL = 30.0
 TERMINAL_JOB_STATES = frozenset({"succeeded", "failed"})
 SUPPORTED_OPERATION_IDS = frozenset(
     {
+        "getAdminSession",
+        "getAdminStorage",
+        "listJobs",
+        "listRepairs",
+        "getRepair",
+        "previewRepair",
+        "submitRepair",
         "ask",
         "listAuditEvents",
         "getAuditEvent",
@@ -505,6 +520,52 @@ class CogniStoreClient:
     def get_health(self) -> HealthResponse:
         response = self._send("GET", "/healthz", expected_statuses={200})
         return self._parse_model(response, HealthResponse)
+
+    def get_admin_session(self) -> AdminSession:
+        """Discover the verified principal, tenant and current allowed operations."""
+        response = self._send("GET", "/v1/admin/session", expected_statuses={200})
+        return self._parse_model(response, AdminSession)
+
+    def get_admin_storage(self) -> AdminStorage:
+        """Read redacted configuration and current dependency observations."""
+        response = self._send("GET", "/v1/admin/storage", expected_statuses={200})
+        return self._parse_model(response, AdminStorage)
+
+    def list_jobs(self, *, limit: int = 50, cursor: str | None = None) -> JobHistoryPage:
+        """Read a tenant-scoped job page, retaining per-job status failures."""
+        params: dict[str, QueryValue] = {"limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+        response = self._send("GET", "/v1/jobs", expected_statuses={200}, params=params)
+        return self._parse_model(response, JobHistoryPage)
+
+    def list_repairs(self) -> RepairListResponse:
+        """List this tenant's registered reports, including partial read errors."""
+        response = self._send("GET", "/v1/admin/repairs", expected_statuses={200})
+        return self._parse_model(response, RepairListResponse)
+
+    def get_repair(self, repair_id: str) -> RepairStatusResponse:
+        response = self._send(
+            "GET", f"/v1/admin/repairs/{self._quote_segment(repair_id)}",
+            expected_statuses={200},
+        )
+        return self._parse_model(response, RepairStatusResponse)
+
+    def preview_repair(self, request: RepairPreviewRequest) -> RepairPreviewResponse:
+        """Compute a dry-run plan and token for an operator-registered report."""
+        response = self._send(
+            "POST", "/v1/admin/repairs/preview", expected_statuses={200},
+            json=self._request_json(request), headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, RepairPreviewResponse)
+
+    def submit_repair(self, request: RepairSubmitRequest) -> RepairStatusResponse:
+        """Apply a preview only with its fresh token and explicitly confirmed scope."""
+        response = self._send(
+            "POST", "/v1/admin/repairs", expected_statuses={200},
+            json=self._request_json(request), headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, RepairStatusResponse)
 
     def get_readiness(self) -> HealthResponse:
         """Check dependencies; raise ServiceUnavailableError while unavailable."""

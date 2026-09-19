@@ -43,6 +43,12 @@ No permission depends on a control being hidden in the UI.
 
 | Method and path | Gateway operation | Required permissions |
 | --- | --- | --- |
+| `GET /v1/admin/session` | `get_admin_session` | Any current permission grant. |
+| `GET /v1/admin/storage` | `get_admin_storage` | `administration` |
+| `GET /v1/admin/repairs` | `list_repairs` | `administration` |
+| `GET /v1/admin/repairs/{repair_id}` | `get_repair` | `administration` |
+| `POST /v1/admin/repairs/preview` | `preview_repair` | `administration` |
+| `POST /v1/admin/repairs` | `submit_repair` | `administration`, `movement` |
 | `PUT /v1/objects/{tier}/{bucket}/{key}` | `put_object` | `write` |
 | `HEAD /v1/objects/{tier}/{bucket}/{key}` | `stat_object` | `read` |
 | `GET /v1/objects/{tier}/{bucket}/{key}` | `open_object` | `read` |
@@ -61,6 +67,7 @@ No permission depends on a control being hidden in the UI.
 | `POST /v1/audit/verify` | `verify_audit_integrity` | `audit` |
 | `POST /v1/actions/catalog-scans` | `submit_catalog_scan` | `administration` |
 | `POST /v1/actions/policy-runs` | `submit_policy_run` | `policy`, `movement` |
+| `GET /v1/jobs` | `list_jobs` | `read` |
 | `GET /v1/jobs/{job_id}` | `get_job` | `read` |
 | `GET /v1/legal-holds` | `list_legal_holds` | `legal_hold_inspect` |
 | `POST /v1/legal-holds` | `place_legal_hold` | `legal_hold_manage` |
@@ -70,6 +77,14 @@ No permission depends on a control being hidden in the UI.
 authenticated principal, including in an otherwise anonymous local deployment.
 Neither ordinary write/movement authority nor a stability override releases a
 hold. A hold's scope and history remain in the actor's tenant partition.
+
+Administration session, storage, repair, and job-list endpoints require an
+authenticated principal, including in an otherwise anonymous local deployment.
+The session reports server-calculated allowed operations and the resolved
+tenant; it grants no additional access. A session needs at least one current
+permission, while each other endpoint requires all permissions in its row.
+See the [administration UI guide](admin_ui.md) for the matching views, action
+confirmations, and trusted report registration.
 
 | Worker operation | Required permissions | Reason |
 | --- | --- | --- |
