@@ -30,6 +30,7 @@ from .estimation import (
     ObjectPlacementEstimates,
     StorageImpactEstimator,
 )
+from .pii import ClassifiedPIIFinding, parse_pii_classification
 from .tenant_dependencies import for_tenant
 from .topology import PlacementConstraints
 
@@ -358,6 +359,68 @@ class EmbeddingPolicyFeature:
 
 
 @dataclass(frozen=True)
+class PIIPolicyFeature:
+    """Validated redacted findings bound to the current source content."""
+
+    state: FeatureState
+    provenance: PolicyFeatureProvenance
+    findings: tuple[ClassifiedPIIFinding, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, FeatureState):
+            raise ValueError("PII feature state must be FeatureState")
+        if not isinstance(self.provenance, PolicyFeatureProvenance):
+            raise ValueError("PII feature provenance must be PolicyFeatureProvenance")
+        findings = tuple(self.findings)
+        if len(findings) > 10_000 or any(
+            type(finding) is not ClassifiedPIIFinding for finding in findings
+        ):
+            raise ValueError("PII feature findings must be normalized redacted findings")
+        if self.state is not FeatureState.FRESH and findings:
+            raise ValueError("non-fresh PII features must not expose findings")
+        object.__setattr__(self, "findings", findings)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "state": self.state.value,
+            "findings": [
+                {
+                    "type": finding.type,
+                    "confidence": finding.confidence,
+                    "provenance": finding.provenance,
+                    "detector": finding.detector,
+                    "detector_version": finding.detector_version,
+                }
+                for finding in self.findings
+            ],
+            "provenance": self.provenance.to_dict(),
+        }
+
+
+def _pii_feature(record: ObjectRecord) -> PIIPolicyFeature | None:
+    """Reject malformed and stale evidence without reflecting raw metadata."""
+    if "pii_detection" not in record.metadata:
+        return None
+    digest = _current_content_sha256(record)
+    provenance = PolicyFeatureProvenance("catalog.pii_detection", 1, digest)
+    classification = (
+        parse_pii_classification(record.metadata["pii_detection"], content_sha256=digest)
+        if digest is not None else None
+    )
+    if classification is None:
+        return PIIPolicyFeature(
+            FeatureState.STALE,
+            _provenance_with_reason(provenance, "pii_evidence_invalid_or_stale"),
+        )
+    if classification.status != "succeeded":
+        return PIIPolicyFeature(
+            FeatureState.UNAVAILABLE,
+            _provenance_with_reason(provenance, "pii_detection_not_succeeded"),
+        )
+    return PIIPolicyFeature(FeatureState.FRESH, provenance, classification.findings)
+
+
+@dataclass(frozen=True)
 class PolicyFeatures:
     """Schema-v1 immutable policy feature projection for one catalog object."""
 
@@ -366,6 +429,7 @@ class PolicyFeatures:
     schema_version: int = POLICY_FEATURE_SCHEMA_VERSION
     access: AccessFeatures | None = None
     placement_estimates: ObjectPlacementEstimates | None = None
+    pii: PIIPolicyFeature | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -378,6 +442,8 @@ class PolicyFeatures:
             )
         if not isinstance(self.mime, MimePolicyFeature):
             raise ValueError("policy MIME feature must be MimePolicyFeature")
+        if self.pii is not None and not isinstance(self.pii, PIIPolicyFeature):
+            raise ValueError("policy PII feature must be PIIPolicyFeature")
         if self.access is not None and not isinstance(self.access, AccessFeatures):
             raise ValueError("policy access feature must be AccessFeatures")
         if self.placement_estimates is not None and not isinstance(
@@ -407,6 +473,8 @@ class PolicyFeatures:
             result["access"] = self.access.to_dict()
         if self.placement_estimates is not None:
             result["placement_estimates"] = self.placement_estimates.to_dict()
+        if self.pii is not None:
+            result["pii"] = self.pii.to_dict()
         return result
 
 
@@ -746,6 +814,7 @@ class CatalogPolicyFeatureLoader:
         return {
             (record.bucket, record.key): PolicyFeatures(
                 mime=_mime_feature(record),
+                pii=_pii_feature(record),
                 embeddings=embedding_features[(record.bucket, record.key)],
                 access=compute_access_features(
                     self.access_catalog,
@@ -1158,6 +1227,7 @@ __all__ = [
     "FeatureState",
     "JSONScalar",
     "MimePolicyFeature",
+    "PIIPolicyFeature",
     "PolicyFeatureCoordinate",
     "PolicyFeatureProvenance",
     "PolicyFeatures",

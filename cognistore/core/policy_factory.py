@@ -8,6 +8,7 @@ from .policy import (
     ContentAwarePolicy,
     EmbeddingPolicyRule,
     LLMPolicy,
+    PIIPolicyRule,
     Policy,
     SimplePolicy,
 )
@@ -76,9 +77,12 @@ def build_policy(
     warm_mime_prefixes: Sequence[str] = (),
     cold_mime_prefixes: Sequence[str] = (),
     embedding_rules: Sequence[EmbeddingPolicyRule] = (),
+    pii_rules: Sequence[PIIPolicyRule] = (),
 ) -> Policy:
     if embedding_rules and policy_name != "content":
         raise ValueError("embedding rules require the content policy")
+    if pii_rules and policy_name != "content":
+        raise ValueError("PII rules require the content policy")
     if policy_name == "llm":
         # llm_threshold is retained for old CLI/API/job payloads. Inference
         # failures must never turn into an unrelated size-based move.
@@ -96,6 +100,7 @@ def build_policy(
             hot_mime_prefixes=hot_mime_prefixes,
             warm_mime_prefixes=warm_mime_prefixes,
             embedding_rules=embedding_rules,
+            pii_rules=pii_rules,
         )
         if hasattr(policy, "cold_name_patterns"):
             policy.cold_name_patterns = list(cold_name_patterns)

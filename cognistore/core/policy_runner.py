@@ -689,6 +689,25 @@ class PolicyRunner:
 
         if self.simulation_only:
             raise ValueError("simulation-only runners cannot execute moves")
+        if isinstance(self.policy, ContentAwarePolicy) and self.policy.pii_rules:
+            # Same-byte rescans can change a classification after planning.
+            # Recheck this governance gate in addition to the mover's source
+            # digest fence; a retained action is not permission to ignore a
+            # newly unknown finding or a more restrictive destination rule.
+            record = self.catalog.get(result.bucket, result.key)
+            if record is None:
+                raise ValueError("PII governance evidence is unavailable")
+            features = CatalogPolicyFeatureLoader(access_catalog=self.catalog).load((record,))[
+                (record.bucket, record.key)
+            ]
+            decision = self.policy.evaluate_pii(record.tier, features)
+            if decision is not None and (
+                decision.dst_tier != result.to_tier
+                and not (
+                    decision.reason_code == "pii_rule" and record.tier == result.to_tier
+                )
+            ):
+                raise ValueError("PII governance no longer permits the planned move")
         self.mover.move(
             result.from_tier,
             result.to_tier,

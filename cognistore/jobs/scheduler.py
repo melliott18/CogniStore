@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 import yaml
 
 from cognistore.core.placement_controls import MovementConstraints
-from cognistore.core.policy import EmbeddingPolicyRule
+from cognistore.core.policy import EmbeddingPolicyRule, PIIPolicyRule
 from cognistore.encryption import require_at_rest
 
 from .handlers import (
@@ -65,6 +65,7 @@ _POLICY_RUN_FIELDS = frozenset(
         "warm_mime_prefixes",
         "cold_mime_prefixes",
         "embedding_rules",
+        "pii_rules",
         "movement_constraints",
     }
 )
@@ -338,6 +339,17 @@ def _normalize_policy_payload(
             raise ValueError(
                 "policy.run payload contains unknown allowed tier(s): " + ", ".join(unknown)
             )
+    raw_pii_rules = payload.get("pii_rules", [])
+    if not isinstance(raw_pii_rules, list) or len(raw_pii_rules) > 100:
+        raise ValueError("policy.run payload.pii_rules must be a list of at most 100 rules")
+    pii_rules: list[PIIPolicyRule] = []
+    for index, raw_rule in enumerate(raw_pii_rules):
+        if not isinstance(raw_rule, Mapping):
+            raise ValueError(f"policy.run payload.pii_rules item {index} must be an object")
+        try:
+            pii_rules.append(PIIPolicyRule.from_mapping(raw_rule))
+        except ValueError as exc:
+            raise ValueError(f"invalid policy.run payload.pii_rules item {index}: {exc}") from exc
     raw_embedding_rules = payload.get("embedding_rules", [])
     if not isinstance(raw_embedding_rules, list) or len(raw_embedding_rules) > 100:
         raise ValueError(
@@ -423,6 +435,7 @@ def _normalize_policy_payload(
             payload.get("cold_mime_prefixes"), "policy.run payload.cold_mime_prefixes"
         ),
         embedding_rules=embedding_rules,
+        pii_rules=pii_rules,
         movement_constraints=movement_constraints,
     )
 

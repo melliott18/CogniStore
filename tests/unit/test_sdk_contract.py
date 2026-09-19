@@ -86,6 +86,9 @@ _MODEL_SCHEMA_PAIRS = {
     "GeneratedAnswerResponse": "GeneratedAnswer",
     "AskResponse": "AskResponse",
     "EmbeddingPolicyRuleConfig": "EmbeddingPolicyRuleConfig",
+    "PIIPolicyRuleConfig": "PIIPolicyRuleConfig",
+    "PIIFindingResponse": "PIIFinding",
+    "PIIPolicyFeatureResponse": "PIIPolicyFeature",
     "PolicyConfig": "PolicyConfig",
     "MovementConstraintsConfig": "MovementConstraintsConfig",
     "StabilityOverrideConfig": "StabilityOverrideConfig",
@@ -336,6 +339,7 @@ def test_empty_embedding_rules_are_omitted_for_older_strict_v1_servers() -> None
 
     for bodies in request_bodies.values():
         assert b'"embedding_rules"' not in bodies[0]
+        assert b'"pii_rules"' not in bodies[0]
         assert b'"embedding_rules":[{' in bodies[1]
         assert b'"name":"active-report"' in bodies[1]
 

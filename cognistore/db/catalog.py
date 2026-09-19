@@ -1301,6 +1301,8 @@ class SQLCatalog(Catalog):
                 "document_extraction"
             ) != merged_metadata.get("document_extraction")
             if content_changed or extraction_changed:
+                if "pii_detection" not in incoming_metadata:
+                    merged_metadata.pop("pii_detection", None)
                 # MIME selection and provenance are observations of the same
                 # source bytes/extraction. Omitted evidence may be merged only
                 # while that source identity remains unchanged.
