@@ -53,6 +53,10 @@ from .models import (
     HealthResponse,
     ImportanceChangeRequest,
     JobStatus,
+    LegalHoldList,
+    LegalHoldReleaseRequest,
+    LegalHoldRequest,
+    LegalHoldResource,
     ObjectDownload,
     ObjectResource,
     PolicyDecision,
@@ -85,9 +89,12 @@ SUPPORTED_OPERATION_IDS = frozenset(
         "getPolicyDecision",
         "headObject",
         "listCatalogObjects",
+        "listLegalHolds",
         "listPolicyDecisions",
         "previewPolicyDecision",
+        "placeLegalHold",
         "putObject",
+        "releaseLegalHold",
         "setObjectImportance",
         "submitCatalogScan",
         "submitPolicyRun",
@@ -697,6 +704,46 @@ class CogniStoreClient:
         )
         response = self._send("GET", path, expected_statuses={200})
         return self._parse_model(response, CatalogObject)
+
+    def place_legal_hold(self, request: LegalHoldRequest) -> LegalHoldResource:
+        """Place an authenticated hold on an exact key, prefix, or bucket."""
+
+        response = self._send(
+            "POST", "/v1/legal-holds", expected_statuses={201},
+            json=self._request_json(request), headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, LegalHoldResource)
+
+    def list_legal_holds(
+        self, *, bucket: str | None = None, key: str | None = None,
+        active_only: bool = False,
+    ) -> LegalHoldList:
+        """Inspect retained holds; a key filter includes all scopes protecting it."""
+
+        if key is not None and bucket is None:
+            raise ValueError("key requires bucket")
+        params: dict[str, QueryValue] = {"active_only": active_only}
+        if bucket is not None:
+            params["bucket"] = bucket
+        if key is not None:
+            params["key"] = key
+        response = self._send(
+            "GET", "/v1/legal-holds", expected_statuses={200},
+            params=params, headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, LegalHoldList)
+
+    def release_legal_hold(
+        self, hold_id: UUID | str, request: LegalHoldReleaseRequest,
+    ) -> LegalHoldResource:
+        """Release one hold while preserving its creation and release evidence."""
+
+        response = self._send(
+            "POST", f"/v1/legal-holds/{self._quote_segment(str(hold_id))}/release",
+            expected_statuses={200}, json=self._request_json(request),
+            headers={"Accept": "application/json"},
+        )
+        return self._parse_model(response, LegalHoldResource)
 
     def ask(self, request: AskRequest) -> AskResponse:
         payload = self._request_json(request)

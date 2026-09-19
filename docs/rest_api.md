@@ -70,6 +70,9 @@ login flow.
 | `GET /v1/catalog/objects/{bucket}/{key}` | Return one detached authoritative catalog snapshot. |
 | `POST /v1/ask` | Run the version 1 retrieval/Ask contract and retain provider diagnostics, score components, and citations. An optional mode can request metadata, keyword, vector, or full hybrid retrieval. |
 | `POST /v1/catalog/importance` | Set or clear attributed importance, audit the change, and return a policy reevaluation. |
+| `GET /v1/legal-holds` | Inspect tenant hold scopes and lifecycle history, optionally matching a bucket/key. |
+| `POST /v1/legal-holds` | Place an attributed exact-object, prefix, or bucket hold with explicit management permission. |
+| `POST /v1/legal-holds/{hold_id}/release` | Release a hold with explicit release permission and reason, retaining history. |
 | `POST /v1/policies/evaluate` | Evaluate a policy against one current catalog record without moving it. |
 | `POST /v1/policies/preview` | Preview a decision with structured reasons, guardrails, and proposed placement changes. |
 | `GET /v1/policy-decisions` | Page retained decisions by object, job, or correlation ID, with execution evidence. |

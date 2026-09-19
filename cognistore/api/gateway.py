@@ -83,6 +83,10 @@ from .models import (
     JobState,
     JobStatusResponse,
     JSONValue,
+    LegalHoldList,
+    LegalHoldReleaseRequest,
+    LegalHoldRequest,
+    LegalHoldResource,
     ObjectCitationResponse,
     ObjectResource,
     PageMetadata,
@@ -102,7 +106,7 @@ from .models import (
     ScoreComponentResponse,
 )
 from .pagination import CursorError, decode_cursor, encode_cursor
-from .permissions import OPERATION_PERMISSIONS
+from .permissions import AUTHENTICATED_OPERATIONS, OPERATION_PERMISSIONS
 from .policy_decisions import persisted_execution, project_decision
 
 _CATALOG_CURSOR_RESOURCE = "catalog.objects"
@@ -245,6 +249,18 @@ class APIGateway(Protocol):
 
     def get_job(self, job_id: str) -> JobStatusResponse: ...
 
+    def list_legal_holds(
+        self, *, bucket: str | None, key: str | None, active_only: bool,
+    ) -> LegalHoldList: ...
+
+    def place_legal_hold(
+        self, request: LegalHoldRequest, *, correlation_id: str,
+    ) -> LegalHoldResource: ...
+
+    def release_legal_hold(
+        self, hold_id: str, request: LegalHoldReleaseRequest, *, correlation_id: str,
+    ) -> LegalHoldResource: ...
+
     def get_audit_event(self, event_id: str) -> AuditEventResource: ...
 
     def list_audit_events(
@@ -368,7 +384,55 @@ class CogniStoreGateway(AuditAccessMixin):
         authorize_operation(
             self.authorization, OPERATION_PERMISSIONS.get(operation, ()),
             operation=operation, boundary="service", catalog=self.catalog,
+            require_authenticated=operation in AUTHENTICATED_OPERATIONS,
         )
+
+    @staticmethod
+    def _audit_context(correlation_id: str | None = None) -> AuditContext:
+        principal = current_principal()
+        return AuditContext(
+            correlation_id=correlation_id or current_audit_correlation_id() or str(uuid4()),
+            actor_type=principal.actor_type if principal is not None else "api",
+            actor_id=principal.actor_id if principal is not None else "cognistore-rest-api",
+        )
+
+    def list_legal_holds(
+        self, *, bucket: str | None = None, key: str | None = None,
+        active_only: bool = False,
+    ) -> LegalHoldList:
+        self._authorize("list_legal_holds")
+        try:
+            holds = self.catalog.list_legal_holds(bucket=bucket, key=key, active_only=active_only)
+        except ValueError as exc:
+            raise RequestContractError(str(exc)) from exc
+        return LegalHoldList(items=[LegalHoldResource.model_validate(hold) for hold in holds])
+
+    def place_legal_hold(
+        self, request: LegalHoldRequest, *, correlation_id: str,
+    ) -> LegalHoldResource:
+        self._authorize("place_legal_hold")
+        try:
+            hold = self.catalog.place_legal_hold(
+                request.bucket, key=request.key, prefix=request.prefix, reason=request.reason,
+                context=self._audit_context(correlation_id),
+            )
+        except ValueError as exc:
+            raise RequestContractError(str(exc)) from exc
+        return LegalHoldResource.model_validate(hold)
+
+    def release_legal_hold(
+        self, hold_id: str, request: LegalHoldReleaseRequest, *, correlation_id: str,
+    ) -> LegalHoldResource:
+        self._authorize("release_legal_hold")
+        try:
+            hold = self.catalog.release_legal_hold(
+                hold_id, reason=request.reason, context=self._audit_context(correlation_id),
+            )
+        except KeyError as exc:
+            raise ResourceNotFoundError("legal hold", hold_id) from exc
+        except ValueError as exc:
+            raise RequestContractError(str(exc)) from exc
+        return LegalHoldResource.model_validate(hold)
 
     async def startup(self) -> None:
         if self.manage_queue and self.queue is not None:
@@ -545,9 +609,12 @@ class CogniStoreGateway(AuditAccessMixin):
         self._authorize("put_object")
         driver = self._driver(tier)
         event = self.access_recorder.event("write", bucket, key, tier=tier, source="api")
+        context = self._storage_audit_context()
         with audit_storage_operation(
-            self.catalog, self._storage_audit_context(), operation="put_object",
+            self.catalog, context, operation="put_object",
             tier=tier, bucket=bucket, key=key,
+        ), self.catalog.destructive_operation(
+            bucket, key, operation="put_object", context=context,
         ), suppress_access_capture():
             driver.put_object(bucket, key, data, overwrite=overwrite)
             stat = driver.stat_object(bucket, key)
@@ -664,9 +731,12 @@ class CogniStoreGateway(AuditAccessMixin):
 
     def delete_object(self, tier: str, bucket: str, key: str) -> None:
         self._authorize("delete_object")
+        context = self._storage_audit_context()
         with audit_storage_operation(
-            self.catalog, self._storage_audit_context(), operation="delete_object",
+            self.catalog, context, operation="delete_object",
             tier=tier, bucket=bucket, key=key,
+        ), self.catalog.destructive_operation(
+            bucket, key, operation="delete_object", context=context,
         ):
             with suppress_access_capture():
                 resource = self.stat_object(tier, bucket, key)

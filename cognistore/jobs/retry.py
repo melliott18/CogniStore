@@ -22,6 +22,7 @@ from botocore.exceptions import (
     ReadTimeoutError,
 )
 
+from cognistore.core.legal_holds import LegalHoldError
 from cognistore.core.move_jobs import (
     MoveJobConflictError,
     MoveJobFailedError,
@@ -233,6 +234,10 @@ def _status_from_exception(error: BaseException) -> int | None:
 
 
 def _classification_for_one(error: BaseException) -> ErrorClassification | None:
+    if isinstance(error, LegalHoldError):
+        return ErrorClassification(
+            False, FailureCategory.AUTHORIZATION, "legal hold blocks object movement",
+        )
     if isinstance(error, SecretUnavailableError):
         return ErrorClassification(True, FailureCategory.UNAVAILABLE, "secret provider unavailable")
     if isinstance(error, SecretAccessError):

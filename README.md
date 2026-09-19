@@ -165,6 +165,10 @@ The [tenant isolation guide](docs/tenancy.md) covers server-owned membership,
 separate catalog/index partitions, storage namespaces, and worker revalidation.
 Roles grant access only within the assigned tenant.
 
+[Legal holds](docs/legal_holds.md) preserve exact objects, key prefixes, or whole
+buckets across tiers. Holds block writes and destructive movement until an
+explicitly authorized release and retain lifecycle and denial audit history.
+
 Optional [PII detection and policy hooks](docs/pii_detection.md) classify extracted
 PDF/DOCX text with bounded, replaceable detectors. Tenant-specific scan settings
 retain redacted classifications, and PII-aware policies hold placement when

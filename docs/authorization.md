@@ -19,12 +19,14 @@ than one permission needs all of them.
 
 | Role | Permissions | Intended access |
 | --- | --- | --- |
-| `reader` | `read` | Object bytes and metadata, search, and job status. |
-| `writer` | `read`, `write` | Read, upload, and delete objects. |
-| `policy_manager` | `read`, `policy` | Evaluate and preview placement policies. |
-| `operator` | `read`, `movement`, `administration` | Catalog scans and movement authority. |
-| `auditor` | `audit` | Retained policy decisions, audit history, integrity verification, and evidence export. |
-| `admin` | `read`, `write`, `policy`, `movement`, `administration`, `audit` | Every permission. |
+| `reader` | `read`, `legal_hold_inspect` | Object bytes and metadata, search, job status, and hold inspection. |
+| `writer` | `read`, `write`, `legal_hold_inspect` | Read, upload, and delete objects subject to active holds. |
+| `policy_manager` | `read`, `policy`, `legal_hold_inspect` | Evaluate and preview placement policies. |
+| `operator` | `read`, `movement`, `administration`, `legal_hold_inspect` | Catalog scans and movement authority. |
+| `auditor` | `audit`, `legal_hold_inspect` | Retained policy decisions, audit history, integrity verification, evidence export, and hold history. |
+| `hold_manager` | `legal_hold_inspect`, `legal_hold_manage` | Inspect and place legal holds. |
+| `hold_releaser` | `legal_hold_inspect`, `legal_hold_release` | Inspect and explicitly release legal holds. |
+| `admin` | All permissions listed above | Every permission, subject to active holds. |
 
 For example, `policy_manager` plus `operator` can run policies that move data;
 neither role alone can run them. `writer` plus `policy_manager` can change
@@ -60,6 +62,14 @@ No permission depends on a control being hidden in the UI.
 | `POST /v1/actions/catalog-scans` | `submit_catalog_scan` | `administration` |
 | `POST /v1/actions/policy-runs` | `submit_policy_run` | `policy`, `movement` |
 | `GET /v1/jobs/{job_id}` | `get_job` | `read` |
+| `GET /v1/legal-holds` | `list_legal_holds` | `legal_hold_inspect` |
+| `POST /v1/legal-holds` | `place_legal_hold` | `legal_hold_manage` |
+| `POST /v1/legal-holds/{hold_id}/release` | `release_legal_hold` | `legal_hold_release` |
+
+[Legal hold](legal_holds.md) placement and release additionally require an
+authenticated principal, including in an otherwise anonymous local deployment.
+Neither ordinary write/movement authority nor a stability override releases a
+hold. A hold's scope and history remain in the actor's tenant partition.
 
 | Worker operation | Required permissions | Reason |
 | --- | --- | --- |

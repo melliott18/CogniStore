@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from heapq import nsmallest
-from typing import Any, Dict, List, Mapping, Optional, Protocol
+from typing import Any, ContextManager, Dict, List, Mapping, Optional, Protocol
 from uuid import UUID, uuid4
 
 from cognistore.auth.tenancy import require_tenant, validate_tenant_id
@@ -59,6 +59,15 @@ from .content_references import (
 	ContentReferenceReport,
 	ContentReferenceSnapshot,
 	build_content_reference_report,
+)
+from .legal_hold_lock import LegalHoldFence
+from .legal_holds import (
+	LEGAL_HOLD_EVENT_TYPES,
+	LegalHold,
+	LegalHoldError,
+	guard_legal_hold,
+	legal_hold_actor,
+	legal_hold_event,
 )
 from .locality import LocalityConstraintError, assert_locality_allowed
 from .move_jobs import (
@@ -368,6 +377,30 @@ class CatalogStore(Protocol):
 
 	def for_tenant(self, tenant_id: str) -> CatalogStore: ...
 
+	def place_legal_hold(
+		self, bucket: str, *, key: str | None = None, prefix: str | None = None,
+		reason: str, context: AuditContext,
+	) -> LegalHold: ...
+
+	def list_legal_holds(
+		self, *, bucket: str | None = None, key: str | None = None,
+		active_only: bool = False,
+	) -> list[LegalHold]: ...
+
+	def release_legal_hold(
+		self, hold_id: str, *, reason: str, context: AuditContext,
+	) -> LegalHold: ...
+
+	def assert_not_held(
+		self, bucket: str, key: str, *, operation: str,
+		context: AuditContext | None = None,
+	) -> None: ...
+
+	def destructive_operation(
+		self, bucket: str, key: str, *, operation: str,
+		context: AuditContext | None = None,
+	) -> ContextManager[None]: ...
+
 	def configure_budget(
 		self, definition: BudgetDefinition, *, audit_context: AuditContext,
 		occurred_at: str | datetime | None = None,
@@ -630,6 +663,8 @@ class Catalog(CatalogStore):
 		self._tiers: dict[str, Tier] = {}
 		self._pools: dict[str, Pool] = {}
 		self._budgets: dict[str, BudgetDefinition] = {}
+		self._legal_holds: dict[str, LegalHold] = {}
+		self._legal_hold_fence = LegalHoldFence()
 		self._budget_reservations: dict[tuple[str, str, int], dict[str, Any]] = {}
 		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
 		self._content_manifests: Dict[tuple[object, ...], ObjectContent] = {}
@@ -665,6 +700,88 @@ class Catalog(CatalogStore):
 				catalog._tenant_catalog_lock = self._tenant_catalog_lock
 				self._tenant_catalogs[tenant_id] = catalog
 			return self._tenant_catalogs[tenant_id]
+
+	@contextmanager
+	def _legal_hold_serialization(self, *, exclusive: bool = False) -> Iterator[None]:
+		require_tenant(self.tenant_id)
+		with self._legal_hold_fence.hold(exclusive=exclusive):
+			yield
+
+	def place_legal_hold(
+		self, bucket: str, *, key: str | None = None, prefix: str | None = None,
+		reason: str, context: AuditContext,
+	) -> LegalHold:
+		with self._legal_hold_serialization(exclusive=True), self._lock:
+			hold = LegalHold.create(
+				self.tenant_id, bucket, key=key, prefix=prefix, reason=reason, context=context,
+			)
+			self.append_audit_event(legal_hold_event(hold, context, released=False))
+			self._legal_holds[hold.hold_id] = hold
+			return hold
+
+	@staticmethod
+	def _validate_hold_query(bucket: str | None, key: str | None) -> None:
+		if bucket is not None and (not isinstance(bucket, str) or not bucket):
+			raise ValueError("bucket must be a non-empty string or null")
+		if key is not None and (not isinstance(key, str) or not key or bucket is None):
+			raise ValueError("key must be non-empty and requires bucket")
+
+	def list_legal_holds(
+		self, *, bucket: str | None = None, key: str | None = None,
+		active_only: bool = False,
+	) -> list[LegalHold]:
+		self._validate_hold_query(bucket, key)
+		with self._lock:
+			return sorted((
+				hold for hold in self._legal_holds.values()
+				if (not active_only or hold.active)
+				and (bucket is None or hold.matches_bucket(bucket))
+				and (key is None or hold.matches(hold.bucket, key))
+			), key=lambda hold: (hold.created_at, hold.hold_id))
+
+	def release_legal_hold(
+		self, hold_id: str, *, reason: str, context: AuditContext,
+	) -> LegalHold:
+		legal_hold_actor(context)
+		identifier = str(UUID(str(hold_id)))
+		with self._legal_hold_serialization(exclusive=True), self._lock:
+			hold = self._legal_holds.get(identifier)
+			if hold is None:
+				raise KeyError("Legal hold not found")
+			released = hold.release(reason=reason, context=context)
+			self.append_audit_event(legal_hold_event(released, context, released=True))
+			self._legal_holds[identifier] = released
+			return released
+
+	def assert_not_held(
+		self, bucket: str, key: str, *, operation: str,
+		context: AuditContext | None = None,
+	) -> None:
+		with self._legal_hold_serialization():
+			holds = self.list_legal_holds(bucket=bucket, key=key, active_only=True)
+			if not holds:
+				return
+			event = AuditEvent.create(
+				AuditEventType.LEGAL_HOLD_DENIED, AuditOutcome.DENIED,
+				context or AuditContext(str(uuid4()), "system", "catalog"),
+				retention=AuditRetentionPolicy(max_age_seconds=None),
+				bucket=bucket, object_key=key,
+				details={"operation": operation, "hold_ids": [hold.hold_id for hold in holds]},
+			)
+			# Append before raising, outside any mutation transaction. Audit failure
+			# propagates and still prevents every protected side effect.
+			self.append_audit_event(event)
+			raise LegalHoldError("Operation blocked by an active legal hold")
+
+	@contextmanager
+	def destructive_operation(
+		self, bucket: str, key: str, *, operation: str,
+		context: AuditContext | None = None,
+	) -> Iterator[None]:
+		"""Serialize hold placement through all enclosed physical/catalog effects."""
+		with self._legal_hold_serialization():
+			self.assert_not_held(bucket, key, operation=operation, context=context)
+			yield
 
 	def configure_budget(
 		self, definition: BudgetDefinition, *, audit_context: AuditContext,
@@ -813,6 +930,7 @@ class Catalog(CatalogStore):
 				raise ValueError(f"Pool is referenced: {pool_id}")
 			self._pools.pop(pool_id, None)
 
+	@guard_legal_hold("catalog.assign_pool")
 	def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None:
 		with self._lock:
 			record = self._objects.get((bucket, key))
@@ -936,6 +1054,7 @@ class Catalog(CatalogStore):
 		else:
 			self._object_contents[object_key] = canonical
 
+	@guard_legal_hold("catalog.upsert")
 	def upsert(
 		self,
 		bucket: str,
@@ -988,6 +1107,7 @@ class Catalog(CatalogStore):
 				move_jobs=self._scan_move_job_fingerprints(jobs),
 			)
 
+	@guard_legal_hold("catalog.upsert_scan_observation", scan=True)
 	def upsert_scan_observation(
 		self,
 		bucket: str,
@@ -1140,6 +1260,7 @@ class Catalog(CatalogStore):
 					expected_object_reference_count=object_references[sha256],
 					expected_chunk_reference_count=chunk_references[sha256],
 					unreferenced_at=state.unreferenced_at,
+					legal_hold=any(hold.active for hold in self._legal_holds.values()),
 				)
 				for sha256, state in sorted(self._content_blobs.items())
 			)
@@ -1149,6 +1270,7 @@ class Catalog(CatalogStore):
 			now=now,
 		)
 
+	@guard_legal_hold("catalog.update_placement")
 	def update_placement(self, bucket: str, key: str, tier: str) -> None:
 		with self._lock:
 			rec = self._objects.get((bucket, key))
@@ -1161,6 +1283,7 @@ class Catalog(CatalogStore):
 				rec.last_tier_move_at = rec.placement_started_at
 			rec.tier = tier
 
+	@guard_legal_hold("catalog.upsert_placement")
 	def upsert_placement(
 		self,
 		bucket: str,
@@ -1210,6 +1333,7 @@ class Catalog(CatalogStore):
 				importance_revision=rec.importance_revision if rec else 0,
 			)
 
+	@guard_legal_hold("catalog.delete")
 	def delete(self, bucket: str, key: str) -> None:
 		with self._lock:
 			object_key = (bucket, key)
@@ -1402,7 +1526,8 @@ class Catalog(CatalogStore):
 			safe = redact_audit_event(
 				replace(
 					event,
-					expires_at=self.audit_retention.expires_at(event.occurred_at),
+					expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES
+						else self.audit_retention.expires_at(event.occurred_at)),
 				),
 				_allow_pseudonyms=tombstone is not None,
 			)
@@ -1432,19 +1557,35 @@ class Catalog(CatalogStore):
 					)
 				return self._copy_audit_event(existing)
 			move_id = safe.move_id
-			if move_id is not None:
-				sequence, previous_id = self._audit_move_heads.get(
-					move_id,
-					(0, ""),
-				)
-				if previous_id:
-					safe = replace(safe, causation_id=previous_id)
-				sequence += 1
-				self._audit_move_heads[move_id] = (sequence, safe.event_id)
-			self._audit_events[safe.event_id] = safe
-			self._append_audit_evidence("event", safe.event_id, event_digest(safe),
-				move_id=move_id, move_sequence=None if move_id is None else sequence)
-			return self._copy_audit_event(safe)
+			previous_move_head = self._audit_move_heads.get(move_id) if move_id is not None else None
+			previous_integrity_head = self._audit_integrity_head
+			previous_entry_count = len(self._audit_integrity_entries)
+			try:
+				if move_id is not None:
+					sequence, previous_id = self._audit_move_heads.get(
+						move_id,
+						(0, ""),
+					)
+					if previous_id:
+						safe = replace(safe, causation_id=previous_id)
+					sequence += 1
+					self._audit_move_heads[move_id] = (sequence, safe.event_id)
+				self._audit_events[safe.event_id] = safe
+				self._append_audit_evidence("event", safe.event_id, event_digest(safe),
+					move_id=move_id, move_sequence=None if move_id is None else sequence)
+				return self._copy_audit_event(safe)
+			except BaseException:
+				# Event, causal head, and integrity evidence form one atomic
+				# append, including a failure after an evidence entry was added.
+				self._audit_events.pop(safe.event_id, None)
+				if move_id is not None:
+					if previous_move_head is None:
+						self._audit_move_heads.pop(move_id, None)
+					else:
+						self._audit_move_heads[move_id] = previous_move_head
+				del self._audit_integrity_entries[previous_entry_count:]
+				self._audit_integrity_head = previous_integrity_head
+				raise
 
 	def _append_audit_evidence(self, kind: str, event_id: str, payload_digest: str,
 		*, move_id: str | None = None, move_sequence: int | None = None) -> None:
@@ -1551,7 +1692,8 @@ class Catalog(CatalogStore):
 					self._audit_events.values(),
 					key=lambda item: (item.occurred_at, item.event_id),
 				)
-				if event.event_type != AuditEventType.AUDIT_RETENTION.value and eligible(event)
+				if eligible(event) and event.event_type not in LEGAL_HOLD_EVENT_TYPES
+				and event.event_type != AuditEventType.AUDIT_RETENTION.value
 			][:limit]
 			state = (dict(self._audit_events), dict(self._audit_event_tombstones),
 				list(self._audit_integrity_entries), self._audit_integrity_head)
@@ -1878,6 +2020,7 @@ class Catalog(CatalogStore):
 				raise
 			return updated
 
+	@guard_legal_hold("catalog.commit_move_job_placement", move=True)
 	def commit_move_job_placement(
 		self,
 		idempotency_key: str,

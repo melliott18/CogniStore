@@ -536,13 +536,23 @@ def _validate_policy_snapshot(value: object) -> dict[str, Any]:
         "supported": False,
         "reason": "required_inputs_redacted",
     }
+    held_rejection = (
+        decision["action"] == "stay"
+        and decision["destination_tier"] is None
+        and decision["outcome"] == AuditOutcome.REJECTED.value
+        and data["replay"] == {"supported": False, "reason": "legal_hold"}
+    )
+    if data["replay"] == {"supported": False, "reason": "legal_hold"} and not held_rejection:
+        raise ValueError("legal hold snapshots require a rejected stay decision")
     # Redacted tier identities can lose destination equality/membership facts,
     # but they never change whether the original action was a move or stay.
-    if (decision["action"] == "move") != (decision["outcome"] != AuditOutcome.STAYED.value):
+    if not held_rejection and (decision["action"] == "move") != (
+        decision["outcome"] != AuditOutcome.STAYED.value
+    ):
         raise ValueError("decision outcome contradicts action")
     if decision["outcome"] == AuditOutcome.SELECTED.value and not decision["destination_tier"]:
         raise ValueError("selected decisions require a destination")
-    if not inputs_redacted and decision["outcome"] != expected_outcome:
+    if not inputs_redacted and not held_rejection and decision["outcome"] != expected_outcome:
         raise ValueError("decision outcome contradicts action or allowed destinations")
     provenance = _object(data["provenance"], {"source", "schema_version"}, "provenance")
     _version(provenance["schema_version"], "snapshot provenance")
@@ -580,6 +590,7 @@ def capture_policy_snapshot(
     decision_at: str | datetime | None = None,
     model_identity: str | None = None,
     model_version: str | None = None,
+    legal_hold: bool = False,
 ) -> dict[str, Any]:
     """Freeze allowlisted inputs and actual output, redacting before persistence.
 
@@ -667,6 +678,10 @@ def capture_policy_snapshot(
         safe[name] != snapshot[name] for name in ("object", "features", "policy", "allowed_tiers")
     ):
         safe["replay"] = {"supported": False, "reason": "required_inputs_redacted"}
+    if legal_hold:
+        # The authoritative hold caused a rejection before policy evaluation.
+        # Snapshot v1 lacks the live hold state needed for offline replay.
+        safe["replay"] = {"supported": False, "reason": "legal_hold"}
     return validate_policy_snapshot(safe)
 
 

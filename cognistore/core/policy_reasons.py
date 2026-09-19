@@ -23,7 +23,7 @@ ReasonCode = Literal[
     "provider_invalid_response", "provider_invalid_input", "custom_policy", "minimum_residency",
     "importance_restriction", "cooldown", "hysteresis", "destination_not_allowed",
     "destination_missing", "already_in_tier", "invalid_action", "budget_constraint",
-    "locality_constraint",
+    "legal_hold", "locality_constraint",
 ]
 Number = Annotated[int | float, Field(allow_inf_nan=False)]
 NonnegativeInt = Annotated[int, Field(ge=0)]
@@ -93,6 +93,8 @@ class ReasonConstraints(_Contract):
     hysteresis_checks: list[HysteresisCheck]
     budgets: list[dict[str, Any]] = Field(default_factory=list)
     objectives: dict[str, Any] | None = None
+    legal_hold: bool = False
+    legal_hold_ids: list[Identity] = Field(default_factory=list)
     locality: dict[str, Any] | None = None
 
     @model_validator(mode="after")
@@ -167,7 +169,10 @@ def capture_policy_reason(
     code = code if trusted_policy and code is not None else "custom_policy"
     signals = signals if trusted_policy else []
     disposition = "move" if action == "move" else "stay"
-    if constraints.get("suppression_reason") == "locality":
+    legal_hold = constraints.get("legal_hold") or {}
+    if legal_hold.get("active"):
+        code, disposition = "legal_hold", "rejected"
+    elif constraints.get("suppression_reason") == "locality":
         code, disposition = "locality_constraint", "suppressed"
     elif constraints.get("suppression_reason") == "budget":
         code, disposition = "budget_constraint", "suppressed"
@@ -218,6 +223,8 @@ def capture_policy_reason(
         "hysteresis_checks": checks,
         "budgets": constraints.get("budgets", []),
         "objectives": constraints.get("objectives"),
+        "legal_hold": bool(legal_hold.get("active")),
+        "legal_hold_ids": legal_hold.get("hold_ids", []),
         "locality": constraints.get("locality"),
     })
     return validate_policy_reason(redact({

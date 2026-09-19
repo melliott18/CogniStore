@@ -69,6 +69,7 @@ _CATALOG_TABLES = {
     "budget_reservations",
     "catalog_schema_features",
     "catalog_tenant",
+    "legal_holds",
     "content_blobs",
     "content_manifest_chunks",
     "content_manifests",
@@ -802,7 +803,9 @@ def test_failed_postgres_placement_commit_rolls_back_object_and_job(
             _context: object,
             _executemany: bool,
         ) -> None:
-            if statement.startswith("UPDATE move_jobs SET state"):
+            # Locality evidence may be the first updated column; inject at
+            # the job checkpoint write independently of SQL column order.
+            if statement.startswith("UPDATE move_jobs SET "):
                 raise RuntimeError("injected placement commit failure")
 
         sa.event.listen(catalog.engine, "before_cursor_execute", fail_job_update)

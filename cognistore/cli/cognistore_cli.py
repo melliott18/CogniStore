@@ -677,6 +677,12 @@ def _preview_move_constraints(
 ) -> dict[str, object]:
 	"""Read the same authoritative controls used before uncommitted moves."""
 
+	if job is None or job.state not in {MoveJobState.COMPLETED, MoveJobState.FAILED}:
+		# Dry runs inspect holds without recording a destructive attempt.
+		if catalog.list_legal_holds(bucket=bucket, key=key, active_only=True):
+			raise MovementConstraintError(
+				"Operation prohibited by an active legal hold", {"legal_hold": True},
+			)
 	if job is not None and job.state not in {
 		MoveJobState.PREPARED, MoveJobState.TRANSFERRED, MoveJobState.VERIFIED,
 	}:
@@ -2560,11 +2566,21 @@ def _run_cli(
 	}
 	if (
 		background_submission
-		or (args.cmd in {"put", "get"} and dry_run)
+		or (args.cmd == "get" and dry_run)
 		or args.cmd == "scheduler"
 		or args.cmd not in catalog_commands
+		or (args.cmd == "put" and dry_run and not args.catalog_db)
 	):
 		catalog = None
+	elif args.cmd == "put" and dry_run:
+		if existing_sqlite_catalog_path(args.catalog_db) is not None or catalog_locator_is_postgres(
+			args.catalog_db
+		):
+			catalog = open_sql_catalog(args.catalog_db, read_only=True)
+		else:
+			# A missing catalog has no holds to inspect. Preserve the dry-run
+			# contract by avoiding creation of a database or lock sidecar.
+			catalog = Catalog(audit_retention=audit_retention)
 	elif args.catalog_db and args.cmd in {"policy-run", "importance-set"} and dry_run:
 		catalog_path = sqlite_catalog_path(args.catalog_db)
 		if catalog_path is not None and not catalog_path.exists():
@@ -2630,6 +2646,10 @@ def _run_cli(
 		else:
 			active_driver = driver
 		if dry_run:
+			if catalog is not None and catalog.list_legal_holds(
+				bucket=args.bucket, key=args.key, active_only=True,
+			):
+				raise MovementConstraintError("Operation prohibited by an active legal hold")
 			try:
 				active_driver.stat_object(args.bucket, args.key)
 			except FileNotFoundError:
@@ -2661,6 +2681,8 @@ def _run_cli(
 		with audit_storage_operation(
 			catalog, storage_context, operation="put_object", tier="hot",
 			bucket=args.bucket, key=args.key,
+		), catalog.destructive_operation(
+			args.bucket, args.key, operation="put", context=storage_context,
 		):
 			active_driver.put_object(args.bucket, args.key, data)
 		_emit_result(

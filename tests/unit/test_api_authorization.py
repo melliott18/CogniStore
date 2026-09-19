@@ -57,14 +57,22 @@ CASES = [
     ("POST", "/v1/actions/policy-runs", {"json": {"bucket": "docs"}},
      {"policy", "movement"}, "submit_policy_run"),
     ("GET", f"/v1/jobs/{IDENTIFIER}", {}, {"read"}, "get_job"),
+    ("GET", "/v1/legal-holds", {}, {"legal_hold_inspect"}, "list_legal_holds"),
+    ("POST", "/v1/legal-holds", {"json": {"bucket": "docs", "reason": "Case 62"}},
+     {"legal_hold_manage"}, "place_legal_hold"),
+    ("POST", f"/v1/legal-holds/{IDENTIFIER}/release", {"json": {"reason": "Case closed"}},
+     {"legal_hold_release"}, "release_legal_hold"),
 ]
 ROLE_GRANTS = {
-    "reader": {"read"},
-    "writer": {"read", "write"},
-    "policy_manager": {"read", "policy"},
-    "operator": {"read", "movement", "administration"},
-    "auditor": {"audit"},
-    "admin": {"read", "write", "policy", "movement", "administration", "audit"},
+    "reader": {"read", "legal_hold_inspect"},
+    "writer": {"read", "write", "legal_hold_inspect"},
+    "policy_manager": {"read", "policy", "legal_hold_inspect"},
+    "operator": {"read", "movement", "administration", "legal_hold_inspect"},
+    "auditor": {"audit", "legal_hold_inspect"},
+    "hold_manager": {"legal_hold_inspect", "legal_hold_manage"},
+    "hold_releaser": {"legal_hold_inspect", "legal_hold_release"},
+    "admin": {"read", "write", "policy", "movement", "administration", "audit",
+              "legal_hold_inspect", "legal_hold_manage", "legal_hold_release"},
 }
 
 

@@ -72,6 +72,7 @@ class ContentReferenceSnapshot:
     expected_object_reference_count: int
     expected_chunk_reference_count: int
     unreferenced_at: str | None
+    legal_hold: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -104,6 +105,8 @@ class ContentReferenceSnapshot:
             self.unreferenced_at, str
         ):
             raise ValueError("unreferenced_at must be an ISO-8601 timestamp or null")
+        if not isinstance(self.legal_hold, bool):
+            raise ValueError("legal_hold must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,7 @@ class ContentReferenceEntry:
     unreferenced_at: str | None
     reclamation_eligible: bool
     issues: tuple[str, ...]
+    legal_hold: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return a fresh JSON-safe CLI representation."""
@@ -133,6 +137,7 @@ class ContentReferenceEntry:
             "unreferenced_at": self.unreferenced_at,
             "reclamation_eligible": self.reclamation_eligible,
             "issues": list(self.issues),
+            "legal_hold": self.legal_hold,
         }
 
 
@@ -216,6 +221,7 @@ def build_content_reference_report(
             and expected == 0
             and not issues
             and old_enough
+            and not snapshot.legal_hold
         )
         entries.append(
             ContentReferenceEntry(
@@ -233,6 +239,7 @@ def build_content_reference_report(
                 unreferenced_at=snapshot.unreferenced_at,
                 reclamation_eligible=eligible,
                 issues=tuple(issues),
+                legal_hold=snapshot.legal_hold,
             )
         )
 

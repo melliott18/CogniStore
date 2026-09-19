@@ -12,6 +12,7 @@ from cognistore.auth.authorization import RBACAuthorizer, RBACPolicy, authorizat
 from cognistore.auth.principal import Principal, principal_context
 from cognistore.core.audit import AuditContext
 from cognistore.core.catalog import Catalog
+from cognistore.core.legal_holds import LegalHoldError
 from cognistore.core.locality import LocalityConstraintError
 from cognistore.core.move_jobs import MoveJobConflictError, MoveJobState
 from cognistore.core.mover import Mover
@@ -315,6 +316,46 @@ def test_explicit_approved_exception_moves_and_records_the_approval(system):
     serialized = json.dumps([event.details for event in events])
     assert PRINCIPAL.issuer not in serialized
     assert PRINCIPAL.subject not in serialized
+
+
+def test_approved_locality_exception_cannot_bypass_legal_hold(system):
+    authorizer = _exception(system)
+    system.catalog.place_legal_hold(
+        BUCKET, key=KEY, reason="Preserve regulated evidence", context=system.context,
+    )
+    with principal_context(PRINCIPAL), authorization_context(authorizer):
+        with pytest.raises(LegalHoldError):
+            _move(_mover(system), locality_exception_id="approval-64")
+    _assert_no_destination(system)
+    assert system.catalog.list_move_jobs() == []
+
+
+@pytest.mark.parametrize("checkpoint", [MoveJobState.TRANSFERRED, MoveJobState.COMMITTED])
+def test_hold_blocks_recovery_with_durable_approved_locality_exception(system, checkpoint):
+    authorizer = _exception(system)
+
+    def crash(job):
+        if job.state == checkpoint:
+            raise SimulatedCrash()
+
+    with principal_context(PRINCIPAL), authorization_context(authorizer):
+        with pytest.raises(SimulatedCrash):
+            _move(
+                _mover(system, owner_id="worker", transition_hook=crash),
+                idempotency_key="held-locality-exception", locality_exception_id="approval-64",
+            )
+        system.catalog.place_legal_hold(
+            BUCKET, prefix="regulated/", reason="Preserve regulated evidence",
+            context=system.context,
+        )
+        with pytest.raises(LegalHoldError):
+            _move(_mover(system, owner_id="worker"), idempotency_key="held-locality-exception")
+    _assert_source_retained(system)
+    assert system.drivers["warm"].get_object(BUCKET, KEY) == PAYLOAD
+    job = system.catalog.get_move_job("held-locality-exception")
+    assert job.state == MoveJobState.FAILED
+    assert "legal hold" in job.terminal_reason
+    assert job.source_metadata["cognistore_locality_exception_id"] == "approval-64"
 
 
 @pytest.mark.parametrize("request_kind", ["omitted", "anonymous", "wrong-principal"])

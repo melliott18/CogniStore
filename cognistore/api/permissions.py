@@ -26,7 +26,14 @@ OPERATION_PERMISSIONS = MappingProxyType({
     "submit_catalog_scan": (Permission.ADMIN,),
     "submit_policy_run": (Permission.POLICY, Permission.MOVEMENT),
     "get_job": (Permission.READ,),
+    "list_legal_holds": (Permission.LEGAL_HOLD_INSPECT,),
+    "place_legal_hold": (Permission.LEGAL_HOLD_MANAGE,),
+    "release_legal_hold": (Permission.LEGAL_HOLD_RELEASE,),
 })
+
+# Hold lifecycle changes always require a verified identity and explicit grant,
+# including deployments that otherwise allow anonymous local HTTP operations.
+AUTHENTICATED_OPERATIONS = frozenset({"place_legal_hold", "release_legal_hold"})
 
 ENDPOINT_OPERATIONS = MappingProxyType({
     ("PUT", "/v1/objects/{tier}/{bucket}/{key:path}"): "put_object",
@@ -48,6 +55,9 @@ ENDPOINT_OPERATIONS = MappingProxyType({
     ("POST", "/v1/actions/catalog-scans"): "submit_catalog_scan",
     ("POST", "/v1/actions/policy-runs"): "submit_policy_run",
     ("GET", "/v1/jobs/{job_id}"): "get_job",
+    ("GET", "/v1/legal-holds"): "list_legal_holds",
+    ("POST", "/v1/legal-holds"): "place_legal_hold",
+    ("POST", "/v1/legal-holds/{hold_id}/release"): "release_legal_hold",
 })
 
 _ENDPOINT_PATTERNS = tuple(

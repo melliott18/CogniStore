@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
+import os
 import sqlite3
 import tempfile
 import threading
@@ -70,6 +72,14 @@ from cognistore.core.content_references import (
     ContentReferenceSnapshot,
     build_content_reference_report,
 )
+from cognistore.core.legal_hold_lock import LegalHoldFence
+from cognistore.core.legal_holds import (
+    LEGAL_HOLD_EVENT_TYPES,
+    LegalHold,
+    guard_legal_hold,
+    legal_hold_actor,
+    legal_hold_event,
+)
 from cognistore.core.move_jobs import (
     MoveJob,
     MoveJobConflictError,
@@ -95,7 +105,7 @@ from cognistore.observability import observe
 from cognistore.utils.redaction import redact, redact_text
 
 from .audit_integrity import append_entry, read_export, read_head, read_snapshot
-from .engine import create_catalog_engine, tenant_catalog_locator
+from .engine import create_catalog_engine, normalize_database_url, tenant_catalog_locator
 from .migrations import MigrationManager, catalog_schema_exists
 from .schema import (
     access_events,
@@ -109,6 +119,7 @@ from .schema import (
     content_blobs,
     content_manifest_chunks,
     content_manifests,
+    legal_holds,
     move_job_claim_fences,
     move_job_transitions,
     move_jobs,
@@ -160,6 +171,22 @@ def _stable_uuid(kind: str, *values: str) -> UUID:
     return uuid5(NAMESPACE_URL, identity)
 
 
+class _LegalHoldLockState:
+    def __init__(self) -> None:
+        self.fence = LegalHoldFence()
+        self.local = threading.local()
+
+
+_LEGAL_HOLD_LOCKS: dict[tuple[int, str], _LegalHoldLockState] = {}
+_LEGAL_HOLD_LOCKS_GUARD = threading.Lock()
+
+
+def _legal_hold_lock_state(identity: str) -> _LegalHoldLockState:
+    # Include the PID so a fork never inherits the parent's reentrancy depth.
+    with _LEGAL_HOLD_LOCKS_GUARD:
+        return _LEGAL_HOLD_LOCKS.setdefault((os.getpid(), identity), _LegalHoldLockState())
+
+
 class SQLCatalog(Catalog):
     """Transactional SQL catalog shared by SQLite and PostgreSQL.
 
@@ -194,6 +221,29 @@ class SQLCatalog(Catalog):
         self.audit_retention = audit_retention or AuditRetentionPolicy()
         self._engine, self._conn = create_catalog_engine(
             partition_locator, read_only=read_only, schema_name=self.schema_name
+        )
+        database_url = sa.engine.make_url(normalize_database_url(partition_locator))
+        self._legal_hold_lock_path: Path | None = None
+        if self.backend == "sqlite":
+            database = database_url.database
+            if database and database != ":memory:":
+                self._legal_hold_lock_path = Path(str(Path(database).resolve()) + ".legal-holds.lock")
+                self._legal_hold_lock_identity = str(self._legal_hold_lock_path)
+            else:
+                self._legal_hold_lock_identity = f"sqlite-memory:{id(self._engine)}"
+        else:
+            self._legal_hold_lock_identity = (
+                database_url.render_as_string(hide_password=True) + ":" + str(self.schema_name)
+            )
+        self._legal_hold_advisory_key = int.from_bytes(hashlib.sha256(
+            ("cognistore-legal-holds:" + (self.schema_name or "public")).encode()
+        ).digest()[:8], "big", signed=True)
+        # Session advisory locks must not exhaust the ordinary transaction
+        # pool: lock holders still need a connection to finish their writes.
+        self._legal_hold_engine = (
+            create_catalog_engine(partition_locator, read_only=read_only,
+                                  schema_name=self.schema_name)[0]
+            if self.backend == "postgresql" else self._engine
         )
         self._sqlite_lock = threading.RLock()
         if self._engine.dialect.name == "sqlite":
@@ -351,6 +401,8 @@ class SQLCatalog(Catalog):
                 catalog.close()
             self._sql_tenant_catalogs.clear()
         self._engine.dispose()
+        if self.backend == "postgresql":
+            self._legal_hold_engine.dispose()
         if self._conn is not None:
             try:
                 self._conn.close()
@@ -362,6 +414,161 @@ class SQLCatalog(Catalog):
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
+
+    @contextlib.contextmanager
+    def _legal_hold_serialization(self, *, exclusive: bool = False) -> Iterator[None]:
+        """Serialize lifecycle and storage effects across processes, without a DB transaction.
+
+        A tenant-wide fence covers exact, prefix and whole-bucket holds. The
+        separate session/file lock allows heartbeat and nested catalog writes
+        to use their normal short transactions during slow storage operations.
+        """
+        require_tenant(self.tenant_id)
+        if self._closed:
+            raise RuntimeError("catalog is closed")
+        state = _legal_hold_lock_state(self._legal_hold_lock_identity)
+        with state.fence.hold(exclusive=exclusive):
+            depth = getattr(state.local, "depth", 0)
+            if depth:
+                state.local.depth = depth + 1
+                try:
+                    yield
+                finally:
+                    state.local.depth = depth
+                return
+            with contextlib.ExitStack() as stack:
+                if self.backend == "postgresql":
+                    connection = stack.enter_context(self._legal_hold_engine.connect())
+                    lock_function = "pg_advisory_lock" if exclusive else "pg_advisory_lock_shared"
+                    unlock_function = "pg_advisory_unlock" if exclusive else "pg_advisory_unlock_shared"
+                    connection.execute(sa.text(f"SELECT {lock_function}(:key)"),
+                                       {"key": self._legal_hold_advisory_key})
+                    connection.commit()
+
+                    def unlock() -> None:
+                        try:
+                            connection.execute(sa.text(f"SELECT {unlock_function}(:key)"),
+                                               {"key": self._legal_hold_advisory_key})
+                            connection.commit()
+                        except BaseException:
+                            connection.invalidate()
+                            raise
+                    stack.callback(unlock)
+                elif self._legal_hold_lock_path is not None:
+                    # OS locks disappear on process exit. No stale reservation
+                    # or database write transaction survives a failed worker.
+                    descriptor = os.open(self._legal_hold_lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+                    lockfile = stack.enter_context(os.fdopen(descriptor, "a+b"))
+                    if os.name == "nt":  # pragma: no cover - Windows deployment
+                        import importlib
+                        msvcrt = importlib.import_module("msvcrt")
+                        lockfile.write(b"\0")
+                        lockfile.flush()
+                        lockfile.seek(0)
+                        # CRT byte-range locks are exclusive even for its
+                        # read-lock constants. Preserve a conservative serial
+                        # fallback on Windows SQLite.
+                        msvcrt.locking(lockfile.fileno(), msvcrt.LK_LOCK, 1)
+                    else:
+                        import fcntl
+                        mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+                        fcntl.flock(lockfile.fileno(), mode)
+                state.local.depth = 1
+                try:
+                    yield
+                finally:
+                    state.local.depth = 0
+
+    def place_legal_hold(
+        self, bucket: str, *, key: str | None = None, prefix: str | None = None,
+        reason: str, context: AuditContext,
+    ) -> LegalHold:
+        if self.read_only:
+            raise PermissionError("cannot place legal holds in a read-only catalog")
+        with self._legal_hold_serialization(exclusive=True), self._transaction() as connection:
+            hold = LegalHold.create(
+                self.tenant_id, bucket, key=key, prefix=prefix, reason=reason, context=context,
+            )
+            self._insert_audit_event(connection, self._prepare_audit_event(
+                legal_hold_event(hold, context, released=False),
+            ))
+            connection.execute(sa.insert(legal_holds).values(
+                hold_id=UUID(hold.hold_id), tenant_id=self.tenant_id, bucket=hold.bucket,
+                object_key=hold.key, prefix=hold.prefix, evidence=hold.to_dict(),
+                created_at=hold.created_at, released_at=None,
+            ))
+        return hold
+
+    @staticmethod
+    def _validated_legal_hold(row: RowMapping) -> LegalHold:
+        """Reject inconsistent scope/state columns before they can hide a hold."""
+        try:
+            evidence = row["evidence"]
+            if not isinstance(evidence, dict):
+                raise ValueError("invalid hold evidence")
+            hold = LegalHold.from_mapping(evidence)
+            if (
+                str(row["hold_id"]) != hold.hold_id
+                or row["tenant_id"] != hold.tenant_id
+                or row["bucket"] != hold.bucket
+                or row["object_key"] != hold.key
+                or row["prefix"] != hold.prefix
+                or row["created_at"] != hold.created_at
+                or row["released_at"] != hold.released_at
+                or not isinstance(evidence.get("active"), bool)
+                or evidence["active"] != hold.active
+            ):
+                raise ValueError("inconsistent hold evidence")
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise CatalogSchemaError("Stored legal hold evidence is inconsistent") from exc
+        return hold
+
+    def list_legal_holds(
+        self, *, bucket: str | None = None, key: str | None = None,
+        active_only: bool = False,
+    ) -> list[LegalHold]:
+        self._validate_hold_query(bucket, key)
+        statement = sa.select(legal_holds).order_by(
+            legal_holds.c.created_at, legal_holds.c.hold_id,
+        )
+        with self._connection() as connection:
+            holds = [
+                self._validated_legal_hold(row)
+                for row in connection.execute(statement).mappings()
+            ]
+        if any(hold.tenant_id != self.tenant_id for hold in holds):
+            raise CatalogSchemaError("Stored legal hold tenant is inconsistent")
+        # Filtering decoded evidence preserves alias protection identically on
+        # both databases. Validate every row first: denormalized scope or state
+        # corruption must not make an active hold disappear from enforcement.
+        return [
+            hold for hold in holds
+            if (not active_only or hold.active)
+            and (bucket is None or hold.matches_bucket(bucket))
+            and (key is None or hold.matches(hold.bucket, key))
+        ]
+
+    def release_legal_hold(
+        self, hold_id: str, *, reason: str, context: AuditContext,
+    ) -> LegalHold:
+        if self.read_only:
+            raise PermissionError("cannot release legal holds in a read-only catalog")
+        legal_hold_actor(context)
+        identifier = UUID(str(hold_id))
+        with self._legal_hold_serialization(exclusive=True), self._transaction() as connection:
+            row = connection.execute(sa.select(legal_holds).where(
+                legal_holds.c.hold_id == identifier, legal_holds.c.tenant_id == self.tenant_id,
+            )).mappings().first()
+            if row is None:
+                raise KeyError("Legal hold not found")
+            released = self._validated_legal_hold(row).release(reason=reason, context=context)
+            self._insert_audit_event(connection, self._prepare_audit_event(
+                legal_hold_event(released, context, released=True),
+            ))
+            connection.execute(sa.update(legal_holds).where(
+                legal_holds.c.hold_id == identifier,
+            ).values(evidence=released.to_dict(), released_at=released.released_at))
+        return released
 
     @contextlib.contextmanager
     def _transaction(self, *, audit: bool = True) -> Iterator[Connection]:
@@ -1210,6 +1417,7 @@ class SQLCatalog(Catalog):
             return True
         return False
 
+    @guard_legal_hold("catalog.upsert")
     def upsert(
         self,
         bucket: str,
@@ -1257,6 +1465,7 @@ class SQLCatalog(Catalog):
             move_jobs=self._scan_move_job_fingerprints(jobs),
         )
 
+    @guard_legal_hold("catalog.upsert_scan_observation", scan=True)
     def upsert_scan_observation(
         self,
         bucket: str,
@@ -1614,6 +1823,12 @@ class SQLCatalog(Catalog):
             )
         )
         with self._connection() as connection:
+            held = False
+            for row in connection.execute(sa.select(legal_holds)).mappings():
+                hold = self._validated_legal_hold(row)
+                if hold.tenant_id != self.tenant_id:
+                    raise CatalogSchemaError("Stored legal hold tenant is inconsistent")
+                held = held or hold.active
             rows = connection.execute(statement).mappings()
             try:
 
@@ -1631,6 +1846,7 @@ class SQLCatalog(Catalog):
                                 row["expected_chunk_reference_count"]
                             ),
                             unreferenced_at=row["unreferenced_at"],
+                            legal_hold=held,
                         )
 
                 return build_content_reference_report(
@@ -1641,6 +1857,7 @@ class SQLCatalog(Catalog):
             finally:
                 rows.close()
 
+    @guard_legal_hold("catalog.update_placement")
     def update_placement(self, bucket: str, key: str, tier: str) -> None:
         now = _timestamp()
         with self._transaction(audit=False) as connection:
@@ -1685,6 +1902,7 @@ class SQLCatalog(Catalog):
                 )
             )
 
+    @guard_legal_hold("catalog.upsert_placement")
     def upsert_placement(
         self,
         bucket: str,
@@ -1732,6 +1950,7 @@ class SQLCatalog(Catalog):
                     .values(metadata=metadata, updated_at=now)
                 )
 
+    @guard_legal_hold("catalog.delete")
     def delete(self, bucket: str, key: str) -> None:
         with self._transaction(audit=False) as connection:
             self._lock_object(connection, bucket, key)
@@ -2168,7 +2387,8 @@ class SQLCatalog(Catalog):
                 raise ValueError("cannot prune audit history that fails integrity verification")
             rows = connection.execute(
                 sa.select(audit_events)
-                .where(predicate, audit_events.c.event_type != AuditEventType.AUDIT_RETENTION.value)
+                .where(predicate, audit_events.c.event_type.not_in(LEGAL_HOLD_EVENT_TYPES),
+                       audit_events.c.event_type != AuditEventType.AUDIT_RETENTION.value)
                 .order_by(audit_events.c.occurred_at, audit_events.c.event_id)
                 .limit(limit)
             ).mappings().all()
@@ -2223,7 +2443,8 @@ class SQLCatalog(Catalog):
         return redact_audit_event(
             replace(
                 event,
-                expires_at=self.audit_retention.expires_at(event.occurred_at),
+                expires_at=(None if event.event_type in LEGAL_HOLD_EVENT_TYPES
+                            else self.audit_retention.expires_at(event.occurred_at)),
             ),
             _allow_pseudonyms=allow_pseudonyms,
         )
@@ -2755,6 +2976,7 @@ class SQLCatalog(Catalog):
             )
             return updated
 
+    @guard_legal_hold("catalog.commit_move_job_placement", move=True)
     def commit_move_job_placement(
         self,
         idempotency_key: str,
@@ -3079,6 +3301,7 @@ class SQLCatalog(Catalog):
         }
         return eligible_candidates(tier_definitions.values(), definitions, constraints, now=now)
 
+    @guard_legal_hold("catalog.assign_pool")
     def assign_pool(self, bucket: str, key: str, pool_id: str | None) -> None:
         now = _timestamp()
         with self._transaction(audit=False) as connection:

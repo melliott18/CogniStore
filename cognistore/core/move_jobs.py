@@ -30,8 +30,8 @@ MOVE_JOB_TRANSITIONS = {
     MoveJobState.TRANSFERRED: frozenset(
         {MoveJobState.VERIFIED, MoveJobState.FAILED}
     ),
-    MoveJobState.VERIFIED: frozenset({MoveJobState.COMMITTED}),
-    MoveJobState.COMMITTED: frozenset({MoveJobState.CLEANUP}),
+    MoveJobState.VERIFIED: frozenset({MoveJobState.COMMITTED, MoveJobState.FAILED}),
+    MoveJobState.COMMITTED: frozenset({MoveJobState.CLEANUP, MoveJobState.FAILED}),
     MoveJobState.CLEANUP: frozenset(
         {MoveJobState.COMPLETED, MoveJobState.FAILED}
     ),

@@ -40,6 +40,10 @@ from cognistore.sdk import (
     ImportanceChangeRequest,
     JobFailedError,
     JobStatus,
+    LegalHoldList,
+    LegalHoldReleaseRequest,
+    LegalHoldRequest,
+    LegalHoldResource,
     MimePolicyFeature,
     MovementConstraintsConfig,
     NotFoundError,
@@ -74,6 +78,10 @@ _MODEL_SCHEMA_PAIRS = {
     "CatalogObject": "CatalogObject",
     "PageMetadata": "PageMetadata",
     "CatalogObjectPage": "CatalogObjectPage",
+    "LegalHoldRequest": "LegalHoldRequest",
+    "LegalHoldReleaseRequest": "LegalHoldReleaseRequest",
+    "LegalHoldResource": "LegalHoldResource",
+    "LegalHoldList": "LegalHoldList",
     "AskFiltersRequest": "AskFilters",
     "AskRequest": "AskRequest",
     "ObjectCitationResponse": "ObjectCitation",
@@ -196,6 +204,7 @@ def test_sdk_budget_reason_preserves_unknown_amounts_and_objective_evidence() ->
             "stability_override_kind": None, "rejected_destination_tier": "warm",
             "candidate_action": None, "candidate_destination_tier": None,
             "hysteresis_checks": [],
+            "legal_hold": False, "legal_hold_ids": [],
             "budgets": [{
                 "budget_id": "september", "allowed": False,
                 "binding_constraints": ["carbon_gco2e_unavailable"],
@@ -213,6 +222,111 @@ def test_sdk_budget_reason_preserves_unknown_amounts_and_objective_evidence() ->
     sdk_reason = sdk_models.PolicyReason.model_validate(payload)
     assert sdk_reason.model_dump(mode="json") == payload
     assert sdk_reason.constraints.budgets[0]["after"]["carbon_gco2e"] is None
+
+    payload.update(code="legal_hold", disposition="rejected")
+    payload["constraints"].update(legal_hold=True, legal_hold_ids=[str(_SCAN_JOB_ID)])
+    held_reason = sdk_models.PolicyReason.model_validate(payload)
+    assert held_reason.model_dump(mode="json") == payload
+    assert held_reason.constraints.legal_hold is True
+
+
+@pytest.mark.parametrize("scope", [{"key": "case-62/evidence #1.txt"}, {"prefix": "case-62/"}, {}])
+def test_legal_hold_sdk_lifecycle_matches_api_contract(scope):
+    calls: list[httpx.Request] = []
+    resource = {
+        "schema_version": 1, "hold_id": str(_SCAN_JOB_ID), "tenant_id": "default",
+        "bucket": "records & holds", "key": scope.get("key"), "prefix": scope.get("prefix"),
+        "reason": "Preserve case evidence", "created_at": _NOW.isoformat(),
+        "actor_type": "authenticated", "actor_id": "records-officer",
+        "correlation_id": str(_CORRELATION_ID), "active": True,
+        "released_at": None, "released_reason": None, "released_actor_type": None,
+        "released_actor_id": None, "released_correlation_id": None,
+    }
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert request.headers["Authorization"] == "Bearer sdk-test-token"
+        assert request.headers["Accept"] == "application/json"
+        if request.method == "POST" and request.url.path == "/v1/legal-holds":
+            placed = api_models.LegalHoldRequest.model_validate_json(request.content)
+            assert placed.bucket == resource["bucket"]
+            assert placed.key == resource["key"]
+            assert placed.prefix == resource["prefix"]
+            assert placed.reason == resource["reason"]
+            return httpx.Response(201, json=resource)
+        if request.method == "POST":
+            assert request.url.path == f"/v1/legal-holds/{_SCAN_JOB_ID}/release"
+            released = api_models.LegalHoldReleaseRequest.model_validate_json(request.content)
+            resource.update(
+                active=False, released_at=_NOW.isoformat(), released_reason=released.reason,
+                released_actor_type="authenticated", released_actor_id="records-officer",
+                released_correlation_id=str(_CORRELATION_ID),
+            )
+            return httpx.Response(200, json=resource)
+        assert request.method == "GET"
+        assert request.url.path == "/v1/legal-holds"
+        return httpx.Response(200, json={"schema_version": 1, "items": [resource]})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http_client:
+        with CogniStoreClient(
+            "https://sdk.test", http_client=http_client,
+            default_headers={"Authorization": "Bearer sdk-test-token"},
+        ) as sdk:
+            placed = sdk.place_legal_hold(LegalHoldRequest(
+                bucket="records & holds", reason="Preserve case evidence", **scope,
+            ))
+            assert isinstance(placed, LegalHoldResource)
+            assert placed.active is True
+            active = sdk.list_legal_holds(
+                bucket=placed.bucket, key="case-62/evidence #1.txt", active_only=True,
+            )
+            assert isinstance(active, LegalHoldList)
+            assert active.items == [placed]
+            released = sdk.release_legal_hold(_SCAN_JOB_ID, LegalHoldReleaseRequest(
+                reason="Case closed with release authorization",
+            ))
+            assert released.active is False
+            assert released.released_reason == "Case closed with release authorization"
+            assert released.created_at == placed.created_at
+            assert sdk.list_legal_holds().items == [released]
+    assert dict(calls[1].url.params) == {
+        "bucket": "records & holds", "key": "case-62/evidence #1.txt", "active_only": "true",
+    }
+    assert dict(calls[3].url.params) == {"active_only": "false"}
+
+
+@pytest.mark.parametrize("fields", [
+    {"key": "a", "prefix": "a/"}, {"reason": " \n"}, {"key": ""},
+    {"actor_id": "caller-supplied-actor"},
+])
+def test_legal_hold_sdk_rejects_invalid_request_fields(fields):
+    values = {"bucket": "records", "reason": "Preserve evidence", **fields}
+    with pytest.raises(PydanticValidationError):
+        LegalHoldRequest(**values)
+    with pytest.raises(PydanticValidationError, match="blank"):
+        LegalHoldReleaseRequest(reason="  ")
+
+
+def test_legal_hold_sdk_preserves_hold_conflict_error():
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(409, headers={"X-Request-ID": "hold-conflict"}, json={
+            "schema_version": 1, "request_id": "hold-conflict",
+            "error": {"code": "legal_hold", "message": "Operation blocked by an active legal hold",
+                      "retryable": False},
+        })
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http_client:
+        with CogniStoreClient("https://sdk.test", http_client=http_client) as sdk:
+            with pytest.raises(ValueError, match="requires bucket"):
+                sdk.list_legal_holds(key="case-62/evidence.txt")
+            assert calls == []
+            with pytest.raises(ConflictError) as blocked:
+                sdk.delete_object("hot", "records", "case-62/evidence.txt")
+    assert blocked.value.code == "legal_hold"
+    assert blocked.value.retryable is False
 
 
 def test_default_ask_mode_is_omitted_for_older_strict_v1_servers() -> None:
@@ -1364,6 +1478,11 @@ def test_openapi_operation_ids_and_http_methods_match_sdk_method_coverage() -> N
             "get_catalog_object",
         ),
         "setObjectImportance": ("post", "/v1/catalog/importance", "set_importance"),
+        "placeLegalHold": ("post", "/v1/legal-holds", "place_legal_hold"),
+        "listLegalHolds": ("get", "/v1/legal-holds", "list_legal_holds"),
+        "releaseLegalHold": (
+            "post", "/v1/legal-holds/{hold_id}/release", "release_legal_hold",
+        ),
         "ask": ("post", "/v1/ask", "ask"),
         "evaluatePolicy": (
             "post",

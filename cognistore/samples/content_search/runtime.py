@@ -239,12 +239,13 @@ def load_sample_corpus(
 
     bucket = corpus.manifest.bucket
     for item in corpus.manifest.objects:
-        runtime.drivers[item.tier].put_object(
-            bucket,
-            item.key,
-            corpus.payload_for(item),
-            overwrite=overwrite,
-        )
+        with runtime.catalog.destructive_operation(bucket, item.key, operation="sample.load"):
+            runtime.drivers[item.tier].put_object(
+                bucket,
+                item.key,
+                corpus.payload_for(item),
+                overwrite=overwrite,
+            )
 
     scan_observations = 0
     scanned_coordinates: set[tuple[str, str]] = set()
