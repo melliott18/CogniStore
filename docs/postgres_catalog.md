@@ -65,10 +65,11 @@ reader from silently operating against a partially upgraded catalog.
 
 ## Migration lifecycle
 
-The current migration head is `0011_policy_budgets`. The chain includes the
+The current migration head is `0014_legal_holds`. The chain includes the
 legacy baseline, normalized catalog, audit events, content identity, content
 references, embeddings, tier topology, access events, placement controls, tier
-stability, and policy budgets. The content-identity revision adds global
+stability, policy budgets, tenant ownership, audit integrity, and legal holds.
+The content-identity revision adds global
 content blobs, versioned chunk manifests, ordered manifest chunks, and each
 logical object's active manifest reference. Existing objects are not backfilled
 from legacy `sha256` metadata because that value may cover only a sample; the
@@ -126,6 +127,20 @@ behavioral or topology evidence:
 | `0010_tier_stability` | `last_tier_move_at` for cooldowns. Existing rows use their known placement start, or the migration instant when that history is unknown. |
 | `0011_policy_budgets` | Immutable budget definitions and per-move-attempt reservations. No budgets or charges are inferred for existing placements or jobs. |
 
+The subsequent revisions extend the same chain:
+
+| Revision | Added state and upgrade behavior |
+| --- | --- |
+| `0012_tenant_ownership` | Immutable ownership marker for each catalog partition. Existing unowned catalogs belong to `default`; tenant membership changes do not migrate data. |
+| `0013_audit_integrity` | Append-only integrity ledger and head, with a baseline for existing retained audit events, replay tombstones, and move heads. A baseline does not prove history before it was established. |
+| `0014_legal_holds` | Tenant-owned exact-object, prefix, and bucket hold state and lifecycle evidence; existing catalogs begin with no holds. |
+
+Each tenant partition has its own Alembic version table. Include retained
+partitions absent from the active membership policy in upgrade and backup
+inventories. See [tenancy](tenancy.md), [audit integrity](audit_events.md), and
+[legal holds](legal_holds.md). The tenant-aware cutover steps are in the
+[migration runbook](operator_migrations.md#sqlite-to-postgresql).
+
 See [access history](access_history.md),
 [importance, residency, and tier stability](placement_controls.md), and
 [policy budgets](policy_budgets.md) for the corresponding runtime contracts.
@@ -162,6 +177,18 @@ database, rehearse the target revision, and verify the retained object and move
 data before rollback. Opening a writable catalog with the current application
 after rollback upgrades it again; coordinate the deployed application revision
 with the target schema.
+
+Downgrading below `0014_legal_holds` is refused while **any** legal-hold history
+exists, including released holds. Releasing a hold does not authorize erasing
+its lifecycle evidence. Downgrading below `0013_audit_integrity` removes the
+integrity ledger, head, and database guards; retain verified exports and an
+external checkpoint with the database backup before a planned rollback.
+Re-upgrading establishes a new baseline, not the original integrity history.
+Downgrading below `0012_tenant_ownership` removes the durable owner marker and
+must not be used to transfer a partition to another tenant. The generic
+`create_catalog_engine` example above targets the default partition; for a
+named tenant, operate on its correctly scoped catalog engine under a matching
+tenant context, never an arbitrary SQL search path.
 
 Downgrading below `0011_policy_budgets` is refused while either budget table
 contains rows, including expired definitions or reservations for completed
@@ -216,7 +243,7 @@ Object metadata and placement, normalized tier and pool topology and attributes,
 move-job checkpoints, verification evidence, leases, terminal reasons, every
 move transition, versioned audit events, canonical content manifests, access
 observations, importance, placement clocks, budget definitions, and budget
-reservations are copied.
+reservations, and legal-hold lifecycle state are copied.
 Normalized UUIDs and timestamps are retained. Legacy
 objects receive deterministic UUIDs and the migration timestamp
 `1970-01-01T00:00:00.000000Z`, matching the in-place normalization migration.
@@ -225,6 +252,12 @@ from their move-transition journal during import.
 Current normalized sources must contain `audit_events`, `audit_move_heads`, and
 `audit_event_tombstones`; durable heads and compact replay tombstones are copied
 even when retention already pruned every full event for a move.
+Audit-integrity entries and their head are copied and verified together. Older
+sources without that feature establish a baseline; a current source missing
+either integrity table is rejected. The source's durable tenant owner must
+match the destination; genuinely legacy unowned sources can import only as
+`default`. The destination creates its own ownership marker rather than
+adopting a different source owner.
 The four content-identity tables are likewise an all-or-none topology. Sources
 from before revision `0004_content_identity` import with no canonical mapping;
 current sources retain global blobs, manifests, ordered chunks, and active
@@ -247,7 +280,9 @@ reservation's move, attempt, charge, and evidence. Sources predating budgets
 import with neither. Partial budget tables, inconsistent reservation identities,
 malformed access observations, and incomplete placement-control columns abort
 the entire copy. The import report includes counts for access events, budget
-definitions, and budget reservations; its access count includes expired rows.
+definitions, budget reservations, and legal holds; its access count includes
+expired rows and its hold count includes released history. Invalid hold
+scope, ownership, or lifecycle evidence aborts the copy.
 
 SQLite embedding tables are migration-compatible placeholders, not a supported
 vector store. An otherwise valid SQLite source must have no rows in those six
@@ -333,7 +368,18 @@ SELECT count(*) FROM access_events;
 SELECT expired, count(*) FROM access_events GROUP BY expired;
 SELECT count(*) FROM budget_definitions;
 SELECT count(*) FROM budget_reservations;
+SELECT count(*) FROM legal_holds;
+SELECT released_at IS NULL AS active, count(*) FROM legal_holds
+GROUP BY released_at IS NULL;
+SELECT count(*) FROM audit_integrity_entries;
+SELECT sequence, entry_hash FROM audit_integrity_head;
+SELECT tenant_id FROM catalog_tenant;
 ```
+
+These unqualified queries target the default PostgreSQL schema. For a tenant
+import, run them against that tenant's schema and compare its source backup.
+Also require `catalog.verify_audit_integrity().valid` from the tenant-scoped
+catalog; row counts alone cannot establish integrity.
 
 Spot-check current pool/tier assignments, importance and placement clocks,
 budget charges and their evidence, and nonterminal move jobs as well. In-flight

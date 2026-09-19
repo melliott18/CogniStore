@@ -1,5 +1,9 @@
 # Docker development and integration environment
 
+For a broker-free first installation and coordinated recovery procedures, see
+the [operator lifecycle runbook](operator_lifecycle.md). This page describes
+the disposable multi-service development stack.
+
 The repository contains a repeatable local stack for CogniStore, its
 PostgreSQL/pgvector catalog, durable NATS JetStream queue, and an S3-compatible
 MinIO tier. Docker builds a small runtime image for the worker and a separate
