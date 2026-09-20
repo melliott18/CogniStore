@@ -85,8 +85,87 @@ The object service coordinates only through `StorageDriver` and `CatalogStore`.
 An upload records size, placement, an opaque generation token, and MIME when
 supplied; extraction, checksums, embeddings, and keyword indexing still belong
 to a catalog scan. There is no cross-backend transaction between object bytes
-and the catalog, so a failed catalog publication is reported as a backend
-failure and a later scan is the repair path.
+and the catalog. The mutation ordering and direct retry behavior below bound
+the PUT/DELETE race without making storage and catalog changes atomic.
+
+## Object mutation ordering and retries
+
+API PUT and DELETE acquire a catalog-owned, exclusive mutation fence for the
+authenticated tenant, bucket, and key before inspecting or changing object
+state. The tier is deliberately outside the fence identity: requests for the
+same logical object through different tiers still conflict. The winner keeps
+the fence through backend work and catalog finalization, including a failed
+finalization, and releases it when the operation exits.
+
+A PUT or DELETE that finds the object fence occupied fails immediately with `409 resource_conflict`,
+`error.retryable: true`, and `Retry-After: 1`; it does not invoke the storage
+driver or change object bytes or catalog placement. This applies to PUT/PUT,
+PUT/DELETE, and DELETE/DELETE overlap. Unrelated keys and tenant partitions
+have independent fences. A successful replacement PUT therefore cannot publish
+its catalog row while an older API DELETE still owns that object's fence.
+Once the winner exits, a subsequent request acts on the current state.
+
+The existing legal-hold guard surrounds this fence and can delay a request
+before it reaches the object fence. Holds continue to block
+destructive operations and to serialize hold changes with storage work. Object
+mutation audit records retain their `STARTED` and `SUCCEEDED` or `FAILED`
+outcomes, including rejected overlaps. See [legal holds](legal_holds.md).
+
+| Operation or result | HTTP response and retained state |
+| --- | --- |
+| Successful PUT | `201`; backend bytes and the published catalog record describe the uploaded generation. |
+| Successful DELETE | `204`; backend bytes and the logical catalog record are removed. |
+| DELETE with no catalog record | `404 resource_not_found`; no backend deletion is attempted. A repeated DELETE after a completed deletion has this result. |
+| DELETE whose catalog placement names another tier | `404 resource_not_found`; no backend deletion is attempted. |
+| Conditional backend deletion returns false | `404 resource_not_found`; the catalog row is retained because deletion was not confirmed. |
+| Backend generation changed during conditional deletion | `409 object_generation_changed`, `error.retryable: true`; the catalog row is retained. |
+| DELETE with a matching catalog placement but already-missing backend bytes | `204` after catalog removal; this also completes a retry following backend deletion whose catalog finalization failed. |
+| PUT or DELETE catalog finalization raises | `503 backend_unavailable`, `error.retryable: true`, and `Retry-After`; backend changes may already have completed and are not rolled back. |
+
+After a failed PUT catalog publication, retry with `overwrite=true` (the API
+default) to replace the bytes and publish a new current generation. A retry
+with `overwrite=false` cannot recover while the earlier attempt's bytes remain
+present. After a failed DELETE catalog
+finalization, retrying DELETE removes a residual matching catalog row even if
+the bytes are already absent. If the catalog mutation committed before an
+error was reported, a DELETE retry instead finds no catalog row and returns
+404. A scan remains available to reconcile state when the client does not
+retry.
+
+These are ordinary requests with no replay token or idempotency key. A retry
+uses the then-current object state: a DELETE retry can delete a replacement
+published after the earlier attempt. Clients must decide whether that remains
+their intended action; `Retry-After` does not reserve the object or identify an
+earlier generation.
+
+Cross-process coordination requires updated API workers sharing the same
+persistent catalog, tenant partition, and storage namespace. SQLite uses stable
+lock sidecars beside its database on a filesystem supporting process locks;
+PostgreSQL uses session advisory locks. Separate in-memory catalogs cannot
+coordinate; an in-memory fence covers only workers sharing the same `Catalog`
+instance. PostgreSQL catalog finalization runs in a short transaction on the
+same live session that owns the fence. If that session is lost before
+finalization, the request fails with retryable `503 backend_unavailable`; it
+cannot reconnect and publish or delete catalog state without the original
+fence. No database transaction spans backend I/O.
+
+Backend exclusion requires retaining the lock session throughout storage work.
+Session loss releases the PostgreSQL locks and may admit another request; it
+does not cancel storage calls already in progress or roll back completed byte
+changes. Inspect and reconcile the then-current backend/catalog state before
+recovery if storage work overlaps session loss. A connection failure during
+catalog commit can also leave an uncertain commit outcome, with the retry
+behavior described above.
+
+Quiesce older workers before rolling out this contract. Direct
+backend writers, catalog scans, and move operations do not participate in this
+API mutation fence; their broader concurrency matrix is outside this contract.
+Windows SQLite retains the legal-hold guard's conservative exclusive locking,
+which can serialize requests before object-fence contention is evaluated.
+See [catalog deployment constraints](postgres_catalog.md#api-object-mutation-fences)
+and [the #157 evidence record](evidence/m5/157-put-delete-ordering.md).
+
+## Request limits and metadata
 
 Raw object bodies are consumed incrementally and rejected with 413 as soon as
 the 16 MiB limit is exceeded, including chunked requests without

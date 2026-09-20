@@ -195,6 +195,11 @@ removing a concurrent replacement PUT's catalog record
 restoration, and the target specification can proceed independently. Historical
 feature acceptance does not establish production qualification for this candidate.
 
+The API PUT/DELETE ordering fix's
+[implementation and validation record](evidence/m5/157-put-delete-ordering.md)
+documents the #157 production-pilot release gate separately from the completed
+M1–M4 delivery evidence.
+
 | Work | Ticket | Required before completion |
 | --- | --- | --- |
 | Fix tenant namespace aliases | [#156](https://github.com/melliott18/CogniStore/issues/156) | None; P1 pilot blocker |

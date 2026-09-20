@@ -82,6 +82,8 @@ from .move_jobs import (
 	MoveJobTransition,
 	validate_move_job_transition,
 )
+from .object_mutation_lock import ObjectMutationConflictError as ObjectMutationConflictError
+from .object_mutation_lock import ObjectMutationFence
 from .placement_controls import (
 	ImportanceTag,
 	assert_move_allowed,
@@ -404,6 +406,8 @@ class CatalogStore(Protocol):
 		context: AuditContext | None = None,
 	) -> ContextManager[None]: ...
 
+	def object_mutation(self, bucket: str, key: str) -> ContextManager[None]: ...
+
 	def orphan_cleanup_fence(self) -> ContextManager[None]: ...
 
 	def orphan_cleanup_references(self, bucket: str, key: str) -> List[ObjectRecord]: ...
@@ -676,6 +680,7 @@ class Catalog(CatalogStore):
 		self._budgets: dict[str, BudgetDefinition] = {}
 		self._legal_holds: dict[str, LegalHold] = {}
 		self._legal_hold_fence = LegalHoldFence()
+		self._object_mutation_fence = ObjectMutationFence()
 		self._budget_reservations: dict[tuple[str, str, int], dict[str, Any]] = {}
 		self._object_contents: Dict[tuple[str, str], ObjectContent] = {}
 		self._content_manifests: Dict[tuple[object, ...], ObjectContent] = {}
@@ -830,6 +835,18 @@ class Catalog(CatalogStore):
 			# propagates and still prevents every protected side effect.
 			self.append_audit_event(event)
 			raise LegalHoldError("Operation blocked by an active legal hold")
+
+	@contextmanager
+	def object_mutation(self, bucket: str, key: str) -> Iterator[None]:
+		"""Reserve an API key through backend I/O and catalog finalization.
+
+		Overlaps raise ObjectMutationConflictError before touching storage. The
+		reservation is nonreentrant and independent of tier. SQL catalogs extend
+		this exclusion across handles/processes sharing the tenant catalog.
+		Call inside destructive_operation to enforce the legal-hold check too.
+		"""
+		with self._legal_hold_serialization(), self._object_mutation_fence.hold(bucket, key):
+			yield
 
 	@contextmanager
 	def destructive_operation(

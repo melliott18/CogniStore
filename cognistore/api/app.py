@@ -45,6 +45,7 @@ from cognistore.auth.principal import principal_context
 from cognistore.auth.tenancy import TenantIsolationError, TenantResolver, tenant_context
 from cognistore.budget_telemetry import budget_metrics_response
 from cognistore.core.legal_holds import LegalHoldError
+from cognistore.core.object_mutation_lock import ObjectMutationConflictError
 from cognistore.drivers.namespaces import InvalidStorageNamespaceError
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
@@ -643,6 +644,19 @@ def create_app(
             status_code=409,
             code="resource_conflict",
             message="The requested resource already exists",
+        )
+
+    @app.exception_handler(ObjectMutationConflictError)
+    async def object_mutation_conflict(
+        request: Request, _exc: ObjectMutationConflictError
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=409,
+            code="resource_conflict",
+            message="An object mutation is already in progress",
+            retryable=True,
+            headers={"Retry-After": "1"},
         )
 
     @app.exception_handler(ObjectGenerationMismatchError)

@@ -24,6 +24,56 @@ assignment also use `CatalogStore` on every backend. See
 multi-pool configuration, and the distinction between current placement
 references and retained move-journal names.
 
+## API object mutation fences
+
+API PUT and DELETE use `CatalogStore.object_mutation` to reject overlapping
+mutations of one tenant/bucket/key before backend work begins. The exclusive
+fence spans both the backend change and catalog finalization; tier is not part
+of its identity. Contenders fail immediately, allowing clients to retry under
+the [REST mutation contract](rest_api.md#object-mutation-ordering-and-retries).
+The fence does not add a database transaction around storage I/O or roll back
+backend changes if catalog finalization fails.
+
+PostgreSQL uses a nonblocking session advisory lock. The API retains it on the
+same connection as the surrounding shared legal-hold guard, so the object's
+mutation fence and hold protection have the same session lifetime. Database
+operations remain short transactions, and unrelated keys and tenant partitions
+have distinct lock identities. While the object is reserved, its catalog
+upsert or deletion finalizes in a short transaction on that same live session.
+If the session is lost before finalization, publication fails rather than
+reconnecting or using another connection without the original locks. The API
+reports a retryable `503 backend_unavailable`. No database transaction spans
+backend I/O.
+
+Excluding competing backend work requires that session to remain live for the
+whole storage operation. Session loss releases its advisory locks and may
+admit another request; it neither cancels storage calls already in progress nor
+undoes completed storage changes. Inspect and reconcile current backend and
+catalog state after such partial completion. A connection loss during commit
+may leave its outcome uncertain. PUT recovery requires `overwrite=true` (the
+API default); DELETE retry uses the current catalog placement and may finish
+removal when bytes are already absent. These are new attempts, not replay of a
+previous generation. See the REST retry contract before retrying an operation
+whose intended target may have changed.
+
+SQLite uses nonblocking process locks on stable, hashed sidecar paths beside
+the resolved catalog database. Every worker must share the database and its
+lock-file namespace on a filesystem that supports these locks. Keep sidecars
+in place while workers run: unlinking a lock file can let different workers
+lock different files for the same logical object. The hash avoids placing raw
+bucket/key names in lock filenames. In-memory catalogs coordinate only callers
+that share the same `Catalog` instance.
+SQLite on Windows retains the surrounding legal-hold guard's exclusive CRT
+lock fallback: requests can wait there before reaching the nonblocking object
+fence, including requests for unrelated keys.
+
+Quiesce old API workers before starting the updated worker set; older binaries
+do not take the object fence. Use a common catalog partition and storage
+namespace for all workers serving that tenant. This fence is specific to API
+PUT/DELETE. Direct backend writes, scans, and moves are outside its ordering
+guarantee. The existing legal-hold guard and its broader protection remain in
+force. No catalog migration is introduced for this lock contract.
+
 ## Provision a clean PostgreSQL catalog
 
 Create a dedicated database and role using the normal controls for the target
