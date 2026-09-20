@@ -91,6 +91,18 @@ jobs:
       - name: Install project and development tools
         run: python -m pip install --editable ".[dev,azure]"
 
+      - name: Record test runtime and configuration
+        run: |
+          mkdir -p test-results
+          {
+            git rev-parse HEAD
+            python --version
+            uname -a
+            printf 'run_id=%s\nrun_attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+          } > test-results/runtime.txt
+          python -m pip freeze > test-results/requirements.txt
+          cp pyproject.toml test-results/pyproject.toml
+
       - name: Run unit and conformance tests
         run: |
           mkdir -p test-results
@@ -155,6 +167,13 @@ jobs:
           docker logs cognistore-azurite || true
           exit 1
 
+      - name: Record integration service image identities
+        if: ${{ !cancelled() && steps.integration_services.outcome == 'success' }}
+        run: |
+          docker inspect --format '{{.Name}} {{.Config.Image}} {{.Image}}' \
+            cognistore-nats cognistore-minio cognistore-postgres cognistore-azurite \
+            > test-results/service-images.txt
+
       - name: Run integration tests
         if: ${{ !cancelled() && steps.integration_services.outcome == 'success' }}
         run: |
@@ -181,7 +200,7 @@ jobs:
           name: test-reports-python-${{ matrix.python-version }}
           path: |
             coverage.xml
-            test-results/*.xml
+            test-results/
           if-no-files-found: warn
           retention-days: 14
 
@@ -213,9 +232,25 @@ jobs:
       - name: Install project and development tools
         run: python -m pip install --editable ".[dev]"
 
+      - name: Record test runtime and configuration
+        run: |
+          mkdir -p test-results
+          {
+            git rev-parse HEAD
+            python --version
+            uname -a
+            printf 'run_id=%s\nrun_attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+          } > test-results/runtime.txt
+          python -m pip freeze > test-results/requirements.txt
+          cp pyproject.toml test-results/pyproject.toml
+
       - name: Build and start pinned GCS emulator
         run: |
+          docker compose -f docker-compose.gcs.yml config > test-results/gcs-compose.yml
           docker compose -f docker-compose.gcs.yml up --detach --build
+          docker image inspect --format '{{.Id}} {{json .RepoDigests}} {{.Os}}/{{.Architecture}}' \
+            "$(docker compose -f docker-compose.gcs.yml images --quiet gcs)" \
+            > test-results/gcs-image.txt
           for _attempt in {1..30}; do
             if curl --fail --silent "http://127.0.0.1:4443/storage/v1/b" >/dev/null; then
               exit 0
@@ -230,6 +265,15 @@ jobs:
         # precondition bug. The deterministic protocol suite and opt-in live
         # validation also exercise that condition without an expected failure.
         run: python -m pytest tests/integration/test_gcs.py --junitxml=test-results/gcs.xml
+
+      - name: Upload GCS test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gcs-emulator-test-reports
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Show emulator logs after a failure
         if: ${{ failure() }}
@@ -262,8 +306,32 @@ jobs:
       - name: Install project and development tools
         run: python -m pip install --editable ".[dev,azure]"
 
+      - name: Record test runtime and configuration
+        run: |
+          mkdir -p test-results
+          {
+            git rev-parse HEAD
+            python --version
+            uname -a
+            printf 'run_id=%s\nrun_attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+          } > test-results/runtime.txt
+          python -m pip freeze > test-results/requirements.txt
+          cp pyproject.toml test-results/pyproject.toml
+
       - name: Run documented default full-suite command
+        env:
+          # Preserve the documented command and pyproject's -rA skip/xfail output.
+          PYTEST_ADDOPTS: --junitxml=test-results/default.xml
         run: python -m pytest
+
+      - name: Upload default full-suite test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: default-full-suite-test-reports
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 30
 
   build:
     name: Build and install package
