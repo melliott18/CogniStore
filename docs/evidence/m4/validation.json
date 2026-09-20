@@ -1,0 +1,527 @@
+{
+  "accepted_local_date": "2026-09-19",
+  "recorded_at_utc": "2026-09-20T01:57:36.459361+00:00",
+  "qualified_application_revision": "ad20be8fa1d1f00224064d65324527d2a200dc52",
+  "source_change_scope": "Documentation, retained evidence, and exact Gitleaks false-positive fingerprints only; application and test sources unchanged.",
+  "platform": "macOS-14.8.7-arm64-arm-64bit-Mach-O",
+  "python": "3.13.7",
+  "validation_environment": "Fresh isolated CPython 3.13.7 venv with editable qualified checkout; no repository Anaconda venv used for passing results.",
+  "default": {
+    "command": "python -m pytest --cov=cognistore --cov-report=xml:coverage.xml --junitxml=default.xml",
+    "exit_code": 0,
+    "tests": 5483,
+    "passed": 5192,
+    "skipped": 291,
+    "xfailed": 0,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 108,
+    "combined_statement_branch_coverage_percent": 86.9,
+    "coverage_gate_percent": 80,
+    "limitations": "291 skips include opt-in service/live tests and four native-libmagic tests; unclosed SQLite connection ResourceWarnings retained."
+  },
+  "integration": {
+    "command": "python -m pytest tests/integration --junitxml=integration.xml",
+    "exit_code": 0,
+    "tests": 423,
+    "passed": 391,
+    "skipped": 31,
+    "xfailed": 1,
+    "failures": 0,
+    "errors": 0,
+    "environment": {
+      "COGNISTORE_NATS_URL": "nats://127.0.0.1:4222",
+      "COGNISTORE_MINIO_ENDPOINT_URL": "http://127.0.0.1:9000",
+      "COGNISTORE_MINIO_ACCESS_KEY": "cognistore",
+      "COGNISTORE_MINIO_SECRET_KEY": "cognistore-development-only",
+      "COGNISTORE_MINIO_REGION": "us-east-1",
+      "COGNISTORE_TEST_POSTGRES_DSN": "postgresql://cognistore:cognistore-development-only@127.0.0.1:55432/cognistore",
+      "COGNISTORE_AZURITE_CONNECTION_STRING": "Public emulator-only connection string in docker-compose.yml; BlobEndpoint=http://127.0.0.1:10000/cognistore",
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT": "http://127.0.0.1:4443"
+    },
+    "limitations": "27 live Azure + one live GCS case skipped; three unsupported range-write capability skips; one strict expected failure for fake-gcs-server media GET generation precondition."
+  },
+  "invalidated_initial_attempt": {
+    "result": "Interrupted, not accepted evidence",
+    "reason": "Parallel observability cleanup inadvertently stopped and removed the dedicated integration service containers/volumes while tests were running, causing connection errors. Services were recreated and entire integration suite rerun successfully.",
+    "retained": [
+      "integration-interrupted.xml.gz",
+      "integration-interrupted.log.gz"
+    ]
+  },
+  "operator": {
+    "command": "python scripts/operator_drills.py --workspace <unused-workspace> --evidence <unused-directory>/operator-drill.json",
+    "result": "passed",
+    "assertions": 37,
+    "commands": 19,
+    "source": "clean qualified revision",
+    "artifact": "operator-current/operator-drill.json.gz"
+  },
+  "quality_report": "quality/report.json",
+  "operations_report": "operations/review.json",
+  "hosted_ci": {
+    "result": "blocked before job startup",
+    "reason": "Account payments/spending limit",
+    "runs": [
+      "https://github.com/melliott18/CogniStore/actions/runs/35472317005",
+      "https://github.com/melliott18/CogniStore/actions/runs/35472316956",
+      "https://github.com/melliott18/CogniStore/actions/runs/35469369295"
+    ],
+    "terraform_acceptance_exception": "Prior owner authorization for local checks during billing block is explicitly recorded in merged PR #150; same resource-free verification script passed afresh locally."
+  },
+  "historical_kubernetes": {
+    "source": "test-results/ticket-71/kubernetes",
+    "profile": "kind v1.34.0; development security profile with API authentication disabled; synthetic data",
+    "summary": "kubernetes-historical/summary.json",
+    "runtime_image_id": "sha256:a875c8b5a7ca47ae4aa6c307cb163c7b340e3910dbde8243589b338e2b0ecf3e",
+    "limitation": "Actual PR #148 campaign predates later runtime changes. Current chart equivalent and harness unchanged; not a fresh final-revision cluster campaign."
+  },
+  "retained_reports": [
+    {
+      "path": "ci-annotations.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/ci-annotations.json",
+      "original_bytes": 438,
+      "original_sha256": "346361c89f19e968bb45d430906c71945a1449bbc0c057987fdc25284507f2e9",
+      "retained_sha256": "346361c89f19e968bb45d430906c71945a1449bbc0c057987fdc25284507f2e9"
+    },
+    {
+      "path": "operations/review.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/review.json",
+      "original_bytes": 16238,
+      "original_sha256": "58ad79d422c75026e8cc41debf299090e20ea35424747f2060971f87dfc6f320",
+      "retained_sha256": "58ad79d422c75026e8cc41debf299090e20ea35424747f2060971f87dfc6f320"
+    },
+    {
+      "path": "operations/terraform-summary.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform-summary.json",
+      "original_bytes": 3308,
+      "original_sha256": "853f4ee33c09958e6da6a0064f6a7f55204f83e9686e35c9fe8d5085b69992fa",
+      "retained_sha256": "853f4ee33c09958e6da6a0064f6a7f55204f83e9686e35c9fe8d5085b69992fa"
+    },
+    {
+      "path": "operations/m1-slo-evaluation.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/m1-slo-evaluation.json",
+      "original_bytes": 9321,
+      "original_sha256": "25f3167ebc63216f6bfcf0de2457bad2b534d0a2cb3e586ffbad54d76254c272",
+      "retained_sha256": "25f3167ebc63216f6bfcf0de2457bad2b534d0a2cb3e586ffbad54d76254c272"
+    },
+    {
+      "path": "operations/helm.xml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/helm.xml",
+      "original_bytes": 3706,
+      "original_sha256": "56ffa1795a6e2d01afb77af0896053868a093997ee273d40efa5fb056a5b1fb3",
+      "retained_sha256": "56ffa1795a6e2d01afb77af0896053868a093997ee273d40efa5fb056a5b1fb3"
+    },
+    {
+      "path": "operations/observability.log",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/observability.log",
+      "original_bytes": 456,
+      "original_sha256": "9222603b73bdabae66e3024d8831ee1b9ca247756f6d83949680c9442b4f05db",
+      "retained_sha256": "9222603b73bdabae66e3024d8831ee1b9ca247756f6d83949680c9442b4f05db"
+    },
+    {
+      "path": "operations/terraform/terraform-test.json.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/terraform-test.json",
+      "original_bytes": 88434673,
+      "original_sha256": "eada0c414d92007ba78e55255042a82a71c19f056fb55d50a793441a8bcceb44",
+      "retained_sha256": "557ed770cec7f75d182cac4e643a946a090634b82954f652163f1b5f1166452f"
+    },
+    {
+      "path": "operations/terraform/storage-class.yaml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/storage-class.yaml",
+      "original_bytes": 288,
+      "original_sha256": "1cac9460ca6657f782e9b65c1883780a0203044f9f9c6339f86c7eb4fc610438",
+      "retained_sha256": "1cac9460ca6657f782e9b65c1883780a0203044f9f9c6339f86c7eb4fc610438"
+    },
+    {
+      "path": "operations/terraform/migration-network-policy.yaml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/migration-network-policy.yaml",
+      "original_bytes": 884,
+      "original_sha256": "51c2bd220ac4896d7bc52667697c86b3bc88ba06eba790c5069dab64a9ca03e3",
+      "retained_sha256": "51c2bd220ac4896d7bc52667697c86b3bc88ba06eba790c5069dab64a9ca03e3"
+    },
+    {
+      "path": "operations/terraform/validate.log",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/validate.log",
+      "original_bytes": 38,
+      "original_sha256": "f7997225125835fdd14060ac776d273f394b874f9a481b9e2122c83dc8adc5c1",
+      "retained_sha256": "f7997225125835fdd14060ac776d273f394b874f9a481b9e2122c83dc8adc5c1"
+    },
+    {
+      "path": "operations/terraform/helm-lint.log",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/helm-lint.log",
+      "original_bytes": 141,
+      "original_sha256": "6f68933f211e2b4897d4825dffe02da0c7ce57697248a1cc62a252303d020d14",
+      "retained_sha256": "6f68933f211e2b4897d4825dffe02da0c7ce57697248a1cc62a252303d020d14"
+    },
+    {
+      "path": "operations/terraform/helm-rendered.yaml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/helm-rendered.yaml",
+      "original_bytes": 25850,
+      "original_sha256": "a4ebd5762e65dd5f5b639a58b4318f450db59196e941606f888f93d551f8472b",
+      "retained_sha256": "a4ebd5762e65dd5f5b639a58b4318f450db59196e941606f888f93d551f8472b"
+    },
+    {
+      "path": "operations/terraform/drivers.yaml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/drivers.yaml",
+      "original_bytes": 362,
+      "original_sha256": "f3d066d58d8cf5c2855a95ff3e2f1fc7164f2b00488319076db6b2ee222e6047",
+      "retained_sha256": "f3d066d58d8cf5c2855a95ff3e2f1fc7164f2b00488319076db6b2ee222e6047"
+    },
+    {
+      "path": "operations/terraform/helm-values.yaml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/helm-values.yaml",
+      "original_bytes": 3463,
+      "original_sha256": "85439df6acfcc3055222593b20a4bdf2a53053158725a3d8a8950737b3c328a0",
+      "retained_sha256": "85439df6acfcc3055222593b20a4bdf2a53053158725a3d8a8950737b3c328a0"
+    },
+    {
+      "path": "operations/terraform/init.log",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/init.log",
+      "original_bytes": 248,
+      "original_sha256": "e0559749d081721c52a17ab3c1318dbc3909477402efd16d96cf359a08122718",
+      "retained_sha256": "e0559749d081721c52a17ab3c1318dbc3909477402efd16d96cf359a08122718"
+    },
+    {
+      "path": "operations/terraform/terraform.xml",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operations/terraform/terraform.xml",
+      "original_bytes": 3619,
+      "original_sha256": "e8833eded7e444f7c02864b5a1abb7e3103272d17962c5756795145ee477108b",
+      "retained_sha256": "e8833eded7e444f7c02864b5a1abb7e3103272d17962c5756795145ee477108b"
+    },
+    {
+      "path": "kubernetes-historical/helm-history.json",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/helm-history.json",
+      "original_bytes": 489,
+      "original_sha256": "12985ce3c610a5a55c80620c87bcdcc73a41afbd3fe1d3827e11872178f2d72b",
+      "retained_sha256": "12985ce3c610a5a55c80620c87bcdcc73a41afbd3fe1d3827e11872178f2d72b"
+    },
+    {
+      "path": "kubernetes-historical/summary.json",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/summary.json",
+      "original_bytes": 1191,
+      "original_sha256": "586245057050216debeb222e793869d1e18956e34abb624b3b27e0e7be6a7738",
+      "retained_sha256": "586245057050216debeb222e793869d1e18956e34abb624b3b27e0e7be6a7738"
+    },
+    {
+      "path": "kubernetes-historical/autoscaling.json",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/autoscaling.json",
+      "original_bytes": 55973,
+      "original_sha256": "484eb947482ca19ba8457b2b34a3f6c62baf9169c752a8772945430dadf174cd",
+      "retained_sha256": "484eb947482ca19ba8457b2b34a3f6c62baf9169c752a8772945430dadf174cd"
+    },
+    {
+      "path": "kubernetes-historical/events.txt.gz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/events.txt",
+      "original_bytes": 39547,
+      "original_sha256": "8a2010cffbc76d5b5b2e02576dd12778f0b91f7aa8e50b80b99a4eb97823e89b",
+      "retained_sha256": "a8351b5c49a7ef6f41c8ff995d34bed9be5e8b3c833e5159abced8b32c5e943f"
+    },
+    {
+      "path": "kubernetes-historical/acceptance.log.gz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/acceptance.log",
+      "original_bytes": 10684,
+      "original_sha256": "6a3cd40edf925c1e344a9178865f45abf87cb8a8a42cdb71162fe2fe2171ac05",
+      "retained_sha256": "bac829148cdb5db5494f095f3a6f1cd11db37d0c2966e929cccdb9b441d6d7b5"
+    },
+    {
+      "path": "kubernetes-historical/invariants.json",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/invariants.json",
+      "original_bytes": 1809,
+      "original_sha256": "83870ed762766700588548b88de063c8efd52302acf38b54eea3c4e6c08d716b",
+      "retained_sha256": "83870ed762766700588548b88de063c8efd52302acf38b54eea3c4e6c08d716b"
+    },
+    {
+      "path": "kubernetes-historical/application.log.gz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/application.log",
+      "original_bytes": 651558,
+      "original_sha256": "1d4a6b8c2e9b6f205a6b4c16f95d30cb638166838daf880ca0e26ff3a8208673",
+      "retained_sha256": "3ba4dd9977b2b003c509da2300b4b7060a3911367e13400d3ab5054d634e2d4d"
+    },
+    {
+      "path": "kubernetes-historical/cognistore-0.1.0.tgz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/cognistore-0.1.0.tgz",
+      "original_bytes": 7468,
+      "original_sha256": "e6942f854aacc8852c72cd64bd490a39e657940166118dd51065cd43e170be34",
+      "retained_sha256": "e6942f854aacc8852c72cd64bd490a39e657940166118dd51065cd43e170be34"
+    },
+    {
+      "path": "kubernetes-historical/hpa.txt.gz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/hpa.txt",
+      "original_bytes": 6161,
+      "original_sha256": "5ae25253be6a15a8d08243eb12e036b2b1cc5da727589a0fa9636c06b9211fc7",
+      "retained_sha256": "3912ca5f32eee8e90da463947338d37ef5f01e534fbc7e1d5da4eb86504e8395"
+    },
+    {
+      "path": "kubernetes-historical/resources.txt.gz",
+      "source": "/Users/mitchell/Projects/CogniStore/test-results/ticket-71/kubernetes/resources.txt",
+      "original_bytes": 6176,
+      "original_sha256": "425b993267eea27d4423433fa5125a78310357d1298200e479ce94c643580d88",
+      "retained_sha256": "aab99cb4c668c52d0871324d73d041b98d98ee66bc56cd93069d6403fea7651c"
+    },
+    {
+      "path": "operator-current/operator-drill.source-sha256.json.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operator/operator-drill.source-sha256.json",
+      "original_bytes": 19901,
+      "original_sha256": "3cb086ae4f92beea2531d78ab6bbc796f5a7cf99f721a9640797f95f137e992d",
+      "retained_sha256": "ca5b3c988064a8128d2877210fe178b827f2f8a85db8a44df45e96a354856782"
+    },
+    {
+      "path": "operator-current/operator-drill.json.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operator/operator-drill.json",
+      "original_bytes": 31900,
+      "original_sha256": "86bb54c6dacc02e7cfdf83dacaddd1cda2aaaf9d3bbbbb20b19dcad0c841c170",
+      "retained_sha256": "526f20e519a52497f3528dd042487bbc77c9ae9313b16785b03de4a23a510f22"
+    },
+    {
+      "path": "operator-current/operator-drill.install.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operator/operator-drill.install.log.gz",
+      "original_bytes": 2802,
+      "original_sha256": "4c15539426fcee13ee829cf760fd408031150adfd5190c8b528eaf7c329835ad",
+      "retained_sha256": "4c15539426fcee13ee829cf760fd408031150adfd5190c8b528eaf7c329835ad"
+    },
+    {
+      "path": "operator-current/operator-drill.requirements.txt",
+      "source": "/tmp/cognistore-m4-closeout-20260920/operator/operator-drill.requirements.txt",
+      "original_bytes": 1178,
+      "original_sha256": "f3eb7b471ba56fba615db1b5b8aad6b5628f3c5079560b38d32b3557a83e82c9",
+      "retained_sha256": "f3eb7b471ba56fba615db1b5b8aad6b5628f3c5079560b38d32b3557a83e82c9"
+    },
+    {
+      "path": "quality/report.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/report.json",
+      "original_bytes": 6954,
+      "original_sha256": "582c82aa86c62a4fd0e3127ca062f0f2d505f1e39061bcc4f8094a367c2b1426",
+      "retained_sha256": "fa8c0c19427828b6e0c3887be207d9b3f091d46e1590bb724b4b4f93e834b4b9",
+      "note": "Added retained_log paths; original local report remains identified by original_sha256."
+    },
+    {
+      "path": "quality/gitleaks-triage.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-triage.json",
+      "original_bytes": 9777,
+      "original_sha256": "69095f522f8db44bb80c9cfffa8cf6689e352afd1b9463f624cc19c242118603",
+      "retained_sha256": "69095f522f8db44bb80c9cfffa8cf6689e352afd1b9463f624cc19c242118603"
+    },
+    {
+      "path": "quality/logs/gitleaks-negative-control.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-negative-control.log",
+      "original_bytes": 79,
+      "original_sha256": "7b2ef37ecff09b1b21eb5dea5f7d4f0f03f686f8f4f4d6ee766f3de261edceb0",
+      "retained_sha256": "2cc3a236f57743e5c621fb818b6003699474a027e574fd2c542e24650f9fe5a8"
+    },
+    {
+      "path": "quality/logs/openapi.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/openapi.log",
+      "original_bytes": 50,
+      "original_sha256": "fa42c41d48e608ec340703993e970490f2b19f8dcd321a88078c3edfd1d1e6f4",
+      "retained_sha256": "d8cc0deb2d668146170dab384ba25136b4ac31d2823b49bcd12cb3ab1e75fd29"
+    },
+    {
+      "path": "quality/logs/bandit.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/bandit.log",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retained_sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+    },
+    {
+      "path": "quality/logs/pip-upgrade.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/pip-upgrade.log",
+      "original_bytes": 456,
+      "original_sha256": "61cbeae18df931299cb75552eb6bc286d0e95274dc53cf077b858fc7e9300b8c",
+      "retained_sha256": "96d3c836023c4d1f30f471b9fdd806e58392a9f26aa469b0f5631089ec05b091"
+    },
+    {
+      "path": "quality/logs/gitleaks-history-policy.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-history-policy.log",
+      "original_bytes": 111,
+      "original_sha256": "d97a756279c92a1b78a53d60ad9ecbdc1bd1375d7d27cb305606edfa0fed36d5",
+      "retained_sha256": "2858ff8113f1ef8a39fc5dbe37d183a8b0522b47391121a1b3cf718e4ac9b577"
+    },
+    {
+      "path": "quality/logs/audit-environment.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-environment.log",
+      "original_bytes": 7580,
+      "original_sha256": "0f29adb316c29272625379cb4df3b8b0e56c7e8ab5e6d0dd39c0b00bdd19a7f3",
+      "retained_sha256": "fe52f6c160a8f02cfd8888ae738b22f1d921e36c0086bb4d7ecaff6a397fb9c2"
+    },
+    {
+      "path": "quality/logs/wheel-install.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/wheel-install.log",
+      "original_bytes": 13767,
+      "original_sha256": "8221de1d27a0d2f4f6fe6d2a5d1fcff80146471cba2cb708522b47ec3c4f53e8",
+      "retained_sha256": "c525e2ddf99bf8dec63dead3b421ab688c6a7102385bc2ff546a0dc3dbd284f2"
+    },
+    {
+      "path": "quality/logs/twine.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/twine.log",
+      "original_bytes": 195,
+      "original_sha256": "1189208e9885ea63c9c12725d1a045a531f2abbf5f31186f465b03ce2ef5eb67",
+      "retained_sha256": "abfa132292cdf92682bb59be2b8ecc937e1eb9fb3a1d2c546c9c72b2db9d8670"
+    },
+    {
+      "path": "quality/logs/gitleaks-policy.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-policy.log",
+      "original_bytes": 79,
+      "original_sha256": "9bd2146da475788f83bccf04031cdda5eead4e1f0c09e4333ff64b00757a9d07",
+      "retained_sha256": "eb5c1fd7737f379f472d8e7a574549e3fa94d390a3df090347c4fe0649be2690"
+    },
+    {
+      "path": "quality/logs/audit-environment-updated.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-environment-updated.log",
+      "original_bytes": 140,
+      "original_sha256": "e1ec6003f01f6a8ac72d7acd484ef5c6f41388b900de71c91a880505823fba14",
+      "retained_sha256": "a4dd49e642438955e8098a7e420f71a7e393da7f0adba547157dff0294342d00"
+    },
+    {
+      "path": "quality/logs/wheel-smoke.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/wheel-smoke.log",
+      "original_bytes": 7172,
+      "original_sha256": "2be55c4529074226dfbc25a6b2951d48f77589cbd5a38973a7fe9dff4ea44c04",
+      "retained_sha256": "4aee9b7115dd33c414c1e42d04888054c94dfb60bb64ade04eca121552ca857d"
+    },
+    {
+      "path": "quality/logs/gitleaks-history.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-history.log",
+      "original_bytes": 112,
+      "original_sha256": "0928b6459876bb45d7342a4504ef514bce176d2d94244b711c7e52e5ad68139e",
+      "retained_sha256": "d931fe1430ba19cea8388c257561df2cb657b22ff9437f65ab8683bb068bb3cc"
+    },
+    {
+      "path": "quality/logs/mypy.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/mypy.log",
+      "original_bytes": 45,
+      "original_sha256": "88ba87cf0c22fa443ee78833e01c40d90f000074de7356b231a8abbaec85ca25",
+      "retained_sha256": "97e8500fdbfcc050bf0582c0dd85b114bc9a0f7f627fe487fd8142a4f0d598c4"
+    },
+    {
+      "path": "quality/logs/ruff.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/ruff.log",
+      "original_bytes": 19,
+      "original_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "retained_sha256": "7162964741fdb747d7ab27df2d1a1b64fa0636c4b7fe50ea8493de14cb62cbd4"
+    },
+    {
+      "path": "quality/logs/gitleaks.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks.log",
+      "original_bytes": 80,
+      "original_sha256": "47b3e46e4b6628c5a3691c64da247ec29e6e3d54252d0bbbcf7073729ce542f1",
+      "retained_sha256": "a9c4f960b81f51316308d4d9ae3cbf05d514e73b653e264a488c8f8b9dc8b077"
+    },
+    {
+      "path": "quality/logs/audit-project.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-project.log",
+      "original_bytes": 31,
+      "original_sha256": "15950a68a7ed99c59779717acefdceb3f69cfd31bde67d2c954f2a3cea4d7955",
+      "retained_sha256": "af7cf8efa562f6d48cb2b46fbdbeaf3ea2b29fb9b07a697f7c9560da2009698e"
+    },
+    {
+      "path": "quality/logs/build.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/logs/build.log",
+      "original_bytes": 64969,
+      "original_sha256": "793273655f8dee156cb9b274e98d6110730e239753575af4281362c0a95815d0",
+      "retained_sha256": "05f0c443220812470a6f628937167939d5ec6c91c78ac7d618e83951df5195d4"
+    },
+    {
+      "path": "default.xml.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/default.xml",
+      "original_bytes": 891896,
+      "original_sha256": "40fb2726546e2034a5410c669068df6b2d76476f3af6bb6b4b2c171ca350395d",
+      "retained_sha256": "121c15f8ed43a43a38fa3a1616ff08d56572d5f48e9d4f466bd9967ac42311af"
+    },
+    {
+      "path": "coverage.xml.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/coverage.xml",
+      "original_bytes": 1411466,
+      "original_sha256": "6fd4c9d371b160c816768674c239be08751545e4c78980beb4fca8980231dc51",
+      "retained_sha256": "0962f0730332f817aaf18e2a714410868412c1f1e034a3bd8f0e4147e553cf28"
+    },
+    {
+      "path": "default.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/default.log",
+      "original_bytes": 1521455,
+      "original_sha256": "a34791bcd08074fd9cf6f82a0a48b99c3fd0853ade99f971b1f83dda8268671f",
+      "retained_sha256": "2d95de7ef673ac2ee69748b567acd20a4ff9d333dd73d200a273c307798dc25c"
+    },
+    {
+      "path": "integration-interrupted.xml.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/integration-interrupted.xml",
+      "original_bytes": 1510796,
+      "original_sha256": "bd1f9295b421d16ce18b361afe6c79a4ddc91abe9e95ee38b8044aa4a5c24372",
+      "retained_sha256": "5a01825805a73ffdf780eff472870cf577259bd0020abe9dc57bd93cf28b5d39"
+    },
+    {
+      "path": "integration-interrupted.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/integration-interrupted.log",
+      "original_bytes": 1548337,
+      "original_sha256": "9fa80a6aa83e9d4e5e226366c29d915849563ad57a9ab26e0c86d7cd13442c98",
+      "retained_sha256": "fd9c1952b7aa8a820078c7745a6d0304c965a39dac295b30ba73bc5bd45eb910"
+    },
+    {
+      "path": "requirements.txt",
+      "retained_sha256": "bd09cb576cd260548e3ace2215ed611d531db45f99b8b0561c73c972ea11f5ba"
+    },
+    {
+      "path": "integration.xml.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/integration.xml",
+      "original_bytes": 75051,
+      "original_sha256": "cbfa36f14474e7a8187b049402e303ea75428fccc869a7040de8092b94a8e190",
+      "retained_sha256": "6b298fa1c06d023fb35b031a021943b5e427749218741252a489ba2b2000d60e"
+    },
+    {
+      "path": "integration.log.gz",
+      "source": "/tmp/cognistore-m4-closeout-20260920/integration.log",
+      "original_bytes": 119120,
+      "original_sha256": "47484b5e0f8c8aca0a0af1b37ea6873b3c3a8c4a6d9d9fa4876978a1a3e5d553",
+      "retained_sha256": "18e8ba30809dcf800e8f7b7da68157903197e6cd24911ec171ac0315f2c3f2ca"
+    },
+    {
+      "path": "kubernetes-ci-annotations.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/kubernetes-ci-annotations.json",
+      "original_bytes": 438,
+      "original_sha256": "346361c89f19e968bb45d430906c71945a1449bbc0c057987fdc25284507f2e9",
+      "retained_sha256": "346361c89f19e968bb45d430906c71945a1449bbc0c057987fdc25284507f2e9"
+    },
+    {
+      "path": "terraform-ci-annotations.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/terraform-ci-annotations.json",
+      "original_bytes": 438,
+      "original_sha256": "09d82bb44a992cd6c910f57ec7328e0b7404d973f08c21c6cbb22e713791d693",
+      "retained_sha256": "09d82bb44a992cd6c910f57ec7328e0b7404d973f08c21c6cbb22e713791d693"
+    },
+    {
+      "path": "quality/gitleaks.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks.json",
+      "original_bytes": 6749,
+      "original_sha256": "b2a14e6da24beebf455dd25d822cfb5a33fd18099b0f23775a91d9df289f33c1",
+      "retained_sha256": "b2a14e6da24beebf455dd25d822cfb5a33fd18099b0f23775a91d9df289f33c1"
+    },
+    {
+      "path": "quality/gitleaks-history.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-history.json",
+      "original_bytes": 14355,
+      "original_sha256": "103667f6498ec6dc811844842e287eb73e2ac1cd8870abba416b210240dd6bab",
+      "retained_sha256": "103667f6498ec6dc811844842e287eb73e2ac1cd8870abba416b210240dd6bab"
+    },
+    {
+      "path": "quality/gitleaks-policy.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-policy.json",
+      "original_bytes": 3,
+      "original_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "retained_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "quality/gitleaks-history-policy.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-history-policy.json",
+      "original_bytes": 3,
+      "original_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "retained_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "quality/gitleaks-negative-control.json",
+      "source": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-negative-control.json",
+      "original_bytes": 540,
+      "original_sha256": "3cdb50641cfce460297f29de5f16b0d9c72ce9459072d45eabb353d0a1c22bdd",
+      "retained_sha256": "3cdb50641cfce460297f29de5f16b0d9c72ce9459072d45eabb353d0a1c22bdd"
+    }
+  ]
+}

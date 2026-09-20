@@ -1,0 +1,26 @@
+# Apply before first Helm install: the pre-install migration runs before the
+# chart's ordinary NetworkPolicy exists. Also works with namespace default deny.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cognistore-migration
+  namespace: cognistore
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore
+      app.kubernetes.io/component: migration
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - ipBlock: {cidr: "10.72.64.0/24"}
+        - ipBlock: {cidr: "10.72.65.0/24"}
+        - ipBlock: {cidr: "10.72.66.0/24"}
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]

@@ -18,8 +18,9 @@ This plan turns the verification findings and the M2 issue dependencies into
 an execution order. GitHub issue dependencies remain authoritative. Group 1
 finished M1, Group 2 established the M2 foundation, and Groups 3 through 5
 completed M2 from those stable storage and indexing contracts. This document
-now records the completed M1/M2 sequence; GitHub's M3 and M4 epics own the
-remaining delivery work.
+now records the completed M1/M2 sequence. M3 and M4 subsequently completed;
+[the M4 closeout](evidence/m4/README.md) records final acceptance and tracker
+reconciliation for the full M1–M4 delivery plan.
 
 ## Group 1 — M1 exit gate (complete)
 

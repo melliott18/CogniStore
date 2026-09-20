@@ -1,0 +1,272 @@
+[
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": ".github/workflows/ci.yml",
+    "line": 74,
+    "commit": "",
+    "fingerprint": ".github/workflows/ci.yml:generic-api-key:74",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docker-compose.yml",
+    "line": 443,
+    "commit": "",
+    "fingerprint": "docker-compose.yml:generic-api-key:443",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docker-compose.yml",
+    "line": 490,
+    "commit": "",
+    "fingerprint": "docker-compose.yml:generic-api-key:490",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docs/azure_blob_driver.md",
+    "line": 152,
+    "commit": "",
+    "fingerprint": "docs/azure_blob_driver.md:generic-api-key:152",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 11,
+    "commit": "",
+    "fingerprint": "docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:11",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 33,
+    "commit": "",
+    "fingerprint": "docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:33",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 97,
+    "commit": "",
+    "fingerprint": "docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:97",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 104,
+    "commit": "",
+    "fingerprint": "tests/integration/test_legal_hold_movement.py:generic-api-key:104",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 111,
+    "commit": "",
+    "fingerprint": "tests/integration/test_legal_hold_movement.py:generic-api-key:111",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 118,
+    "commit": "",
+    "fingerprint": "tests/integration/test_legal_hold_movement.py:generic-api-key:118",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 138,
+    "commit": "",
+    "fingerprint": "tests/integration/test_legal_hold_movement.py:generic-api-key:138",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks",
+    "rule": "generic-api-key",
+    "file": "tests/unit/test_admin_repairs.py",
+    "line": 61,
+    "commit": "",
+    "fingerprint": "tests/unit/test_admin_repairs.py:generic-api-key:61",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/unit/test_admin_repairs.py",
+    "line": 61,
+    "commit": "ad20be8fa1d1f00224064d65324527d2a200dc52",
+    "fingerprint": "ad20be8fa1d1f00224064d65324527d2a200dc52:tests/unit/test_admin_repairs.py:generic-api-key:61",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 11,
+    "commit": "cd5c35e8a14658d1f10f1327b04f72320031fc60",
+    "fingerprint": "cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:11",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 33,
+    "commit": "cd5c35e8a14658d1f10f1327b04f72320031fc60",
+    "fingerprint": "cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:33",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docs/evidence/m4/operator-drill.source-sha256.json",
+    "line": 97,
+    "commit": "cd5c35e8a14658d1f10f1327b04f72320031fc60",
+    "fingerprint": "cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:97",
+    "disposition": "false positive",
+    "reason": "source SHA256 digest"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 104,
+    "commit": "68bcd1201c5921d243fca76a382af193493f1209",
+    "fingerprint": "68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:104",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 111,
+    "commit": "68bcd1201c5921d243fca76a382af193493f1209",
+    "fingerprint": "68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:111",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 118,
+    "commit": "68bcd1201c5921d243fca76a382af193493f1209",
+    "fingerprint": "68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:118",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/integration/test_legal_hold_movement.py",
+    "line": 138,
+    "commit": "68bcd1201c5921d243fca76a382af193493f1209",
+    "fingerprint": "68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:138",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": ".github/workflows/ci.yml",
+    "line": 63,
+    "commit": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e",
+    "fingerprint": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:.github/workflows/ci.yml:generic-api-key:63",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docker-compose.yml",
+    "line": 314,
+    "commit": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e",
+    "fingerprint": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docker-compose.yml:generic-api-key:314",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docker-compose.yml",
+    "line": 360,
+    "commit": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e",
+    "fingerprint": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docker-compose.yml:generic-api-key:360",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "docs/azure_blob_driver.md",
+    "line": 152,
+    "commit": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e",
+    "fingerprint": "d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docs/azure_blob_driver.md:generic-api-key:152",
+    "disposition": "false positive",
+    "reason": "public Azurite development key"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/unit/test_policy_stability.py",
+    "line": 186,
+    "commit": "115adfd5e077890449738851dd2208de30ae7061",
+    "fingerprint": "115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:186",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/unit/test_policy_stability.py",
+    "line": 191,
+    "commit": "115adfd5e077890449738851dd2208de30ae7061",
+    "fingerprint": "115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:191",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  },
+  {
+    "scan": "gitleaks-history",
+    "rule": "generic-api-key",
+    "file": "tests/unit/test_policy_stability.py",
+    "line": 193,
+    "commit": "115adfd5e077890449738851dd2208de30ae7061",
+    "fingerprint": "115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:193",
+    "disposition": "false positive",
+    "reason": "move idempotency test fixture"
+  }
+]

@@ -9,7 +9,7 @@ This document tracks large-scale next steps and milestones. Use the checkboxes t
     ([#30](https://github.com/melliott18/CogniStore/issues/30))
   - [x] Event/audit tables for moves, policy decisions, failures, retries
     ([#31](https://github.com/melliott18/CogniStore/issues/31))
-- [ ] Queue + scheduler
+- [x] Queue + scheduler
   - [x] Message bus (NATS JetStream) and background workers
   - [x] Periodic scheduler for scans and policy passes, with a repair-job extension point
   - [x] Fenced recovery for stale scheduled runs after hard worker loss ([#89](https://github.com/melliott18/CogniStore/issues/89))
@@ -66,34 +66,34 @@ Runtime stability controls and hard modeled budgets must be configured.
 
 ## Multi-backend storage
 
-- [ ] New drivers
+- [x] New drivers
   - [x] S3 (MinIO/AWS) with multipart support
-  - [ ] Azure Blob
-  - [ ] GCS
+  - [x] Azure Blob
+  - [x] GCS
 - [x] Tier/pool abstractions (#51–#53)
   - [x] Regions, cost/latency/carbon attributes; policy integrates budgets
 
 ## Security, compliance, tenancy
 
-- [ ] Storage boundary hardening
-  - [ ] Race-safe POSIX containment under concurrent path mutation ([#91](https://github.com/melliott18/CogniStore/issues/91))
-- [ ] AuthN/Z and tenancy
-  - [ ] JWT/OIDC; RBAC; per-tenant isolation
-- [ ] Secrets + encryption
-  - [ ] KMS/Vault integration; encryption at rest/in transit
-- [ ] Governance
+- [x] Storage boundary hardening
+  - [x] Race-safe POSIX containment under concurrent path mutation ([#91](https://github.com/melliott18/CogniStore/issues/91))
+- [x] AuthN/Z and tenancy
+  - [x] JWT/OIDC; RBAC; per-tenant isolation
+- [x] Secrets + encryption
+  - [x] KMS/Vault integration; encryption at rest/in transit
+- [x] Governance
   - [x] Hard region/locality filtering for placement candidates (#51)
-  - [ ] PII detection hooks; legal holds; immutable audit logs
+  - [x] PII detection hooks; legal holds; tamper-evident audit logs
 
 ## Observability and ops
 
-- [ ] Metrics/tracing/logging
-  - [ ] Prometheus/Grafana, OpenTelemetry traces, structured logs
-- [ ] SLOs and budgets
+- [x] Metrics/tracing/logging
+  - [x] Prometheus/Grafana, OpenTelemetry traces, structured logs
+- [x] SLOs and budgets
   - [x] Modeled cost/carbon budget guardrails (#53)
-  - [ ] Move latency/error SLOs, throughput targets, and operational alerts
-- [ ] Repair/health
-  - [ ] Consistency checks, auto-repair, orphan cleanup
+  - [x] Move latency/error SLOs, throughput targets, and operational alerts
+- [x] Repair/health
+  - [x] Consistency checks, auto-repair, orphan cleanup
 
 ## API, CLI, and UI
 
@@ -104,10 +104,10 @@ Runtime stability controls and hard modeled budgets must be configured.
     ([#40](https://github.com/melliott18/CogniStore/issues/40))
 - [x] Content-search UI and sample corpus
   ([#41](https://github.com/melliott18/CogniStore/issues/41))
-- [ ] Admin UI
+- [x] Admin UI
   - [x] Placement reasons, dry-run previews, and before/after diffs (#50)
-  - [ ] General administration of drivers, tiers, policies, actions, and audit history
-- [ ] CLI polish
+  - [x] General administration of drivers, tiers, policies, actions, and audit history
+- [x] CLI polish
   - [x] Global config file, profiles, dry-run, verbose and JSON outputs
   - [x] Close secret-redaction and operator-contract gaps in [#26](https://github.com/melliott18/CogniStore/issues/26)
 
@@ -125,13 +125,13 @@ Runtime stability controls and hard modeled budgets must be configured.
 
 ## Delivery and DX
 
-- [ ] Packaging and deployments
+- [x] Packaging and deployments
   - [x] Non-root runtime/development Docker images and local Compose stack
-  - [ ] Helm charts, Terraform samples, locked dependencies, and production configs
+  - [x] Helm charts, Terraform references with a provider lock, and production configs (#71–#72)
 - [x] CI/CD
   - [x] Ruff/mypy, test matrix, coverage gates, security scans
-- [ ] Docs
-  - [ ] Operator runbooks, migration guides, reference architectures, sample datasets
+- [x] Docs
+  - [x] Operator runbooks, migration guides, reference architectures, sample datasets
 
 ---
 
@@ -154,5 +154,17 @@ Runtime stability controls and hard modeled budgets must be configured.
     records acceptance coverage, local validation, and the unavailable GitHub Actions run
   - Epic [#15](https://github.com/melliott18/CogniStore/issues/15) and the
     [M3 milestone](https://github.com/melliott18/CogniStore/milestone/2) are closed
-- [ ] M4: Multi-tenant, observable, and deployable
+- [x] M4: Multi-tenant, observable, and deployable (completed 2026-09-19)
   - Success: Helm chart, dashboards, alerts; RBAC; audit-complete; run on k8s with autoscaling
+  - Exit gate: #54–#73 and POSIX hardening #91 are complete; the
+    [retained closeout evidence](evidence/m4/README.md) maps acceptance criteria
+    to merged delivery, fresh local validation, and retained deployment drills
+  - Epic [#14](https://github.com/melliott18/CogniStore/issues/14), the
+    [M4 milestone](https://github.com/melliott18/CogniStore/milestone/3), and
+    [roadmap tracker #12](https://github.com/melliott18/CogniStore/issues/12) are closed
+
+M1–M4 delivery is complete. GitHub Actions remains blocked before job startup by
+account billing/spending limits; M4 acceptance uses recorded local validation.
+The evidence distinguishes emulator, local, and historical Kubernetes checks
+from environment-specific production qualification. Deployments still require
+the operator security, encryption, credential, and infrastructure prerequisites.

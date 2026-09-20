@@ -1,0 +1,273 @@
+{
+  "definitions": [
+    {
+      "data_sources": [
+        "cognistore_operations_total{component=movement,operation=move}"
+      ],
+      "formula": "successful completed move calls / all completed move calls",
+      "id": "move_success",
+      "owner": "Storage / movement maintainers",
+      "review_window": "rolling 30 days; reviewed weekly and after incidents",
+      "target": 0.999,
+      "threshold": null,
+      "threshold_unit": null
+    },
+    {
+      "data_sources": [
+        "cognistore_operation_duration_seconds_bucket{component=movement,operation=move}",
+        "cognistore_operation_duration_seconds_count{component=movement,operation=move}"
+      ],
+      "formula": "successful completed move calls taking <=30s / all completed move calls",
+      "id": "move_latency",
+      "owner": "Storage / movement maintainers",
+      "review_window": "rolling 30 days; reviewed weekly and after incidents",
+      "target": 0.99,
+      "threshold": 30.0,
+      "threshold_unit": "seconds"
+    },
+    {
+      "data_sources": [
+        "cognistore_operations_total{component=movement,operation=move}",
+        "cognistore_job_queue_depth{state=pending}"
+      ],
+      "formula": "eligible 5m window samples with >=1 successful move/s / eligible 5m window samples",
+      "id": "move_throughput",
+      "owner": "Storage / worker maintainers",
+      "review_window": "rolling 30 days; reviewed weekly and after incidents",
+      "target": 0.99,
+      "threshold": 1.0,
+      "threshold_unit": "successful moves/second"
+    },
+    {
+      "data_sources": [
+        "cognistore_http_requests_total"
+      ],
+      "formula": "matched /v1 HTTP completions with non-5xx status / all matched /v1 HTTP completions",
+      "id": "api_availability",
+      "owner": "API / platform maintainers",
+      "review_window": "rolling 30 days; reviewed weekly and after incidents",
+      "target": 0.999,
+      "threshold": null,
+      "threshold_unit": null
+    },
+    {
+      "data_sources": [
+        "cognistore_indexing_lag_seconds_bucket",
+        "cognistore_indexing_lag_seconds_count"
+      ],
+      "formula": "successful scan attempts completed <=300s after publication / all completed scan attempts with known publication time",
+      "id": "indexing_lag",
+      "owner": "Catalog / indexing maintainers",
+      "review_window": "rolling 30 days; reviewed weekly and after incidents",
+      "target": 0.99,
+      "threshold": 300.0,
+      "threshold_unit": "seconds"
+    }
+  ],
+  "evidence_profile": "full",
+  "input_sha256": "0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39",
+  "limitations": [
+    "One qualification campaign cannot establish rolling 30-day SLO attainment.",
+    "Logical moves/attempts is a conservative qualification proxy, not live call telemetry; replays and a killed worker do not have identical runtime observation coverage.",
+    "Logical latency includes retry/backoff, excludes executor queue wait, and supplies nearest-rank bounds rather than exact completed-call threshold counts.",
+    "Phase-average throughput cannot establish the fraction of eligible 5-minute windows that meet the throughput SLO.",
+    "M1 evidence contains no API availability or indexing-lag observations."
+  ],
+  "model_version": 1,
+  "provenance": {
+    "finished_at": "2026-08-29T11:31:29.371232Z",
+    "git_dirty": false,
+    "git_revision": "7961c82b560cc661587d20a925a63266d870b4e1",
+    "run_id": "full-20260827-205845",
+    "source_schema": "cognistore.move-qualification",
+    "source_schema_version": 1,
+    "started_at": "2026-08-27T20:59:02.967789Z"
+  },
+  "qualification_verification": "input_consistency_only",
+  "reported_full_scale_qualification": true,
+  "results": [
+    {
+      "allowed_bad": 1000.0060000000009,
+      "budget_remaining_ratio": 0.994000035999784,
+      "burn_rate": 0.005999964000215993,
+      "direction": "forward",
+      "evidence_kind": "logical_success_per_attempt_proxy",
+      "exact_event_ratio": false,
+      "good": 1000000,
+      "observed_bad": 6,
+      "path": "posix",
+      "ratio": 0.9999940000359998,
+      "slo_id": "move_success",
+      "status": "met",
+      "target": 0.999,
+      "total": 1000006
+    },
+    {
+      "direction": "forward",
+      "evidence_kind": "logical_latency_nearest_rank_bounds_per_attempt",
+      "exact_event_ratio": false,
+      "good_lower_bound": 1000000,
+      "good_upper_bound": 1000000,
+      "path": "posix",
+      "ratio_lower_bound": 0.9999940000359998,
+      "ratio_upper_bound": 0.9999940000359998,
+      "slo_id": "move_latency",
+      "status": "met",
+      "target": 0.99,
+      "threshold_seconds": 30.0,
+      "total": 1000006
+    },
+    {
+      "baseline_status": "met",
+      "baseline_threshold_per_second": 1.0,
+      "direction": "forward",
+      "evidence_kind": "phase_average_baseline_only",
+      "observed_per_second": 35.98437407703288,
+      "path": "posix",
+      "reason": "Phase average has no eligible 5-minute window counts.",
+      "slo_id": "move_throughput",
+      "status": "unavailable"
+    },
+    {
+      "allowed_bad": 1000.0000000000009,
+      "budget_remaining_ratio": 1.0,
+      "burn_rate": 0.0,
+      "direction": "reverse",
+      "evidence_kind": "logical_success_per_attempt_proxy",
+      "exact_event_ratio": false,
+      "good": 1000000,
+      "observed_bad": 0,
+      "path": "posix",
+      "ratio": 1.0,
+      "slo_id": "move_success",
+      "status": "met",
+      "target": 0.999,
+      "total": 1000000
+    },
+    {
+      "direction": "reverse",
+      "evidence_kind": "logical_latency_nearest_rank_bounds_per_attempt",
+      "exact_event_ratio": false,
+      "good_lower_bound": 1000000,
+      "good_upper_bound": 1000000,
+      "path": "posix",
+      "ratio_lower_bound": 1.0,
+      "ratio_upper_bound": 1.0,
+      "slo_id": "move_latency",
+      "status": "met",
+      "target": 0.99,
+      "threshold_seconds": 30.0,
+      "total": 1000000
+    },
+    {
+      "baseline_status": "met",
+      "baseline_threshold_per_second": 1.0,
+      "direction": "reverse",
+      "evidence_kind": "phase_average_baseline_only",
+      "observed_per_second": 35.423331874234634,
+      "path": "posix",
+      "reason": "Phase average has no eligible 5-minute window counts.",
+      "slo_id": "move_throughput",
+      "status": "unavailable"
+    },
+    {
+      "allowed_bad": 1000.0060000000009,
+      "budget_remaining_ratio": 0.994000035999784,
+      "burn_rate": 0.005999964000215993,
+      "direction": "forward",
+      "evidence_kind": "logical_success_per_attempt_proxy",
+      "exact_event_ratio": false,
+      "good": 1000000,
+      "observed_bad": 6,
+      "path": "s3",
+      "ratio": 0.9999940000359998,
+      "slo_id": "move_success",
+      "status": "met",
+      "target": 0.999,
+      "total": 1000006
+    },
+    {
+      "direction": "forward",
+      "evidence_kind": "logical_latency_nearest_rank_bounds_per_attempt",
+      "exact_event_ratio": false,
+      "good_lower_bound": 1000000,
+      "good_upper_bound": 1000000,
+      "path": "s3",
+      "ratio_lower_bound": 0.9999940000359998,
+      "ratio_upper_bound": 0.9999940000359998,
+      "slo_id": "move_latency",
+      "status": "met",
+      "target": 0.99,
+      "threshold_seconds": 30.0,
+      "total": 1000006
+    },
+    {
+      "baseline_status": "met",
+      "baseline_threshold_per_second": 1.0,
+      "direction": "forward",
+      "evidence_kind": "phase_average_baseline_only",
+      "observed_per_second": 27.1534857323292,
+      "path": "s3",
+      "reason": "Phase average has no eligible 5-minute window counts.",
+      "slo_id": "move_throughput",
+      "status": "unavailable"
+    },
+    {
+      "allowed_bad": 1000.0000000000009,
+      "budget_remaining_ratio": 1.0,
+      "burn_rate": 0.0,
+      "direction": "reverse",
+      "evidence_kind": "logical_success_per_attempt_proxy",
+      "exact_event_ratio": false,
+      "good": 1000000,
+      "observed_bad": 0,
+      "path": "s3",
+      "ratio": 1.0,
+      "slo_id": "move_success",
+      "status": "met",
+      "target": 0.999,
+      "total": 1000000
+    },
+    {
+      "direction": "reverse",
+      "evidence_kind": "logical_latency_nearest_rank_bounds_per_attempt",
+      "exact_event_ratio": false,
+      "good_lower_bound": 1000000,
+      "good_upper_bound": 1000000,
+      "path": "s3",
+      "ratio_lower_bound": 1.0,
+      "ratio_upper_bound": 1.0,
+      "slo_id": "move_latency",
+      "status": "met",
+      "target": 0.99,
+      "threshold_seconds": 30.0,
+      "total": 1000000
+    },
+    {
+      "baseline_status": "met",
+      "baseline_threshold_per_second": 1.0,
+      "direction": "reverse",
+      "evidence_kind": "phase_average_baseline_only",
+      "observed_per_second": 28.3389987041348,
+      "path": "s3",
+      "reason": "Phase average has no eligible 5-minute window counts.",
+      "slo_id": "move_throughput",
+      "status": "unavailable"
+    },
+    {
+      "reason": "Not measured by M1 movement qualification.",
+      "slo_id": "api_availability",
+      "status": "unavailable"
+    },
+    {
+      "reason": "Not measured by M1 movement qualification.",
+      "slo_id": "indexing_lag",
+      "status": "unavailable"
+    }
+  ],
+  "rolling_30_day_attainment": "unavailable",
+  "schema": "cognistore.slo-evaluation",
+  "schema_version": 1,
+  "scope": "qualification_baseline",
+  "status": "baseline_passed"
+}

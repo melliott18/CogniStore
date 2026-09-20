@@ -1,0 +1,38 @@
+# Exact false-positive fingerprints reviewed during the M4 closeout.
+# These do not disable any rule or exclude a file from future secret scans.
+# Directory scans use path/rule/line fingerprints; Git scans include the commit.
+
+# Explicit Azurite development-only connection strings used by CI and examples.
+.github/workflows/ci.yml:generic-api-key:74
+docker-compose.yml:generic-api-key:443
+docker-compose.yml:generic-api-key:490
+docs/azure_blob_driver.md:generic-api-key:152
+d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:.github/workflows/ci.yml:generic-api-key:63
+d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docker-compose.yml:generic-api-key:314
+d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docker-compose.yml:generic-api-key:360
+d432f7b57d6b1919c2e95e721d9a1b0ecd8db40e:docs/azure_blob_driver.md:generic-api-key:152
+
+# SHA256 source-file digests in the retained operator-drill provenance manifest.
+docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:11
+docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:33
+docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:97
+cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:11
+cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:33
+cd5c35e8a14658d1f10f1327b04f72320031fc60:docs/evidence/m4/operator-drill.source-sha256.json:generic-api-key:97
+
+# Human-readable move idempotency keys in legal-hold and repair test fixtures.
+tests/integration/test_legal_hold_movement.py:generic-api-key:104
+tests/integration/test_legal_hold_movement.py:generic-api-key:111
+tests/integration/test_legal_hold_movement.py:generic-api-key:118
+tests/integration/test_legal_hold_movement.py:generic-api-key:138
+tests/unit/test_admin_repairs.py:generic-api-key:61
+68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:104
+68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:111
+68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:118
+68bcd1201c5921d243fca76a382af193493f1209:tests/integration/test_legal_hold_movement.py:generic-api-key:138
+ad20be8fa1d1f00224064d65324527d2a200dc52:tests/unit/test_admin_repairs.py:generic-api-key:61
+
+# Historical policy-stability fixtures using the idempotency key "override-move".
+115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:186
+115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:191
+115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:193

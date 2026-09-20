@@ -1,0 +1,115 @@
+[
+  {
+    "@level": "info",
+    "@message": "Terraform 1.15.9",
+    "@module": "terraform.ui",
+    "@timestamp": "2026-09-19T18:47:19.092780-07:00",
+    "terraform": "1.15.9",
+    "type": "version",
+    "ui": "1.3"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"secure_production_topology\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "secure_production_topology",
+    "@timestamp": "2026-09-19T18:47:20.320198-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "secure_production_topology",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"reject_single_zone\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "reject_single_zone",
+    "@timestamp": "2026-09-19T18:47:20.496944-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "reject_single_zone",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"reject_public_operator_access\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "reject_public_operator_access",
+    "@timestamp": "2026-09-19T18:47:20.698710-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "reject_public_operator_access",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"reject_undersized_node_pool\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "reject_undersized_node_pool",
+    "@timestamp": "2026-09-19T18:47:20.893856-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "reject_undersized_node_pool",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"reject_cross_account_admin\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "reject_cross_account_admin",
+    "@timestamp": "2026-09-19T18:47:21.078010-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "reject_cross_account_admin",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "  \"reject_unsupported_postgres_family\"... pass",
+    "@module": "terraform.ui",
+    "@testfile": "tests/production.tftest.hcl",
+    "@testrun": "reject_unsupported_postgres_family",
+    "@timestamp": "2026-09-19T18:47:21.254843-07:00",
+    "test_run": {
+      "path": "tests/production.tftest.hcl",
+      "run": "reject_unsupported_postgres_family",
+      "progress": "complete",
+      "status": "pass"
+    },
+    "type": "test_run"
+  },
+  {
+    "@level": "info",
+    "@message": "Success! 6 passed, 0 failed.",
+    "@module": "terraform.ui",
+    "@timestamp": "2026-09-19T18:47:21.424180-07:00",
+    "test_summary": {
+      "status": "pass",
+      "passed": 6,
+      "failed": 0,
+      "errored": 0,
+      "skipped": 0
+    },
+    "type": "test_summary"
+  }
+]
