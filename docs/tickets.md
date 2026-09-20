@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-20T02:00:58Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-20T07:41:49Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 0 open, 68 closed
+- **Snapshot:** 80 issues; 12 open, 68 closed
 
 ## How to use this mirror
 
@@ -37,6 +37,7 @@ git diff --check
 | M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 3 | 0 | 0 / 17 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 0 / 12 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 0 / 22 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/3) |
+| M5 – Release readiness and controlled pilot | [#155](https://github.com/melliott18/CogniStore/issues/155) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/5) |
 
 ## Label taxonomy
 
@@ -104,6 +105,8 @@ git diff --check
 <h4 id="issue-12-m4-and-roadmap-completion">M4 and roadmap completion</h4>
 <p>M4 completed on 2026-09-19. Epic <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> and <a href="https://github.com/melliott18/CogniStore/milestone/3">milestone 3</a> are closed with all twenty delivery issues and POSIX hardening <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> complete. The <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">retained closeout evidence</a> records acceptance mapping, fresh local test/quality/operations checks, historical deployment qualification, and explicit limits. Hosted CI remains blocked by account billing/spending limits; no hosted pass is claimed.</p>
 <p>All four delivery milestones M1–M4 are complete. The final reconciliation also updates stale acceptance checkboxes on the 21 M4 tickets and seven previously accepted M1 tickets (<a href="https://github.com/melliott18/CogniStore/issues/17">#17</a>, <a href="https://github.com/melliott18/CogniStore/issues/18">#18</a>, <a href="https://github.com/melliott18/CogniStore/issues/20">#20</a>, <a href="https://github.com/melliott18/CogniStore/issues/22">#22</a>, <a href="https://github.com/melliott18/CogniStore/issues/23">#23</a>, <a href="https://github.com/melliott18/CogniStore/issues/24">#24</a>, <a href="https://github.com/melliott18/CogniStore/issues/25">#25</a>). Repository roadmap and live-ticket mirror are synchronized by PR <a href="https://github.com/melliott18/CogniStore/pull/154">#154</a>. No open implementation tickets remain.</p>
+<h4 id="issue-12-post-delivery-qualification-2026-09-20">Post-delivery qualification — 2026-09-20</h4>
+<p>The completed M1–M4 delivery is followed by <a href="https://github.com/melliott18/CogniStore/milestone/5">M5 – Release readiness and controlled pilot</a>, tracked in <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>. Its eleven child tickets cover the two newly reproduced P1 defects, CI restoration, deployment/workload definition, an immutable candidate, full-system audit, production-configured staging, manual acceptance, recovery and load qualification, and a gated pilot. The historical M1–M4 completion record remains unchanged; <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a> is the active execution tracker for the new phase.</p>
 
 ## M1 – Reliable multi-backend movement
 
@@ -2995,3 +2998,684 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 <h5 id="issue-91-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
 <p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/138">#138</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
 <p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+
+## M5 – Release readiness and controlled pilot
+
+- **GitHub milestone:** [M5 – Release readiness and controlled pilot](https://github.com/melliott18/CogniStore/milestone/5)
+- **Original delivery tickets:** 11
+- **Verification follow-ups:** 0
+- **Other tracking issues:** 0
+- **Status:** 12 open, 0 closed (12 including the epic)
+
+### Epic
+
+#### [#155 — \[Epic\] M5 – Release readiness and controlled pilot](https://github.com/melliott18/CogniStore/issues/155)
+
+- **Kind:** Milestone epic
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `roadmap`, `type:epic`
+- **Last updated:** 2026-09-20
+
+<h5 id="issue-155-outcome">Outcome</h5>
+<p>Qualify one explicit CogniStore release candidate and production deployment, resolve demonstrated safety defects, and complete a controlled pilot with evidence-backed expansion criteria.</p>
+<p>M1–M4 delivery and roadmap <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a> remain completed historical scope. This new milestone follows the 2026-09-20 readiness assessment of <code>2cce6ff4d43fd287ad008197f1e17f168c3580c4</code>.</p>
+<h5 id="issue-155-why-this-phase-exists">Why this phase exists</h5>
+<p>The assessment verified 289 fresh targeted tests, successful local CLI/API/SDK workflows, and the retained M4 evidence. It also reproduced two release blockers: a case-insensitive POSIX tenant namespace/hold bypass, and a concurrent DELETE/PUT catalog race. Hosted CI is blocked before job startup; historical development-kind and mocked Terraform evidence do not establish final-candidate production qualification.</p>
+<h5 id="issue-155-execution-order">Execution order</h5>
+<ol>
+<li>Fix both confirmed defects; restore hosted CI and select the target deployment/workload in parallel.</li>
+<li>Assemble an immutable candidate from the fixes and passing gates. Start source/configuration audit as soon as scope is selected.</li>
+<li>Deploy isolated production-configured staging; finish live security/audit checks.</li>
+<li>Run manual acceptance, recovery/upgrade/rotation, and realistic load/alert qualification in parallel where their environments can be isolated.</li>
+<li>Admit a bounded pilot only after release blockers and qualification gates close; derive the next roadmap from pilot outcomes.</li>
+</ol>
+<p>Dependencies inside child issues are authoritative. Audit can start early; its final signoff must identify the tested candidate and environment. Keep destructive drills in dedicated test scopes so one campaign cannot remove another's dependencies.</p>
+<h5 id="issue-155-child-issues">Child issues</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/156">#156</a> — [P1] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/157">#157</a> — [P1] Prevent an older DELETE from removing a concurrent replacement PUT catalog record</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/158">#158</a> — Restore hosted CI and qualify the supported runtime matrix</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — Define the first production deployment, workload, and pilot acceptance gates</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/160">#160</a> — Assemble and freeze a reproducible release candidate for the selected workload</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/162">#162</a> — Audit system safety, security, and data consistency for the release candidate</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/161">#161</a> — Deploy isolated staging with the selected production security and infrastructure configuration</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/163">#163</a> — Run manual end-to-end acceptance across CLI, API, SDK, search, and administration</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/164">#164</a> — Qualify failure recovery, coherent restore, credential rotation, and upgrade rollback</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/165">#165</a> — Qualify realistic load, sustained operation, capacity limits, and alert delivery</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/166">#166</a> — Run a gated pilot and decide expansion from measured results</li>
+</ul>
+<h5 id="issue-155-milestone-success-criteria">Milestone success criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Both reproduced defects and any subsequent release-blocking findings are fixed with regression evidence.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A selected workload/topology has measurable targets, named owners, explicit feature limits and pilot stop conditions.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Exact source, dependency, image, provider and configuration identities are retained; hosted gates pass.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Audit, manual acceptance, recovery and load/alert campaigns pass against the qualified candidate/configuration.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Pilot entry approval is recorded, the agreed pilot runs, and the exit decision is supported by measured results.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Evidence, residual limitations, operator guidance and the next backlog are durable and reviewable.</li>
+</ul>
+<p>A set of administratively closed children is insufficient to establish readiness. A failed/stopped pilot does not automatically satisfy this epic's success criteria. Material changes after qualification require scoped requalification.</p>
+<h5 id="issue-155-evidence-policy">Evidence policy</h5>
+<p>Retain source/configuration/environment identities, commands, expected/actual outcomes, sanitized logs, hashes and explicitly explained skips. Store artifacts in the repository or durable linked CI/artifact storage; local ignored paths alone are insufficient. Do not include live credentials, tokens or customer content.</p>
+<h5 id="issue-155-scope-boundaries">Scope boundaries</h5>
+<p>This phase qualifies the selected deployment and workload. It does not reopen completed M1–M4 delivery or promise every cloud, multi-region availability, distributed SQLite scheduling, OCR or general-availability model quality.</p>
+<h5 id="issue-155-source">Source</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/evidence/m4/README.md">M4 qualification evidence and explicit deployment limits</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/reference_architectures.md">Supported reference architectures</a></li>
+</ul>
+<h5 id="issue-155-start-now">Start now</h5>
+<p><a href="https://github.com/melliott18/CogniStore/issues/156">#156</a> and <a href="https://github.com/melliott18/CogniStore/issues/157">#157</a> are P1 release blockers. <a href="https://github.com/melliott18/CogniStore/issues/158">#158</a> and <a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> can proceed independently in parallel. Source/configuration audit in <a href="https://github.com/melliott18/CogniStore/issues/162">#162</a> can begin once the target is selected, with final signoff after candidate staging exists.</p>
+<h5 id="issue-155-dependency-summary">Dependency summary</h5>
+<table>
+<thead>
+<tr>
+<th>Work</th>
+<th>Required before completion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Candidate <a href="https://github.com/melliott18/CogniStore/issues/160">#160</a></td>
+<td>Both fixes <a href="https://github.com/melliott18/CogniStore/issues/156">#156</a>, <a href="https://github.com/melliott18/CogniStore/issues/157">#157</a>; CI <a href="https://github.com/melliott18/CogniStore/issues/158">#158</a>; target <a href="https://github.com/melliott18/CogniStore/issues/159">#159</a></td>
+</tr>
+<tr>
+<td>Staging <a href="https://github.com/melliott18/CogniStore/issues/161">#161</a></td>
+<td>Target <a href="https://github.com/melliott18/CogniStore/issues/159">#159</a>; candidate <a href="https://github.com/melliott18/CogniStore/issues/160">#160</a></td>
+</tr>
+<tr>
+<td>Audit signoff <a href="https://github.com/melliott18/CogniStore/issues/162">#162</a></td>
+<td>Target, candidate and staging evidence; review can start earlier</td>
+</tr>
+<tr>
+<td>UAT <a href="https://github.com/melliott18/CogniStore/issues/163">#163</a>, recovery <a href="https://github.com/melliott18/CogniStore/issues/164">#164</a>, load <a href="https://github.com/melliott18/CogniStore/issues/165">#165</a></td>
+<td>Target and staging; campaigns may run in parallel with isolated test scopes</td>
+</tr>
+<tr>
+<td>Pilot <a href="https://github.com/melliott18/CogniStore/issues/166">#166</a></td>
+<td>Audit, UAT, recovery and load gates passed; recorded entry decision</td>
+</tr>
+</tbody>
+</table>
+
+### Original delivery tickets
+
+#### [#156 — \[M5\] \[P1\] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds](https://github.com/melliott18/CogniStore/issues/156)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:security`, `area:storage`, `bug`, `roadmap`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<p><strong>Priority: P1. Release gate: fix before production pilot or admitting important production data.</strong></p>
+<p>A JWT-authenticated default-tenant writer can overwrite and delete another tenant's object, including an object under legal hold, when shared POSIX storage resolves a differently capitalized reserved namespace to the same directory. Confirmed during the 2026-09-20 readiness assessment at <code>2cce6ff4d43fd287ad008197f1e17f168c3580c4</code>.</p>
+<h5 id="issue-156-preconditions-and-trigger">Preconditions and trigger</h5>
+<ul>
+<li>POSIX driver backed by a case-insensitive filesystem (the reproduction used a case-insensitive macOS temporary volume).</li>
+<li>Default and nondefault tenants share the same storage root and bucket.</li>
+<li>Attacker is authorized to write/delete objects in the <strong>default</strong> tenant. No victim-tenant membership or administrative role is required for the attacker.</li>
+<li>A nondefault tenant <code>victim</code> owns <code>bucket/private.txt</code>. Its physical key is <code>.cognistore-tenants/&lt;sha256(victim)&gt;/private.txt</code>.</li>
+<li>The default-tenant writer submits <code>.COGNISTORE-TENANTS/&lt;sha256(victim)&gt;/private.txt</code> as its logical key. The tenant digest is derived from the tenant ID and is not an authorization control.</li>
+</ul>
+<h5 id="issue-156-expected-and-actual">Expected and actual</h5>
+<p>Expected: reserved namespace aliases are rejected before backend access, and no default-tenant operation can observe or mutate another tenant's physical objects. A legal hold remains effective regardless of spelling aliases in a different tenant's request.</p>
+<p>Actual, with authenticated in-process REST calls and synthetic identities:</p>
+<pre><code class="language-text">victim PUT: 201
+victim hold: 201
+victim overwrite (correctly denied): 409
+default cross-tenant PUT: 201
+victim read: 200 b'replaced'
+default cross-tenant DELETE: 204
+victim after delete: 404
+</code></pre>
+<p>The protected object's bytes were overwritten and then deleted. The normal victim-tenant overwrite is correctly denied, demonstrating that the alias bypasses the tenant/hold boundary rather than disabling holds globally.</p>
+<h5 id="issue-156-relevant-source">Relevant source</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/drivers/tenancy.py#L43-L86">Tenant physical prefix and case-sensitive reserved-name checks</a>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/drivers/tenancy.py#L100-L150">Read/write/delete and streaming methods delegate through the tenant key mapping</a>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/drivers/tenancy.py#L152-L217">Listing filters and pagination also use tenant key mapping</a>.</li>
+</ul>
+<h5 id="issue-156-reproduction">Reproduction</h5>
+<p>In a checkout of the assessed revision with the repository's development dependencies installed, save the following as <code>/tmp/tenant_namespace_repro.py</code> and run <code>PYTHONPATH=. python /tmp/tenant_namespace_repro.py</code> from the repository root. Ensure Python's temporary directory is on a <strong>case-insensitive</strong> filesystem; set <code>TMPDIR</code> to an appropriate disposable volume if needed. It uses temporary directories and mock JWT keys, not a deployed service or real identity provider. The <code>development</code> profile permits this local harness; JWT authentication and RBAC are explicitly enabled in the app.</p>
+<p>&lt;details&gt;
+&lt;summary&gt;Self-contained reproduction using the repository's JWT fixture&lt;/summary&gt;</p>
+<pre><code class="language-python">&quot;&quot;&quot;Synthetic local API demonstration; creates/deletes only a temporary directory.&quot;&quot;&quot;
+import os
+os.environ['COGNISTORE_SECURITY_PROFILE'] = 'development'
+from tempfile import TemporaryDirectory
+from hashlib import sha256
+from fastapi.testclient import TestClient
+from cognistore.api.app import create_app
+from cognistore.api.gateway import CogniStoreGateway
+from cognistore.auth.authorization import RBACAuthorizer, RBACPolicy
+from cognistore.auth.tenancy import TenantResolver
+from cognistore.core.catalog import Catalog
+from cognistore.drivers.posix_driver import PosixDriver
+from tests.unit.test_api_authentication import identity_provider, ISSUER
+fixture = identity_provider.__wrapped__()
+auth, token, _ = next(fixture)
+try:
+    with TemporaryDirectory(prefix='cognistore-audit-api-') as folder:
+        gateway = CogniStoreGateway(Catalog(), {'hot': PosixDriver(folder)})
+        app = create_app(gateway, authentication=auth, authorization=RBACAuthorizer(RBACPolicy({(ISSUER, 'alice'): ['admin'], (ISSUER, 'bob'): ['writer']})), tenancy=TenantResolver({(ISSUER, 'alice'): 'victim', (ISSUER, 'bob'): 'default'}))
+        alice = {'Authorization': 'Bearer ' + token('alice')}
+        bob = {'Authorization': 'Bearer ' + token('bob')}
+        target = '/v1/objects/hot/bucket/private.txt'
+        alias = '/v1/objects/hot/bucket/.COGNISTORE-TENANTS/' + sha256(b'victim').hexdigest() + '/private.txt'
+        with TestClient(app) as client:
+            print('victim PUT:', client.put(target, headers=alice, content=b'original').status_code)
+            print('victim hold:', client.post('/v1/legal-holds', headers=alice, json={'bucket':'bucket','key':'private.txt','reason':'test preservation'}).status_code)
+            print('victim overwrite (correctly denied):', client.put(target, headers=alice, content=b'denied').status_code)
+            print('default cross-tenant PUT:', client.put(alias, headers=bob, content=b'replaced').status_code)
+            read = client.get(target, headers=alice)
+            print('victim read:', read.status_code, read.content)
+            print('default cross-tenant DELETE:', client.delete(alias, headers=bob).status_code)
+            print('victim after delete:', client.get(target, headers=alice).status_code)
+finally:
+    try:
+        next(fixture)
+    except StopIteration:
+        pass
+</code></pre>
+<p>&lt;/details&gt;</p>
+<h5 id="issue-156-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Define and enforce reserved tenant-namespace handling for the supported POSIX filesystem semantics. Case aliases cannot reach a nondefault tenant from the default tenant; reject unsupported storage semantics explicitly if safe isolation cannot be guaranteed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Add regression coverage for the demonstrated authenticated PUT/DELETE sequence on a case-insensitive backend/volume, including legal holds; victim bytes remain unchanged and readable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Cover mixed-case reserved prefixes and all shared key-entry paths: byte/stream writes, reads, stat/generation, deletion, list/paginated list, and prefixes. Review the corresponding bucket-name boundary for equivalent aliases.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Preserve valid ordinary keys and existing tenant isolation on case-sensitive POSIX and cloud object backends; document any intentional reserved-name compatibility change.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests prove rejection happens before a cross-tenant backend mutation, and existing tenant, hold, POSIX containment, and storage conformance tests pass.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Record the fix revision and regression evidence in the release-readiness evidence set.</li>
+</ul>
+<h5 id="issue-156-scope-boundaries">Scope boundaries</h5>
+<p>This ticket fixes the demonstrated reserved-namespace alias boundary and its shared entry points. It does not claim the exploit was reproduced on S3, Azure, GCS, or ordinary case-sensitive Linux storage. It does not require a tenant-storage migration or redesign unless the chosen fix demonstrates one is necessary. A broader tenant/security audit belongs to the release-readiness audit workstream.</p>
+<h5 id="issue-156-dependencies">Dependencies</h5>
+<p>None. This ticket can start immediately.</p>
+<h5 id="issue-156-related-delivery">Related delivery</h5>
+<p><a href="https://github.com/melliott18/CogniStore/issues/58">#58</a> (tenant isolation), <a href="https://github.com/melliott18/CogniStore/issues/62">#62</a> (legal holds), <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> (POSIX containment). These delivered capabilities remain completed; this ticket addresses a newly reproduced defect.</p>
+
+#### [#157 — \[M5\] \[P1\] Prevent an older DELETE from removing a concurrent replacement PUT catalog record](https://github.com/melliott18/CogniStore/issues/157)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:api`, `area:control-plane`, `bug`, `roadmap`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<p><strong>Priority: P1. Release gate: fix before production pilot or admitting important production data.</strong></p>
+<p>An older DELETE can remove the catalog entry published by a successful concurrent replacement PUT. Both API requests return success, but subsequent reads return 404 while the replacement bytes remain on the backend. Confirmed during the 2026-09-20 readiness assessment at <code>2cce6ff4d43fd287ad008197f1e17f168c3580c4</code> with authenticated REST, a real SQLite catalog, and POSIX storage.</p>
+<h5 id="issue-157-preconditions-and-deterministic-interleaving">Preconditions and deterministic interleaving</h5>
+<ul>
+<li>Two authorized operations act on the same tenant/bucket/key.</li>
+<li>Start with a cataloged object at <code>hot/bucket/item</code> containing <code>initial</code>.</li>
+<li>DELETE reads the old generation and successfully deletes that generation from storage.</li>
+<li>Pause DELETE after backend deletion has completed but before its unconditional catalog deletion.</li>
+<li>Concurrent PUT publishes <code>replacement</code>, updates the catalog, and returns 201.</li>
+<li>Resume the earlier DELETE; it removes the catalog entry by bucket/key and returns 204.</li>
+</ul>
+<p>The reproduction subclasses the real POSIX driver only to pause at this scheduling seam; it calls the real conditional backend deletion and uses the real SQLite catalog.</p>
+<h5 id="issue-157-expected-and-actual">Expected and actual</h5>
+<p>Expected: operations have an explicit ordering/conflict contract. When a PUT publishes a replacement after the old backend generation has been deleted, the earlier DELETE cannot silently remove the replacement's catalog state. After both requests settle, storage and catalog agree; a successful surviving replacement remains retrievable. A conflicting operation may instead fail explicitly under a documented contract.</p>
+<p>Actual:</p>
+<pre><code class="language-text">initial PUT: 201
+concurrent replacement PUT: 201
+original DELETE: [204]
+GET after both success: 404
+catalog record: None
+bytes still in storage: b'replacement'
+</code></pre>
+<p>This demonstrates catalog inconsistency and loss of API accessibility, <strong>not physical loss of the replacement bytes</strong>.</p>
+<h5 id="issue-157-relevant-source">Relevant source</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/api/gateway.py#L627-L653">PUT writes storage then upserts the catalog</a>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/api/gateway.py#L760-L778">DELETE conditionally removes backend generation then unconditionally deletes catalog key</a>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/db/catalog.py#L1986-L2008">SQLCatalog.delete deletes the currently matching bucket/key row</a>.</li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/cognistore/api/gateway.py#L501-L505">API reads require a catalog record</a>.</li>
+</ul>
+<h5 id="issue-157-reproduction">Reproduction</h5>
+<p>In a checkout of the assessed revision with the repository's development dependencies installed, save the following as <code>/tmp/delete_put_race_repro.py</code> and run <code>PYTHONPATH=. python /tmp/delete_put_race_repro.py</code> from the repository root. It uses only temporary storage and mock JWT keys. The <code>development</code> profile permits this local harness; JWT authentication and RBAC are explicitly enabled in the app.</p>
+<p>&lt;details&gt;
+&lt;summary&gt;Self-contained deterministic reproduction using the repository's JWT fixture&lt;/summary&gt;</p>
+<pre><code class="language-python">&quot;&quot;&quot;Deterministic scheduler seam between backend delete and catalog delete.&quot;&quot;&quot;
+import os
+os.environ['COGNISTORE_SECURITY_PROFILE'] = 'development'
+from tempfile import TemporaryDirectory
+from pathlib import Path
+from threading import Event, Thread
+from fastapi.testclient import TestClient
+from cognistore.api.app import create_app
+from cognistore.api.gateway import CogniStoreGateway
+from cognistore.auth.authorization import RBACAuthorizer, RBACPolicy
+from cognistore.db import SQLCatalog
+from cognistore.drivers.posix_driver import PosixDriver
+from tests.unit.test_api_authentication import identity_provider, ISSUER
+
+removed = Event()
+release_delete = Event()
+class PausingDelete(PosixDriver):
+    def delete_object_if_generation(self, bucket, key, generation):
+        result = super().delete_object_if_generation(bucket, key, generation)
+        removed.set()
+        if not release_delete.wait(10):
+            raise RuntimeError('reproduction did not release delete')
+        return result
+fixture = identity_provider.__wrapped__()
+auth, token, _ = next(fixture)
+try:
+    with TemporaryDirectory(prefix='cognistore-audit-race-') as folder:
+        raw = PausingDelete(str(Path(folder) / 'hot'))
+        with SQLCatalog(Path(folder) / 'catalog.db') as catalog:
+            gateway = CogniStoreGateway(catalog, {'hot': raw})
+            app = create_app(gateway, authentication=auth, authorization=RBACAuthorizer(RBACPolicy({(ISSUER, 'alice'): ['writer']})))
+            headers = {'Authorization': 'Bearer ' + token('alice')}
+            url = '/v1/objects/hot/bucket/item'
+            statuses = []
+            with TestClient(app) as client:
+                print('initial PUT:', client.put(url, headers=headers, content=b'initial').status_code)
+                deleting = Thread(target=lambda: statuses.append(client.delete(url, headers=headers).status_code))
+                deleting.start()
+                assert removed.wait(10)
+                try:
+                    print('concurrent replacement PUT:', client.put(url, headers=headers, content=b'replacement').status_code)
+                finally:
+                    release_delete.set()
+                deleting.join(10)
+                assert not deleting.is_alive()
+                print('original DELETE:', statuses)
+                print('GET after both success:', client.get(url, headers=headers).status_code)
+                print('catalog record:', catalog.get('bucket', 'item'))
+                print('bytes still in storage:', raw.get_object('bucket', 'item'))
+finally:
+    try:
+        next(fixture)
+    except StopIteration:
+        pass
+</code></pre>
+<p>&lt;/details&gt;</p>
+<h5 id="issue-157-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Define the ordering/conflict contract for overlapping PUT and DELETE on one tenant/bucket/key and enforce it across backend and catalog publication.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Add a deterministic regression at the exact interleaving above using the real SQLite catalog and POSIX backend. After successful replacement publication, the stale DELETE cannot erase its catalog state.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Cover opposite operation order, repeated DELETE, failed conditional backend deletion, and failure during catalog finalization; ensure returned statuses and catalog/backend state match the documented contract.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Validate the mechanism with distinct gateway/catalog instances and separate worker processes for supported shared database/storage deployments; an in-process mutex alone is insufficient for a multi-process contract.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Preserve legal-hold serialization and audit outcomes, and keep unrelated keys and tenants independent.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Run relevant API, catalog, legal-hold, storage, and supported database integration tests; record fix revision and evidence in release readiness.</li>
+</ul>
+<h5 id="issue-157-scope-boundaries">Scope boundaries</h5>
+<p>Fix the confirmed API PUT/DELETE race and direct failure/retry semantics. Do not describe the result as physical replacement-byte loss or claim all backends/database combinations have been reproduced. The broader PUT/DELETE/move/scan concurrency matrix, performance qualification, and recovery drills remain separate audit/qualification work. If the fix changes a shared mutation primitive, add focused coverage for its affected callers and link any additional discovered defects.</p>
+<h5 id="issue-157-dependencies">Dependencies</h5>
+<p>None. This ticket can start immediately.</p>
+<h5 id="issue-157-related-delivery">Related delivery</h5>
+<p><a href="https://github.com/melliott18/CogniStore/issues/39">#39</a> (REST API), <a href="https://github.com/melliott18/CogniStore/issues/30">#30</a> (persistent catalog), <a href="https://github.com/melliott18/CogniStore/issues/62">#62</a> (legal holds). These delivered capabilities remain completed; this ticket addresses a newly reproduced defect.</p>
+
+#### [#158 — \[M5\] Restore hosted CI and qualify the supported runtime matrix](https://github.com/melliott18/CogniStore/issues/158)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-158-goal">Goal</h5>
+<p>Restore trustworthy hosted release gates. The latest main run failed before any steps started because of account payments/spending limits; this is an infrastructure block, not a passing or failing application test result.</p>
+<h5 id="issue-158-scope">Scope</h5>
+<ul>
+<li>Have the repository/account owner resolve the Actions billing or spending-limit block, then run the existing workflows without weakening gates.</li>
+<li>Verify Python 3.10–3.14, default collection, service-enabled integrations, native libmagic, quality/security/package gates, and the relevant Helm/Terraform/Kubernetes workflows.</li>
+<li>Separate emulator, mocked infrastructure, live-cloud and skipped coverage in the resulting evidence.</li>
+</ul>
+<h5 id="issue-158-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Actions jobs actually start, and fresh hosted checks on a recorded main revision pass; link run URLs and artifacts.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> All supported Python versions run the configured gates; coverage meets the existing 80% minimum and skips/xfails have explicit reasons.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Relevant deployment workflows execute; a historical green run, mocked Terraform plan or development kind pass is not represented as real-cloud production qualification.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Required checks and failure visibility are reviewed, with an owner/runbook for future CI outages; the final release candidate is checked again in the candidate ticket.</li>
+</ul>
+<h5 id="issue-158-dependencies">Dependencies</h5>
+<p>None. This ticket can start immediately.</p>
+<h5 id="issue-158-out-of-scope">Out of scope</h5>
+<p>Changing billing/payment settings without the account owner's action; silently replacing hosted checks with local passes; weakening existing gates.</p>
+<h5 id="issue-158-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/actions/runs/35482921733">35482921733</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github/workflows/ci.yml">ci.yml</a></li>
+</ul>
+
+#### [#159 — \[M5\] Define the first production deployment, workload, and pilot acceptance gates](https://github.com/melliott18/CogniStore/issues/159)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `area:docs`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-159-goal">Goal</h5>
+<p>Make production readiness a measurable claim for one declared deployment and workload. Existing feature acceptance does not select an operating environment or establish production SLOs.</p>
+<h5 id="issue-159-scope">Scope</h5>
+<ul>
+<li>Select the first backend(s), OS/filesystem semantics, catalog/broker topology, tenant model, scheduler mode, keyword-index ownership, and required user workflows.</li>
+<li>Record object-size distribution, data volume, request/concurrency pattern and growth assumptions. Decide whether full semantic Ask, a real model provider, PII, Azure extras, or GCS spooling are required.</li>
+<li>Define named operator/security owners, recovery point/time objectives, availability/latency/throughput/capacity targets, pilot cohort/data bounds/duration, and stop/rollback conditions.</li>
+<li>Update the forward-looking roadmap and generated ticket mirror to reference this M5 initiative while preserving M1–M4 closeout history.</li>
+</ul>
+<h5 id="issue-159-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A reviewed, versioned deployment/workload specification names in-scope features and explicitly excluded/unsupported pilot combinations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Numeric pass/fail targets and test duration/sample-size requirements are chosen before qualification; RPO/RTO, performance and capacity targets are measurable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Known boundaries have decisions: metadata-only default API, production provider composition, PII/search interaction, single-node scheduler, keyword ownership, encryption attestations, optional backend dependencies and temporary storage sizing.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Named owners and pilot entry/exit/stop criteria are recorded; credentials or customer data are not included in the specification.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Roadmap and generated ticket mirror show the new work and dependencies without reopening completed delivery acceptance.</li>
+</ul>
+<h5 id="issue-159-dependencies">Dependencies</h5>
+<p>None. This ticket can start immediately.</p>
+<h5 id="issue-159-out-of-scope">Out of scope</h5>
+<p>Qualifying every cloud/topology or inventing customer requirements; implementing a new distributed scheduler, OCR or multi-region platform.</p>
+<h5 id="issue-159-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/reference_architectures.md">reference_architectures.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/evidence/m4/README.md">README.md</a></li>
+</ul>
+
+#### [#160 — \[M5\] Assemble and freeze a reproducible release candidate for the selected workload](https://github.com/melliott18/CogniStore/issues/160)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `area:indexing`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-160-goal">Goal</h5>
+<p>Produce one installable candidate whose exact code, dependencies, providers and configuration can be qualified and promoted.</p>
+<h5 id="issue-160-scope">Scope</h5>
+<ul>
+<li>Build from a clean main revision containing both fixes; version the package/image and record immutable source and image identities.</li>
+<li>Capture resolved dependencies, runtime extras, migration versions, sanitized configuration identity and component inventory/SBOM so later dependency resolution cannot silently change the qualified artifact.</li>
+<li>Wire and document only the product integrations selected by the target ticket. If full Ask is required, assemble the actual keyword/vector/answer providers rather than shipping metadata-only Ask or sample models.</li>
+<li>Run clean-install and installed-artifact smoke plus security and dependency checks.</li>
+</ul>
+<h5 id="issue-160-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A release manifest binds source SHA, image digest, package/dependency identities, migrations, configuration revision, provider/model identities and build instructions.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A clean environment installs the exact artifact and executes the selected storage/query/action workflows; required Azure/embedding extras and GCS spool capacity are present when selected.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The fixes' regression tests and applicable hosted gates pass on this exact candidate; security scan findings have documented disposition and no unresolved release blockers.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Production search/Ask integration is verified when in scope; otherwise its exclusion and metadata-only behavior are explicit in product/operator documentation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A change-control rule identifies which code/config/dependency changes invalidate prior evidence and require requalification.</li>
+</ul>
+<h5 id="issue-160-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/156">#156</a> — [M5] [P1] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/157">#157</a> — [M5] [P1] Prevent an older DELETE from removing a concurrent replacement PUT catalog record</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/158">#158</a> — [M5] Restore hosted CI and qualify the supported runtime matrix</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+</ul>
+<h5 id="issue-160-out-of-scope">Out of scope</h5>
+<p>General model benchmarking, unrelated new features, publishing a general-availability release or enabling customer traffic.</p>
+<h5 id="issue-160-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/rest_api.md">rest_api.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/setup_guide.md">setup_guide.md</a></li>
+</ul>
+
+#### [#162 — \[M5\] Audit system safety, security, and data consistency for the release candidate](https://github.com/melliott18/CogniStore/issues/162)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:control-plane`, `area:orchestration`, `area:security`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-162-goal">Goal</h5>
+<p>Complete a bounded full-system audit across the selected product's trust boundaries and data mutation paths, with evidence and remediation rather than a checklist-only signoff.</p>
+<h5 id="issue-162-scope">Scope</h5>
+<ul>
+<li>Inventory entry points, privileged services, storage/catalog/queue ownership, tenant boundaries and supported deployment assumptions.</li>
+<li>Review JWT/RBAC, tenant aliases and scoped search/citations, trusted broker identity assertions, legal holds, audit integrity/checkpoints, secrets, redaction and unsafe configuration.</li>
+<li>Exercise overlapping PUT/DELETE/move/scan/repair/cleanup operations, crash windows, generation fences, storage/catalog publication failures and authorization changes during queued work.</li>
+<li>Review dependency/artifact security and production configuration; link new defects to separate remediation tickets with owners and release-blocking disposition.</li>
+</ul>
+<h5 id="issue-162-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A versioned audit matrix maps every scoped trust boundary and mutation family to code review, adversarial tests, staging checks and retained sanitized evidence.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Both known defects are reproduced on the affected baseline and verified fixed in the candidate; case-insensitive behavior is exercised on a real applicable filesystem or an explicitly enforced unsupported-configuration boundary.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Concurrency and failure tests cover SQLite and the selected production catalog/backend, including multiple processes/replicas where supported; no unexplained data divergence, cross-tenant access or hold bypass remains.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Findings have severity, trigger, evidence, owner and disposition; all release-blocking findings are remediated and retested before audit signoff.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Final audit conclusion names exact candidate/config/environment identities and residual operating limits; a code change after signoff triggers scoped re-audit.</li>
+</ul>
+<h5 id="issue-162-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/160">#160</a> — [M5] Assemble and freeze a reproducible release candidate for the selected workload</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/161">#161</a> — [M5] Deploy isolated staging with the selected production security and infrastructure configuration</li>
+</ul>
+<p>Source/configuration review can start as soon as the target is selected and can run alongside fixes and staging assembly. Listed dependencies are required for final candidate/staging signoff, not a prohibition on early review.</p>
+<h5 id="issue-162-out-of-scope">Out of scope</h5>
+<p>Universal security certification, all possible cloud/topology combinations, replacing live recovery/load/UAT tickets, or closing discovered blockers by merely filing them.</p>
+<h5 id="issue-162-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/audit_coverage.md">audit_coverage.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operator_security.md">operator_security.md</a></li>
+</ul>
+
+#### [#161 — \[M5\] Deploy isolated staging with the selected production security and infrastructure configuration](https://github.com/melliott18/CogniStore/issues/161)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `area:security`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-161-goal">Goal</h5>
+<p>Provide a production-configured environment for qualification of the exact candidate, using synthetic data and the actual selected services.</p>
+<h5 id="issue-161-scope">Scope</h5>
+<ul>
+<li>Provision the selected topology using the reviewed deployment configuration, including actual target storage, PostgreSQL/pgvector and persistent JetStream where selected.</li>
+<li>Configure real OIDC/JWT, RBAC and tenant policies, verified TLS, secret delivery, encrypted persistent/temporary state and backups, least-privilege service access and enforced network policy.</li>
+<li>Configure operator telemetry, alert destinations and private monitoring access without exposing aggregate tenant metrics or weakening tenant isolation.</li>
+<li>Record environment identity, cost bounds, ownership and teardown/recovery procedure.</li>
+</ul>
+<h5 id="issue-161-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The release manifest's image/configuration identities are running; topology and provisioned resources are inventoried with sanitized evidence.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Authenticated storage and queued-job smoke succeeds; missing/wrong credentials, plaintext or untrusted certificates and denied network paths fail as intended.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> At-rest encryption and backup configuration are verified through platform evidence, not solely application attestations; keys and recovery access have owners.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tenant-safe telemetry is observable and an end-to-end test notification reaches the designated operator.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Environment is isolated from production/customer data with documented spend bounds, access controls and teardown instructions; passing health endpoints alone does not close the ticket.</li>
+</ul>
+<h5 id="issue-161-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/160">#160</a> — [M5] Assemble and freeze a reproducible release candidate for the selected workload</li>
+</ul>
+<h5 id="issue-161-out-of-scope">Out of scope</h5>
+<p>Customer onboarding, multi-cloud rollout or representing mocked Terraform plans as an actual deployment.</p>
+<h5 id="issue-161-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/kubernetes.md">kubernetes.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/terraform.md">terraform.md</a></li>
+</ul>
+
+#### [#163 — \[M5\] Run manual end-to-end acceptance across CLI, API, SDK, search, and administration](https://github.com/melliott18/CogniStore/issues/163)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:api`, `area:indexing`, `area:ui`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-163-goal">Goal</h5>
+<p>Demonstrate that real users/operators can complete the selected workflows and understand failures on the candidate in staging.</p>
+<h5 id="issue-163-scope">Scope</h5>
+<ul>
+<li>Create a repeatable manual test matrix with expected results, seeded synthetic corpus, identities and evidence capture.</li>
+<li>Exercise CLI/API/SDK upload, scan, exact-byte download, range reads, durable jobs, policy preview/execution and consistency/repair workflows.</li>
+<li>Use an actual browser for selected search/Ask and admin flows, including citations/downloads, roles, confirmations, job state, audit evidence, errors and empty results.</li>
+<li>Include negative identity/tenant/hold scenarios and product boundaries selected in the target ticket.</li>
+</ul>
+<h5 id="issue-163-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Every in-scope scenario records tester, candidate/config revision, inputs, expected/actual result and sanitized screenshot/log evidence; actual browser interaction is included.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Object bytes/checksums and catalog placement agree; policy/repair previews cause no mutation, and queued responses are followed through terminal outcomes and actual storage effects.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Reader/writer/operator/auditor and at least two tenants demonstrate permitted and denied operations, including direct known IDs, search/citations, expired/wrong-audience tokens and legal-hold protection.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Required production providers are tested with relevant/no-match/provider-unavailable queries, grounded citations and downloads; sample models do not substitute for production quality checks.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unsupported formats, extraction limits and PII/search interaction are verified and documented; all release-blocking findings are fixed and affected scenarios rerun.</li>
+</ul>
+<h5 id="issue-163-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/161">#161</a> — [M5] Deploy isolated staging with the selected production security and infrastructure configuration</li>
+</ul>
+<h5 id="issue-163-out-of-scope">Out of scope</h5>
+<p>Adding every missing feature, testing only HTML shell responses, or certifying model quality from deterministic demonstration queries.</p>
+<h5 id="issue-163-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/admin_ui.md">admin_ui.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/content_search_sample.md">content_search_sample.md</a></li>
+</ul>
+
+#### [#164 — \[M5\] Qualify failure recovery, coherent restore, credential rotation, and upgrade rollback](https://github.com/melliott18/CogniStore/issues/164)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:control-plane`, `area:delivery`, `area:orchestration`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-164-goal">Goal</h5>
+<p>Show that operators can recover the selected deployment with data, governance and job state intact within defined recovery targets.</p>
+<h5 id="issue-164-scope">Scope</h5>
+<ul>
+<li>Interrupt workers during transfers and catalog publication, and interrupt database, broker and storage connectivity; verify retry/DLQ/redrive and uncertain-submission reconciliation.</li>
+<li>Rotate credentials and TLS trust material under work, revoke application grants and inspect queued-work revalidation.</li>
+<li>Restore a coherent fenced recovery set into isolation: all tenant catalogs, object versions/sidecars, encryption-key access, main/DLQ streams and consumer state, configuration and optional scheduler state.</li>
+<li>Upgrade and roll back the candidate through the supported application/schema procedure, including pending moves and generation-token changes.</li>
+</ul>
+<h5 id="issue-164-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Recorded drills show source preservation/integrity, durable job identity and safe recovery or explicit quarantine for interrupted moves; no silent loss, unsafe cleanup or duplicate effects.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A full restore includes pending nonterminal work and all tenants; hashes, catalog placement, holds, audit continuity/checkpoints and queue/scheduler state reconcile before writers resume.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Measured recovery point/time meet the target ticket's RPO/RTO; key/credential availability and restored-generation mismatch handling are demonstrated.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Credential/CA rotation and revoked RBAC/tenant grants behave as documented; token expiry is not misrepresented as automatic queued-job cancellation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Upgrade/rollback preserves or safely restores data/schema compatibility, with measured outage and tested operator runbooks; unresolved blockers are fixed and retested.</li>
+</ul>
+<h5 id="issue-164-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/161">#161</a> — [M5] Deploy isolated staging with the selected production security and infrastructure configuration</li>
+</ul>
+<h5 id="issue-164-out-of-scope">Out of scope</h5>
+<p>Physical power-loss certification or cross-region DR unless explicitly selected; claiming a quiesced local SQLite drill qualifies production recovery.</p>
+<h5 id="issue-164-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operator_lifecycle.md">operator_lifecycle.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operator_incidents.md">operator_incidents.md</a></li>
+</ul>
+
+#### [#165 — \[M5\] Qualify realistic load, sustained operation, capacity limits, and alert delivery](https://github.com/melliott18/CogniStore/issues/165)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:observability`, `area:orchestration`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-165-goal">Goal</h5>
+<p>Measure whether the intended deployment meets its workload/SLO targets and fails visibly and safely at capacity.</p>
+<h5 id="issue-165-scope">Scope</h5>
+<ul>
+<li>Run the workload distribution, concurrency, dataset size and soak duration selected before testing, including hot spots and mixed storage/search/policy work.</li>
+<li>Measure latency distributions, throughput, errors, backlog/age, resource growth, connection counts, temporary storage, actual cost inputs and scaling behavior.</li>
+<li>Exercise saturation/admission failure, bounded retries, backend throttling and recovery; test real notification routes and runbook execution.</li>
+<li>Verify operating headroom for selected GCS spool, SQLite scheduler and keyword-index ownership limits.</li>
+</ul>
+<h5 id="issue-165-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A retained report identifies exact candidate/config/environment, workload, duration, metrics, pass/fail thresholds and repeatable commands.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Latency/throughput/error and recovery targets pass, with bounded resource/backlog behavior and documented capacity headroom over the required workload.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Object/checksum/catalog/audit consistency is verified after load and fault periods; performance improvements do not weaken integrity or isolation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Saturation or rejected submissions produce actionable alerts before silent service loss; alert thresholds are reachable relative to hard queue/storage limits.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Real notifications reach the named operator with runbooks and clear on recovery; tenant isolation remains enabled and private telemetry supports diagnosis.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Scaling and cost/capacity recommendations are based on measured behavior, with blockers resolved and affected tests rerun.</li>
+</ul>
+<h5 id="issue-165-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/159">#159</a> — [M5] Define the first production deployment, workload, and pilot acceptance gates</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/161">#161</a> — [M5] Deploy isolated staging with the selected production security and infrastructure configuration</li>
+</ul>
+<h5 id="issue-165-out-of-scope">Out of scope</h5>
+<p>Treating historical million-object movement or synthetic Prometheus rule tests as proof of current production SLOs; optimizing excluded workloads.</p>
+<h5 id="issue-165-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operational_slos.md">operational_slos.md</a></li>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/scale_qualification.md">scale_qualification.md</a></li>
+</ul>
+
+#### [#166 — \[M5\] Run a gated pilot and decide expansion from measured results](https://github.com/melliott18/CogniStore/issues/166)
+
+- **Kind:** Original delivery ticket
+- **Status:** Open
+- **Milestone:** M5 – Release readiness and controlled pilot
+- **Labels:** `area:delivery`, `area:docs`, `roadmap`, `type:chore`
+- **Last updated:** 2026-09-20
+
+<p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
+Milestone: M5 – Release readiness and controlled pilot</p>
+<h5 id="issue-166-goal">Goal</h5>
+<p>Use a bounded real-world pilot to validate usefulness and operations after release blockers and qualification gates are closed.</p>
+<h5 id="issue-166-scope">Scope</h5>
+<ul>
+<li>Review the candidate/evidence bundle against the target's entry criteria and record a named go/no-go decision before onboarding pilot data.</li>
+<li>Enroll only the agreed cohort and workload, with data permissions, backups, on-call ownership, telemetry, support path and rollback/stop procedures.</li>
+<li>Run for the agreed duration/volume, reviewing incidents, integrity, recovery, performance, product usefulness and operational effort.</li>
+<li>Publish an expand/fix/stop decision and prioritize the next roadmap from actual findings and user needs.</li>
+</ul>
+<h5 id="issue-166-acceptance-criteria">Acceptance criteria</h5>
+<ul class="contains-task-list">
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Entry approval identifies the exact qualified image/configuration and links passing audit, UAT, recovery and load evidence; no unresolved release blockers remain.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Pilot cohort/data bounds, operating owners, review cadence and stop/rollback triggers match the target specification and are active before first use.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The agreed pilot duration/workload completes with retained integrity, SLO, incident and user-task evidence; any material candidate change receives scoped requalification.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Exit review records whether predefined success criteria passed and makes an explicit expand/fix/stop decision with responsible owner.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> New defects/needs become linked, prioritized tickets; roadmap, operator documentation and generated ticket mirror reflect the decision. A stopped/failed pilot does not automatically close the epic as successful.</li>
+</ul>
+<h5 id="issue-166-dependencies">Dependencies</h5>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/issues/162">#162</a> — [M5] Audit system safety, security, and data consistency for the release candidate</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/163">#163</a> — [M5] Run manual end-to-end acceptance across CLI, API, SDK, search, and administration</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/164">#164</a> — [M5] Qualify failure recovery, coherent restore, credential rotation, and upgrade rollback</li>
+<li><a href="https://github.com/melliott18/CogniStore/issues/165">#165</a> — [M5] Qualify realistic load, sustained operation, capacity limits, and alert delivery</li>
+</ul>
+<h5 id="issue-166-out-of-scope">Out of scope</h5>
+<p>Unbounded rollout, general availability solely because tickets are closed, or onboarding important data before entry gates pass.</p>
+<h5 id="issue-166-evidence-and-source">Evidence and source</h5>
+<p>Retain sanitized evidence in the repository or durable linked CI/artifact storage, bound to source, image, configuration and environment identities. Local ignored paths alone are insufficient.</p>
+<ul>
+<li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operator_handbook.md">operator_handbook.md</a></li>
+</ul>

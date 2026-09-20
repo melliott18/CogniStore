@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-09-20T07:54:48.860649+00:00",
+  "base_revision": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+  "classification": "local_workflow_and_reporting_validation_only",
+  "environment": {
+    "python": "3.13.7",
+    "system": "Darwin",
+    "machine": "arm64",
+    "actionlint": "1.7.7"
+  },
+  "source_sha256": {
+    ".github/workflows/ci.yml": "5b704ca469cc844494b7fc929e8abe0c43835a0f827ad53cb9f89eee0a1c0f53",
+    ".github/workflows/kubernetes.yml": "74d3b0482a36d0d9bc9e2444e5274f13fd50f22230974959d4456c6eccd7a804",
+    ".github/workflows/terraform.yml": "1647574b0a4195e296f0279ed954c2f89db0f92716ae16ae2fd44e959fc5ae72",
+    "pyproject.toml": "e944162e385b103acf308c55ab46c279894d01e5ef914433a4710fa186e58300",
+    "tests/unit/test_topology.py": "e133e160f4cdd2a5d65adfb9178a5a70f87675b6347eba4d42d7ba3bdcc46d0c",
+    "tests/integration/test_gcs.py": "192285518685711c4352da0bacddebd44b3894f9f19b71f9346025a54ef20bd2"
+  },
+  "checks": [
+    {
+      "command": [
+        "/tmp/cognistore-158-tools/actionlint",
+        ".github/workflows/ci.yml",
+        ".github/workflows/kubernetes.yml",
+        ".github/workflows/terraform.yml"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "docker-compose.gcs.yml",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "bash -n for every inline run script in all three workflows",
+      "scripts": 48,
+      "exit_code": 0
+    },
+    {
+      "check": "YAML comparison against base: existing jobs, settings, conditions, action pins, command lines and environment preserved; pyproject.toml byte-identical (80% coverage and -rA retained)",
+      "existing_run_steps": 39,
+      "exit_code": 0
+    }
+  ],
+  "reporting_smoke": {
+    "command": "PYTEST_ADDOPTS=--junitxml=/tmp/cognistore-158-junit.xml /private/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m pytest tests/unit/test_topology.py tests/integration/test_gcs.py",
+    "cwd": "/Users/mitchell/.codex/worktrees/chore-158-hosted-ci/CogniStore",
+    "exit_code": 0,
+    "collected": 80,
+    "passed": 57,
+    "skipped": 23,
+    "failures": 0,
+    "errors": 0,
+    "skip_reasons": {
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1
+    },
+    "report": "reporting-smoke.xml.gz",
+    "uncompressed_sha256": "be28145cdc7e39e6b9de11235efea5db7ee614b6c7b424f537df45afcdb0123d",
+    "limitations": "Existing local M4 Python environment used without reinstalling the package or verifying its installed/editable source. This smoke only establishes JUnit creation and explicit skip reasons, not fresh-package, full-suite, integration-service, live-cloud, runtime-matrix or hosted qualification."
+  }
+}
