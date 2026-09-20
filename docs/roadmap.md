@@ -2,6 +2,12 @@
 
 This document tracks large-scale next steps and milestones. Use the checkboxes to track progress.
 
+M1–M4 are completed delivery history. Current work is
+[M5: release readiness and controlled pilot](#m5-execution-plan), tracked by
+[epic #155](https://github.com/melliott18/CogniStore/issues/155). The
+[production pilot specification](production_pilot.md) defines the selected
+deployment, workload, numeric qualification gates, and operating boundaries.
+
 ## Platform foundation
 
 - [x] Persistent control plane
@@ -162,9 +168,56 @@ Runtime stability controls and hard modeled budgets must be configured.
   - Epic [#14](https://github.com/melliott18/CogniStore/issues/14), the
     [M4 milestone](https://github.com/melliott18/CogniStore/milestone/3), and
     [roadmap tracker #12](https://github.com/melliott18/CogniStore/issues/12) are closed
+- [ ] M5: Release readiness and controlled pilot
+  - Success: resolve release blockers, qualify an immutable candidate for the
+    [selected deployment and workload](production_pilot.md), and complete a
+    bounded pilot with a measured expand/fix/stop decision
+  - Exit gate: the audit, manual acceptance, recovery, and load/alert campaigns
+    pass against the identified candidate and environment; recorded pilot entry
+    approval and retained pilot outcomes support the final decision
+  - [Epic #155](https://github.com/melliott18/CogniStore/issues/155) and the
+    [M5 milestone](https://github.com/melliott18/CogniStore/milestone/5) track this
+    forward scope; completed M1–M4 acceptance remains closed
 
 M1–M4 delivery is complete. GitHub Actions remains blocked before job startup by
 account billing/spending limits; M4 acceptance uses recorded local validation.
 The evidence distinguishes emulator, local, and historical Kubernetes checks
 from environment-specific production qualification. Deployments still require
 the operator security, encryption, credential, and infrastructure prerequisites.
+
+## M5 execution plan
+
+The 2026-09-20 readiness assessment identified two P1 release blockers:
+case-insensitive POSIX tenant-namespace aliases bypassing isolation/holds
+([#156](https://github.com/melliott18/CogniStore/issues/156)) and an older DELETE
+removing a concurrent replacement PUT's catalog record
+([#157](https://github.com/melliott18/CogniStore/issues/157)). Both fixes, hosted CI
+restoration, and the target specification can proceed independently. Historical
+feature acceptance does not establish production qualification for this candidate.
+
+| Work | Ticket | Required before completion |
+| --- | --- | --- |
+| Fix tenant namespace aliases | [#156](https://github.com/melliott18/CogniStore/issues/156) | None; P1 pilot blocker |
+| Fix overlapping DELETE/PUT publication | [#157](https://github.com/melliott18/CogniStore/issues/157) | None; P1 pilot blocker |
+| Restore hosted CI and qualify supported runtimes | [#158](https://github.com/melliott18/CogniStore/issues/158) | None |
+| Select deployment, workload, owners, and gates | [#159](https://github.com/melliott18/CogniStore/issues/159) | None; [versioned specification](production_pilot.md) |
+| Freeze reproducible release candidate | [#160](https://github.com/melliott18/CogniStore/issues/160) | #156, #157, #158, #159 |
+| Deploy isolated production-configured staging | [#161](https://github.com/melliott18/CogniStore/issues/161) | #159, #160 |
+| Audit safety, security, and data consistency | [#162](https://github.com/melliott18/CogniStore/issues/162) | #159, #160, #161 for final signoff; source/configuration review can start after target selection |
+| Run manual CLI/API/SDK/browser acceptance | [#163](https://github.com/melliott18/CogniStore/issues/163) | #159, #161 |
+| Qualify recovery, coherent restore, rotation, and upgrade rollback | [#164](https://github.com/melliott18/CogniStore/issues/164) | #159, #161 |
+| Qualify realistic load, capacity, and alert delivery | [#165](https://github.com/melliott18/CogniStore/issues/165) | #159, #161 |
+| Run the gated pilot and decide expansion | [#166](https://github.com/melliott18/CogniStore/issues/166) | Passing #162, #163, #164, #165 evidence and recorded entry approval |
+
+The child issues' live **Dependencies** sections are authoritative and are retained
+in the generated [ticket mirror](tickets.md). Qualification campaigns may run in
+parallel only with isolated test scopes, so destructive drills cannot remove
+another campaign's dependencies. Retain sanitized evidence with exact source,
+image, dependency, configuration, and environment identities; explain skips and
+store artifacts in the repository or durable linked storage.
+
+The [pilot specification](production_pilot.md) sets numeric targets before testing
+and defines entry, exit, stop, and rollback criteria. Material changes after
+qualification require scoped requalification. A failed or stopped pilot requires
+an explicit fix/stop decision and does not automatically satisfy M5. The next
+roadmap follows measured pilot outcomes and linked, prioritized follow-up tickets.
