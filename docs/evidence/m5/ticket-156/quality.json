@@ -1,0 +1,122 @@
+{
+  "worktree": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+  "python": "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+  "checks": [
+    {
+      "name": "openapi",
+      "command": [
+        "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+        "-m",
+        "cognistore.api.openapi",
+        "--check",
+        "docs/openapi/v1.json"
+      ],
+      "cwd": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "started_at": "2026-09-20T08:21:11.422655+00:00",
+      "finished_at": "2026-09-20T08:21:21.530594+00:00",
+      "duration_seconds": 10.11,
+      "exit_code": 0,
+      "log": "quality/openapi.log.gz"
+    },
+    {
+      "name": "build",
+      "command": [
+        "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+        "-m",
+        "build",
+        "--outdir",
+        "/tmp/cognistore-156-quality/dist"
+      ],
+      "cwd": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "started_at": "2026-09-20T08:21:11.426373+00:00",
+      "finished_at": "2026-09-20T08:21:26.137593+00:00",
+      "duration_seconds": 14.71,
+      "exit_code": 0,
+      "log": "quality/build.log.gz"
+    },
+    {
+      "name": "twine",
+      "command": [
+        "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+        "-m",
+        "twine",
+        "check",
+        "/tmp/cognistore-156-quality/dist/cognistore-0.1.0-py3-none-any.whl",
+        "/tmp/cognistore-156-quality/dist/cognistore-0.1.0.tar.gz"
+      ],
+      "cwd": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "started_at": "2026-09-20T08:21:26.138541+00:00",
+      "finished_at": "2026-09-20T08:21:27.174130+00:00",
+      "duration_seconds": 1.04,
+      "exit_code": 0,
+      "log": "quality/twine.log.gz"
+    },
+    {
+      "name": "bandit",
+      "command": [
+        "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "-ll",
+        "-ii"
+      ],
+      "cwd": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "started_at": "2026-09-20T08:21:11.423294+00:00",
+      "finished_at": "2026-09-20T08:21:27.446052+00:00",
+      "duration_seconds": 16.02,
+      "exit_code": 0,
+      "log": "quality/bandit.log.gz"
+    },
+    {
+      "name": "pip_audit",
+      "command": [
+        "/tmp/cognistore-m4-closeout-20260920/venv/bin/python",
+        "-m",
+        "pip_audit",
+        ".",
+        "--strict",
+        "--desc",
+        "--progress-spinner=off"
+      ],
+      "cwd": "/Users/mitchell/.codex/worktrees/fix-156-tenant-namespace-aliases/CogniStore",
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "started_at": "2026-09-20T08:21:11.423579+00:00",
+      "finished_at": "2026-09-20T08:21:37.463056+00:00",
+      "duration_seconds": 26.04,
+      "exit_code": 0,
+      "log": "quality/pip_audit.log.gz"
+    },
+    {
+      "name": "ruff",
+      "command": "PYTHONPATH=. /private/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m ruff check .",
+      "exit_code": 0,
+      "log": "quality/ruff.log.gz"
+    },
+    {
+      "name": "mypy",
+      "command": "PYTHONPATH=. /private/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m mypy cognistore",
+      "exit_code": 0,
+      "log": "quality/mypy.log.gz"
+    }
+  ],
+  "passed": true
+}

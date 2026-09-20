@@ -55,12 +55,33 @@ SQL and migration tools are trusted operator interfaces, not tenant APIs.
 
 Storage retains logical buckets and keys in public interfaces. Non-default
 tenants use `.cognistore-tenants/<SHA-256 tenant ID>/` prefixes within each
-physical bucket. The default namespace excludes this reserved directory.
+physical bucket. The default namespace excludes this reserved directory and
+its filename aliases.
 Readers, writes, conditional deletes, streaming, scans, and listing cursors all
 enforce the namespace. Buckets must be single relative path components; keys
-cannot traverse directories or address the reserved prefix. Move any legacy
-objects under that reserved prefix through a trusted offline migration before
-enabling this release's API or worker wrappers.
+cannot traverse directories or address the reserved first component.
+
+Reserved-name comparisons fold Unicode case and remove the pinned Unicode 17
+default-ignorable characters, including the 16 characters ignored by HFS+
+filename comparison. For example, `.COGNISTORE-TENANTS` and
+`.cogniſtore-tenants` are reserved as both a bucket and a first key component,
+including listing prefixes. Returned inventories also hide such names. This
+protects shared tenant storage on case-sensitive POSIX, case-insensitive APFS,
+HFS+, and casefolded ext4 without changing physical tenant prefixes. Aliases of
+empty, `.` or `..` path components are rejected too. POSIX also reserves aliases
+of its `.cognistore-staging` bucket so requests cannot access shared uploads.
+
+This is an intentional compatibility change on **every backend**, including
+case-sensitive cloud object stores: reserved aliases that were previously
+accepted are now inaccessible through tenant wrappers. Move any legacy
+objects using those names or ambiguous component aliases through a trusted
+offline migration before enabling the updated API or workers. Ordinary buckets
+and keys retain their spelling,
+case, and backend semantics; `.cognistore-tenants-backup` and
+`documents/.COGNISTORE-TENANTS/example` remain ordinary keys. No tenant-storage
+migration is required for existing canonical tenant prefixes. See
+[POSIX filename support](posix_containment.md#reserved-filename-comparisons)
+for the supported comparison boundary.
 
 Tantivy indexes use separate tenant paths and writer caches; pgvector indexes
 live with the catalog. Retrieval, generated-answer providers, and policy feature
@@ -109,6 +130,13 @@ Tenant catalog conformance runs against memory, SQLite, and PostgreSQL. Worker
 tests cover crafted envelopes, revocation, retry/redrive, and concurrent tenant
 deliveries; search/storage tests cover real Tantivy and pgvector indexes,
 generation checks, and traversal attempts.
+
+`tests/unit/test_tenant_namespace_aliases.py` covers reserved aliases at every
+shared storage entry point, listing filters/cursors, and the staging bucket.
+`tests/unit/test_tenant_namespace_api.py` exercises authenticated default-tenant
+attacks against another tenant's held object with deterministic case-insensitive
+POSIX lookup and a native volume check (skipped on case-sensitive volumes).
+Both retain victim bytes and verify rejection before backend access.
 
 Run the default suite with `python -m pytest`. Set
 `COGNISTORE_TEST_POSTGRES_DSN` to an isolated test PostgreSQL service with

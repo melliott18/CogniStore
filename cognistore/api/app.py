@@ -46,6 +46,7 @@ from cognistore.auth.tenancy import TenantIsolationError, TenantResolver, tenant
 from cognistore.budget_telemetry import budget_metrics_response
 from cognistore.core.legal_holds import LegalHoldError
 from cognistore.core.object_mutation_lock import ObjectMutationConflictError
+from cognistore.drivers.namespaces import InvalidStorageNamespaceError
 from cognistore.drivers.observed import access_operation
 from cognistore.drivers.storage_driver import ObjectGenerationMismatchError
 from cognistore.jobs.models import QueueSaturatedError
@@ -580,6 +581,15 @@ def create_app(
         await audit_http_denial(request)
         return _error_response(
             request, status_code=403, code="forbidden", message="Operation not permitted",
+        )
+
+    @app.exception_handler(InvalidStorageNamespaceError)
+    async def storage_namespace_error(
+        request: Request, _exc: InvalidStorageNamespaceError,
+    ) -> JSONResponse:
+        return _error_response(
+            request, status_code=422, code="validation_error",
+            message="Bucket or key uses an invalid storage namespace",
         )
 
     @app.exception_handler(RequestValidationError)
