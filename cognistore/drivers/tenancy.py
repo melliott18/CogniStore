@@ -9,6 +9,11 @@ from typing import Any
 
 from cognistore.auth.tenancy import DEFAULT_TENANT_ID, require_tenant, validate_tenant_id
 
+from .namespaces import (
+    InvalidStorageNamespaceError,
+    is_reserved_component,
+    storage_component_identity,
+)
 from .storage_driver import (
     MAX_LISTING_PAGE_SIZE,
     ReadableStream,
@@ -35,9 +40,11 @@ class TenantStorageDriver(StorageDriver):
     """Keep logical coordinates while isolating each tenant's physical keys.
 
     The default tenant retains legacy paths. Its reserved tenant directory is
-    inaccessible, including through listing. Buckets must be single components
-    and keys must be relative paths so filesystem backends cannot normalize an
-    input into another tenant's namespace.
+    inaccessible, including case aliases and listing. Buckets must be single
+    components and keys must be relative paths so filesystem backends cannot
+    normalize an input into another tenant's namespace. Reserved-name checks
+    cover filesystem case and ignorable-character aliases on every backend;
+    ordinary coordinates keep their exact spelling.
     """
 
     def __init__(self, driver: StorageDriver, tenant_id: str = DEFAULT_TENANT_ID) -> None:
@@ -68,21 +75,27 @@ class TenantStorageDriver(StorageDriver):
     def _bucket(self, bucket: str) -> str:
         require_tenant(self.tenant_id)
         if (
-            not isinstance(bucket, str) or not bucket or bucket in {".", ".."}
+            not isinstance(bucket, str) or storage_component_identity(bucket) in {"", ".", ".."}
             or any(character in bucket for character in ("/", "\\", "\0"))
-            or bucket == TENANT_STORAGE_DIRECTORY
+            or is_reserved_component(bucket, TENANT_STORAGE_DIRECTORY)
         ):
-            raise ValueError("tenant storage bucket must be a single relative path component")
+            raise InvalidStorageNamespaceError(
+                "tenant storage bucket must be a single relative path component outside "
+                "the reserved namespace"
+            )
         return bucket
 
     def _key(self, key: str, *, prefix: bool = False) -> str:
         if (
             not isinstance(key, str) or (not key and not prefix)
             or key.startswith("/") or "\\" in key or "\0" in key
-            or any(part in {".", ".."} for part in key.split("/"))
-            or key.split("/", 1)[0] == TENANT_STORAGE_DIRECTORY
+            or any(
+                part and storage_component_identity(part) in {"", ".", ".."}
+                for part in key.split("/")
+            )
+            or is_reserved_component(key.split("/", 1)[0], TENANT_STORAGE_DIRECTORY)
         ):
-            raise ValueError("tenant storage key must remain inside its namespace")
+            raise InvalidStorageNamespaceError("tenant storage key must remain inside its namespace")
         return self._prefix + key
 
     def _logical_key(self, key: str, prefix: str) -> str | None:

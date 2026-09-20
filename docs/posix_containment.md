@@ -13,7 +13,8 @@ and every directory below it must belong to the process's effective user ID
 and must not have group or other write permission. New directories are created
 with mode `0700`, subject to the process umask. Existing directories are
 checked, not silently repaired. The private `.cognistore-staging` directory is
-reserved and cannot be used as a bucket.
+reserved and cannot be used as a bucket, including filename aliases described
+below.
 
 Ancestors of the configured root must belong to the service account or root
 and must not be writable by group or other users. A sticky shared ancestor,
@@ -91,6 +92,35 @@ These properties follow the POSIX definitions of descriptor-relative
 [openat](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html),
 [renameat](https://pubs.opengroup.org/onlinepubs/9799919799/functions/rename.html),
 and [unlinkat](https://pubs.opengroup.org/onlinepubs/9699919799/functions/unlink.html).
+
+## Reserved filename comparisons
+
+The tenant wrapper reserves the first key component `.cognistore-tenants`
+and the corresponding bucket name before delegating storage operations. The
+POSIX driver separately reserves the first bucket component
+`.cognistore-staging` before accessing object directories or staging uploads.
+Both reservations cover Unicode casefold aliases, including mixed ASCII case
+and long s (U+017F), after removing the pinned
+[Unicode 17 default-ignorable set](https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt).
+This covers casefolded ext4 comparison as well as the 16 characters ignored by
+[HFS+ comparison](https://developer.apple.com/documentation/coreservices/kuccollatetypehfsextended):
+U+200C–U+200F, U+202A–U+202E, U+206A–U+206F, and U+FEFF.
+
+The same comparison rejects empty, `.` and `..` component aliases before
+filesystem traversal; an ignored character cannot disguise a parent component.
+Supported filename comparisons are exact POSIX names, Unicode canonical/case
+comparison as used by APFS, and HFS+/ext4 comparison with ignorables. Canonical
+Unicode normalization adds no aliases to these fixed ASCII reservations.
+Ordinary object coordinates are not normalized or renamed. Filesystems or
+translation layers that additionally trim punctuation or spaces, provide
+short-name aliases, or map other characters to reserved names are outside this
+supported comparison contract and must not back a shared tenant tier. These
+custom comparison behaviors are not automatically detected by filesystem-type
+or finite filename probes. The existing ownership, no-follow,
+same-filesystem, and durability requirements still apply.
+
+The reservation is deliberately conservative on case-sensitive storage too;
+see [tenant namespace compatibility](tenancy.md#persistence-and-namespaces).
 
 ## Residual limits
 

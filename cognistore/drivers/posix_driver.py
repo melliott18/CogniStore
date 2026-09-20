@@ -21,6 +21,11 @@ except ImportError:  # pragma: no cover - unavailable on non-POSIX platforms
 from cognistore.encryption import require_at_rest
 from cognistore.observability import instrument
 
+from .namespaces import (
+    InvalidStorageNamespaceError,
+    is_reserved_component,
+    storage_component_identity,
+)
 from .storage_driver import (
     DEFAULT_STREAM_CHUNK_SIZE,
     DriverCapabilities,
@@ -387,8 +392,10 @@ class PosixDriver(StorageDriver):
         raw_parts = normalized.split(os.sep)
         if allow_empty and value == "":
             return path
-        if not value or any(part in {"", ".", ".."} for part in raw_parts):
-            raise ValueError(
+        if not value or any(
+            storage_component_identity(part) in {"", ".", ".."} for part in raw_parts
+        ):
+            raise InvalidStorageNamespaceError(
                 f"{label} path escapes configured tier root or contains "
                 "ambiguous components"
             )
@@ -396,8 +403,8 @@ class PosixDriver(StorageDriver):
 
     def _path(self, bucket: str, key: str, *, allow_bucket_root: bool = False) -> Path:
         bucket_path = self._relative_path(bucket, "Bucket")
-        if bucket_path.parts[0] == _STAGING_DIRECTORY:
-            raise ValueError(
+        if is_reserved_component(bucket_path.parts[0], _STAGING_DIRECTORY):
+            raise InvalidStorageNamespaceError(
                 f"Bucket path uses reserved namespace {_STAGING_DIRECTORY!r}"
             )
         key_path = self._relative_path(
