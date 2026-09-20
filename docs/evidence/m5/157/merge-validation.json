@@ -1,0 +1,25 @@
+{
+  "integration_revision": "ce7733d30fc8b8a59f2c1bd723c6af51c024789a",
+  "integrated_main_revision": "1bcc5bd6f32323de1796a211079ee554858e5172",
+  "original_fix_revision": "a7d61e276df9dbbe21ad55eb9d4248d38046902c",
+  "validation_date_utc": "2026-09-20",
+  "command": "python -m pytest tests/unit/test_tenant_namespace_aliases.py tests/unit/test_tenant_namespace_api.py tests/unit/test_api_object_mutations.py tests/unit/test_object_mutation_fence.py tests/unit/test_rest_api.py tests/unit/test_legal_holds_api.py tests/unit/test_storage_audit.py tests/integration/test_object_mutation_fence_postgres.py tests/integration/test_postgres_object_mutations.py tests/integration/test_legal_hold_postgres.py tests/integration/test_tenant_catalog_postgres.py --junitxml=/tmp/cognistore-157-merge.xml --tb=short",
+  "environment": "Same worktree runtime as validation.json; fresh isolated PostgreSQL container from the recorded pgvector image; COGNISTORE_TEST_POSTGRES_DSN enabled.",
+  "results": {
+    "tests": "389",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "68.967"
+  },
+  "additional_checks": {
+    "ruff": "passed",
+    "mypy": "passed (164 source files)",
+    "openapi_contract": "current",
+    "git_diff_check": "passed"
+  },
+  "sha256": {
+    "merge-tests.log.gz": "1eb609c5e0742eee2278e5e035e33681eafcc0d920d4521920b4ea45f87de9f0",
+    "merge-tests.xml.gz": "54dc61bfd0b5da2b177796e7e26cbbfa6343de2adba231604e31cc0f32d595b4"
+  }
+}

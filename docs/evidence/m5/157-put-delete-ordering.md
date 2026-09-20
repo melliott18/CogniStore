@@ -101,6 +101,24 @@ With the isolated test PostgreSQL DSN in `COGNISTORE_TEST_POSTGRES_DSN`:
 .venv/bin/python -m twine check dist/*
 ```
 
+## Integration with current main
+
+Before merging PR #170, revision `ce7733d30fc8b8a59f2c1bd723c6af51c024789a`
+integrated main `1bcc5bd6f32323de1796a211079ee554858e5172`, including #156's
+tenant-namespace protection and #158/#159's CI and pilot documentation. The
+roadmap resolution retains both evidence links and the M5 plan; the API import
+resolution retains both safety handlers. No changes from either fix were dropped.
+
+The combined namespace, API mutation, legal-hold, storage-audit, and PostgreSQL
+tenant/mutation regression selection passed **389 tests, with no skips or
+failures**, in 70.30 seconds. Fresh Ruff, mypy (164 source files), OpenAPI
+contract, and diff checks passed. See
+[merge-validation metadata and command](157/merge-validation.json),
+[JUnit results](157/merge-tests.xml.gz), and [test log](157/merge-tests.log.gz).
+This scoped integration run does not change the full-suite or hosted-CI
+limitations below. The PR records the selected merge head and its hosted
+startup failure caused by the account billing/spending-limit block under #158.
+
 ## Broader-suite limitation
 
 An exploratory `pytest --cov=cognistore --cov-report=term-missing` run started
