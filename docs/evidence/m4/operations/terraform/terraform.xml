@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><testsuites>
+  <testsuite name="tests/production.tftest.hcl" tests="6" skipped="0" failures="0" errors="0">
+    <testcase name="secure_production_topology" classname="tests/production.tftest.hcl" time="0.058141" timestamp="2026-09-20T01:47:20Z"></testcase>
+    <testcase name="reject_single_zone" classname="tests/production.tftest.hcl" time="0.024637" timestamp="2026-09-20T01:47:20Z">
+      <system-err><![CDATA[
+Error: Invalid value for variable
+
+  on tests/production.tftest.hcl line 211, in run "reject_single_zone":
+ 211:     availability_zones = ["us-east-1a"]
+    ├────────────────
+    │ var.availability_zones is list of string with 1 element
+    │ var.region is "us-east-1"
+
+Supply three distinct standard availability zones in the selected region.
+
+This was checked by the validation rule at variables.tf:27,3-13.
+]]></system-err>
+    </testcase>
+    <testcase name="reject_public_operator_access" classname="tests/production.tftest.hcl" time="0.049038" timestamp="2026-09-20T01:47:20Z">
+      <system-err><![CDATA[
+Error: Invalid value for variable
+
+  on tests/production.tftest.hcl line 219, in run "reject_public_operator_access":
+ 219:     operator_cidrs = ["0.0.0.0/0"]
+    ├────────────────
+    │ var.operator_cidrs is set of string with 1 element
+
+Provide at least one IPv4 operator CIDR with prefix /16 or narrower.
+
+This was checked by the validation rule at variables.tf:46,3-13.
+]]></system-err>
+    </testcase>
+    <testcase name="reject_undersized_node_pool" classname="tests/production.tftest.hcl" time="0.042292" timestamp="2026-09-20T01:47:20Z">
+      <system-err><![CDATA[
+Error: Invalid value for variable
+
+  on tests/production.tftest.hcl line 227, in run "reject_undersized_node_pool":
+ 227:     node_capacity = { min = 1, desired = 1, max = 3 }
+    ├────────────────
+    │ var.node_capacity is object with 3 attributes
+    │ var.node_capacity.desired is 1
+    │ var.node_capacity.max is 3
+    │ var.node_capacity.min is 1
+
+Integer node capacities must satisfy 3 <= min <= desired <= max.
+
+This was checked by the validation rule at variables.tf:88,3-13.
+]]></system-err>
+    </testcase>
+    <testcase name="reject_cross_account_admin" classname="tests/production.tftest.hcl" time="0.037872" timestamp="2026-09-20T01:47:21Z">
+      <system-err><![CDATA[
+Error: Invalid value for variable
+
+  on tests/production.tftest.hcl line 235, in run "reject_cross_account_admin":
+ 235:     cluster_admin_role_arn = "arn:aws:iam::999900001111:role/operator"
+    ├────────────────
+    │ var.account_id is "111122223333"
+    │ var.cluster_admin_role_arn is "arn:aws:iam::999900001111:role/operator"
+
+cluster_admin_role_arn must be an IAM role in account_id (not an STS session
+ARN).
+
+This was checked by the validation rule at variables.tf:55,3-13.
+]]></system-err>
+    </testcase>
+    <testcase name="reject_unsupported_postgres_family" classname="tests/production.tftest.hcl" time="0.031748" timestamp="2026-09-20T01:47:21Z">
+      <system-err><![CDATA[
+Error: Invalid value for variable
+
+  on tests/production.tftest.hcl line 243, in run "reject_unsupported_postgres_family":
+ 243:     postgres_version = "16.9"
+    ├────────────────
+    │ var.postgres_version is "16.9"
+
+This reference uses PostgreSQL 17 and its postgres17 parameter family.
+
+This was checked by the validation rule at variables.tf:104,3-13.
+]]></system-err>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,376 @@
+{
+  "schema_version": 1,
+  "reviewed_revision": "ad20be8fa1d1f00224064d65324527d2a200dc52",
+  "review_scope": "M4 operations issues #65-#73; source and tracker read-only; root owns full suite and tracked writes",
+  "issue_mapping": [
+    {
+      "issue": 65,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 136,
+      "merge_commit": "c2ff88939c4ecda1b7727c9d3a069a6b8af11ca6",
+      "tests": [
+        "tests/unit/test_observability.py",
+        "tests/unit/test_api_observability.py",
+        "tests/integration/test_nats_worker.py"
+      ],
+      "assessment": "Bounded metrics and redacted structured logs; context propagation tests include actual NATS retry/dead-letter/redrive ancestry. PR records live Compose dashboard and storage/catalog trace verification."
+    },
+    {
+      "issue": 66,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 140,
+      "merge_commit": "741f719f0258675e59a1d2ea061cde9243825ee4",
+      "tests": [
+        "tests/unit/test_slo.py",
+        "tests/unit/test_budget_telemetry.py",
+        "tests/unit/test_indexing_slo.py",
+        "tests/observability/slo_rules.test.yml"
+      ],
+      "assessment": "Five versioned SLO definitions, shared policy-budget estimators, 49 Prometheus rules and breach/recovery fixtures; fresh M1 evaluator preserves unavailable attainment limitations."
+    },
+    {
+      "issue": 67,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 133,
+      "merge_commit": "9ca9ff5bdbf80e7fed66e53058468e645ae6c4b7",
+      "tests": [
+        "tests/unit/test_consistency.py",
+        "tests/unit/test_consistency_safety.py",
+        "tests/unit/test_consistency_cli.py",
+        "tests/integration/test_consistency_postgres.py"
+      ],
+      "assessment": "Tenant-bound resumable/rate-limited read-only scans; source state remains unchanged while report/audit are external. Missing, mismatch, duplicate, partial and untracked conditions covered."
+    },
+    {
+      "issue": 68,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 149,
+      "merge_commit": "7336c94ba0ac5e85a5d7869dfb4d98c13e52ae7f",
+      "tests": [
+        "tests/unit/test_consistency_repair.py",
+        "tests/unit/test_consistency_repair_cli.py"
+      ],
+      "assessment": "Plan-only default, explicit enablement, convergence across all move phases and physical effect crash windows, hold/locality/uncertainty quarantine, changed ownership and atomic commit race coverage."
+    },
+    {
+      "issue": 69,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 151,
+      "merge_commit": "b9568f33bb7eabbee3dd2c06da4ecf6886e9ad0a",
+      "tests": [
+        "tests/unit/test_orphan_cleanup.py",
+        "tests/unit/test_orphan_cleanup_cli.py",
+        "tests/unit/test_orphan_cleanup_fence.py",
+        "tests/integration/test_orphan_cleanup_postgres.py"
+      ],
+      "assessment": "Grace/quarantine/execution stages; shared lifecycle fence handles concurrent reference changes, jobs, holds, tenant resolution, and durable retry evidence."
+    },
+    {
+      "issue": 70,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 152,
+      "merge_commit": "ad20be8fa1d1f00224064d65324527d2a200dc52",
+      "tests": [
+        "tests/unit/test_admin_ui.py",
+        "tests/unit/admin_ui_behavior.js",
+        "tests/unit/test_api_admin.py",
+        "tests/unit/test_admin_repairs.py",
+        "tests/unit/test_sdk_admin.py"
+      ],
+      "assessment": "Tenant-scoped operational views, capability filtering plus backend enforcement, loading/partial/empty/stale handling and scope confirmation; PR records real browser exercise."
+    },
+    {
+      "issue": 71,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 148,
+      "merge_commit": "7b915e708ae57f60f44d714aa10fabd4faec984e",
+      "tests": [
+        "tests/unit/test_helm_chart.py",
+        "scripts/kubernetes/verify.sh",
+        "scripts/kubernetes/exercise.py"
+      ],
+      "assessment": "Fresh 23 chart contracts pass. Historical actual kind campaign covers clean install/smoke, non-root, upgrade/rollback/persistence, API HPA and worker KEDA scaling with one started/succeeded event per queued job."
+    },
+    {
+      "issue": 72,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 150,
+      "merge_commit": "7ac8f10756d8f30d7b6d392e9a712bd113f0f727",
+      "tests": [
+        "examples/terraform/aws/tests/production.tftest.hcl",
+        "scripts/terraform/verify.sh"
+      ],
+      "assessment": "Fresh isolated credential-free mocked Terraform validation passes all 6 runs including 21 topology assertions and 5 invalid-input cases; production Helm handoff lints and renders."
+    },
+    {
+      "issue": 73,
+      "state_observed": "CLOSED",
+      "acceptance_checkboxes_observed": {
+        "checked": 0,
+        "unchecked": 4
+      },
+      "merged_pr": 153,
+      "merge_commit": "cd5c35e8a14658d1f10f1327b04f72320031fc60",
+      "tests": [
+        "scripts/operator_drills.py",
+        "tests/unit/test_alert_runbooks.py",
+        "docs/evidence/m4/operator-drill.json"
+      ],
+      "assessment": "Archived installed-CLI fresh-venv walkthrough, SQLite/POSIX backup/restore and synthetic incident/repair drill pass 37 checks across 19 commands; all 12 alert links have actionable runbook phases."
+    }
+  ],
+  "fresh_checks": [
+    {
+      "command": "PATH=/tmp/cognistore-71-bin/darwin-arm64:$PATH COGNISTORE_TERRAFORM_OUTPUT=/tmp/cognistore-m4-closeout-20260920/operations/terraform ./scripts/terraform/verify.sh",
+      "exit_code": 0,
+      "result": "Terraform 1.15.9 fmt, init backend disabled with pinned AWS provider 6.28.0, validate, 6 mocked plans and production Helm lint/render all passed",
+      "evidence": [
+        "terraform/init.log",
+        "terraform/validate.log",
+        "terraform/terraform.xml",
+        "terraform/terraform-test.json",
+        "terraform-summary.json",
+        "terraform/helm-lint.log",
+        "terraform/helm-rendered.yaml",
+        "terraform/helm-values.yaml",
+        "terraform/drivers.yaml",
+        "terraform/storage-class.yaml",
+        "terraform/migration-network-policy.yaml"
+      ]
+    },
+    {
+      "command": "PATH=/tmp/cognistore-71-bin/darwin-arm64:$PATH /tmp/cognistore-m4-closeout-20260920/venv/bin/python -m pytest tests/unit/test_helm_chart.py -q -o addopts='' -p no:cacheprovider --junitxml=/tmp/cognistore-m4-closeout-20260920/operations/helm.xml",
+      "exit_code": 0,
+      "result": "23 passed in 1.66s",
+      "evidence": [
+        "helm.xml"
+      ]
+    },
+    {
+      "command": "COMPOSE_PROJECT_NAME=cognistore-m4-closeout ./docker/observability/verify.sh",
+      "exit_code": 0,
+      "result": "Compose and real mounted Prometheus configuration validated; 49 rules loaded and all 16 synthetic breach/recovery scenarios passed",
+      "evidence": [
+        "observability.log"
+      ]
+    },
+    {
+      "command": "/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m cognistore.slo evaluate-qualification docs/evidence/m1/full-20260827-205845.json",
+      "result": "Valid JSON evaluation generated; movement success and latency baseline comparisons met; phase-average throughput baseline met while throughput-window, API, indexing and rolling 30-day attainment unavailable",
+      "evidence": [
+        "m1-slo-evaluation.json"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "historical_kubernetes": {
+    "recorded_at": "2026-09-19T18:24:21.361568+00:00",
+    "summary_base_commit": "7bdefdfd4129d4f88fb726155bae6b4db3f5ddc3",
+    "runtime_image_id": "sha256:a875c8b5a7ca47ae4aa6c307cb163c7b340e3910dbde8243589b338e2b0ecf3e",
+    "runtime_image_still_present_and_matches_record": true,
+    "profile": "development, synthetic data, kind Kubernetes v1.34.0",
+    "requests": 2454,
+    "jobs": 251,
+    "audit_sets": 251,
+    "each_audit_set_has_three_unique_event_ids": true,
+    "api_maximum_ready": 3,
+    "worker_maximum_ready": 3,
+    "api_final_ready": 1,
+    "worker_final_ready": 1,
+    "helm_history": [
+      "Install complete",
+      "Upgrade complete",
+      "Rollback to 1"
+    ],
+    "chart_current_equivalence": "Every archived chart file matches current bytes except Chart.yaml YAML formatting; parsed Chart.yaml values exactly match. Chart and campaign scripts unchanged since merged PR148.",
+    "limitations": [
+      "The summary records base revision plus a built feature image, not an exact final-main source manifest.",
+      "The campaign predates later audit, legal-hold, repair and UI merges; it is not fresh final-main cluster acceptance.",
+      "Production TLS/OIDC/tenant authorization/encryption/NetworkPolicy/storage require environment-specific qualification.",
+      "Scheduled workers remain limited to one node with shared RWO SQLite coordination."
+    ],
+    "artifacts": [
+      {
+        "path": "test-results/ticket-71/kubernetes/acceptance.log",
+        "sha256": "6a3cd40edf925c1e344a9178865f45abf87cb8a8a42cdb71162fe2fe2171ac05",
+        "bytes": 10684
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/application.log",
+        "sha256": "1d4a6b8c2e9b6f205a6b4c16f95d30cb638166838daf880ca0e26ff3a8208673",
+        "bytes": 651558
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/autoscaling.json",
+        "sha256": "484eb947482ca19ba8457b2b34a3f6c62baf9169c752a8772945430dadf174cd",
+        "bytes": 55973
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/cognistore-0.1.0.tgz",
+        "sha256": "e6942f854aacc8852c72cd64bd490a39e657940166118dd51065cd43e170be34",
+        "bytes": 7468
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/events.txt",
+        "sha256": "8a2010cffbc76d5b5b2e02576dd12778f0b91f7aa8e50b80b99a4eb97823e89b",
+        "bytes": 39547
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/helm-history.json",
+        "sha256": "12985ce3c610a5a55c80620c87bcdcc73a41afbd3fe1d3827e11872178f2d72b",
+        "bytes": 489
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/hpa.txt",
+        "sha256": "5ae25253be6a15a8d08243eb12e036b2b1cc5da727589a0fa9636c06b9211fc7",
+        "bytes": 6161
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/invariants.json",
+        "sha256": "83870ed762766700588548b88de063c8efd52302acf38b54eea3c4e6c08d716b",
+        "bytes": 1809
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/resources.txt",
+        "sha256": "425b993267eea27d4423433fa5125a78310357d1298200e479ce94c643580d88",
+        "bytes": 6176
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/service-proxy.log",
+        "sha256": "4477d8ad2f17f9367689e5ab8b5bebb2b5186ce652a5a13d8c80d94f6e039cb8",
+        "bytes": 37
+      },
+      {
+        "path": "test-results/ticket-71/kubernetes/summary.json",
+        "sha256": "586245057050216debeb222e793869d1e18956e34abb624b3b27e0e7be6a7738",
+        "bytes": 1191
+      }
+    ]
+  },
+  "historical_terraform": {
+    "archive": "test-results/terraform-reference/ticket-72-c9d2341-local-validation.tar.gz",
+    "sha256": "6540ac24b20c7925c0345d7bfe04b66549da093685ae4e1a44817f2cd710ed40",
+    "recorded_source_in_filename": "c9d2341",
+    "result": "6 tests, 0 failures/errors/skips; validate and Helm lint passed",
+    "limitations": [
+      "Mocked AWS provider only; no live cloud provisioning qualified.",
+      "Filename source tag is provenance metadata, not independently attested source content. Fresh current-main equivalent validation passed."
+    ]
+  },
+  "historical_operator": {
+    "artifact_manifest": "docs/evidence/m4/operator-SHA256SUMS",
+    "integrity": "All four listed SHA-256 digests verified",
+    "result": "status passed; 37 checks and 19 commands",
+    "harness_matches_current_source": true,
+    "package_manifest_drift": [
+      "README.md",
+      "cognistore/api/app.py",
+      "cognistore/api/gateway.py",
+      "cognistore/api/permissions.py",
+      "cognistore/auth/authorization.py",
+      "cognistore/sdk/__init__.py",
+      "cognistore/sdk/client.py",
+      "cognistore/sdk/models.py",
+      "cognistore/ui/routes.py",
+      "cognistore/ui/static/index.html"
+    ],
+    "limitations": [
+      "Fresh venv on existing OS user; development POSIX/SQLite only.",
+      "Synthetic expired move journal, not actual killed worker; backup had no nonterminal moves.",
+      "PostgreSQL/NATS/cloud/Kubernetes restore not exercised by operator drill.",
+      "Source manifest predates merged UI changes; source/harness provenance limitations documented in existing README."
+    ]
+  },
+  "hosted_ci": {
+    "status": "blocked_before_execution",
+    "confirmed_runs": [
+      35462880507,
+      35469287193
+    ],
+    "job_step_counts": [
+      0,
+      0
+    ],
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased.",
+    "closure_implication": "No application blocker identified. All implementation acceptance items have code/test or historical runtime evidence. The first #72 checkbox literally says plans validate in CI: the CI job is delivered and its exact local equivalent passes, but hosted execution has not occurred. Any reconciliation must retain that caveat; never label hosted CI passed."
+  },
+  "sanitization": {
+    "result": "Selected historical Kubernetes JSON/logs and fresh Terraform outputs contain no detected bearer tokens, private keys or live AWS access-key patterns. Kubernetes workload IDs/IPs are disposable. Terraform account IDs/ARNs/domains and any computed values are provider mocks; Helm files use secret references and projected token paths, not secret values.",
+    "known_local_paths": [
+      "historical acceptance.log contains developer workspace paths",
+      "fresh terraform/helm-lint.log contains repository path"
+    ],
+    "recommendation": "Preserve raw archived bytes with checksums and explain local paths as provenance. No substantive credential redaction needed for selected artifacts. Do not archive kubeconfig or future runtime Secret exports."
+  },
+  "essential_retention": {
+    "kubernetes": [
+      "summary.json",
+      "autoscaling.json",
+      "invariants.json",
+      "helm-history.json",
+      "cognistore-0.1.0.tgz",
+      "acceptance.log.gz",
+      "application.log.gz",
+      "hpa.txt.gz",
+      "resources.txt.gz",
+      "events.txt.gz"
+    ],
+    "fresh_operations": [
+      "review.json",
+      "helm.xml",
+      "observability.log",
+      "m1-slo-evaluation.json",
+      "terraform-summary.json",
+      "terraform/terraform.xml",
+      "terraform/validate.log",
+      "terraform/init.log",
+      "terraform/helm-lint.log",
+      "terraform/helm-values.yaml",
+      "terraform/helm-rendered.yaml",
+      "terraform/drivers.yaml",
+      "terraform/storage-class.yaml",
+      "terraform/migration-network-policy.yaml",
+      "terraform/terraform-test.json.gz"
+    ],
+    "optional": [
+      "Historical Terraform tarball is redundant once fresh complete verification is retained, but useful provenance.",
+      "service-proxy.log is just ephemeral loopback port and can be omitted."
+    ]
+  },
+  "environment_notes": [
+    "Repository .venv points to an Anaconda interpreter that exited 139; all fresh Python checks use root-provided clean CPython 3.13 environment.",
+    "Post-observability cleanup of Compose project cognistore-m4-closeout collided with root integration fixtures and removed disposable services/volumes. Root was immediately notified to restart and rerun impacted integrations. This is not a product test failure."
+  ]
+}

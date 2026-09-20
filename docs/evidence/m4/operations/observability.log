@@ -1,0 +1,13 @@
+ Volume "cognistore-m4-closeout_prometheus-data"  Creating
+ Volume "cognistore-m4-closeout_prometheus-data"  Created
+ Volume "cognistore-m4-closeout_grafana-data"  Creating
+ Volume "cognistore-m4-closeout_grafana-data"  Created
+Checking /etc/prometheus/prometheus.yml
+  SUCCESS: 1 rule files found
+ SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax
+
+Checking /etc/prometheus/rules/slo.yml
+  SUCCESS: 49 rules found
+
+  SUCCESS
+

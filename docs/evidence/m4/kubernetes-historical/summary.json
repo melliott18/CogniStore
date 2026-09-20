@@ -1,0 +1,36 @@
+{
+  "ticket": 71,
+  "recorded_at": "2026-09-19T18:24:21.361568+00:00",
+  "branch": "chore/71-helm-autoscaling",
+  "base_commit": "7bdefdfd4129d4f88fb726155bae6b4db3f5ddc3",
+  "runtime_image_id": "sha256:a875c8b5a7ca47ae4aa6c307cb163c7b340e3910dbde8243589b338e2b0ecf3e",
+  "profile": "development, synthetic data, kind v1.34.0",
+  "checks": [
+    "clean install and Helm smoke",
+    "non-root workloads without API tokens",
+    "upgrade and rollback preserve catalog, completed and queued jobs, and scheduler state",
+    "PostgreSQL, JetStream, and object storage restart persistence",
+    "request HPA and queue KEDA scale-up and scale-down"
+  ],
+  "http_load_requests": 2454,
+  "jobs_with_one_start_and_one_success": 251,
+  "replicas": {
+    "api": {
+      "maximum_observed_ready": 3,
+      "final_ready": 1
+    },
+    "worker": {
+      "maximum_observed_ready": 3,
+      "final_ready": 1
+    }
+  },
+  "pytest": {
+    "passed": 4276,
+    "skipped": 242,
+    "coverage_percent": 86.55
+  },
+  "limits": [
+    "Production TLS, auth, encryption and network policy need environment-specific qualification",
+    "Scheduled workers share one node and an RWO volume for SQLite coordination"
+  ]
+}

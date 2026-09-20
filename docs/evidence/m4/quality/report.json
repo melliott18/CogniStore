@@ -1,0 +1,165 @@
+{
+  "revision": "ad20be8fa1d1f00224064d65324527d2a200dc52",
+  "platform": "macOS-14.8.7-arm64-arm-64bit-Mach-O",
+  "python": "3.13.7",
+  "source_archive": "/tmp/cognistore-m4-closeout-20260920/quality/source",
+  "tool_versions": {
+    "ruff": "0.16.8",
+    "mypy": "2.3.1",
+    "bandit": "1.9.4",
+    "pip-audit": "2.10.1",
+    "pip": "26.2.1",
+    "build": "1.6.1",
+    "twine": "7.0.0"
+  },
+  "gitleaks_version": "8.30.1",
+  "gates": [
+    {
+      "name": "ruff",
+      "command": "python -m ruff check .",
+      "result": "pass",
+      "detail": "All checks passed!",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/ruff.log",
+      "retained_log": "logs/ruff.log.gz"
+    },
+    {
+      "name": "mypy",
+      "command": "python -m mypy cognistore",
+      "result": "pass",
+      "detail": "Success: no issues found in 162 source files",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/mypy.log",
+      "retained_log": "logs/mypy.log.gz"
+    },
+    {
+      "name": "openapi",
+      "command": "python -m cognistore.api.openapi --check docs/openapi/v1.json",
+      "result": "pass",
+      "detail": "OpenAPI contract is current",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/openapi.log",
+      "retained_log": "logs/openapi.log.gz"
+    },
+    {
+      "name": "bandit",
+      "command": "python -m bandit -q -c pyproject.toml -r cognistore -ll -ii",
+      "result": "pass",
+      "detail": "exit 0",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/bandit.log",
+      "retained_log": "logs/bandit.log.gz"
+    },
+    {
+      "name": "audit-project",
+      "command": "python -m pip_audit . --strict --desc --progress-spinner=off",
+      "result": "pass",
+      "detail": "No known vulnerabilities found",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-project.log",
+      "retained_log": "logs/audit-project.log.gz"
+    },
+    {
+      "name": "audit-environment",
+      "command": "python -m pip_audit --local --skip-editable --desc --progress-spinner=off",
+      "result": "initial-fail",
+      "detail": "12 advisory rows only in venv bootstrap pip 25.2",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-environment.log",
+      "retained_log": "logs/audit-environment.log.gz"
+    },
+    {
+      "name": "audit-environment-updated",
+      "command": "python -m pip_audit --local --skip-editable --desc --progress-spinner=off",
+      "result": "pass",
+      "detail": "No known vulnerabilities after temporary pip upgrade to 26.2.1; editable cognistore skipped",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/audit-environment-updated.log",
+      "retained_log": "logs/audit-environment-updated.log.gz"
+    },
+    {
+      "name": "build",
+      "command": "python -m build --outdir /tmp/cognistore-m4-closeout-20260920/quality/dist",
+      "result": "pass",
+      "detail": "Wheel and source distribution built",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/build.log",
+      "retained_log": "logs/build.log.gz"
+    },
+    {
+      "name": "twine",
+      "command": "python -m twine check /tmp/cognistore-m4-closeout-20260920/quality/dist/*",
+      "result": "pass",
+      "detail": "Both artifacts PASSED",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/twine.log",
+      "retained_log": "logs/twine.log.gz"
+    },
+    {
+      "name": "wheel-smoke",
+      "command": "CI clean-wheel smoke commands executed outside the checkout",
+      "result": "pass",
+      "detail": "pip check; import/version; CLI help; sample verify; migration head; package resources; typed SDK ask contract",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/wheel-smoke.log",
+      "retained_log": "logs/wheel-smoke.log.gz"
+    },
+    {
+      "name": "gitleaks",
+      "command": "gitleaks dir --redact --no-banner --report-format=json --report-path=/tmp/cognistore-m4-closeout-20260920/quality/gitleaks.json .",
+      "result": "triaged-false-positives",
+      "detail": "12 generic-api-key candidates; 4 explicit Azurite development keys, 3 source SHA256 hashes, 5 move idempotency test strings; exit 1",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks.log",
+      "retained_log": "logs/gitleaks.log.gz"
+    },
+    {
+      "name": "gitleaks-history",
+      "command": "gitleaks git --log-opts=ad20be8 --redact --no-banner --report-format=json --report-path=/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-history.json .",
+      "result": "triaged-false-positives",
+      "detail": "101 commits, 15 generic-api-key candidates: current 12 plus 3 historical override-move test strings; exit 1",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-history.log",
+      "retained_log": "logs/gitleaks-history.log.gz"
+    },
+    {
+      "name": "gitleaks-policy",
+      "command": "gitleaks dir --redact --no-banner --report-format=json --report-path=/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-policy.json .",
+      "cwd": "/tmp/cognistore-m4-closeout-20260920/quality/current-source",
+      "result": "pass",
+      "exit_code": 0,
+      "detail": "Current candidate-source snapshot (614 tracked/unignored files) including the exact-fingerprint policy: no leaks found",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-policy.log",
+      "retained_log": "logs/gitleaks-policy.log.gz"
+    },
+    {
+      "name": "gitleaks-history-policy",
+      "command": "gitleaks git --log-opts=ad20be8 --redact --no-banner --report-format=json --report-path=/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-history-policy.json .",
+      "cwd": "/Users/mitchell/Projects/CogniStore",
+      "result": "pass",
+      "exit_code": 0,
+      "detail": "101 commits scanned using .gitleaksignore; no leaks found",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-history-policy.log",
+      "retained_log": "logs/gitleaks-history-policy.log.gz"
+    },
+    {
+      "name": "gitleaks-negative-control",
+      "command": "gitleaks dir --redact --no-banner --report-format=json --report-path=/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-negative-control.json .",
+      "cwd": "/tmp/cognistore-m4-closeout-20260920/quality/gitleaks-negative-control",
+      "result": "pass",
+      "exit_code": 1,
+      "detail": "Expected failure: detected only the newly appended synthetic generic-api-key on a new line of an otherwise allowlisted file",
+      "log": "/tmp/cognistore-m4-closeout-20260920/quality/logs/gitleaks-negative-control.log",
+      "retained_log": "logs/gitleaks-negative-control.log.gz"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/cognistore-m4-closeout-20260920/quality/dist/cognistore-0.1.0-py3-none-any.whl",
+      "sha256": "77cdc47d53f201d3e10a294b4b965b90c35895d0d1785525b3af53703d55f52c"
+    },
+    {
+      "path": "/tmp/cognistore-m4-closeout-20260920/quality/dist/cognistore-0.1.0.tar.gz",
+      "sha256": "8dad1f31d31d63071002b21f4b53b474c0059c9aa416a6b82e09176b13610d4a"
+    }
+  ],
+  "secret_scan_resolution": {
+    "policy": ".gitleaksignore",
+    "sha256": "1b3162d15e58bb88c14aa63d9b0ab67f12badd27e6f8e8a8cd6672a0f112297e",
+    "scope": "27 exact false-positive fingerprints: 12 path/rule/line and 15 commit/path/rule/line; no disabled rules or file/regex exclusions",
+    "original_failure_reports_preserved": [
+      "gitleaks.json",
+      "gitleaks-history.json"
+    ],
+    "triage": "gitleaks-triage.json",
+    "negative_control": "New synthetic generic-api-key appended to a new line in .github/workflows/ci.yml was detected; one finding, exit 1 as expected. Fixture exists only in the temporary quality directory."
+  }
+}

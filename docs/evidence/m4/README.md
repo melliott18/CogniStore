@@ -1,97 +1,156 @@
-# Operator runbook drill evidence
+# M4 closeout evidence
 
-Ticket [#73](https://github.com/melliott18/CogniStore/issues/73) is exercised by
-[`operator-drill.json`](operator-drill.json), a real local run completed at
-`2026-09-19T21:23:39.347829Z`. All **37 assertions and 19 commands passed**.
-The reproducible harness is
-[`scripts/operator_drills.py`](../../../scripts/operator_drills.py); the
-operator entry point is [the handbook](../../operator_handbook.md).
+M4's production-platform delivery was accepted on 2026-09-19. The twenty
+delivery issues (#54–#73) and POSIX hardening #91 are implemented and merged.
+This record supports closing [epic #14](https://github.com/melliott18/CogniStore/issues/14),
+[milestone 3](https://github.com/melliott18/CogniStore/milestone/3), and the
+[M1–M4 roadmap tracker #12](https://github.com/melliott18/CogniStore/issues/12).
 
-The run used macOS 14.8.7 on arm64, CPython 3.12.2, and SQLite 3.45.1. A new
-virtual environment installed a captured copy of the checkout non-editably,
-resolved the required dependencies, and ran the installed `cognistore` entry
-point outside the checkout. It did not inherit system site packages or
-`COGNISTORE_*` settings. Commands explicitly selected the development security
-profile, local driver configuration, and `--no-config`.
+## Provenance and validation
 
-## What actually ran
+The qualified application revision is
+[`ad20be8fa1d1f00224064d65324527d2a200dc52`](https://github.com/melliott18/CogniStore/commit/ad20be8fa1d1f00224064d65324527d2a200dc52),
+the final delivery in [PR #152](https://github.com/melliott18/CogniStore/pull/152).
+The closeout changes documentation, retained evidence, and exact secret-scanner
+false-positive fingerprints. Application and test sources are unchanged.
+[validation.json](validation.json) records exact
+commands, results, environment, source identity, and report hashes.
 
-| Drill | Observed result |
+GitHub [CI run 35472317005](https://github.com/melliott18/CogniStore/actions/runs/35472317005)
+and [Kubernetes run 35472316956](https://github.com/melliott18/CogniStore/actions/runs/35472316956)
+failed before executing any steps. The retained annotation reports failed
+account payments or an Actions spending limit. No hosted CI pass is claimed.
+Fresh local validation uses CPython 3.13 on macOS arm64 in an isolated virtual
+environment, plus dedicated Docker PostgreSQL/pgvector, NATS, MinIO, Azurite,
+and GCS emulator services. The repository's older Anaconda virtual environment
+exited with signal 11 before pytest startup; the isolated environment replaced
+it for qualification without modifying that environment.
+
+PR #150 already records the owner's authorization to accept local Terraform
+checks despite the hosted CI startup block. The #72 CI acceptance item is
+reconciled with that explicit exception and fresh execution of the same
+verification script; it is not represented as a hosted pass.
+
+| Gate | Result |
 | --- | --- |
-| Clean installation and first success | Fresh venv and package installation; uploaded, retrieved, listed, and indexed one 73-byte object; a full scoped scan was consistent. |
-| Quiesced backup and restore | All synchronous CLI writers had exited. The SQLite backup API captured the catalog; both entire POSIX tier roots and configuration files were copied. The restored catalog's logical SHA-256 matched before writes, `PRAGMA integrity_check` passed, object download SHA-256 matched, and a fresh restored scan was consistent. |
-| Incident and repair | A deliberately synthetic expired `prepared` move produced one `partial_job` finding. `consistency-repair --dry-run` left source and report bytes unchanged; the ordinary plan only audited its decision. Explicit `--enable-repair` completed the same job, a repeated invocation returned `resolved`, the catalog placement was `warm`, source cleanup completed, and a fresh scan was consistent. |
+| Default full suite | 5,192 passed, 291 skipped; 86.90% combined statement/branch coverage (80% minimum) |
+| Service-enabled integration suite | 391 passed, 31 skipped, one documented strict expected failure; no failures/errors |
+| Quality | Ruff, mypy (162 application files), deterministic OpenAPI and configured Bandit passed |
+| Dependencies and packaging | Project and development dependency audits, wheel/sdist build, metadata checks and clean installed-wheel smoke passed |
+| Secrets | Current-source and 101-commit history scans passed with exact reviewed false-positive fingerprints; new-secret negative control detected the injected fixture |
+| Terraform and Helm | Six mocked plan cases, fmt/init/validate, production chart lint/render, and 23 chart contract tests passed |
+| Observability | Prometheus configuration, all 49 rules and 16 breach/recovery scenarios passed |
+| Installed operator drill | 37 checks and 19 commands passed on a clean captured source revision |
+| Historical Kubernetes campaign | Install/upgrade/rollback, persistence and 1→3→1 autoscaling passed under the explicitly limited profile below |
 
-The fixture's SHA-256 is
-`8378d0aadcd83e13c2ef2fb444b64ccceee42b618b1a068ac1b00b9e33d31960`.
-The catalog reached packaged migration `0014_legal_holds` and used
-`journal_mode=delete`. The harness uses the SQLite backup API even though this
-particular run did not exercise a WAL catalog. The backup remained unchanged
-through the incident drill. Complete command arguments, output, durations,
-assertions, catalog logical digest, and backup file digests are in the JSON.
+Reports: [full-suite JUnit](default.xml.gz), [integration JUnit](integration.xml.gz),
+[coverage](coverage.xml.gz), [quality](quality/report.json), and
+[operations](operations/review.json). The default run emitted 108 warnings,
+predominantly unclosed SQLite test connections; four native-libmagic cases
+were skipped. These limitations are preserved in the logs.
 
-This is a fresh virtual environment and isolated configuration on an existing
-OS account, not a newly created OS user. The synthetic abandoned journal does
-not claim an actual worker was killed. The run covers local POSIX/SQLite in the
-development profile; PostgreSQL, NATS, Kubernetes, cloud storage, TLS, OIDC,
-encryption, service upgrade, and rollback were not exercised. No hosted system
-or customer data was involved.
 
-The restored backup had no nonterminal move. The repair drill then injected a
-synthetic move into the original fixture, independently of the restore. It does
-not qualify resuming pending moves after restoration: copying POSIX objects
-changes inode/device/ctime-based generation tokens, and safe repair can
-quarantine the resulting source/destination generation mismatch even when bytes
-match. Such cases require reviewed reconciliation rather than editing journal
-generations to force repair.
+The full and integration JUnit reports overlap; do not add their case counts.
+Skipped live-cloud cases and the GCS emulator's documented strict expected
+failure do not establish production cloud qualification. This is not a fresh
+Python 3.10–3.14 matrix, physical encryption audit, or final-revision cluster
+campaign.
 
-## Reproduce
+The first service-enabled integration attempt was interrupted when parallel
+observability cleanup stopped its Docker dependencies. Its resulting connection
+errors are retained separately and are not application defects or passing
+evidence. The entire integration suite was restarted with healthy services.
 
-From the repository root with Python 3.10+ on a supported POSIX platform and
-package-index access, select unused workspace and output paths:
+The original Gitleaks scans reported 12 current-source and 15 historical
+heuristic findings. Review identified only public Azurite development keys,
+synthetic move identities and recorded source hashes. The closeout adds exact
+path/rule/line and commit fingerprints to `.gitleaksignore`; no files or rules
+are broadly excluded. The original findings and dispositions are retained with
+the quality report alongside verification using the revised policy.
 
-```sh
-python3 scripts/operator_drills.py \
-  --workspace /tmp/cognistore-operator-drill-reproduction \
-  --evidence /tmp/cognistore-operator-evidence/operator-drill.json
-```
+## Acceptance mapping
 
-The workspace must not exist. Existing workspace or evidence artifacts are
-rejected; the harness never deletes or reuses them. It creates the evidence
-parent directory. It leaves the venv, captured package source, live fixture,
-backup, restored fixture, and scan reports in the selected workspace for
-inspection. On failure the JSON records `status: "failed"` with the commands
-and checks completed so far; only all successful checks yield `status: "passed"`.
+Each issue's written acceptance criteria were checked against merged delivery,
+current implementation, and test coverage. Paths below are repository-relative.
 
-The recorded run used `/tmp/cognistore-operator-73-final` (resolved by macOS
-to `/private/tmp/cognistore-operator-73-final`). Its package source came from
-base revision `7336c94ba0ac5e85a5d7869dfb4d98c13e52ae7f` with uncommitted ticket
-documentation, navigation, CI and test changes, and the then-untracked harness.
-The JSON records the exact dirty status at capture. The source manifest hashes
-the installed package and build inputs, including the modified root README,
-plus the harness; unrelated operator documentation is not an install input.
-Checking out the base commit alone does not recreate the uncommitted harness.
-The manifest is historical provenance, not a gate for future revisions.
+| Issue / delivery | Accepted behavior and evidence |
+| --- | --- |
+| #54 / [PR #134](https://github.com/melliott18/CogniStore/pull/134) | Azure Blob configuration, shared conformance, bounded streaming, conditional commit, retry and failure preservation; `tests/unit/test_azure_blob_driver.py`, Azure integration cases and `docs/azure_blob_driver.md`. |
+| #55 / [PR #137](https://github.com/melliott18/CogniStore/pull/137) | GCS conformance, resumable offsets, lost commit response, cancellation, retry and credential boundaries; `tests/unit/test_gcs_driver.py`, `tests/integration/test_gcs.py`, and `docs/gcs_driver.md`. |
+| #56 / [PR #135](https://github.com/melliott18/CogniStore/pull/135) | JWT/OIDC validation, JWKS rotation, complete endpoint authentication and token-free principal propagation; JWT and API authentication tests. |
+| #57 / [PR #139](https://github.com/melliott18/CogniStore/pull/139) | Endpoint and worker authorization, denial, revocation and redrive; `tests/unit/test_api_authorization.py` and `tests/unit/test_worker_authorization.py`. |
+| #58 / [PR #143](https://github.com/melliott18/CogniStore/pull/143) | Tenant catalog/storage/search/job ownership and isolation across direct identifiers, listings, filters, cursors and concurrent requests; tenant unit, conformance and PostgreSQL/API integration tests. |
+| #59 / [PR #141](https://github.com/melliott18/CogniStore/pull/141) | Provider-backed credentials, bounded caches, expiry/outage handling, redaction and rotation recovery preserving durable move identity; secret provider/cache/client tests and `tests/integration/test_secret_rotation_recovery.py`. |
+| #60 / [PR #142](https://github.com/melliott18/CogniStore/pull/142) | Rejection of insecure configurations, TLS CA rotation, restored-catalog enforcement of current encryption evidence; encryption unit and recovery tests. At-rest state is operator-attested. |
+| #61 / [PR #145](https://github.com/melliott18/CogniStore/pull/145) | Tenant-selected PII detection, redacted findings, unknown-state failure and execution-time policy revalidation; PII runtime, surface and policy tests. |
+| #62 / [PR #146](https://github.com/melliott18/CogniStore/pull/146) | Scoped legal holds, atomic audit, cross-process fencing, deletion protection and retained release history; legal-hold conformance, catalog, API, movement and import tests. |
+| #63 / [PR #147](https://github.com/melliott18/CogniStore/pull/147) | Audit coverage and causal chains, SQLite/PostgreSQL mutation controls, tamper/missing-history detection, offline export verification and scoped self-audited APIs; audit coverage/integrity/export tests. |
+| #64 / [PR #144](https://github.com/melliott18/CogniStore/pull/144) | Locality constraints precede optimization and survive retries/recovery/commit; locality policy and mover tests cover conflicting goals, stale evidence and frozen destinations. |
+| #65 / [PR #136](https://github.com/melliott18/CogniStore/pull/136) | Prometheus metrics, OpenTelemetry traces, structured correlation and redaction; observability runtime tests and fresh configuration validation. |
+| #66 / [PR #140](https://github.com/melliott18/CogniStore/pull/140) | SLO/error-budget definitions, alerts, runbook routing and synthetic breach/recovery fixtures; `tests/observability/slo_rules.test.yml` and fresh `docker/observability/verify.sh`. |
+| #67 / [PR #133](https://github.com/melliott18/CogniStore/pull/133) | Read-only, scoped, resumable consistency scans with stable findings and queryable reports; consistency unit and PostgreSQL integration suites. |
+| #68 / [PR #149](https://github.com/melliott18/CogniStore/pull/149) | Opt-in, audited, generation-fenced idempotent repair, review states and zero-mutation previews; consistency repair/API tests and fresh installed operator drill. |
+| #69 / [PR #151](https://github.com/melliott18/CogniStore/pull/151) | Staged orphan discovery and cleanup with grace periods, revalidation and governance/audit controls; orphan cleanup unit and PostgreSQL cases. |
+| #70 / [PR #152](https://github.com/melliott18/CogniStore/pull/152) | Production administration surfaces for configuration, policies, actions, jobs, audit and repair; API/SDK tests, `tests/unit/test_admin_ui.py` and executable JavaScript behavior tests. |
+| #71 / [PR #148](https://github.com/melliott18/CogniStore/pull/148) | Helm configuration and validation, install/upgrade/rollback persistence and request/queue autoscaling; fresh chart contract/lint checks and historical cluster evidence described below. |
+| #72 / [PR #150](https://github.com/melliott18/CogniStore/pull/150) | Terraform infrastructure reference, production configurations, secure input validation and teardown guidance; fresh fmt/init/validate, six mocked plan cases, generated configurations and Helm validation. |
+| #73 / [PR #153](https://github.com/melliott18/CogniStore/pull/153) | Operator handbook, installation, backup/restore, migration, incident, architecture and recovery guidance; documentation tests, [original drill record](operator-drill.md), and fresh installed-package drill. |
+| #91 / [PR #138](https://github.com/melliott18/CogniStore/pull/138) | Race-safe POSIX containment under the documented namespace assumptions; deterministic shared conformance swaps cover read, publish, stat, list, delete and staging cleanup. |
 
-## Archived artifacts and integrity
+## Deployment evidence and limits
 
-- [`operator-drill.json`](operator-drill.json): results, environment, limitations,
-  and complete command transcript.
-- [`operator-drill.install.log.gz`](operator-drill.install.log.gz): actual pip
-  build and installation output, compressed without a timestamp.
-- [`operator-drill.requirements.txt`](operator-drill.requirements.txt): installed
-  distribution versions. This is an observation, not a lock file; the local
-  `cognistore @ file://` entry refers to the captured source workspace.
-- [`operator-drill.source-sha256.json`](operator-drill.source-sha256.json): hashes
-  of captured package/build inputs and the executed harness.
-- [`operator-SHA256SUMS`](operator-SHA256SUMS): hashes of these four artifacts.
+The retained Kubernetes evidence is the actual 2026-09-19 PR #148 campaign,
+not a new final-revision run. It records successful installation, upgrade,
+rollback, catalog/object/scheduler persistence, queued job survival, and
+PostgreSQL/JetStream/storage restart recovery. The load exercised 2,454 HTTP
+requests and 251 jobs with one start and one success; API and worker workloads
+each reached three ready replicas and returned to one. The archived chart was
+checked against the current chart; only equivalent Chart.yaml serialization
+differs, and the acceptance harness is unchanged. Its runtime predates the
+later audit, legal-hold and administration changes. Current application tests
+cover those changes; they do not substitute for a new cluster campaign.
 
-Dependency resolution can change on later runs. The archived versions and
-installation log identify the environment that produced this result. From
-this evidence directory:
+The Kubernetes profile uses kind, the development security profile with API
+authentication disabled, synthetic data, and local dependencies. Production TLS, OIDC, encryption, network enforcement,
+provider credentials, storage classes, backups and capacity require deployment
+qualification. Scheduled workers share one node and an RWO volume for SQLite
+coordination. Fresh Terraform plans use mocked providers; no AWS resources were
+provisioned and no cloud apply is claimed.
 
-```sh
-shasum -a 256 -c operator-SHA256SUMS
-python3 -m json.tool operator-drill.json >/dev/null
-gzip -t operator-drill.install.log.gz
-```
+The fresh operator drill installs a captured clean copy of the qualified
+revision into a new virtual environment. All 37 checks and 19 commands cover
+first use, SQLite/POSIX quiesced backup and restore, and a synthetic abandoned
+move repaired only after explicit opt-in. It does not qualify restoring a
+nonterminal journal whose filesystem generation tokens changed, actual worker
+kill recovery, or production cloud/security configuration. The historical
+[operator drill](operator-drill.md) remains intact.
+
+Additional operating boundaries remain documented: Azure uncommitted blocks
+are invisible and expire through provider cleanup; GCS resumable state is not
+restart-persistent and may spool to disk; POSIX containment assumes a trusted
+namespace and excludes privileged relocation/ACL/mount manipulation; and audit
+detection of a privileged full-history rewrite requires independently retained
+checkpoints. These are delivery scope limits, not uncompleted acceptance boxes.
+
+## Tracker reconciliation
+
+The 21 M4 delivery/hardening tickets were already closed by merged PRs but each
+retained four unchecked acceptance boxes. Verification supports checking all
+84 boxes, the epic's 21 children, and the roadmap's M4 entry. Seven older closed
+M1 issues also retained 28 stale boxes: #17, #18, #20, #22, #23, #24 and #25.
+Their accepted implementation is recorded in PRs #77/#76, #78, #75, #79, #80,
+#81 and #82, the historical M1 review, current regression tests, and the
+checksum-verified [M1 scale report](../m1/README.md). JetStream/DLQ acceptance
+uses its separate live integration evidence; the scale report excludes it.
+
+The repository roadmap and generated ticket mirror are reconciled to the live
+tracker. No new implementation scope or production certification is implied.
+
+## Verify retained files
+
+From this directory, run `shasum -a 256 -c SHA256SUMS` and inspect
+[validation.json](validation.json). Compressed JUnit/coverage reports preserve
+their original bytes; their original and retained hashes are recorded there.
+The historical operator files retain their independent
+`operator-SHA256SUMS` manifest. Fresh and historical deployment evidence are
+separately identified in the validation record.

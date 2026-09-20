@@ -1,0 +1,22 @@
+[
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 547,
+  "EndLine": 547,
+  "StartColumn": 4,
+  "EndColumn": 79,
+  "Match": "api_key = \"REDACTED\"",
+  "Secret": "REDACTED",
+  "File": ".github/workflows/ci.yml",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.8240879,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "Fingerprint": ".github/workflows/ci.yml:generic-api-key:547"
+ }
+]

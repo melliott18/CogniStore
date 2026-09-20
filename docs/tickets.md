@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-12T18:14:47Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-20T02:00:58Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 68 issues; 23 open, 45 closed
+- **Snapshot:** 68 issues; 0 open, 68 closed
 
 ## How to use this mirror
 
@@ -36,7 +36,7 @@ git diff --check
 | M1 – Reliable multi-backend movement | [#16](https://github.com/melliott18/CogniStore/issues/16) | 13 | 2 | 0 | 0 / 16 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/4) |
 | M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 3 | 0 | 0 / 17 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 0 / 12 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/2) |
-| M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 22 / 22 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/3) |
+| M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 0 / 22 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/3) |
 
 ## Label taxonomy
 
@@ -63,10 +63,10 @@ git diff --check
 ### [#12 — Roadmap: CogniStore delivery plan](https://github.com/melliott18/CogniStore/issues/12)
 
 - **Kind:** Master tracker
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** None
 - **Labels:** `roadmap`, `type:epic`
-- **Last updated:** 2026-09-12
+- **Last updated:** 2026-09-20
 
 <h4 id="issue-12-purpose">Purpose</h4>
 <p>This is the top-level tracker for converting the original CogniStore roadmap into an executable GitHub Issues backlog.</p>
@@ -84,23 +84,26 @@ git diff --check
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> — <a href="https://github.com/melliott18/CogniStore/milestone/4">M1 milestone</a>: reliable multi-backend movement</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> — <a href="https://github.com/melliott18/CogniStore/milestone/1">M2 milestone</a>: knowledge layer and search</li>
 <li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> — <a href="https://github.com/melliott18/CogniStore/milestone/2">M3 milestone</a>: explainable policy engine</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> — <a href="https://github.com/melliott18/CogniStore/milestone/3">M4 milestone</a>: production platform</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> — <a href="https://github.com/melliott18/CogniStore/milestone/3">M4 milestone</a>: production platform</li>
 </ul>
 <h4 id="issue-12-backlog-inventory">Backlog inventory</h4>
 <ul>
 <li>M1: 15 delivery issues (13 original + 2 verification follow-ups)</li>
 <li>M2: 16 tracked issues (13 original delivery issues + 3 verification/tracking follow-ups)</li>
 <li>M3: 11 delivery issues</li>
-<li>M4: 20 delivery issues</li>
+<li>M4: 21 delivery/hardening issues (20 original + <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a>)</li>
 </ul>
 <h4 id="issue-12-source-of-truth">Source of truth</h4>
 <p>&quot;Backlog is maintained against the default <code>main</code> branch; GitHub Issues is the canonical tracker.&quot;</p>
 <h4 id="issue-12-m1-completion">M1 completion</h4>
 <p>M1 completed on 2026-08-29. Epic <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a> and milestone 4 are closed. The canonical clean full-scale qualification report is retained at <a href="https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json">https://github.com/melliott18/CogniStore/blob/5183495fbfd5082d2e7226107a4a661d8ec6879c/docs/evidence/m1/full-20260827-205845.json</a> (SHA-256 <code>0647793f7546a4996a9f5ae36d8d6c9e7310f209e2751bea8434552a42950f39</code>).</p>
 <h4 id="issue-12-m2-completion">M2 completion</h4>
-<p>M2 completed on 2026-09-08. Epic <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> and <a href="https://github.com/melliott18/CogniStore/milestone/1">milestone 1</a> are closed; all 13 delivery issues and three verification/tracking follow-ups are complete. The <a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">retained closeout evidence</a> maps every milestone success criterion to the qualified source revision <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>, <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">passing CI</a>, and archived JUnit/coverage reports. M4 remains open.</p>
+<p>M2 completed on 2026-09-08. Epic <a href="https://github.com/melliott18/CogniStore/issues/13">#13</a> and <a href="https://github.com/melliott18/CogniStore/milestone/1">milestone 1</a> are closed; all 13 delivery issues and three verification/tracking follow-ups are complete. The <a href="https://github.com/melliott18/CogniStore/blob/fa0501bbc85856427b695928db2ce9cfa2887f68/docs/evidence/m2/README.md">retained closeout evidence</a> maps every milestone success criterion to the qualified source revision <code>2dcde3b70bf085c79d4b79ed9a93e280d6a92332</code>, <a href="https://github.com/melliott18/CogniStore/actions/runs/33665981824">passing CI</a>, and archived JUnit/coverage reports. M4 subsequently completed; see the M4 completion record below.</p>
 <h4 id="issue-12-m3-completion">M3 completion</h4>
-<p>M3 completed on 2026-09-12. Epic <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> and <a href="https://github.com/melliott18/CogniStore/milestone/2">milestone 2</a> are closed; all eleven delivery issues (<a href="https://github.com/melliott18/CogniStore/issues/43">#43</a>–<a href="https://github.com/melliott18/CogniStore/issues/53">#53</a>) are complete. The <a href="https://github.com/melliott18/CogniStore/blob/692c8850353544c0abd240d9adcea001e0e0c945/docs/evidence/m3/README.md">retained closeout evidence</a> maps their acceptance criteria to application revision <code>fe700326f3cc99ba498536afd07b897575709d53</code>, passing local full and service-enabled integration suites, archived reports, and reproducible offline evaluations. GitHub Actions remains blocked by account billing/spending limits; no remote CI pass is claimed. M4 remains open.</p>
+<p>M3 completed on 2026-09-12. Epic <a href="https://github.com/melliott18/CogniStore/issues/15">#15</a> and <a href="https://github.com/melliott18/CogniStore/milestone/2">milestone 2</a> are closed; all eleven delivery issues (<a href="https://github.com/melliott18/CogniStore/issues/43">#43</a>–<a href="https://github.com/melliott18/CogniStore/issues/53">#53</a>) are complete. The <a href="https://github.com/melliott18/CogniStore/blob/692c8850353544c0abd240d9adcea001e0e0c945/docs/evidence/m3/README.md">retained closeout evidence</a> maps their acceptance criteria to application revision <code>fe700326f3cc99ba498536afd07b897575709d53</code>, passing local full and service-enabled integration suites, archived reports, and reproducible offline evaluations. GitHub Actions remains blocked by account billing/spending limits; no remote CI pass is claimed. M4 subsequently completed; see the M4 completion record below.</p>
+<h4 id="issue-12-m4-and-roadmap-completion">M4 and roadmap completion</h4>
+<p>M4 completed on 2026-09-19. Epic <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a> and <a href="https://github.com/melliott18/CogniStore/milestone/3">milestone 3</a> are closed with all twenty delivery issues and POSIX hardening <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> complete. The <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">retained closeout evidence</a> records acceptance mapping, fresh local test/quality/operations checks, historical deployment qualification, and explicit limits. Hosted CI remains blocked by account billing/spending limits; no hosted pass is claimed.</p>
+<p>All four delivery milestones M1–M4 are complete. The final reconciliation also updates stale acceptance checkboxes on the 21 M4 tickets and seven previously accepted M1 tickets (<a href="https://github.com/melliott18/CogniStore/issues/17">#17</a>, <a href="https://github.com/melliott18/CogniStore/issues/18">#18</a>, <a href="https://github.com/melliott18/CogniStore/issues/20">#20</a>, <a href="https://github.com/melliott18/CogniStore/issues/22">#22</a>, <a href="https://github.com/melliott18/CogniStore/issues/23">#23</a>, <a href="https://github.com/melliott18/CogniStore/issues/24">#24</a>, <a href="https://github.com/melliott18/CogniStore/issues/25">#25</a>). Repository roadmap and live-ticket mirror are synchronized by PR <a href="https://github.com/melliott18/CogniStore/pull/154">#154</a>. No open implementation tickets remain.</p>
 
 ## M1 – Reliable multi-backend movement
 
@@ -173,7 +176,7 @@ git diff --check
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:storage`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-12
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -192,10 +195,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-17-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The S3 driver is selectable from <code>drivers.yaml</code>.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> POSIX and S3 drivers pass the shared conformance suite.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Integration tests run against MinIO and cover pagination, ranges, missing objects, and idempotent deletes.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Configuration and supported S3 semantics are documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The S3 driver is selectable from <code>drivers.yaml</code>.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> POSIX and S3 drivers pass the shared conformance suite.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Integration tests run against MinIO and cover pagination, ranges, missing objects, and idempotent deletes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Configuration and supported S3 semantics are documented.</li>
 </ul>
 <h5 id="issue-17-dependencies">Dependencies</h5>
 <ul>
@@ -203,6 +206,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-17-roadmap-coverage">Roadmap coverage</h5>
 <p>Multi-backend storage → S3 with multipart support (core driver portion).</p>
+<h5 id="issue-17-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/77">#77</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#18 — \[M1\] Add a message bus and background worker runtime](https://github.com/melliott18/CogniStore/issues/18)
 
@@ -210,7 +217,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:control-plane`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-14
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -229,10 +236,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-18-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A queued test job survives a worker restart without silent loss.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Duplicate delivery is expected and documented for consumers.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Health/readiness checks expose bus and worker status.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unit and integration tests cover enqueue, acknowledgement, redelivery, and shutdown.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A queued test job survives a worker restart without silent loss.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Duplicate delivery is expected and documented for consumers.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Health/readiness checks expose bus and worker status.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unit and integration tests cover enqueue, acknowledgement, redelivery, and shutdown.</li>
 </ul>
 <h5 id="issue-18-dependencies">Dependencies</h5>
 <ul>
@@ -240,6 +247,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-18-roadmap-coverage">Roadmap coverage</h5>
 <p>Platform foundation → message bus and background workers.</p>
+<h5 id="issue-18-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/78">#78</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#19 — \[M1\] Schedule catalog scans and policy passes](https://github.com/melliott18/CogniStore/issues/19)
 
@@ -284,7 +295,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:orchestration`, `bug`, `roadmap`, `type:chore`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -303,10 +314,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-20-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Regression tests prove a same-tier move cannot delete data.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Resolved POSIX paths must remain inside the configured tier root.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Allowed-tier constraints apply consistently to every policy mode.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Dry-run output is distinguishable from completed movement in human and JSON modes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Regression tests prove a same-tier move cannot delete data.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Resolved POSIX paths must remain inside the configured tier root.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Allowed-tier constraints apply consistently to every policy mode.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Dry-run output is distinguishable from completed movement in human and JSON modes.</li>
 </ul>
 <h5 id="issue-20-dependencies">Dependencies</h5>
 <ul>
@@ -314,6 +325,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-20-roadmap-coverage">Roadmap coverage</h5>
 <p>M1 guardrails and CLI dry-run; CLI polish.</p>
+<h5 id="issue-20-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/75">#75</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#21 — \[M1\] Stream object moves with bounded memory and S3 multipart upload](https://github.com/melliott18/CogniStore/issues/21)
 
@@ -358,7 +373,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:orchestration`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-16
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -377,10 +392,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-22-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The source is never deleted when verification fails or is incomplete.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Checksum mismatch produces a failed result with both observed digests.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests inject truncation and corruption for POSIX and S3 destinations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Verified checksum and size are persisted with the placement.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The source is never deleted when verification fails or is incomplete.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Checksum mismatch produces a failed result with both observed digests.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests inject truncation and corruption for POSIX and S3 destinations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Verified checksum and size are persisted with the placement.</li>
 </ul>
 <h5 id="issue-22-dependencies">Dependencies</h5>
 <ul>
@@ -388,6 +403,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-22-roadmap-coverage">Roadmap coverage</h5>
 <p>Scale-out orchestration → integrity checks before/after movement.</p>
+<h5 id="issue-22-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/79">#79</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#23 — \[M1\] Make move jobs idempotent with two-phase catalog updates](https://github.com/melliott18/CogniStore/issues/23)
 
@@ -395,7 +414,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:orchestration`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-16
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -414,10 +433,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-23-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Replaying the same idempotency key cannot duplicate or lose an object.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Catalog placement changes only after destination verification.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Recovery tests cover crashes at every state transition.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> State transitions and terminal reasons are queryable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Replaying the same idempotency key cannot duplicate or lose an object.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Catalog placement changes only after destination verification.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Recovery tests cover crashes at every state transition.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> State transitions and terminal reasons are queryable.</li>
 </ul>
 <h5 id="issue-23-dependencies">Dependencies</h5>
 <ul>
@@ -426,6 +445,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-23-roadmap-coverage">Roadmap coverage</h5>
 <p>Scale-out orchestration → idempotent jobs and two-phase catalog updates.</p>
+<h5 id="issue-23-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/80">#80</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#24 — \[M1\] Add retry, backoff, dead-letter, and redrive handling](https://github.com/melliott18/CogniStore/issues/24)
 
@@ -433,7 +456,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:control-plane`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-17
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -452,10 +475,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-24-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Transient failures retry without violating move idempotency.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Terminal and exhausted jobs retain complete diagnostic context.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Redrive preserves the original idempotency key and audit chain.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests cover timeout, throttling, unavailable backend, malformed request, and exhaustion.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Transient failures retry without violating move idempotency.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Terminal and exhausted jobs retain complete diagnostic context.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Redrive preserves the original idempotency key and audit chain.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests cover timeout, throttling, unavailable backend, malformed request, and exhaustion.</li>
 </ul>
 <h5 id="issue-24-dependencies">Dependencies</h5>
 <ul>
@@ -464,6 +487,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-24-roadmap-coverage">Roadmap coverage</h5>
 <p>Scale-out orchestration → retries with backoff and DLQs.</p>
+<h5 id="issue-24-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/81">#81</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#25 — \[M1\] Add per-tier concurrency, rate limiting, and backpressure](https://github.com/melliott18/CogniStore/issues/25)
 
@@ -471,7 +498,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Status:** Closed
 - **Milestone:** M1 – Reliable multi-backend movement
 - **Labels:** `area:orchestration`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-19
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/16">#16</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -490,10 +517,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-25-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Limits can be configured per tier without restarting in-flight jobs unsafely.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Load tests demonstrate bounded queue and memory growth.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Fairness prevents one tier from starving unrelated tiers.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Metrics expose active jobs, queue depth, throttling, and saturation.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Limits can be configured per tier without restarting in-flight jobs unsafely.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Load tests demonstrate bounded queue and memory growth.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Fairness prevents one tier from starving unrelated tiers.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Metrics expose active jobs, queue depth, throttling, and saturation.</li>
 </ul>
 <h5 id="issue-25-dependencies">Dependencies</h5>
 <ul>
@@ -502,6 +529,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-25-roadmap-coverage">Roadmap coverage</h5>
 <p>Scale-out orchestration → concurrency pools, rate limiting, and backpressure.</p>
+<h5 id="issue-25-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/82">#82</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>This is a tracker correction for previously accepted M1 work. The retained M1 scale evidence and the separately scoped live NATS/DLQ integration evidence remain the original acceptance sources; their scope is not combined.</p>
 
 #### [#26 — \[M1\] Standardize CLI configuration, profiles, dry-run, verbose, and JSON output](https://github.com/melliott18/CogniStore/issues/26)
 
@@ -2019,17 +2050,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Original delivery tickets:** 20
 - **Verification follow-ups:** 1
 - **Other tracking issues:** 0
-- **Status:** 22 open, 0 closed (22 including the epic)
+- **Status:** 0 open, 22 closed (22 including the epic)
 
 ### Epic
 
 #### [#14 — \[Epic\] M4 – Production platform](https://github.com/melliott18/CogniStore/issues/14)
 
 - **Kind:** Milestone epic
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:delivery`, `roadmap`, `type:epic`
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-09-20
 
 <p>Parent roadmap: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
 <h5 id="issue-14-outcome">Outcome</h5>
@@ -2043,44 +2074,48 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-14-child-issues">Child issues</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/54">#54</a> — Implement an Azure Blob storage driver</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/55">#55</a> — Implement a Google Cloud Storage driver</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/56">#56</a> — Add JWT and OIDC authentication</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/57">#57</a> — Define and enforce role-based authorization</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/58">#58</a> — Enforce per-tenant ownership and isolation</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/59">#59</a> — Integrate Vault/KMS-backed secrets and key providers</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/60">#60</a> — Enforce encryption at rest and in transit</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/61">#61</a> — Add pluggable PII detection and policy hooks</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/62">#62</a> — Implement legal holds and deletion protection</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/63">#63</a> — Make the audit trail tamper-evident and coverage-complete</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/64">#64</a> — Enforce data-locality constraints</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/65">#65</a> — Add Prometheus metrics, OpenTelemetry traces, and structured logs</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/66">#66</a> — Define SLOs, error budgets, and operational alerts</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/67">#67</a> — Build catalog-to-storage consistency checks</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/68">#68</a> — Add idempotent auto-repair workflows</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/69">#69</a> — Clean confirmed orphaned content with grace periods</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/70">#70</a> — Deliver the production administration UI</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/71">#71</a> — Deploy CogniStore with Helm and Kubernetes autoscaling</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/72">#72</a> — Publish Terraform and production reference configurations</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/73">#73</a> — Publish operator runbooks, migration guides, and reference architectures</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/54">#54</a> — Implement an Azure Blob storage driver</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/55">#55</a> — Implement a Google Cloud Storage driver</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/56">#56</a> — Add JWT and OIDC authentication</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/57">#57</a> — Define and enforce role-based authorization</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/58">#58</a> — Enforce per-tenant ownership and isolation</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/59">#59</a> — Integrate Vault/KMS-backed secrets and key providers</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/60">#60</a> — Enforce encryption at rest and in transit</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/61">#61</a> — Add pluggable PII detection and policy hooks</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/62">#62</a> — Implement legal holds and deletion protection</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/63">#63</a> — Make the audit trail tamper-evident and coverage-complete</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/64">#64</a> — Enforce data-locality constraints</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/65">#65</a> — Add Prometheus metrics, OpenTelemetry traces, and structured logs</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/66">#66</a> — Define SLOs, error budgets, and operational alerts</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/67">#67</a> — Build catalog-to-storage consistency checks</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/68">#68</a> — Add idempotent auto-repair workflows</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/69">#69</a> — Clean confirmed orphaned content with grace periods</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/70">#70</a> — Deliver the production administration UI</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/71">#71</a> — Deploy CogniStore with Helm and Kubernetes autoscaling</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/72">#72</a> — Publish Terraform and production reference configurations</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/73">#73</a> — Publish operator runbooks, migration guides, and reference architectures</li>
 </ul>
 <p>Dependencies listed inside each child issue are authoritative; checklist order is the suggested implementation sequence.</p>
 <h5 id="issue-14-source">Source</h5>
 <p><code>docs/roadmap.md</code>: multi-backend storage, security/compliance/tenancy, observability/ops, admin UI, resilience, deployment, and documentation.</p>
 <h5 id="issue-14-hardening-follow-ups">Hardening follow-ups</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> — Make POSIX path containment race-safe against symlink swaps</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> — Make POSIX path containment race-safe against symlink swaps</li>
 </ul>
+<h5 id="issue-14-m4-completion-2026-09-19">M4 completion — 2026-09-19</h5>
+<p>All twenty delivery issues (<a href="https://github.com/melliott18/CogniStore/issues/54">#54</a>–<a href="https://github.com/melliott18/CogniStore/issues/73">#73</a>) and hardening <a href="https://github.com/melliott18/CogniStore/issues/91">#91</a> are implemented, merged to <code>main</code>, and acceptance-verified. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Immutable closeout evidence</a> maps every issue to its delivery and tests and retains the qualification reports for application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>.</p>
+<p>Fresh validation: 5,192 default tests passed with 86.90% coverage; 391 service-enabled integration tests passed, 31 skipped and one documented GCS emulator xfail; quality/security/packaging gates, six mocked Terraform plans, 23 Helm tests, Prometheus rules and a 37-check installed operator drill passed. Historical Kubernetes evidence verifies installation, upgrade, rollback, persistence and 1→3→1 autoscaling, with its older runtime and development-profile limits explicit.</p>
+<p>Hosted Actions could not start because of account billing/spending limits. Local qualification and the owner-approved <a href="https://github.com/melliott18/CogniStore/issues/72">#72</a> exception are explicit; this closure does not claim hosted CI, a fresh final-revision cluster campaign, or environment-specific production-cloud certification. All previously stale child acceptance boxes are reconciled.</p>
 
 ### Original delivery tickets
 
 #### [#54 — \[M4\] Implement an Azure Blob storage driver](https://github.com/melliott18/CogniStore/issues/54)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:storage`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2099,10 +2134,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-54-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The shared driver conformance suite passes.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Large uploads use bounded memory and safe block commit semantics.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Credentials are loaded through approved configuration and never logged.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Provider throttling, missing objects, and partial upload cleanup are tested.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The shared driver conformance suite passes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Large uploads use bounded memory and safe block commit semantics.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Credentials are loaded through approved configuration and never logged.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Provider throttling, missing objects, and partial upload cleanup are tested.</li>
 </ul>
 <h5 id="issue-54-dependencies">Dependencies</h5>
 <ul>
@@ -2111,14 +2146,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-54-roadmap-coverage">Roadmap coverage</h5>
 <p>Multi-backend storage → Azure Blob driver.</p>
+<h5 id="issue-54-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/134">#134</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#55 — \[M4\] Implement a Google Cloud Storage driver](https://github.com/melliott18/CogniStore/issues/55)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:storage`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2137,10 +2175,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-55-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The shared driver conformance suite passes.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Interrupted large uploads can resume or cleanly abort.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Credentials are loaded through approved configuration and never logged.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Provider throttling, missing objects, and partial upload behavior are tested.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The shared driver conformance suite passes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Interrupted large uploads can resume or cleanly abort.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Credentials are loaded through approved configuration and never logged.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Provider throttling, missing objects, and partial upload behavior are tested.</li>
 </ul>
 <h5 id="issue-55-dependencies">Dependencies</h5>
 <ul>
@@ -2149,14 +2187,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-55-roadmap-coverage">Roadmap coverage</h5>
 <p>Multi-backend storage → GCS driver.</p>
+<h5 id="issue-55-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/137">#137</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#56 — \[M4\] Add JWT and OIDC authentication](https://github.com/melliott18/CogniStore/issues/56)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2175,10 +2216,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-56-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Invalid, expired, wrong-audience, and unknown-key tokens fail closed.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> JWKS refresh and rotation are tested without restart.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Authentication failures expose safe, consistent API errors.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Principal identity is available for audit events without persisting raw tokens.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Invalid, expired, wrong-audience, and unknown-key tokens fail closed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> JWKS refresh and rotation are tested without restart.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Authentication failures expose safe, consistent API errors.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Principal identity is available for audit events without persisting raw tokens.</li>
 </ul>
 <h5 id="issue-56-dependencies">Dependencies</h5>
 <ul>
@@ -2187,14 +2228,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-56-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → JWT/OIDC authentication.</p>
+<h5 id="issue-56-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/135">#135</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#57 — \[M4\] Define and enforce role-based authorization](https://github.com/melliott18/CogniStore/issues/57)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2213,10 +2257,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-57-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> An endpoint/operation permission matrix is documented and tested.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> No protected endpoint relies only on UI hiding.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Workers revalidate authorization-sensitive job context where required.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Authorization failures are fail-closed and do not leak resource existence.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> An endpoint/operation permission matrix is documented and tested.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> No protected endpoint relies only on UI hiding.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Workers revalidate authorization-sensitive job context where required.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Authorization failures are fail-closed and do not leak resource existence.</li>
 </ul>
 <h5 id="issue-57-dependencies">Dependencies</h5>
 <ul>
@@ -2226,14 +2270,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-57-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → RBAC.</p>
+<h5 id="issue-57-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/139">#139</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#58 — \[M4\] Enforce per-tenant ownership and isolation](https://github.com/melliott18/CogniStore/issues/58)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2252,10 +2299,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-58-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Cross-tenant reads, writes, search, policy actions, and job status access fail closed.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unique constraints and cache keys include tenant scope where required.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Background jobs cannot lose or change tenant context.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Isolation tests cover direct IDs, enumeration, filters, and crafted job payloads.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Cross-tenant reads, writes, search, policy actions, and job status access fail closed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unique constraints and cache keys include tenant scope where required.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Background jobs cannot lose or change tenant context.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Isolation tests cover direct IDs, enumeration, filters, and crafted job payloads.</li>
 </ul>
 <h5 id="issue-58-dependencies">Dependencies</h5>
 <ul>
@@ -2266,14 +2313,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-58-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → per-tenant isolation.</p>
+<h5 id="issue-58-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/143">#143</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#59 — \[M4\] Integrate Vault/KMS-backed secrets and key providers](https://github.com/melliott18/CogniStore/issues/59)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2292,10 +2342,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-59-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Production examples contain no plaintext secrets.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Rotation can occur without rebuilding images or losing in-flight job state.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Secret values never appear in logs, traces, errors, or audit payloads.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Provider outage and expired-cache behavior fail according to documented policy.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Production examples contain no plaintext secrets.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Rotation can occur without rebuilding images or losing in-flight job state.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Secret values never appear in logs, traces, errors, or audit payloads.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Provider outage and expired-cache behavior fail according to documented policy.</li>
 </ul>
 <h5 id="issue-59-dependencies">Dependencies</h5>
 <ul>
@@ -2305,14 +2355,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-59-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → KMS/Vault integration.</p>
+<h5 id="issue-59-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/141">#141</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#60 — \[M4\] Enforce encryption at rest and in transit](https://github.com/melliott18/CogniStore/issues/60)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2331,10 +2384,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-60-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Production startup rejects insecure connections unless an explicit development-only mode is selected.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests validate certificate verification and common misconfiguration failures.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> At-rest encryption status/configuration is observable without exposing keys.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Rotation and backup/restore procedures are documented and exercised.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Production startup rejects insecure connections unless an explicit development-only mode is selected.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests validate certificate verification and common misconfiguration failures.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> At-rest encryption status/configuration is observable without exposing keys.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Rotation and backup/restore procedures are documented and exercised.</li>
 </ul>
 <h5 id="issue-60-dependencies">Dependencies</h5>
 <ul>
@@ -2343,14 +2396,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-60-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → encryption at rest and in transit.</p>
+<h5 id="issue-60-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/142">#142</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#61 — \[M4\] Add pluggable PII detection and policy hooks](https://github.com/melliott18/CogniStore/issues/61)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2369,10 +2425,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-61-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Detectors can be enabled per tenant/policy and replaced without schema changes.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Findings include type, confidence, provenance, and detector version.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Sensitive raw matches are not logged or exposed by default.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Detection failure produces explicit unknown state and safe policy behavior.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Detectors can be enabled per tenant/policy and replaced without schema changes.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Findings include type, confidence, provenance, and detector version.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Sensitive raw matches are not logged or exposed by default.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Detection failure produces explicit unknown state and safe policy behavior.</li>
 </ul>
 <h5 id="issue-61-dependencies">Dependencies</h5>
 <ul>
@@ -2381,14 +2437,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-61-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → PII detection hooks.</p>
+<h5 id="issue-61-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/145">#145</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#62 — \[M4\] Implement legal holds and deletion protection](https://github.com/melliott18/CogniStore/issues/62)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2407,10 +2466,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-62-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Held objects cannot be deleted, overwritten, garbage-collected, or moved in violation of the hold.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Policy and worker paths fail closed and emit an audit event.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Concurrent hold placement and deletion races preserve the hold.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Release requires explicit authorization and retains historical audit records.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Held objects cannot be deleted, overwritten, garbage-collected, or moved in violation of the hold.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Policy and worker paths fail closed and emit an audit event.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Concurrent hold placement and deletion races preserve the hold.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Release requires explicit authorization and retains historical audit records.</li>
 </ul>
 <h5 id="issue-62-dependencies">Dependencies</h5>
 <ul>
@@ -2420,14 +2479,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-62-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → legal holds.</p>
+<h5 id="issue-62-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/146">#146</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#63 — \[M4\] Make the audit trail tamper-evident and coverage-complete](https://github.com/melliott18/CogniStore/issues/63)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2446,10 +2508,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-63-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Automated tests prove required actions emit the expected correlated events.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unauthorized update/delete of audit records is denied.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Integrity verification detects missing or altered records.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Audit access and export are tenant-scoped and themselves audited.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Automated tests prove required actions emit the expected correlated events.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unauthorized update/delete of audit records is denied.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Integrity verification detects missing or altered records.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Audit access and export are tenant-scoped and themselves audited.</li>
 </ul>
 <h5 id="issue-63-dependencies">Dependencies</h5>
 <ul>
@@ -2459,14 +2521,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-63-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → immutable audit logs; M4 audit-complete criterion.</p>
+<h5 id="issue-63-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/147">#147</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#64 — \[M4\] Enforce data-locality constraints](https://github.com/melliott18/CogniStore/issues/64)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2485,10 +2550,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-64-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A move cannot cross a prohibited locality boundary even if another policy favors it.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unknown or stale region data fails according to documented conservative behavior.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Dry-run explains the binding locality constraint.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Tests cover conflicting cost, performance, carbon, and locality objectives.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A move cannot cross a prohibited locality boundary even if another policy favors it.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unknown or stale region data fails according to documented conservative behavior.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Dry-run explains the binding locality constraint.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Tests cover conflicting cost, performance, carbon, and locality objectives.</li>
 </ul>
 <h5 id="issue-64-dependencies">Dependencies</h5>
 <ul>
@@ -2498,14 +2563,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-64-roadmap-coverage">Roadmap coverage</h5>
 <p>Security, compliance, tenancy → data locality constraints.</p>
+<h5 id="issue-64-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/144">#144</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#65 — \[M4\] Add Prometheus metrics, OpenTelemetry traces, and structured logs](https://github.com/melliott18/CogniStore/issues/65)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:observability`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2524,10 +2592,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-65-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A request can be traced through queued work to storage and catalog operations.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Metrics document units, labels, and cardinality constraints.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Secrets and content are redacted from logs and spans.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Local dashboards visualize movement throughput, failures, queue depth, and latency.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A request can be traced through queued work to storage and catalog operations.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Metrics document units, labels, and cardinality constraints.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Secrets and content are redacted from logs and spans.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Local dashboards visualize movement throughput, failures, queue depth, and latency.</li>
 </ul>
 <h5 id="issue-65-dependencies">Dependencies</h5>
 <ul>
@@ -2537,14 +2605,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-65-roadmap-coverage">Roadmap coverage</h5>
 <p>Observability and ops → Prometheus/Grafana, OpenTelemetry, and structured logs.</p>
+<h5 id="issue-65-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/136">#136</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#66 — \[M4\] Define SLOs, error budgets, and operational alerts](https://github.com/melliott18/CogniStore/issues/66)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:observability`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2563,10 +2634,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-66-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Every SLO has an owner, formula, data source, target, and review window.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Alert tests exercise breach and recovery behavior.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Cost/carbon alerts use the same versioned estimators as policy budgets.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Full-scale M1 qualification results can be evaluated against the SLO model.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Every SLO has an owner, formula, data source, target, and review window.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Alert tests exercise breach and recovery behavior.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Cost/carbon alerts use the same versioned estimators as policy budgets.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Full-scale M1 qualification results can be evaluated against the SLO model.</li>
 </ul>
 <h5 id="issue-66-dependencies">Dependencies</h5>
 <ul>
@@ -2576,14 +2647,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-66-roadmap-coverage">Roadmap coverage</h5>
 <p>Observability and ops → SLOs, throughput targets, cost/carbon guardrails, dashboards, and alerts.</p>
+<h5 id="issue-66-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/140">#140</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#67 — \[M4\] Build catalog-to-storage consistency checks](https://github.com/melliott18/CogniStore/issues/67)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:observability`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2602,10 +2676,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-67-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Dry-run/read-only behavior is guaranteed.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Fixtures cover missing source/destination, checksum mismatch, duplicate placement, partial job, and untracked object.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Large scans are resumable and rate-limited.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Results are tenant-scoped, audited, and exportable.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Dry-run/read-only behavior is guaranteed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Fixtures cover missing source/destination, checksum mismatch, duplicate placement, partial job, and untracked object.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Large scans are resumable and rate-limited.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Results are tenant-scoped, audited, and exportable.</li>
 </ul>
 <h5 id="issue-67-dependencies">Dependencies</h5>
 <ul>
@@ -2615,14 +2689,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-67-roadmap-coverage">Roadmap coverage</h5>
 <p>Observability and ops → consistency checks.</p>
+<h5 id="issue-67-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/133">#133</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#68 — \[M4\] Add idempotent auto-repair workflows](https://github.com/melliott18/CogniStore/issues/68)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:observability`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2641,10 +2718,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-68-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Repair defaults to plan-only mode and requires explicit enablement.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Repeated repair attempts converge without duplicate placement or loss.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Held, locality-constrained, or uncertain objects are never auto-modified.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Failure-injection tests cover interruption at each repair phase.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Repair defaults to plan-only mode and requires explicit enablement.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Repeated repair attempts converge without duplicate placement or loss.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Held, locality-constrained, or uncertain objects are never auto-modified.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Failure-injection tests cover interruption at each repair phase.</li>
 </ul>
 <h5 id="issue-68-dependencies">Dependencies</h5>
 <ul>
@@ -2655,14 +2732,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-68-roadmap-coverage">Roadmap coverage</h5>
 <p>Observability and ops → auto-repair.</p>
+<h5 id="issue-68-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/149">#149</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#69 — \[M4\] Clean confirmed orphaned content with grace periods](https://github.com/melliott18/CogniStore/issues/69)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:observability`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2681,10 +2761,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-69-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Dry-run is the default and reports every blocking or qualifying condition.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> No object with a reference, active job, legal hold, or unresolved tenant can be deleted.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Concurrent reference creation invalidates pending cleanup safely.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Deletion failures are retryable and never hide partially completed cleanup.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Dry-run is the default and reports every blocking or qualifying condition.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> No object with a reference, active job, legal hold, or unresolved tenant can be deleted.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Concurrent reference creation invalidates pending cleanup safely.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Deletion failures are retryable and never hide partially completed cleanup.</li>
 </ul>
 <h5 id="issue-69-dependencies">Dependencies</h5>
 <ul>
@@ -2695,14 +2775,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-69-roadmap-coverage">Roadmap coverage</h5>
 <p>Observability and ops → orphan cleanup.</p>
+<h5 id="issue-69-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/151">#151</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#70 — \[M4\] Deliver the production administration UI](https://github.com/melliott18/CogniStore/issues/70)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:ui`, `roadmap`, `type:feature`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2721,10 +2804,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-70-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Operators can inspect health, preview and submit allowed actions, follow jobs, and review audit evidence.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unauthorized controls are absent and server-side checks still enforce every action.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Loading, partial failure, empty, and stale-data states are handled.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Critical destructive actions require an explicit confirmation and show scope.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Operators can inspect health, preview and submit allowed actions, follow jobs, and review audit evidence.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unauthorized controls are absent and server-side checks still enforce every action.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Loading, partial failure, empty, and stale-data states are handled.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Critical destructive actions require an explicit confirmation and show scope.</li>
 </ul>
 <h5 id="issue-70-dependencies">Dependencies</h5>
 <ul>
@@ -2736,14 +2819,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-70-roadmap-coverage">Roadmap coverage</h5>
 <p>API, CLI, and UI → admin UI for drivers, tiers, policies, actions, audit trail, previews, and diffs.</p>
+<h5 id="issue-70-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/152">#152</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#71 — \[M4\] Deploy CogniStore with Helm and Kubernetes autoscaling](https://github.com/melliott18/CogniStore/issues/71)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:delivery`, `roadmap`, `type:chore`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2762,10 +2848,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-71-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A clean cluster install passes an automated smoke test.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Upgrade and rollback preserve catalog/job invariants.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Workloads run as non-root with least-privilege defaults.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Autoscaling responds to documented request/queue signals without duplicate work.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A clean cluster install passes an automated smoke test.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Upgrade and rollback preserve catalog/job invariants.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Workloads run as non-root with least-privilege defaults.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Autoscaling responds to documented request/queue signals without duplicate work.</li>
 </ul>
 <h5 id="issue-71-dependencies">Dependencies</h5>
 <ul>
@@ -2776,14 +2862,17 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-71-roadmap-coverage">Roadmap coverage</h5>
 <p>Delivery and DX plus M4 success → Helm, production configs, Kubernetes, and autoscaling.</p>
+<h5 id="issue-71-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/148">#148</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 #### [#72 — \[M4\] Publish Terraform and production reference configurations](https://github.com/melliott18/CogniStore/issues/72)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:delivery`, `roadmap`, `type:chore`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2802,10 +2891,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-72-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Example plans validate in CI without creating resources.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Inputs, outputs, provider versions, and state assumptions are documented.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> The topology is compatible with the Helm production profile.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Destructive operations and data-retention implications are explicit.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Example plans pass the resource-free CI verification script locally under the owner-approved hosted-CI exception recorded in PR <a href="https://github.com/melliott18/CogniStore/pull/150">#150</a>; no hosted CI pass is claimed.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Inputs, outputs, provider versions, and state assumptions are documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> The topology is compatible with the Helm production profile.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Destructive operations and data-retention implications are explicit.</li>
 </ul>
 <h5 id="issue-72-dependencies">Dependencies</h5>
 <ul>
@@ -2816,14 +2905,18 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-72-roadmap-coverage">Roadmap coverage</h5>
 <p>Delivery and DX → Terraform samples and reference architectures.</p>
+<h5 id="issue-72-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/150">#150</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
+<p>The original hosted-CI acceptance wording is qualified by the owner authorization explicitly recorded in merged PR <a href="https://github.com/melliott18/CogniStore/pull/150">#150</a>. Fresh execution of <code>scripts/terraform/verify.sh</code> passed six mocked plan cases and production Helm handoff validation without creating cloud resources.</p>
 
 #### [#73 — \[M4\] Publish operator runbooks, migration guides, and reference architectures](https://github.com/melliott18/CogniStore/issues/73)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:docs`, `documentation`, `roadmap`, `type:chore`
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2842,10 +2935,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-73-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A fresh-user walkthrough succeeds from a clean environment.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Backup/restore and at least one incident/repair drill are exercised and recorded.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Commands, diagrams, and configuration match the shipped release.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Every SLO alert links to an actionable runbook.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A fresh-user walkthrough succeeds from a clean environment.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Backup/restore and at least one incident/repair drill are exercised and recorded.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Commands, diagrams, and configuration match the shipped release.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Every SLO alert links to an actionable runbook.</li>
 </ul>
 <h5 id="issue-73-dependencies">Dependencies</h5>
 <ul>
@@ -2858,16 +2951,19 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-73-roadmap-coverage">Roadmap coverage</h5>
 <p>Delivery and DX → operator runbooks, migration guides, and reference architectures.</p>
+<h5 id="issue-73-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/153">#153</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
 
 ### Verification follow-ups
 
 #### [#91 — Make POSIX path containment race-safe against symlink swaps](https://github.com/melliott18/CogniStore/issues/91)
 
 - **Kind:** Verification follow-up
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M4 – Production platform
 - **Labels:** `area:security`, `area:storage`, `bug`, `roadmap`
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-09-20
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/14">#14</a>
 Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#12</a></p>
@@ -2885,10 +2981,10 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 </ul>
 <h5 id="issue-91-acceptance-criteria">Acceptance criteria</h5>
 <ul class="contains-task-list">
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> A concurrent symlink or directory swap cannot make CogniStore read, publish, or delete outside the configured tier root.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Containment guarantees and platform limitations are documented.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> POSIX conformance and mover cleanup tests cover adversarial swaps.</li>
-<li class="task-list-item"><input class="task-list-item-checkbox" disabled="disabled" type="checkbox"> Unsupported platforms or filesystems fail closed rather than silently weakening containment.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> A concurrent symlink or directory swap cannot make CogniStore read, publish, or delete outside the configured tier root.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Containment guarantees and platform limitations are documented.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> POSIX conformance and mover cleanup tests cover adversarial swaps.</li>
+<li class="task-list-item"><input class="task-list-item-checkbox" checked="checked" disabled="disabled" type="checkbox"> Unsupported platforms or filesystems fail closed rather than silently weakening containment.</li>
 </ul>
 <h5 id="issue-91-related-evidence">Related evidence</h5>
 <ul>
@@ -2896,3 +2992,6 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 <li><code>tests/unit/test_posix_driver.py</code></li>
 <li><code>docs/m1_review_2026-08-20.md</code></li>
 </ul>
+<h5 id="issue-91-acceptance-verification-2026-09-19">Acceptance verification — 2026-09-19</h5>
+<p>Reconciled the four stale acceptance checkboxes after reviewing merged PR <a href="https://github.com/melliott18/CogniStore/pull/138">#138</a>, current implementation and regression coverage. <a href="https://github.com/melliott18/CogniStore/blob/9fe50e3319b08dbec3325f4d23272cea6f4d1f5a/docs/evidence/m4/README.md">Retained M4 closeout evidence</a> records application revision <code>ad20be8fa1d1f00224064d65324527d2a200dc52</code>, 5,192 passing default tests (86.90% coverage), 391 passing service-enabled integration tests, qualified skips/expected failure, and the applicable acceptance mapping.</p>
+<p>GitHub Actions remains blocked before job startup by account billing/spending limits; local validation is recorded without claiming a hosted CI pass. Environment-specific production qualification and documented operating limits remain applicable.</p>
