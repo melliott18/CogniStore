@@ -1,0 +1,119 @@
+{
+  "issue": "https://github.com/melliott18/CogniStore/issues/156",
+  "recorded_at_utc": "2026-09-20T08:39:35.072729+00:00",
+  "base_revision": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+  "qualified_fix_revision": "d8b85a83519d03d7571794c68c6bc0344b4c4dd2",
+  "branch": "fix/156-tenant-namespace-aliases",
+  "platform": "macOS-14.8.7-arm64-arm-64bit-Mach-O",
+  "python": "3.13.7",
+  "environment": "Existing isolated CPython 3.13 venv; PYTHONPATH=. selects this worktree without rebinding the environment.",
+  "source_sha256": {
+    "cognistore/api/app.py": "aae135b3bc6e69023c8a1fb7dec19d9e2985127ec96bfbb7862ced36f9fd416d",
+    "cognistore/drivers/namespaces.py": "69889df7f69464587584e3569aab1482cda509ca9ef5eb4d14235ed8848c3a03",
+    "cognistore/drivers/posix_driver.py": "6eb1ff31657231be32f8e296212b12a49ff543bb7f53a0a89f85cbb44960b7ad",
+    "cognistore/drivers/tenancy.py": "4056f953704e97b60bcafe043c03e8003bd88f5841ee6a0a7ebf65462aa60618",
+    "docs/posix_containment.md": "e2b0cace04d51f4c6c346c9223994fe8e48ff4e42cc5863063b6c0e6ca67985f",
+    "docs/tenancy.md": "eb2671f18bb9fc30a58197ea585242fb40aa5d4c9b5da22d2c4ecf0c06bc4091",
+    "tests/unit/test_tenant_namespace_aliases.py": "b8a753c7f7b9e307e74d3d671a0dd165f33dd62fd4772bb1e08009a8cd7514f3",
+    "tests/unit/test_tenant_namespace_api.py": "95fb015c136034d1197b3eadc6025fa79408a93c2326e6ce33595310bd628431"
+  },
+  "default_suite": {
+    "command": "PYTHONPATH=. /private/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m pytest --cov=cognistore --cov-report=term --cov-report=xml:/tmp/cognistore-156-validation/coverage.xml --junitxml=/tmp/cognistore-156-validation/default.xml",
+    "exit_code": 1,
+    "tests": 5750,
+    "passed": 5453,
+    "skipped": 291,
+    "failures": 6,
+    "errors": 0,
+    "warnings": 108,
+    "combined_statement_branch_coverage_percent": 86.9,
+    "coverage_gate_percent": 80,
+    "junit": "default.xml.gz",
+    "log": "default.log.gz"
+  },
+  "unchanged_extraction_rerun": {
+    "command": "PYTHONPATH=. /private/tmp/cognistore-m4-closeout-20260920/venv/bin/python -m pytest tests/unit/test_document_extraction.py --cov=cognistore --cov-append --cov-report=term --cov-report=xml:/tmp/cognistore-156-validation/coverage.xml --junitxml=/tmp/cognistore-156-validation/extraction-rerun.xml",
+    "exit_code": 0,
+    "tests": 34,
+    "passed": 34,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "reason": "The full run returned timeout rather than the expected parser outcome in six extraction cases. Their helper uses a two-second worker deadline. The entire unchanged extraction module passed in isolation; neither extraction implementation nor its tests differ from base_revision.",
+    "junit": "extraction-rerun.xml.gz",
+    "log": "extraction-rerun.log.gz"
+  },
+  "effective_results_after_unchanged_rerun": {
+    "tests": 5750,
+    "passed": 5459,
+    "skipped": 291,
+    "failures": 0,
+    "errors": 0,
+    "interpretation": "Latest result for each identical test ID. This is not a single completely passing full-suite invocation; do not add full and rerun counts.",
+    "combined_statement_branch_coverage_percent": 86.91,
+    "coverage": "coverage.xml.gz"
+  },
+  "new_regressions": {
+    "tests": 267,
+    "passed": 267,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "driver_and_namespace": {
+      "tests": 251,
+      "passed": 251,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "authenticated_api": {
+      "tests": 16,
+      "passed": 16,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "native_case_insensitive_api": {
+      "tests": 8,
+      "passed": 8,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "deterministic_casefold_api": {
+      "tests": 8,
+      "passed": 8,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "focused_junit": "regression.xml.gz",
+    "focused_log": "regression.log.gz"
+  },
+  "negative_control": {
+    "method": "In a separate Python process, import cognistore.drivers.tenancy and exec its source from base_revision into that module before pytest imports API tests. No worktree files changed. All other code and tests use qualified_fix_revision.",
+    "pytest_arguments": [
+      "tests/unit/test_tenant_namespace_api.py",
+      "-k",
+      "memory and native-case-insensitive-posix",
+      "--maxfail=1",
+      "-q",
+      "-o",
+      "addopts="
+    ],
+    "expected_pytest_exit_code": 1,
+    "observed_pytest_exit_code": 1,
+    "result": "Native case-insensitive authenticated held-object regression fails at attacker PUT: observed HTTP 201, expected HTTP 422.",
+    "junit": "negative-control.xml.gz",
+    "log": "negative-control.log.gz"
+  },
+  "quality_report": "quality.json",
+  "limitations": [
+    "The full invocation had six document-extraction failures consistent with timing sensitivity under host load. All 34 unchanged extraction tests, including those six, passed on the focused rerun. Both runs are retained; no single completely passing final full invocation is claimed.",
+    "Default suite leaves opt-in service/live-cloud cases skipped; no new live-cloud, native ext4/HFS+, or multi-Python-version qualification is claimed.",
+    "Native APFS case-insensitive ASCII aliases were reproduced; HFS+/ext4 ignorable behavior is tested deterministically and reserved conservatively on every backend.",
+    "Unsupported arbitrary filename translation, trimming, or short-name aliases are excluded by the documented deployment comparison contract, not auto-detected.",
+    "Four native libmagic cases are skipped. Existing resource/dependency warnings are retained in the full log.",
+    "The repository Anaconda Python 3.12 environment exited 139 before test output; all retained passing evidence uses isolated CPython 3.13."
+  ]
+}
