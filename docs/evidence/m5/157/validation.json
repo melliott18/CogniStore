@@ -1,0 +1,51 @@
+{
+  "fix_revision": "a7d61e276df9dbbe21ad55eb9d4248d38046902c",
+  "base_revision": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+  "validation_date_utc": "2026-09-20",
+  "environment": {
+    "os": "macOS 14.8.7 arm64",
+    "python": "3.12.2",
+    "sqlite": "3.45.1",
+    "sqlalchemy": "2.0.54",
+    "postgresql": "16.15",
+    "postgres_image": "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+  },
+  "focused_suite": {
+    "tests": "1234",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "2",
+    "time": "566.571"
+  },
+  "skips": [
+    {
+      "test": "tests.conformance.test_azure_blob_conformance.TestAzureBlobDriverConformance.test_range_write_when_supported",
+      "reason": "backend does not advertise range writes"
+    },
+    {
+      "test": "tests.conformance.test_gcs_conformance.TestGCSDriverConformance.test_range_write_when_supported",
+      "reason": "backend does not advertise range writes"
+    }
+  ],
+  "checks": {
+    "ruff": "passed",
+    "mypy": "passed (163 source files)",
+    "bandit_ll_ii": "passed",
+    "pip_audit": "no known vulnerabilities",
+    "build": "passed",
+    "twine_check": "passed"
+  },
+  "full_suite": "Exploratory pre-final run interrupted: 2883 passed, 7 failed, 114 skipped. Not final-revision or coverage qualification; see evidence narrative.",
+  "sha256": {
+    "bandit.log.gz": "264b281ea95bf94d3c30f8870902326eb2e07d54255fc82cb8417156cc5e6cc4",
+    "baseline-document-test.log.gz": "7d6bef086787c63e032fd976fdd718ac202b77fb4ba4a032efb5204ad50c9f1e",
+    "build.log.gz": "1aed95e3ff8c9dbd7b1310ab0744f6da352c2b8863ef091116f27a46bae67835",
+    "dependency-audit.log.gz": "af7cf8efa562f6d48cb2b46fbdbeaf3ea2b29fb9b07a697f7c9560da2009698e",
+    "exploratory-failures.log.gz": "be1f16247f7fcb8c65adb82f7d0dd2dc33ffb10291666fbc23e783a9b9d8102f",
+    "focused-tests.log.gz": "8ce3cbf3337f36421fbd5af064835a7d6fcbbe880c51d389c3e13ff3c6364bc1",
+    "focused-tests.xml.gz": "6441bf962e753e99881ee7f7954e9d695ff3f37e9e3d0475e0be3447ab2a1a23",
+    "isolated-document-retry.log.gz": "78ab8abac19b03a087e3a5c71d953c3791ee8750a26110a565390adf70aec865",
+    "mypy.log.gz": "3d86fded2a107b003f46fcb270c04d5bacaab9621ff285a93029ddef4598b71d",
+    "ruff.log.gz": "7162964741fdb747d7ab27df2d1a1b64fa0636c4b7fe50ea8493de14cb62cbd4"
+  }
+}
