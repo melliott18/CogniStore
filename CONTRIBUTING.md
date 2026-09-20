@@ -46,6 +46,8 @@ author-specific prefixes such as `codex/`.
 - Git workflows: see `docs/git_workflows.md`
 - Bug tracker: see `docs/bug_tracker.md`
 - Roadmap: see `docs/roadmap.md`
+- Hosted CI failures, qualification reruns, required checks and evidence:
+  see the [CI runbook](docs/ci_runbook.md).
 
 ## Commit style
 
