@@ -643,11 +643,14 @@ class CogniStoreGateway(AdminAccessMixin, AdminRepairMixin, AuditAccessMixin):
             tier=tier, bucket=bucket, key=key,
         ), self.catalog.destructive_operation(
             bucket, key, operation="put_object", context=context,
-        ), suppress_access_capture():
+        ), self.catalog.object_mutation(bucket, key), suppress_access_capture():
             driver.put_object(bucket, key, data, overwrite=overwrite)
             stat = driver.stat_object(bucket, key)
             metadata = self._storage_metadata(stat, content_type=content_type)
-            self.catalog.upsert(bucket, key, len(data), tier, metadata=metadata)
+            try:
+                self.catalog.upsert(bucket, key, len(data), tier, metadata=metadata)
+            except Exception as exc:
+                raise BackendUnavailableError("Object catalog publication failed") from exc
             resource = self._object_resource(tier, bucket, key, stat, metadata)
         self.access_recorder.persist(event)
         return resource
@@ -765,17 +768,29 @@ class CogniStoreGateway(AdminAccessMixin, AdminRepairMixin, AuditAccessMixin):
             tier=tier, bucket=bucket, key=key,
         ), self.catalog.destructive_operation(
             bucket, key, operation="delete_object", context=context,
-        ):
-            with suppress_access_capture():
-                resource = self.stat_object(tier, bucket, key)
-            deleted = self._driver(tier).delete_object_if_generation(
-                bucket,
-                key,
-                resource.generation,
-            )
-            if not deleted:
+        ), self.catalog.object_mutation(bucket, key):
+            # A retry can find a row whose bytes were removed before catalog
+            # finalization failed. Validate catalog ownership/tier before
+            # treating backend absence as an already completed removal.
+            record = self._catalog_record(bucket, key)
+            if record.tier != tier:
                 raise ResourceNotFoundError("object", f"{tier}/{bucket}/{key}")
-            self.catalog.delete(bucket, key)
+            driver = self._driver(tier)
+            with suppress_access_capture():
+                try:
+                    stat = driver.stat_object(bucket, key)
+                except FileNotFoundError:
+                    stat = None
+            if stat is not None:
+                deleted = driver.delete_object_if_generation(
+                    bucket, key, self._generation(stat, bucket, key),
+                )
+                if not deleted:
+                    raise ResourceNotFoundError("object", f"{tier}/{bucket}/{key}")
+            try:
+                self.catalog.delete(bucket, key)
+            except Exception as exc:
+                raise BackendUnavailableError("Object catalog deletion failed") from exc
 
     def get_catalog_object(self, bucket: str, key: str) -> CatalogObject:
         self._authorize("get_catalog_object")

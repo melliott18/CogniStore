@@ -91,6 +91,7 @@ from cognistore.core.move_jobs import (
     MoveJobTransition,
     validate_move_job_transition,
 )
+from cognistore.core.object_mutation_lock import ObjectMutationConflictError, ObjectMutationFence
 from cognistore.core.placement_controls import (
     ImportanceTag,
     validate_minimum_residency_seconds,
@@ -177,6 +178,7 @@ def _stable_uuid(kind: str, *values: str) -> UUID:
 class _LegalHoldLockState:
     def __init__(self) -> None:
         self.fence = LegalHoldFence()
+        self.mutations = ObjectMutationFence()
         self.local = threading.local()
 
 
@@ -444,11 +446,21 @@ class SQLCatalog(Catalog):
                     connection = stack.enter_context(self._legal_hold_engine.connect())
                     lock_function = "pg_advisory_lock" if exclusive else "pg_advisory_lock_shared"
                     unlock_function = "pg_advisory_unlock" if exclusive else "pg_advisory_unlock_shared"
-                    connection.execute(sa.text(f"SELECT {lock_function}(:key)"),
-                                       {"key": self._legal_hold_advisory_key})
-                    connection.commit()
+                    try:
+                        connection.execute(sa.text(f"SELECT {lock_function}(:key)"),
+                                           {"key": self._legal_hold_advisory_key})
+                        connection.commit()
+                    except BaseException:
+                        # An uncertain session-lock acquisition must never
+                        # return a potentially locked connection to the pool.
+                        connection.invalidate()
+                        raise
 
                     def unlock() -> None:
+                        if connection.invalidated:
+                            # Invalidating closes the owning session and its
+                            # locks; do not reconnect just to unlock them.
+                            return
                         try:
                             connection.execute(sa.text(f"SELECT {unlock_function}(:key)"),
                                                {"key": self._legal_hold_advisory_key})
@@ -457,6 +469,9 @@ class SQLCatalog(Catalog):
                             connection.invalidate()
                             raise
                     stack.callback(unlock)
+                    # Object reservations reuse this session rather than
+                    # exhausting a second pool slot while holding the first.
+                    state.local.connection = connection
                 elif self._legal_hold_lock_path is not None:
                     # OS locks disappear on process exit. No stale reservation
                     # or database write transaction survives a failed worker.
@@ -481,6 +496,95 @@ class SQLCatalog(Catalog):
                     yield
                 finally:
                     state.local.depth = 0
+                    if self.backend == "postgresql":
+                        del state.local.connection
+
+    @contextlib.contextmanager
+    def object_mutation(self, bucket: str, key: str) -> Iterator[None]:
+        """Exclude overlapping API mutations across SQL handles and workers.
+
+        Acquire the legal-hold fence first, then a nonblocking object lock.
+        No database write transaction spans storage I/O. File lock sidecars
+        must remain in place while workers run; unlinking a live lock would
+        split its identity. Process/session exit releases ownership.
+        """
+        with self._legal_hold_serialization():
+            state = _legal_hold_lock_state(self._legal_hold_lock_identity)
+            with state.mutations.hold(bucket, key), contextlib.ExitStack() as stack:
+                identity = json.dumps(
+                    ["cognistore-api-object", self.schema_name or "public",
+                     self.tenant_id, bucket, key],
+                    ensure_ascii=True, separators=(",", ":"),
+                )
+                digest = hashlib.sha256(identity.encode()).digest()
+                if self.backend == "postgresql":
+                    connection: Connection = state.local.connection
+                    advisory_key = int.from_bytes(digest[:8], "big", signed=True)
+                    try:
+                        acquired = connection.execute(
+                            sa.text("SELECT pg_try_advisory_lock(:key)"),
+                            {"key": advisory_key},
+                        ).scalar_one()
+                        connection.commit()
+                    except BaseException:
+                        connection.invalidate()
+                        raise
+                    if not acquired:
+                        raise ObjectMutationConflictError(
+                            "An object mutation is already in progress"
+                        )
+
+                    def unlock() -> None:
+                        if connection.invalidated:
+                            return
+                        try:
+                            connection.execute(
+                                sa.text("SELECT pg_advisory_unlock(:key)"),
+                                {"key": advisory_key},
+                            )
+                            connection.commit()
+                        except BaseException:
+                            connection.invalidate()
+                            raise
+
+                    stack.callback(unlock)
+                elif self._legal_hold_lock_path is not None:
+                    directory = self._legal_hold_lock_path.with_suffix(".objects")
+                    directory.mkdir(mode=0o700, exist_ok=True)
+                    descriptor = os.open(directory / digest.hex(), os.O_CREAT | os.O_RDWR, 0o600)
+                    lockfile = stack.enter_context(os.fdopen(descriptor, "a+b"))
+                    if os.name == "nt":  # pragma: no cover - Windows deployment
+                        import importlib
+                        msvcrt = importlib.import_module("msvcrt")
+                        lockfile.write(b"\0")
+                        lockfile.flush()
+                        lockfile.seek(0)
+                        try:
+                            msvcrt.locking(lockfile.fileno(), msvcrt.LK_NBLCK, 1)
+                        except OSError as exc:
+                            if exc.errno not in (11, 13, 35, 36):
+                                raise
+                            raise ObjectMutationConflictError(
+                                "An object mutation is already in progress"
+                            ) from exc
+                    else:
+                        import fcntl
+                        try:
+                            fcntl.flock(lockfile.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        except BlockingIOError as exc:
+                            raise ObjectMutationConflictError(
+                                "An object mutation is already in progress"
+                            ) from exc
+                if self.backend == "postgresql":
+                    keys: set[tuple[str, str]] = getattr(state.local, "mutation_keys", set())
+                    state.local.mutation_keys = keys
+                    keys.add((bucket, key))
+                    try:
+                        yield
+                    finally:
+                        keys.remove((bucket, key))
+                else:
+                    yield
 
     def place_legal_hold(
         self, bucket: str, *, key: str | None = None, prefix: str | None = None,
@@ -597,6 +701,29 @@ class SQLCatalog(Catalog):
                 if self.backend == "sqlite" and isinstance(exc.orig, sqlite3.Error):
                     raise exc.orig from exc
                 raise
+
+    @contextlib.contextmanager
+    def _object_publication(self, bucket: str, key: str) -> Iterator[Connection]:
+        """Finalize on the reserving session so lost ownership fails closed.
+
+        PostgreSQL session loss releases advisory locks. A fresh transaction
+        on another connection could then erase a replacement admitted after
+        that loss. Use the owning connection for the short publication
+        transaction; never reconnect it while assuming its locks still exist.
+        """
+        if self.backend == "postgresql":
+            state = _legal_hold_lock_state(self._legal_hold_lock_identity)
+            if (bucket, key) in getattr(state.local, "mutation_keys", ()):
+                if self.read_only:
+                    raise PermissionError("cannot publish objects through a read-only catalog")
+                connection: Connection = state.local.connection
+                if connection.invalidated:
+                    raise sa.exc.DisconnectionError("Object mutation session was lost")
+                with observe("catalog", "transaction", backend=self.backend), connection.begin():
+                    yield connection
+                return
+        with self._transaction(audit=False) as connection:
+            yield connection
 
     @contextlib.contextmanager
     def _connection(self) -> Iterator[Connection]:
@@ -1466,7 +1593,7 @@ class SQLCatalog(Catalog):
         # or accept a caller-forged reserved header.
         persisted_metadata.pop("content_identity", None)
         now = _timestamp()
-        with self._transaction(audit=False) as connection:
+        with self._object_publication(bucket, key) as connection:
             self._lock_object(connection, bucket, key)
             object_id = self._write_object(
                 connection,
@@ -1985,7 +2112,7 @@ class SQLCatalog(Catalog):
 
     @guard_legal_hold("catalog.delete")
     def delete(self, bucket: str, key: str) -> None:
-        with self._transaction(audit=False) as connection:
+        with self._object_publication(bucket, key) as connection:
             self._lock_object(connection, bucket, key)
             object_id = connection.execute(
                 sa.select(objects.c.object_id).where(

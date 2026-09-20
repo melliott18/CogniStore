@@ -168,3 +168,10 @@ account billing/spending limits; M4 acceptance uses recorded local validation.
 The evidence distinguishes emulator, local, and historical Kubernetes checks
 from environment-specific production qualification. Deployments still require
 the operator security, encryption, credential, and infrastructure prerequisites.
+
+M5 release readiness and controlled-pilot work is tracked by
+[epic #155](https://github.com/melliott18/CogniStore/issues/155). The API
+PUT/DELETE ordering defect in
+[#157](https://github.com/melliott18/CogniStore/issues/157) is a production-pilot
+release gate; its [implementation and validation record](evidence/m5/157-put-delete-ordering.md)
+is separate from the completed M1–M4 delivery evidence.
