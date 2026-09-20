@@ -1,0 +1,609 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-09-20T07:51:27.747104+00:00",
+  "ticket": "https://github.com/melliott18/CogniStore/issues/158",
+  "source_revision": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "f4117d092195383daa55015a104bdd7efb6a05e27e4244f0dc937d5c28a93898",
+    ".github/workflows/kubernetes.yml": "74d3b0482a36d0d9bc9e2444e5274f13fd50f22230974959d4456c6eccd7a804",
+    ".github/workflows/terraform.yml": "1647574b0a4195e296f0279ed954c2f89db0f92716ae16ae2fd44e959fc5ae72",
+    "pyproject.toml": "e944162e385b103acf308c55ab46c279894d01e5ef914433a4710fa186e58300",
+    "Dockerfile": "a54f8cbb787397a46f7b51f381a6a5f9ba6955af7755f6fcf09fe0a8d0e4e4cc",
+    "docker-compose.yml": "2e4dabbbb625107ef61f733c045cc5df47f558c00db921dd06290ede05bcb683",
+    "docker-compose.gcs.yml": "fdd9721d6e5c785744aaf8bccbc3e1d88bf2bdf308195215c768bda235ac4786",
+    "scripts/kubernetes/verify.sh": "7b5bdfa7696b0b7d533c2a61a19ff5e72b0d1439253c5c19820d2b360f62a5fa",
+    "scripts/kubernetes/values.yaml": "178f53ed446a10d6f506c8f6d257bbdd39c8393ea971da691508ce4878830944",
+    "scripts/terraform/verify.sh": "53ecd93788c00920b898466867ba40c9f7e72fb52f28d98fa28263cfb8aa68ff"
+  },
+  "dispatch_commands": [
+    "gh workflow run ci.yml --ref main",
+    "gh workflow run kubernetes.yml --ref main",
+    "gh workflow run terraform.yml --ref main"
+  ],
+  "qualification_status": "blocked",
+  "hosted_application_test_results": null,
+  "runtime_image_and_environment_identity": null,
+  "identity_limitation": "No runner was assigned and no step executed. Source configuration hashes identify the requested inputs only; no installed dependencies, built image or executed environment exists for these attempts.",
+  "runs": [
+    {
+      "id": 35497918083,
+      "name": "CI",
+      "path": ".github/workflows/ci.yml",
+      "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083",
+      "head_branch": "main",
+      "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-09-20T07:49:51Z",
+      "updated_at": "2026-09-20T07:50:31Z",
+      "jobs": [
+        {
+          "id": 106044294368,
+          "name": "Lint and type check",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294368",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294405,
+          "name": "Container images and Compose integration",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294405",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294418,
+          "name": "Tests (Python 3.11)",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294418",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294427,
+          "name": "Prometheus rules and operational alerts",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294427",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294432,
+          "name": "Dependency and static security scans",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294432",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294435,
+          "name": "Secret scan",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294435",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:54Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294446,
+          "name": "Tests (Python 3.14)",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294446",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294460,
+          "name": "GCS HTTP emulator",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294460",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294472,
+          "name": "Build and install package",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294472",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:50:31Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294474,
+          "name": "Default full test suite",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294474",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:56Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294497,
+          "name": "Tests (Python 3.10)",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294497",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294512,
+          "name": "Tests (Python 3.12)",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294512",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        },
+        {
+          "id": 106044294554,
+          "name": "Tests (Python 3.13)",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497918083/job/106044294554",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:53Z",
+          "started_at": "2026-09-20T07:49:53Z",
+          "completed_at": "2026-09-20T07:49:55Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        }
+      ],
+      "artifacts": {
+        "total_count": 0,
+        "artifacts": []
+      },
+      "classification": "blocked_before_runner_execution"
+    },
+    {
+      "id": 35497919250,
+      "name": "Kubernetes acceptance",
+      "path": ".github/workflows/kubernetes.yml",
+      "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497919250",
+      "head_branch": "main",
+      "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-09-20T07:49:52Z",
+      "updated_at": "2026-09-20T07:49:57Z",
+      "jobs": [
+        {
+          "id": 106044296543,
+          "name": "Install, upgrade, rollback and autoscale",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497919250/job/106044296543",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:54Z",
+          "started_at": "2026-09-20T07:49:54Z",
+          "completed_at": "2026-09-20T07:49:56Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        }
+      ],
+      "artifacts": {
+        "total_count": 0,
+        "artifacts": []
+      },
+      "classification": "blocked_before_runner_execution"
+    },
+    {
+      "id": 35497920338,
+      "name": "Terraform reference",
+      "path": ".github/workflows/terraform.yml",
+      "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497920338",
+      "head_branch": "main",
+      "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-09-20T07:49:54Z",
+      "updated_at": "2026-09-20T07:49:57Z",
+      "jobs": [
+        {
+          "id": 106044298716,
+          "name": "Mocked production plan and Helm handoff",
+          "html_url": "https://github.com/melliott18/CogniStore/actions/runs/35497920338/job/106044298716",
+          "status": "completed",
+          "conclusion": "failure",
+          "created_at": "2026-09-20T07:49:55Z",
+          "started_at": "2026-09-20T07:49:55Z",
+          "completed_at": "2026-09-20T07:49:57Z",
+          "head_sha": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+          "run_attempt": 1,
+          "steps": [],
+          "labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 0,
+          "runner_name": "",
+          "annotations": [
+            {
+              "path": ".github",
+              "blob_href": "https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/.github",
+              "start_line": 1,
+              "start_column": null,
+              "end_line": 1,
+              "end_column": null,
+              "annotation_level": "failure",
+              "title": "",
+              "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+              "raw_details": ""
+            }
+          ]
+        }
+      ],
+      "artifacts": {
+        "total_count": 0,
+        "artifacts": []
+      },
+      "classification": "blocked_before_runner_execution"
+    }
+  ],
+  "settings_review": [
+    {
+      "command": "gh api repos/melliott18/CogniStore/branches/main/protection",
+      "exit_code": 1,
+      "response": {
+        "message": "Upgrade to GitHub Pro or make this repository public to enable this feature.",
+        "documentation_url": "https://docs.github.com/rest/branches/branch-protection#get-branch-protection",
+        "status": "403"
+      }
+    },
+    {
+      "command": "gh api repos/melliott18/CogniStore/rulesets",
+      "exit_code": 1,
+      "response": {
+        "message": "Upgrade to GitHub Pro or make this repository public to enable this feature.",
+        "documentation_url": "https://docs.github.com/rest/repos/rules#get-all-repository-rulesets",
+        "status": "403"
+      }
+    },
+    {
+      "command": "gh api repos/melliott18/CogniStore/actions/permissions",
+      "exit_code": 0,
+      "response": {
+        "enabled": true,
+        "allowed_actions": "all",
+        "sha_pinning_required": false
+      }
+    },
+    {
+      "command": "gh api repos/melliott18/CogniStore/actions/permissions/workflow",
+      "exit_code": 0,
+      "response": {
+        "default_workflow_permissions": "read",
+        "can_approve_pull_request_reviews": false
+      }
+    }
+  ]
+}
