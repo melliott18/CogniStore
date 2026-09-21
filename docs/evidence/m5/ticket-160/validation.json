@@ -1,0 +1,74 @@
+{
+  "bundle_local_path": "/Users/mitchell/.codex/artifacts/cognistore-160/verified-build",
+  "bundle_manifest_sha256": "58e5083d0ecfac188bfc3ecc566b6b698d4a3122ba6d38d97badda3ceb1349e1",
+  "candidate_id": "0.1.1rc1-e51cb39cc84b-1f065e90bbcb",
+  "candidate_runtime": {
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "system": "Linux",
+    "version": "3.12.14"
+  },
+  "checks": {
+    "bandit": {
+      "exit_code": 0
+    },
+    "frozen_top_level_dependency_audit": {
+      "exit_code": 0,
+      "limitations": "Does not audit pip vendored components; retained image scan reports unresolved findings."
+    },
+    "image_security": {
+      "critical": 3,
+      "disposition": "unresolved-release-blocker",
+      "exit_code": 2,
+      "findings": 69,
+      "high": 14,
+      "low": 39,
+      "medium": 8,
+      "unspecified": 5
+    },
+    "installed_smoke": {
+      "failed": 0,
+      "passed": 48,
+      "scope": "installed-base-runtime-local-smoke"
+    },
+    "regressions": {
+      "failed": 0,
+      "passed": 287,
+      "skip_reason": "case-insensitive native POSIX volume unavailable in this case-sensitive Linux container",
+      "skipped": 8
+    },
+    "ruff": {
+      "command": "python -m ruff check .",
+      "exit_code": 0
+    },
+    "tooling": {
+      "command": "python -m pytest tests/unit/test_release_candidate.py tests/unit/test_release_smoke.py -q --override-ini addopts= --junitxml=tooling-tests.xml",
+      "failed": 0,
+      "passed": 44
+    }
+  },
+  "durable_binary_bundle_uri": null,
+  "full_bundle_sha256s_sha256": "571ea94a316161719695787355af1fefa23814985cc6ba488571b0468b989d6e",
+  "host": {
+    "architecture": "arm64",
+    "docker_server": "24.0.6",
+    "os": "Darwin"
+  },
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "image_id": "sha256:1f065e90bbcb256970782f16622d931b84e83ffe91d5e00321bd8b8f8bb33a05",
+  "limitations": [
+    "Named owner acceptance of specification #159 is pending.",
+    "Rendered deployment configuration, environment and service workflows #161 are pending.",
+    "Native/image vulnerability scan and reviewed findings disposition are pending.",
+    "Registry transfer and verified immutable registry manifest digest are pending.",
+    "Production qualification and pilot approval #162-#166 are separate outstanding gates.",
+    "Unmerged/PR validation is not a clean-main release candidate.",
+    "Applicable same-source hosted gates are absent or not passing (#158).",
+    "Full image/wheelhouse bundle retained locally only; remote durable binary retention is not established.",
+    "Local Docker Linux amd64 execution on an arm64 macOS host is not production environment qualification."
+  ],
+  "schema_version": 1,
+  "source_commit": "e51cb39cc84b819ecbed43b56513888a956812cf",
+  "source_tree": "ab158ab74f7dabf5095352b35ec34c832db92ae6",
+  "status": "development-validation-only"
+}

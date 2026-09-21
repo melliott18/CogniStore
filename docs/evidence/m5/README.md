@@ -4,8 +4,9 @@ M5 [#155](https://github.com/melliott18/CogniStore/issues/155) qualifies one
 selected deployment after completed M1–M4 delivery. The versioned
 [deployment/workload specification](../../production_pilot.md) selects the
 scope and thresholds. This index is a handoff contract, **not passing evidence**.
-No release candidate, environment, qualification result or pilot approval has
-been recorded here yet. Historical [M4 evidence](../m4/README.md) remains intact.
+No qualified release candidate, environment or pilot approval has been recorded.
+Provisional local #160 assembly evidence is retained below. Historical
+[M4 evidence](../m4/README.md) remains intact.
 
 | Evidence owner ticket | Required durable record | Current state |
 | --- | --- | --- |
@@ -168,6 +169,13 @@ From `docs/evidence/m5/ticket-156`, verify the retained reports with
 `shasum -a 256 -c SHA256SUMS`.
 
 ## Ticket #160: release candidate assembly
+
+[Local candidate evidence](ticket-160/README.md) records the exact clean branch
+source, frozen artifacts and findings: 44 tooling tests, 48 installed smoke
+checks and 287 regressions passed, with eight explained filesystem skips.
+Bandit and the top-level dependency audit passed. The image scan retains 69
+unresolved findings, including critical/high findings; no exception is approved.
+The candidate remains `assembled-unqualified`, and #160 remains open.
 
 The [release candidate guide](../../release_candidate.md) defines the frozen
 bundle, exact-artifact reuse, selected metadata-only provider composition and

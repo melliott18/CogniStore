@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-09-21T11:08:44.310061+00:00",
+  "finished_at": "2026-09-21T11:08:45.763111+00:00",
+  "command": [
+    "docker",
+    "scout",
+    "cves",
+    "local://cognistore:rc-e51cb39cc84b",
+    "--platform",
+    "linux/amd64",
+    "--format",
+    "sarif",
+    "--output",
+    "/Users/mitchell/.codex/artifacts/cognistore-160/verified-native-scan.sarif",
+    "--exit-code"
+  ],
+  "exit_code": 2,
+  "source_sha": "e51cb39cc84b819ecbed43b56513888a956812cf",
+  "image_id": "sha256:1f065e90bbcb256970782f16622d931b84e83ffe91d5e00321bd8b8f8bb33a05"
+}

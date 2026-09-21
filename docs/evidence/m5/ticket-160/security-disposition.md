@@ -1,10 +1,44 @@
-# Ticket #160 initial image security findings and disposition
+# Ticket #160 image security findings and disposition
 
 **Decision: unresolved release blocker; no accepted exceptions.** This record
 preserves the initial local image scan and its findings. It is not a passing
 security gate, exploitability conclusion, named owner signoff or authorization
 to deploy. A package fix, later image or later scan requires its own source/image
 binding and verification; it does not change this initial result.
+
+## Final candidate scan — unresolved
+
+The [final scan run](native-scan-run.json) binds the report to source
+`e51cb39cc84b819ecbed43b56513888a956812cf` and image ID
+`sha256:1f065e90bbcb256970782f16622d931b84e83ffe91d5e00321bd8b8f8bb33a05`. The scan ran at `2026-09-21T11:08:44.310061+00:00`
+and exited **2**. Its [full SARIF](native-scan.sarif.gz),
+[log](native-scan.log.gz) and [complete finding inventory](security-summary.json)
+are retained. The same scanner-age and missing-database-freshness limitations
+below apply; no finding is waived.
+
+The final image reports **69 findings across 19 package identities**:
+**3 critical, 14 high, 8 medium, 39 low and 5 unspecified**. These are scanner
+finding IDs, not a proven count of unique exploitable defects; the msgpack CVE
+and GHSA entries may describe the same underlying issue. All remain unresolved
+release blockers pending current scanner/vendor applicability review and fixes
+or explicit named, bounded disposition.
+
+Both system and application pip copies now use the hash-locked **26.2.1** wheel.
+The six initial pip-25.0.1 findings are absent from this final scan. The scanner
+also detects four findings in code vendored by that installer: setuptools 70.3.0
+(`CVE-2025-47273`, `CVE-2026-59890`) and msgpack 1.1.2
+(`CVE-2026-57585`, `GHSA-6v7p-g79w-8964`). These are not separate installed
+runtime distributions, so a clean top-level pip-audit result does not dismiss
+them. Do not patch vendored code or claim that upgrading an unrelated top-level
+package fixes it; require an appropriate reviewed installer artifact or removal
+strategy and a newly qualified image.
+
+The 65 Debian findings from the initial scan remain. This ticket retains the
+findings and blocks release; it does not invent a risk acceptance or change the
+selected Debian family to avoid a report. The intermediate pip-fixed image is
+also retained as [run metadata](intermediate-native-scan-run.json),
+[SARIF](intermediate-native-scan.sarif.gz) and
+[manifest](intermediate-manifest.json); it had the same 69-finding outcome.
 
 ## Initial scan identity and limitations
 
