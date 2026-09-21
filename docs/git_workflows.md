@@ -14,7 +14,11 @@ an older line of development.
 ## Branch model
 
 - `main`: the default, integration, and release branch. All pull requests
-  target `main`, and CI must pass before merge.
+  target `main`. Follow the standing
+  [hosted CI suspension](../AGENTS.md#validation-policy-hosted-ci-suspended):
+  use applicable local validation and disclose unavailable hosted evidence.
+  Existing merge authorization and enforced branch rules still apply. After
+  explicit resumption, applicable hosted checks must pass before merge.
 - `feature/<short-topic>`: new capabilities.
 - `fix/<short-bug-id>`: normal bug fixes. Include the bug or ticket identifier
   when one exists.
@@ -112,8 +116,11 @@ git switch -c hotfix/posix-path
 ```
 
 2. Implement the smallest safe fix with regression coverage.
-3. Open an expedited pull request to `main` and merge only after the required
-   checks pass.
+3. Open an expedited pull request to `main` and merge only after applicable
+   checks pass, following the
+   [hosted CI suspension](../AGENTS.md#validation-policy-hosted-ci-suspended)
+   while it is in effect. Record local evidence and the hosted gap; do not
+   dispatch or wait for hosted workflows during the suspension.
 4. Tag a patch release if the fix needs an immediate distribution.
 
 ## Keeping branches updated

@@ -1,5 +1,24 @@
 # Hosted CI recovery and qualification
 
+## Current policy: hosted CI suspended
+
+As of 2026-09-21, the user has instructed agents to stop attempting hosted CI
+because the known GitHub billing/spending restriction prevents jobs from
+starting. Follow the standing
+[agent validation policy](../AGENTS.md#validation-policy-hosted-ci-suspended):
+use appropriate local checks, record hosted CI as skipped/unavailable, and
+continue authorized work. Do not dispatch, rerun, poll/watch, or repeatedly
+diagnose hosted runs, including automatic runs created by ordinary pushes or
+PRs. Do not request another confirmation merely to skip hosted CI.
+
+The recovery, dispatch, waiting, and hosted qualification procedures below
+are retained for a future campaign and are inactive until the user explicitly
+requests resumption. They do not instruct agents to retry during this
+suspension. Workflow definitions and historical evidence remain intact;
+local results cannot be reported as a hosted pass or production qualification.
+
+## Recovery ownership and scope
+
 The repository/account owner, [@melliott18](https://github.com/melliott18), owns
 Actions billing, availability, and repository check enforcement. The owner or
 a delegated maintainer handles incident triage, reruns, and retained evidence.
@@ -10,8 +29,8 @@ restoring hosted CI and requalifying the current `main` revision. Its
 [evidence record](evidence/ci-158/README.md) records the actual recovery state,
 run IDs, annotations, and enforcement review. An account-level Actions failure
 is still a failed qualification: local results cannot establish a hosted pass.
-Repeat this campaign on the final release candidate under
-[ticket #160](https://github.com/melliott18/CogniStore/issues/160).
+After explicit resumption, repeat this campaign on the final release candidate
+under [ticket #160](https://github.com/melliott18/CogniStore/issues/160).
 
 ## Workflow coverage and expected checks
 
@@ -70,6 +89,10 @@ while the first one is running.
    fresh campaign below rather than relying on an older revision's result.
 
 ## Requalify the current main revision
+
+Prerequisite: the user has explicitly requested resumption of hosted CI and
+the account restriction has been resolved. Do not execute these dispatch or
+watch commands while the suspension is in effect.
 
 From a checkout with GitHub CLI access, capture the selected remote revision
 and dispatch each workflow once:
@@ -131,7 +154,10 @@ changing plan or visibility is a separate account decision.
 
 Until enforcement is available, the reviewer must explicitly confirm the
 expected checks and selected revision before merge and record that manual
-review. Path-filtered Kubernetes/Terraform jobs need a deliberate required-check
+review. During the suspension, record applicable local evidence and the known
+hosted gap without dispatching or waiting for runs; follow the user's existing
+merge authorization and any enforced branch rules. Path-filtered
+Kubernetes/Terraform jobs need a deliberate required-check
 strategy: a blanket required context can wait indefinitely when its workflow
 does not trigger. Do not declare these checks enforced without reviewing the
 actual settings and trigger behavior.
