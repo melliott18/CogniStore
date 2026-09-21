@@ -1,0 +1,77 @@
+# INCOMPLETE OPERATOR INPUT: replace all REPLACE_* values before review/apply.
+# These resources are separate from Helm and must exist before its migration
+# pre-install hook. Never reuse this namespace, PVC, or KMS key with the pilot.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cognistore-staging
+  labels:
+    cognistore.io/environment: staging
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Requires the standard AWS EBS CSI driver and an authorized CSI controller.
+# EKS Auto Mode uses a different provisioner and is not selected here.
+# Parameters: kubernetes-sigs/aws-ebs-csi-driver/docs/parameters.md.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cognistore-staging-hot
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  csi.storage.k8s.io/fstype: ext4
+  encrypted: "true"
+  kmsKeyId: REPLACE_HOT_KMS_KEY_ARN
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cognistore-staging-hot
+  namespace: cognistore-staging
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  storageClassName: cognistore-staging-hot
+  resources:
+    requests:
+      storage: 200Gi
+---
+# Install before Helm so even the first pre-install hook has an enforced
+# boundary. The selected CNI must enforce NetworkPolicy before pods start.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: cognistore-staging
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: migration-bootstrap
+  namespace: cognistore-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore-staging
+      app.kubernetes.io/component: migration
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to: [{ipBlock: {cidr: REPLACE_POSTGRES_CIDR}}]
+      ports: [{protocol: TCP, port: 5432}]

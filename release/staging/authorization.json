@@ -1,0 +1,92 @@
+{
+  "bindings": [
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_READER_SUBJECT",
+      "roles": [
+        "reader"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_WRITER_SUBJECT",
+      "roles": [
+        "writer"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_OPERATOR_SUBJECT",
+      "roles": [
+        "operator"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_AUDITOR_SUBJECT",
+      "roles": [
+        "auditor"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_ADMIN_SUBJECT",
+      "roles": [
+        "admin"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_SMOKE_SUBJECT",
+      "roles": [
+        "writer",
+        "operator",
+        "policy_manager"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_READER_SUBJECT",
+      "roles": [
+        "reader"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_WRITER_SUBJECT",
+      "roles": [
+        "writer"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_OPERATOR_SUBJECT",
+      "roles": [
+        "operator"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_AUDITOR_SUBJECT",
+      "roles": [
+        "auditor"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_ADMIN_SUBJECT",
+      "roles": [
+        "admin"
+      ]
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_SMOKE_SUBJECT",
+      "roles": [
+        "writer",
+        "operator",
+        "policy_manager"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "bindings": [
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_READER_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_WRITER_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_OPERATOR_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_AUDITOR_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_ADMIN_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_A_SMOKE_SUBJECT",
+      "tenant_id": "pilot-a"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_READER_SUBJECT",
+      "tenant_id": "pilot-b"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_WRITER_SUBJECT",
+      "tenant_id": "pilot-b"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_OPERATOR_SUBJECT",
+      "tenant_id": "pilot-b"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_AUDITOR_SUBJECT",
+      "tenant_id": "pilot-b"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_ADMIN_SUBJECT",
+      "tenant_id": "pilot-b"
+    },
+    {
+      "issuer": "https://REPLACE_OIDC_HOST",
+      "subject": "REPLACE_PILOT_B_SMOKE_SUBJECT",
+      "tenant_id": "pilot-b"
+    }
+  ]
+}

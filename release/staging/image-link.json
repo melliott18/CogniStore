@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "candidate_manifest_sha256": "REPLACE_CANDIDATE_MANIFEST_SHA256",
+  "source_commit": "REPLACE_CANDIDATE_SOURCE_COMMIT",
+  "image_id": "sha256:REPLACE_DOCKER_CONFIG_DIGEST",
+  "repository": "REPLACE_IMAGE_REPOSITORY",
+  "registry_manifest_digest": "sha256:REPLACE_REGISTRY_MANIFEST_DIGEST",
+  "platform": "linux/amd64",
+  "transfer_evidence": "REPLACE_DURABLE_IMAGE_TRANSFER_EVIDENCE"
+}

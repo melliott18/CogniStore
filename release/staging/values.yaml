@@ -1,0 +1,140 @@
+# INCOMPLETE OPERATOR INPUT: replace every REPLACE_* value outside Git.
+# Release and namespace must both be cognistore-staging. See docs/staging.md.
+# This profile selects topology; it does not establish live qualification.
+fullnameOverride: cognistore-staging
+securityProfile: production
+image:
+  repository: REPLACE_IMAGE_REPOSITORY
+  # Intentionally rejected by the chart until a qualified digest is supplied.
+  digest: sha256:REPLACE_IMAGE_DIGEST
+  pullPolicy: IfNotPresent
+config:
+  existingSecret: cognistore-staging-config
+  revision: "1"
+credentials:
+  existingSecret: cognistore-staging-credentials
+tls:
+  existingSecret: cognistore-staging-tls
+auth:
+  issuer: https://REPLACE_OIDC_HOST
+  audience: REPLACE_OIDC_AUDIENCE
+  jwksUri: https://REPLACE_JWKS_HOST_AND_PATH
+nodeSelector:
+  kubernetes.io/hostname: REPLACE_NODE_NAME
+  kubernetes.io/os: linux
+  kubernetes.io/arch: amd64
+tolerations: []
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: REPLACE_WORKLOAD_ROLE_ARN
+    eks.amazonaws.com/sts-regional-endpoints: "true"
+# Only the release service account is trusted by this role. Hook pods use the
+# default account and must NOT receive AWS permissions; they only need DB/TLS.
+# Explicit STS projection keeps automatic Kubernetes API token mounts disabled.
+extraEnv:
+  - {name: AWS_ROLE_ARN, value: REPLACE_WORKLOAD_ROLE_ARN}
+  - {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /var/run/cognistore-aws/token}
+  - {name: AWS_REGION, value: us-east-1}
+  - {name: AWS_DEFAULT_REGION, value: us-east-1}
+  - {name: AWS_STS_REGIONAL_ENDPOINTS, value: regional}
+  - {name: AWS_EC2_METADATA_DISABLED, value: "true"}
+extraVolumes:
+  - name: hot
+    persistentVolumeClaim:
+      claimName: cognistore-staging-hot
+  - name: shm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 256Mi
+  - name: aws-identity
+    projected:
+      defaultMode: 0440
+      sources:
+        - serviceAccountToken:
+            audience: sts.amazonaws.com
+            expirationSeconds: 3600
+            path: token
+extraVolumeMounts:
+  - {name: hot, mountPath: /var/lib/cognistore/hot}
+  - {name: shm, mountPath: /dev/shm}
+  - {name: aws-identity, mountPath: /var/run/cognistore-aws, readOnly: true}
+queue:
+  stream: COGNISTORE_STAGING_JOBS
+  subject: cognistore.staging.jobs
+  consumer: cognistore-staging-workers
+api:
+  replicas: 1
+  resources:
+    requests: {cpu: "2", memory: 2Gi}
+    limits: {cpu: "4", memory: 4Gi}
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: true
+    maxUnavailable: 0
+worker:
+  replicas: 1
+  maxInFlight: 2
+  resources:
+    requests: {cpu: "2", memory: 2Gi}
+    limits: {cpu: "4", memory: 4Gi}
+  autoscaling:
+    enabled: false
+scheduler:
+  enabled: false
+migration:
+  enabled: true
+networkPolicy:
+  enabled: true
+  dns:
+    enabled: true
+    namespaceLabels: {kubernetes.io/metadata.name: kube-system}
+    podLabels: {k8s-app: kube-dns}
+  ingress:
+    # The separately operated private proxy authenticates each browser user,
+    # forwards their access token, and verifies the API's upstream certificate.
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: REPLACE_PROXY_NAMESPACE}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: REPLACE_PROXY_APP}
+      ports: [{protocol: TCP, port: 8080}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: REPLACE_MONITOR_NAMESPACE}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: REPLACE_MONITOR_APP}
+      ports: [{protocol: TCP, port: 8080}, {protocol: TCP, port: 8081}]
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: cognistore-staging
+              app.kubernetes.io/component: smoke
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to: [{ipBlock: {cidr: REPLACE_POSTGRES_CIDR}}]
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nats
+              app.kubernetes.io/instance: cognistore-staging-nats
+      ports: [{protocol: TCP, port: 4222}]
+    # Supply narrowly scoped actual endpoint ranges. There is no public HTTPS
+    # wildcard. Additional endpoint CIDRs require reviewed explicit rules.
+    - to: [{ipBlock: {cidr: REPLACE_S3_ENDPOINT_CIDR}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to: [{ipBlock: {cidr: REPLACE_STS_ENDPOINT_CIDR}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to: [{ipBlock: {cidr: REPLACE_IDENTITY_ENDPOINT_CIDR}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: cognistore-staging
+              app.kubernetes.io/component: api
+      ports: [{protocol: TCP, port: 8080}]
+# The chart's generic ingress cannot configure the selected per-user auth flow.
+# The private proxy and its frontend TLS are external prerequisites.
+ingress:
+  enabled: false

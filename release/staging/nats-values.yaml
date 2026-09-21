@@ -1,0 +1,160 @@
+# nats/nats chart 2.14.6; release cognistore-staging-nats, namespace cognistore-staging.
+# Preparation only: supply a reviewed image digest and externally delivered Secrets.
+fullnameOverride: cognistore-staging-nats
+tlsCA:
+  enabled: true
+  secretName: cognistore-staging-nats-tls
+  key: ca.crt
+config:
+  cluster:
+    enabled: false
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: true
+      # Leave space for filesystem/JetStream overhead; still stop at <30% free.
+      maxSize: 12Gi
+      pvc:
+        enabled: true
+        size: 20Gi
+        storageClassName: cognistore-staging-hot
+    memoryStore:
+      enabled: false
+  nats:
+    tls:
+      enabled: true
+      secretName: cognistore-staging-nats-tls
+      merge:
+        handshake_first: true
+        min_version: "1.2"
+  monitor:
+    enabled: true
+    tls:
+      enabled: true
+  merge:
+    # Dedicated broker: no client discovery of alternate/plaintext endpoints.
+    client_advertise: cognistore-staging-nats.cognistore-staging.svc.cluster.local:4222
+    authorization:
+      users:
+        - user: << $NATS_APP_USER >>
+          password: << $NATS_APP_PASSWORD >>
+          permissions:
+            publish:
+              allow:
+                - cognistore.staging.jobs
+                - cognistore.staging.jobs.dead.>
+                - $JS.API.INFO
+                - $JS.API.STREAM.INFO.COGNISTORE_STAGING_JOBS
+                - $JS.API.STREAM.INFO.COGNISTORE_STAGING_JOBS_DLQ
+                - $JS.API.STREAM.MSG.GET.COGNISTORE_STAGING_JOBS_DLQ
+                - $JS.API.CONSUMER.CREATE.COGNISTORE_STAGING_JOBS.cognistore-staging-workers.cognistore.staging.jobs
+                - $JS.API.CONSUMER.INFO.COGNISTORE_STAGING_JOBS.cognistore-staging-workers
+                - $JS.API.CONSUMER.MSG.NEXT.COGNISTORE_STAGING_JOBS.cognistore-staging-workers
+                - $JS.ACK.COGNISTORE_STAGING_JOBS.cognistore-staging-workers.>
+            subscribe:
+              allow: [_INBOX.>]
+        # This separately delivered identity bootstraps/backs up only this broker.
+        # Never put its credentials in the application's runtime Secret.
+        - user: << $NATS_OPERATOR_USER >>
+          password: << $NATS_OPERATOR_PASSWORD >>
+          permissions:
+            publish:
+              allow: [$JS.API.>, $JS.ACK.>, $JS.SNAPSHOT.ACK.>, $JS.RESTORE.>]
+            subscribe:
+              allow: [_INBOX.>, $JS.SNAPSHOT.>]
+container:
+  image:
+    digest: REPLACE_WITH_TESTED_NATS_SHA256_DIGEST
+  env:
+    NATS_APP_USER:
+      valueFrom:
+        secretKeyRef: {name: cognistore-staging-nats-auth, key: app-username}
+    NATS_APP_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: cognistore-staging-nats-auth, key: app-password}
+    NATS_OPERATOR_USER:
+      valueFrom:
+        secretKeyRef: {name: cognistore-staging-nats-auth, key: operator-username}
+    NATS_OPERATOR_PASSWORD:
+      valueFrom:
+        secretKeyRef: {name: cognistore-staging-nats-auth, key: operator-password}
+  resources:
+    requests: {cpu: "2", memory: 4Gi}
+    limits: {cpu: "2", memory: 4Gi}
+  merge:
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: {drop: [ALL]}
+  patch:
+    - op: add
+      path: /volumeMounts/-
+      value: {name: runtime-tmp, mountPath: /tmp}
+reloader:
+  enabled: false
+promExporter:
+  enabled: false
+podTemplate:
+  configChecksumAnnotation: true
+  merge:
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector: {kubernetes.io/arch: amd64, kubernetes.io/os: linux}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+  patch:
+    - op: add
+      path: /spec/volumes/-
+      value:
+        name: runtime-tmp
+        emptyDir: {medium: Memory, sizeLimit: 256Mi}
+podDisruptionBudget:
+  enabled: true
+  merge:
+    spec:
+      # A single broker needs an explicitly coordinated outage for eviction.
+      maxUnavailable: 0
+natsBox:
+  enabled: false
+service:
+  ports:
+    monitor:
+      enabled: true
+  merge:
+    spec:
+      type: ClusterIP
+extraResources:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: cognistore-staging-nats
+    spec:
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-staging-nats}
+      policyTypes: [Ingress, Egress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels: {app.kubernetes.io/name: cognistore, app.kubernetes.io/instance: cognistore-staging}
+            # Only accepted operators may create pods with this label.
+            - podSelector:
+                matchLabels: {cognistore.io/queue-operator: "true"}
+          ports: [{protocol: TCP, port: 4222}]
+        - from:
+            - namespaceSelector:
+                matchLabels: {kubernetes.io/metadata.name: REPLACE_MONITOR_NAMESPACE}
+              podSelector:
+                matchLabels: {app.kubernetes.io/name: REPLACE_MONITOR_APP}
+          ports: [{protocol: TCP, port: 8222}]
+      egress:
+        - to:
+            - namespaceSelector:
+                matchLabels: {kubernetes.io/metadata.name: kube-system}
+              podSelector:
+                matchLabels: {k8s-app: kube-dns}
+          ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
