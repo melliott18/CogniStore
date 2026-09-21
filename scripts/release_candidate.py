@@ -150,6 +150,11 @@ def build(output: Path, allow_unmerged: bool, hosted_evidence: Path | None) -> N
     main = capture(["git", "rev-parse", "origin/main"], cwd=root)
     if source != main and not allow_unmerged:
         raise ValueError("Candidate source must equal freshly fetched origin/main")
+    hosted = None
+    if hosted_evidence:
+        hosted = json.loads(hosted_evidence.read_text())
+        if hosted.get("source_sha") != source:
+            raise ValueError("Hosted evidence source does not match the candidate")
     # Assembly needs Python 3.12; helpers remain importable in the supported 3.10 test matrix.
     import tomllib
 
@@ -180,11 +185,7 @@ def build(output: Path, allow_unmerged: bool, hosted_evidence: Path | None) -> N
     ]
     if allow_unmerged or source != main:
         blockers.append("Unmerged/PR validation is not a clean-main release candidate.")
-    hosted = None
-    if hosted_evidence:
-        hosted = json.loads(hosted_evidence.read_text())
-        if hosted.get("source_sha") != source:
-            raise ValueError("Hosted evidence source does not match the candidate")
+    if hosted is not None:
         write_json(reports / "hosted-ci.json", hosted)
     if not hosted_passed(hosted, source):
         blockers.append("Applicable same-source hosted gates are absent or not passing (#158).")
