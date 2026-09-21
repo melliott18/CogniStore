@@ -11,12 +11,16 @@ handoff and teardown/recovery evidence. It preserves the selected fixed-node
 POSIX/S3 topology, PostgreSQL 16 requirement and one persistent TLS JetStream
 server instead of silently deploying the different generic Terraform example.
 
-`validation.json` records the tested revision, commands, hashes and outcomes.
-`tests.xml.gz` and `tests.log.gz` retain the scoped local regression results.
-`unresolved-preflight.json` records the expected rejection of the shipped
+Local validation: **218 tests passed**, with zero failures or skips. Repository
+Ruff, mypy (164 application files), Bandit (application and new scripts),
+whitespace checks and 53 local documentation targets passed.
+
+[validation.json](validation.json) records the tested revision, commands, hashes and outcomes.
+[tests.xml.gz](tests.xml.gz) and [tests.log.gz](tests.log.gz) retain the scoped local regression results.
+[unresolved-preflight.json](unresolved-preflight.json) records the expected rejection of the shipped
 placeholder inputs against the retained candidate manifest. This is a useful
-negative control, not failed live staging acceptance. `quality.log` retains
-static checks; `SHA256SUMS` verifies the evidence files.
+negative control, not failed live staging acceptance. [quality.log](quality.log) retains
+static checks; [SHA256SUMS](SHA256SUMS) verifies the evidence files.
 
 Local tests render the application and pinned NATS Helm charts, exercise actual
 queue/client subjects against the configured broker permission patterns, reject

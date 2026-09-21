@@ -1,0 +1,46 @@
+[
+  {
+    "command": [
+      "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/staging_preflight.py",
+      "scripts/staging_smoke.py",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0
+  }
+]

@@ -1,0 +1,10 @@
+$ /Users/mitchell/Projects/CogniStore/.venv/bin/python -m ruff check .
+All checks passed!
+exit_code=0
+$ /tmp/cognistore-73-validation/bin/python -m mypy cognistore
+Success: no issues found in 164 source files
+exit_code=0
+$ /tmp/cognistore-73-validation/bin/python -m bandit -q -c pyproject.toml -r cognistore scripts/staging_preflight.py scripts/staging_smoke.py -ll -ii
+exit_code=0
+$ git diff --check
+exit_code=0
