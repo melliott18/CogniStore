@@ -32,6 +32,7 @@ def junit(path, cases):
     ('<testcase classname="tests.unit.test_one" name="x"/>', 1, "failed"),
     ('<testcase classname="tests.unit.test_other" name="x"/>', 0, "failed"),
     ("", 0, "incomplete"),
+    ('<testcase classname="" name="tests.unit.test_one"><skipped/></testcase>', 0, "incomplete"),
 ])
 def test_results_fail_closed(audit, tmp_path, cases, exit_code, status):
     report = tmp_path / "tests.xml"

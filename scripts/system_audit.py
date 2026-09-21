@@ -113,6 +113,12 @@ def summarize(junit: Path, expected_files: list[str], returncode: int) -> dict:
     unexpected = 0
     for case in tree.iter("testcase"):
         classname = case.get("classname", "")
+        # pytest uses an empty class and the module name for collection skips
+        # (for example an unconfigured MinIO module). Preserve that skip rather
+        # than misclassifying it as an unrelated test result.
+        if (not classname and case.find("skipped") is not None
+                and case.get("name") in modules):
+            classname = case.get("name", "")
         matches = [module for module in modules
                    if classname == module or classname.startswith(module + ".")]
         if not matches:
