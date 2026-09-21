@@ -11,8 +11,9 @@ been recorded here yet. Historical [M4 evidence](../m4/README.md) remains intact
 | --- | --- | --- |
 | [#159](https://github.com/melliott18/CogniStore/issues/159) | Exact specification revision/commit, named owner acceptance and dated review decision | Proposed specification; acceptance pending |
 | [#156](https://github.com/melliott18/CogniStore/issues/156) | Fix commit and namespace isolation/legal-hold regression reports | [Recorded below](#ticket-156-reserved-storage-namespace-aliases); local results and limitations retained |
-| [#157](https://github.com/melliott18/CogniStore/issues/157) | Fix commit and overlapping DELETE/PUT regression reports | Not recorded |
-| [#158](https://github.com/melliott18/CogniStore/issues/158), [#160](https://github.com/melliott18/CogniStore/issues/160) | Hosted runtime matrix and immutable source/image/dependency/provider/configuration manifest | Not recorded |
+| [#157](https://github.com/melliott18/CogniStore/issues/157) | Fix commit and overlapping DELETE/PUT regression reports | [Local fix and merge regressions retained](157-put-delete-ordering.md); hosted qualification remains separate |
+| [#158](https://github.com/melliott18/CogniStore/issues/158) | Hosted runtime matrix on the exact candidate | [Hosted runs blocked before execution](../ci-158/README.md); qualification incomplete |
+| [#160](https://github.com/melliott18/CogniStore/issues/160) | Immutable source/image/dependency/provider/configuration manifest and exact-artifact checks | [Assembly procedure and open gates](#ticket-160-release-candidate-assembly); no qualified candidate recorded |
 | [#161](https://github.com/melliott18/CogniStore/issues/161) | Isolated environment identity, production controls, versioned configuration, storage/memory/queue bounds and private telemetry | Not recorded |
 | [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | Not recorded |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | Not recorded |
@@ -165,3 +166,35 @@ M5 release gates or a new live-service/platform matrix.
 
 From `docs/evidence/m5/ticket-156`, verify the retained reports with
 `shasum -a 256 -c SHA256SUMS`.
+
+## Ticket #160: release candidate assembly
+
+The [release candidate guide](../../release_candidate.md) defines the frozen
+bundle, exact-artifact reuse, selected metadata-only provider composition and
+change-control rules. The assembly tooling is intended for package series
+`0.1.1rc1`, on Linux amd64 / CPython 3.12 / Debian bookworm with native
+libmagic. The selected `main` base
+`bbfb5efb63b09693fab2158514716aaa1a146d19` contains both #156/#157 fixes; that
+base and their historical regression reports do not qualify a new candidate.
+
+Record the final clean-main source SHA/tree, wheel and binary dependency lock
+hashes, installed Python/native inventory, migration hashes, sanitized profile
+and deployment configuration hashes, explicit provider/model absences, saved
+image checksum and immutable image identity together. A local Docker image ID
+is a configuration digest, not a registry manifest digest; record the latter
+and its verified association before claiming the image-digest acceptance gate.
+Retain exact-artifact smoke/regression/security reports with the same identity,
+plus applicable hosted check links and documented finding dispositions.
+
+**Release qualification remains incomplete.** The named owner has not accepted
+the pilot specification, #158 records a hosted account billing/spending-limit
+block, and no accepted environment/configuration or passing candidate-specific
+hosted campaign is recorded here. Local tooling tests or an unmerged branch
+build are development validation only. No deployment, publication, customer
+traffic, pilot entry, or completed #160 acceptance is asserted.
+
+Current user direction prohibits further hosted CI dispatches, reruns and
+polling while the billing restriction is unresolved; local work continues.
+The release workflow is manual-only for future explicitly authorized use.
+Hosted gates remain unavailable/unmet, and this tooling change records no new
+hosted execution or passing hosted evidence.
