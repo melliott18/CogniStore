@@ -16,8 +16,6 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import tomllib
-
 REGRESSIONS = (
     "tests/unit/test_tenant_namespace_aliases.py",
     "tests/unit/test_tenant_namespace_api.py",
@@ -45,7 +43,8 @@ def wheel_lock(wheels: Path, output: Path) -> None:
         if path.suffix != ".whl" or path.is_symlink():
             raise ValueError(f"Expected a regular wheel: {path.name}")
         with zipfile.ZipFile(path) as archive:
-            metadata = [n for n in archive.namelist() if n.endswith(".dist-info/METADATA")]
+            metadata = [n for n in archive.namelist()
+                        if n.endswith(".dist-info/METADATA") and len(n.split("/")) == 2]
             if len(metadata) != 1:
                 raise ValueError(f"Invalid wheel metadata: {path.name}")
             info = email.message_from_bytes(archive.read(metadata[0]))
@@ -149,6 +148,9 @@ def build(output: Path, allow_unmerged: bool, hosted_evidence: Path | None) -> N
     main = capture(["git", "rev-parse", "origin/main"], cwd=root)
     if source != main and not allow_unmerged:
         raise ValueError("Candidate source must equal freshly fetched origin/main")
+    # Assembly needs Python 3.12; helpers remain importable in the supported 3.10 test matrix.
+    import tomllib
+
     version = tomllib.loads(capture(["git", "show", f"{source}:pyproject.toml"], cwd=root))["project"]["version"]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+rc[0-9]+", version):
         raise ValueError("Candidate package must have an explicit release-candidate version")

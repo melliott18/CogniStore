@@ -56,6 +56,16 @@ def test_lock_rejects_duplicate_normalized_distribution_names(assembler, tmp_pat
         assembler.wheel_lock(tmp_path, tmp_path.parent / "duplicate.lock")
 
 
+def test_lock_uses_distribution_metadata_not_vendored_packages(assembler, tmp_path):
+    wheel = _wheel(tmp_path, "setuptools.whl", "setuptools", "84.0.0")
+    with zipfile.ZipFile(wheel, "a") as archive:
+        archive.writestr("setuptools/_vendor/example.dist-info/METADATA",
+                         "Name: vendored-example\nVersion: 1.0\n")
+    output = tmp_path.parent / "vendored.lock"
+    assembler.wheel_lock(tmp_path, output)
+    assert output.read_text().startswith("setuptools==84.0.0 --hash=sha256:")
+
+
 @pytest.mark.parametrize("invalid", ["empty", "source-archive", "symlink", "metadata", "name"])
 def test_lock_rejects_unfreezable_artifacts(assembler, tmp_path, invalid):
     wheels = tmp_path / "wheels"
