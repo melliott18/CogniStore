@@ -22,12 +22,15 @@ and separate cost/carbon consumption and unknown-data panels.
 | --- | --- | --- |
 | Critical SLO burn | 5-minute and 1-hour burn both above 14.4 | 2 minutes |
 | Warning SLO burn | 30-minute and 6-hour burn both above 6 | 15 minutes |
-| Queue capacity | Pending depth above 10,000 | 10 minutes |
+| Queue capacity | Pending depth at least 5,000, or stored bytes at least 50% of the live byte cap | 2 minutes |
+| Queue admission stop | Pending depth at least 8,000, or stored bytes at least 80% of the live byte cap | Immediate |
+| Oldest pending age | Oldest pending message older than 300 seconds (private collector required) | 5 minutes |
+| Admission rejection | Confirmed broker message/byte-cap rejection counter increases over 5 minutes | Immediate |
 | Cost/carbon warning | Consumption at least 80% but below 100% | 5 minutes |
 | Cost/carbon critical | Consumption at least 100% | 5 minutes |
 | Budget unknown or missing | An applicable budget cannot be evaluated, or metrics are absent | 5 minutes |
 | Scrape unavailable | An expected API or worker target is down or absent | 5 minutes |
-| Queue telemetry unavailable | Pending depth is absent or unknown | 5 minutes |
+| Queue telemetry unavailable | Pending depth or byte utilization is absent or unknown | 5 minutes |
 | Indexing timestamp unknown | Unknown timestamp counter increases over 5 minutes | Immediate |
 
 ## Runbooks
@@ -42,11 +45,11 @@ before enabling production alert delivery.
 | Shipped alert | Response |
 | --- | --- |
 | `CogniStoreSLOBurnRateCritical`, `CogniStoreSLOBurnRateWarning` | [SLO burn rate](#slo-burn-rate) |
-| `CogniStoreQueueCapacity` | [Queue capacity](#queue-capacity) |
+| `CogniStoreQueueCapacity`, `CogniStoreQueueAdmissionStop`, `CogniStoreQueueByteCapacity`, `CogniStoreQueueByteAdmissionStop`, `CogniStoreQueueOldestPendingAge`, `CogniStoreQueueAdmissionRejected` | [Queue capacity](#queue-capacity) |
 | `CogniStorePolicyBudgetWarning`, `CogniStorePolicyBudgetCritical` | [Policy budget](#policy-budget) |
 | `CogniStorePolicyBudgetUnknown`, `CogniStorePolicyBudgetTelemetryUnavailable` | [Telemetry unavailable](#telemetry-unavailable), then [policy budget](#policy-budget) |
 | `CogniStoreIndexingLagUnknown` | [Telemetry unavailable](#telemetry-unavailable) |
-| `CogniStoreTelemetryUnavailable`, `CogniStoreQueueTelemetryUnavailable` | [Telemetry unavailable](#telemetry-unavailable) |
+| `CogniStoreTelemetryUnavailable`, `CogniStoreQueueTelemetryUnavailable`, `CogniStoreQueueByteTelemetryUnavailable` | [Telemetry unavailable](#telemetry-unavailable) |
 
 ## Measurement and error budgets
 
@@ -149,23 +152,62 @@ security. Record remaining allowance before resuming risky changes.
 
 ## Queue capacity
 
-Applies to `CogniStoreQueueCapacity` and backlog-associated throughput burn.
+Applies to `CogniStoreQueueCapacity`, `CogniStoreQueueAdmissionStop`,
+`CogniStoreQueueByteCapacity`, `CogniStoreQueueByteAdmissionStop`,
+`CogniStoreQueueOldestPendingAge`, `CogniStoreQueueAdmissionRejected`, and
+backlog-associated throughput burn.
 
 **Triage.** Check `max(cognistore_job_queue_depth{state="pending"})` across
 workers and a fresh worker `/readyz` response. Compare outstanding ACKs,
 in-flight jobs, tier saturation, retry/dead-letter counts, and successful move
 throughput. Confirm whether jobs are scans or policy movement; a mixed queue
 can invalidate the throughput cohort. Preserve affected IDs and consumer settings.
+Compare `cognistore_job_queue_byte_utilization_ratio` with the live stream's
+stored bytes and configured `max_bytes`. The selected 1 GiB stream byte cap
+can reject large envelopes before the 10,000-message cap. Worker replicas
+observe the same stream: use `max`, never add their depths or utilization.
 
 **Action.** Follow the [backlog decision table](operator_incidents.md#queue-backlog-and-saturation).
 Restore consumers/dependencies or slow producers first. Qualify any added worker
 or per-tier capacity against backend limits and divide aggregate limits across
 processes. Preserve stream contents and use a coordinated change for shared
-consumer settings. The default stream cap is 10,000 messages whereas this alert
-uses `> 10000`; submission saturation errors remain authoritative at/below the cap.
+consumer settings. Warn at 5,000 pending messages or 50% byte utilization for
+two minutes. Stop new submissions immediately at 8,000 pending or 80% byte
+utilization, or after oldest pending age exceeds 300 seconds for five minutes.
+Any confirmed broker capacity rejection alerts without an additional `for`
+delay; collection/evaluation latency still applies. These alerts instruct the
+operator or external admissions controller; they do not themselves enforce
+an application admission stop. Retain the broker hard caps and discard-new
+behavior, reconcile uncertain jobs before retries, and never purge to regain
+headroom. The byte thresholds preserve headroom even when message count is low.
+
+`cognistore_job_admission_rejections_total` counts each explicit main-stream
+message/byte rejection at the NATS publication boundary, including redrive.
+Uncertain publication errors and unrelated broker failures are excluded.
+It is a process-local, content-free counter; scrape each producer before
+load and preserve per-process labels so `increase` handles restarts before
+aggregation. A producer that starts and exits between scrapes can lose its
+rejection observations, so retain client admission results as independent
+evidence. Tenant API `/metrics` remains disabled: the selected deployment must
+supply private producer/client collection without exposing tenant metrics.
+The existing worker endpoint alone cannot report API producer rejections.
+
+The age rule requires the private collector to publish
+`cognistore_job_queue_oldest_pending_age_seconds`: current age in seconds of
+the oldest original publication still pending for the selected consumer,
+including retry delay. Use zero only for a verified empty pending set; emit
+NaN or omit the series when measurement fails. A publication-to-claim
+histogram or age of the most recently claimed job does not satisfy this
+contract. This repository does not yet provide that private collector or a
+real notification route. Missing/unknown age, producer coverage or alert
+delivery evidence blocks #165 qualification; a non-firing rule is not proof
+of a healthy queue. See the [pilot gates](production_pilot.md#numerical-qualification-gates).
 
 **Verify.** Require continuing completions/ACKs, falling backlog below the
-threshold, and successful new work. Eligible movement windows should meet the
+threshold, restored byte headroom, known oldest pending age and successful new work.
+For the pilot, prove receipt within five minutes, acknowledgement within
+15 minutes, a usable runbook, and recovery delivery within five minutes of
+clearing each induced alert. Eligible movement windows should meet the
 floor. A throughput alert clearing because attempts aged out of the cohort does
 not prove a stalled queue recovered.
 
@@ -213,7 +255,8 @@ are not invoices or measured emissions.
 ## Telemetry unavailable
 
 Applies to `CogniStoreTelemetryUnavailable` (API and worker),
-`CogniStoreQueueTelemetryUnavailable`, `CogniStoreIndexingLagUnknown`,
+`CogniStoreQueueTelemetryUnavailable`, `CogniStoreQueueByteTelemetryUnavailable`,
+`CogniStoreIndexingLagUnknown`,
 `CogniStorePolicyBudgetUnknown`, and
 `CogniStorePolicyBudgetTelemetryUnavailable` (cost and carbon).
 
@@ -229,12 +272,13 @@ that its catalog or broker reads succeeded.
 | --- | --- |
 | `CogniStoreTelemetryUnavailable` | Restore the expected process/target, scrape routing, verified TLS, and permissions. Check deployment target names and scrape configuration before changing rules. A tenant-enabled API deliberately returns 404 from aggregate `/metrics`; use an approved private operator telemetry design, not disabling tenant isolation. |
 | `CogniStoreQueueTelemetryUnavailable` | Inspect fresh worker broker/account/stream/consumer readiness and connectivity. Restore the correct durable topology and broker permissions; never substitute zero for unknown queue depth. |
+| `CogniStoreQueueByteTelemetryUnavailable` | Inspect the live stream byte count, positive finite `max_bytes` and worker probe readiness. Restore a bounded byte cap and healthy collection; an unbounded or unknown byte cap does not establish free capacity. |
 | `CogniStoreIndexingLagUnknown` | Inspect broker publication metadata and UTC clock synchronization. Correct missing/future timestamps at the source and complete a new scan; a redrive creates a new publication time and cannot repair historical measurements. |
 | `CogniStorePolicyBudgetUnknown` | Check catalog connectivity and missing/expired budget periods/evidence, then follow [policy budget](#policy-budget). |
 | `CogniStorePolicyBudgetTelemetryUnavailable` | Confirm the API version/configuration exposes both expected dimensions and can access its catalog. Restore instrumentation/catalog access or the approved private telemetry path. |
 
-**Verify.** Confirm expected targets scrape successfully, queue depth is finite
-and known, both budget dimensions are present/evaluable, and unknown timestamp
+**Verify.** Confirm expected targets scrape successfully, queue depth and byte
+utilization are finite and known, both budget dimensions are present/evaluable, and unknown timestamp
 counters stop increasing across fresh scan completions. Allow the five-minute
 timestamp increase window to age out. Preserve the missing-history interval;
 evaluate evidence coverage before making SLO claims spanning that gap.

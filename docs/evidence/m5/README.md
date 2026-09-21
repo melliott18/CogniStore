@@ -19,7 +19,7 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | Not recorded |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | Not recorded |
 | [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | Not recorded |
-| [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | Not recorded |
+| [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [Local tooling and alert checks](ticket-165/README.md); staging adapter and all live qualification gates pending |
 | [#166](https://github.com/melliott18/CogniStore/issues/166) | Named entry decision, daily pilot records, user tasks and explicit expand/fix/stop decision | Not recorded |
 
 Each record must include:

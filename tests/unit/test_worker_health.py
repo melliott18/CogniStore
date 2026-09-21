@@ -159,6 +159,8 @@ def test_metrics_refreshes_broker_backlog_and_marks_unavailable_values() -> None
         class DepthQueue(IdleQueue):
             pending = 7
             in_flight = 3
+            stored_bytes = 50
+            max_bytes = 100
 
             async def probe(self) -> QueueHealth:
                 return QueueHealth(
@@ -169,6 +171,8 @@ def test_metrics_refreshes_broker_backlog_and_marks_unavailable_values() -> None
                     consumer="health-workers",
                     pending=self.pending,
                     ack_pending=self.in_flight,
+                    stored_bytes=self.stored_bytes,
+                    max_bytes=self.max_bytes,
                 )
 
         async def handler(job, context) -> None:
@@ -196,16 +200,20 @@ def test_metrics_refreshes_broker_backlog_and_marks_unavailable_values() -> None
             assert "Content-Type: text/plain" in headers
             assert 'cognistore_job_queue_depth{state="pending"} 7.0' in body
             assert 'cognistore_job_queue_depth{state="in_flight"} 3.0' in body
+            assert 'cognistore_job_queue_byte_utilization_ratio{scope="main"} 0.5' in body
             assert worker.health_snapshot().in_flight == 0
             queue.pending = 2
             queue.in_flight = 1
+            queue.stored_bytes = 80
             _, refreshed = await scrape()
             assert 'cognistore_job_queue_depth{state="pending"} 2.0' in refreshed
             assert 'cognistore_job_queue_depth{state="in_flight"} 1.0' in refreshed
+            assert 'cognistore_job_queue_byte_utilization_ratio{scope="main"} 0.8' in refreshed
             queue.ready = False
             _, unavailable = await scrape()
             assert 'cognistore_job_queue_depth{state="pending"} NaN' in unavailable
             assert 'cognistore_job_queue_depth{state="in_flight"} NaN' in unavailable
+            assert 'cognistore_job_queue_byte_utilization_ratio{scope="main"} NaN' in unavailable
         finally:
             await server.close()
             await worker.shutdown()

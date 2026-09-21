@@ -229,13 +229,60 @@ groups:
       description: The 30m and 6h burn rates both exceed 6 times the allowed bad-event rate.
       runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#slo-burn-rate
   - alert: CogniStoreQueueCapacity
-    expr: cognistore:queue_pending > 10000
-    for: 10m
+    expr: cognistore:queue_pending >= 5000
+    for: 2m
     labels:
       severity: warning
     annotations:
-      summary: CogniStore pending queue exceeds 10,000 jobs.
-      description: Shared broker backlog has remained above the operating threshold for 10 minutes.
+      summary: CogniStore pending queue has reached 5,000 jobs.
+      description: Shared broker backlog has remained at or above half of the 10,000-message cap for 2 minutes.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - alert: CogniStoreQueueAdmissionStop
+    expr: cognistore:queue_pending >= 8000
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore queue requires an admission stop.
+      description: Shared broker backlog has reached 8,000 pending jobs; stop new submissions and preserve recovery headroom.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - alert: CogniStoreQueueByteCapacity
+    expr: max(cognistore_job_queue_byte_utilization_ratio) >= 0.5
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore queue has consumed half of its byte capacity.
+      description: Main-stream stored bytes have remained at or above 50% of the configured byte cap for 2 minutes.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - alert: CogniStoreQueueByteAdmissionStop
+    expr: max(cognistore_job_queue_byte_utilization_ratio) >= 0.8
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore queue byte capacity requires an admission stop.
+      description: Main-stream stored bytes have reached 80% of the configured byte cap; stop new submissions and preserve recovery headroom.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  # This gauge requires a private collector in the selected tenant deployment.
+  # Publication-to-claim histograms are not the oldest pending message age.
+  - alert: CogniStoreQueueOldestPendingAge
+    expr: max(cognistore_job_queue_oldest_pending_age_seconds) > 300
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore oldest pending job requires an admission stop.
+      description: Oldest pending message age has exceeded 300 seconds for 5 minutes; stop new submissions and investigate queue progress.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - alert: CogniStoreQueueAdmissionRejected
+    expr: sum(increase(cognistore_job_admission_rejections_total[5m])) > 0
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: CogniStore broker rejected a job admission.
+      description: A main-stream publication was explicitly rejected by message or byte capacity; reconcile the submission before retrying.
       runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
   - alert: CogniStorePolicyBudgetWarning
     expr: cognistore:policy_budget_consumption_ratio >= 0.8 and cognistore:policy_budget_consumption_ratio < 1
@@ -303,6 +350,16 @@ groups:
     annotations:
       summary: CogniStore queue depth is unknown.
       description: Broker queue depth is absent or NaN; capacity and throughput eligibility cannot be established.
+      runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+  - alert: CogniStoreQueueByteTelemetryUnavailable
+    expr: count(cognistore_job_queue_byte_utilization_ratio != cognistore_job_queue_byte_utilization_ratio) > 0
+      or absent(cognistore_job_queue_byte_utilization_ratio)
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: CogniStore queue byte capacity is unknown.
+      description: Broker byte utilization is absent or NaN; byte admission headroom cannot be established.
       runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
   - alert: CogniStorePolicyBudgetTelemetryUnavailable
     expr: absent(cognistore_policy_budget_unknown{dimension="cost"})

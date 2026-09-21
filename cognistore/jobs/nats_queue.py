@@ -32,6 +32,7 @@ from cognistore.observability import (
     inject_trace_context,
     instrument,
     observe,
+    record_job_admission_rejection,
     record_job_event,
     request_context,
 )
@@ -793,6 +794,7 @@ class NatsJetStreamQueue:
         except APIError as exc:
             reason = (exc.description or "").strip().lower()
             if exc.err_code == STREAM_STORE_FAILED and reason in QUEUE_SATURATION_REASONS:
+                record_job_admission_rejection()
                 raise QueueSaturatedError(self.config.stream, reason) from exc
             raise
         return EnqueueReceipt(
