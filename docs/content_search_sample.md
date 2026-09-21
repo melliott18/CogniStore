@@ -6,6 +6,10 @@ citations. The sample runs without model credentials or network model downloads.
 It uses PostgreSQL/pgvector for vector persistence, Tantivy for keyword search,
 and the production PDF/DOCX extraction and Ask orchestration code.
 
+The [manual acceptance matrix](manual_acceptance.md) covers the selected pilot's
+metadata-only composition and browser checks. Sample providers remain separate
+from production-provider quality qualification.
+
 ## Start from a fresh checkout
 
 Build the runtime image, load the checked corpus, and start its API/UI:

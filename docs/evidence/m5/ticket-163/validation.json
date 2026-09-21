@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "base_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "tested_revision": "8d3d50bb649cea617fe030859c51b196457e4648 plus the exact added/changed working-tree files below",
+  "branch": "chore/163-manual-acceptance",
+  "application_changed": false,
+  "production_qualified": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "scripts/manual_acceptance.py": "26dbb67ffdc1f1ed6c4fa8a5be494097a8433f951e593d8fbb126f4e2a3a5e44",
+    "scripts/manual_acceptance_local.py": "c3c7d4bfbab755892296611cec8e9f0036ab2cf2ad5c852966a9123056f3d39e",
+    "tests/unit/test_manual_acceptance.py": "4d5ff2545c56da0a671864668917441d9b0bccd77cf77bb36274200238533d41",
+    "tests/unit/test_manual_acceptance_local.py": "e665c02a31be1145d76f4e68e67b46f86b5b8e4e720f54e39f6e5f638e9395b5",
+    "docs/manual_acceptance.md": "0c7787de001582e6ca02ac759c4d39279f52af94121a7e2e08afd763d3161553",
+    "docs/manual_acceptance_matrix.json": "fdb25e456d2227d58f4a47a4e9257d01708ad320a768a0fc861dacea27d60c9b",
+    "docs/admin_ui.md": "76f46b9769a4876949dcbaf9f262a2897a69917cb0ca44549a73101a19ec5514",
+    "docs/content_search_sample.md": "b8acdffc772a228b1b39d9a4384d66fcff11ab2b7ddd470d1d5f97c93937b357",
+    "docs/evidence/m5/README.md": "7d8db20f6d6df5003fda3978b56764232beb6d66ce71e68cfc3add551f806e1a",
+    "docs/evidence/m5/ticket-163/README.md": "a1cc7500141004075cf8ddb424673c4c141d9c5544b7657d01ab58401061d4ba"
+  },
+  "runtime": {
+    "python": "3.12.2 (v3.12.2:6abddd9f6a, Feb  6 2024, 17:02:06) [Clang 13.0.0 (clang-1300.0.29.30)]",
+    "interpreter": "/private/tmp/cognistore-73-validation/bin/python",
+    "os": "macOS14.8.7-arm64",
+    "browser": "Codex In-app Browser; desktop26.810.41047"
+  },
+  "final_tests": {
+    "command": [
+      "/private/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "pytest",
+      "tests/unit/test_manual_acceptance.py",
+      "tests/unit/test_manual_acceptance_local.py",
+      "tests/unit/test_admin_ui.py",
+      "tests/unit/test_api_authentication.py",
+      "tests/unit/test_api_authorization.py",
+      "tests/unit/test_legal_holds_api.py",
+      "tests/integration/test_tenant_api.py",
+      "tests/unit/test_sdk_contract.py",
+      "tests/unit/test_sdk_admin.py",
+      "tests/unit/test_pii_surfaces.py",
+      "-q",
+      "-o",
+      "addopts=",
+      "--junitxml=/tmp/cognistore-163-final-checks.xml"
+    ],
+    "passed": 349,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 31.99,
+    "exit_code": 0,
+    "report": "final-checks.xml.gz"
+  },
+  "supplemental_tests": {
+    "passed": 180,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 41.9,
+    "exit_code": 0,
+    "metadata": "nats/metadata.json",
+    "report": "nats/junit.xml.gz"
+  },
+  "distinct_passing_tests": 529,
+  "quality": [
+    {
+      "name": "ruff",
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "bandit",
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "scripts/manual_acceptance.py",
+        "scripts/manual_acceptance_local.py",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0,
+      "result": "164 source files checked"
+    }
+  ],
+  "local_rehearsal": {
+    "command": "COGNISTORE_SECURITY_PROFILE=development PYTHONPATH=. /tmp/cognistore-160-smoke-venv/bin/python scripts/manual_acceptance_local.py exercise --root /tmp/cognistore-163-local-complete --port 8764",
+    "exit_code": 1,
+    "passed_observations": 112,
+    "failed_observations": 2,
+    "cli_commands_passed": 32,
+    "report": "local/rehearsal.json",
+    "finding": "LOCAL-163-001; eager over-limit uploads reset connection; not a passing full rehearsal"
+  },
+  "record_validation": {
+    "command": [
+      "/private/tmp/cognistore-73-validation/bin/python",
+      "scripts/manual_acceptance.py",
+      "validate",
+      "docs/evidence/m5/ticket-163/acceptance.json"
+    ],
+    "exit_code": 0,
+    "record_valid": true,
+    "manual_acceptance_complete": false,
+    "local_cases_passed": 12,
+    "failed": 2,
+    "blocked": 66
+  },
+  "completion_negative_control": {
+    "command": [
+      "/private/tmp/cognistore-73-validation/bin/python",
+      "scripts/manual_acceptance.py",
+      "validate",
+      "docs/evidence/m5/ticket-163/acceptance.json",
+      "--require-complete"
+    ],
+    "expected_exit_code": 1,
+    "actual_exit_code": 1,
+    "result": "incomplete acceptance correctly rejected"
+  },
+  "documentation_links": {
+    "local_targets_checked": 45,
+    "broken": 0
+  },
+  "limitations": [
+    "No staging/cloud/production resources or billing credentials used. No full #163 acceptance or release qualification.",
+    "Application dependencies unchanged; no full-suite coverage/package build/dependency audit rerun.",
+    "Initial test command used runtime missing openapi_spec_validator and failed collection; rerun with complete runtime passed. Initial successful128 and340 test runs overlap final346 and must not be summed.",
+    "The final local run preserves two eager-upload transport failures. Expect-continue control does not resolve these failures.",
+    "Browser clicked citation download without checking saved bytes; exact browser download acceptance remains blocked.",
+    "Native libmagic unavailable; CLI MIME detection explicitly fell back to filename. Selected production runtime differs.",
+    "Review fixes preserve prior runs, require all repetitions after a finding fix, and reject optimized Python that would disable assertions.",
+    "One intermediate349-test invocation had3 subprocess import-path failures in the new optimized-Python test. The test now invokes the module from the checkout; final349-test rerun passed. Original failed report retained as pre-final-test-import-failure.xml.gz."
+  ],
+  "manual_record_review": "Independent bounded review verified all 12 passing cases and 3 repetitions against final deletion, range and provider/citation observations."
+}

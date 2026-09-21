@@ -1,0 +1,68 @@
+{
+  "started_at": "2026-09-21T21:44:54.003385+00:00",
+  "image": "sha256:b6700a7a44644d35a74467c9dcbbe2492e70d661075b7755d96a3cbae0229ff7",
+  "container_name": "cognistore-163-nats-79d15ac63f",
+  "docker_command": [
+    "docker",
+    "run",
+    "--pull=never",
+    "--detach",
+    "--name",
+    "cognistore-163-nats-79d15ac63f",
+    "--label",
+    "cognistore.ticket=163",
+    "--memory",
+    "256m",
+    "--memory-swap",
+    "256m",
+    "--cpus",
+    "1",
+    "--pids-limit",
+    "128",
+    "--publish",
+    "127.0.0.1::4222",
+    "--mount",
+    "type=bind,source=/tmp/cognistore-163-nats/data,target=/data",
+    "--mount",
+    "type=bind,source=/tmp/cognistore-163-nats/nats.conf,target=/etc/nats/manual.conf,readonly",
+    "sha256:b6700a7a44644d35a74467c9dcbbe2492e70d661075b7755d96a3cbae0229ff7",
+    "nats-server",
+    "--config",
+    "/etc/nats/manual.conf"
+  ],
+  "source_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "scope": "Supplemental automated local tests; no manual or staging qualification",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "container_id": "f177faa691780ee1a07d775bdbcd4b2f079e8543f307a1c56c883328dd2996dd",
+  "endpoint": "nats://127.0.0.1:55048",
+  "test_command": [
+    "/tmp/cognistore-73-validation/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/integration/test_nats_worker.py",
+    "tests/integration/test_move_jobs.py",
+    "tests/unit/test_consistency_repair.py",
+    "tests/unit/test_consistency_repair_cli.py",
+    "tests/unit/test_consistency_audit_integrity.py",
+    "--junitxml=/tmp/cognistore-163-nats/junit.xml"
+  ],
+  "environment": {
+    "COGNISTORE_NATS_URL": "nats://127.0.0.1:55048",
+    "COGNISTORE_SECURITY_PROFILE": "development",
+    "PYTHONPATH": ".",
+    "other_cognistore_variables": "removed"
+  },
+  "exit_code": 0,
+  "cleanup": {
+    "stop_exit": 0,
+    "remove_exit": 0
+  },
+  "finished_at": "2026-09-21T21:45:37.678842+00:00",
+  "artifacts": {
+    "pytest.log": "f4c4f9b7fef6755b2eb3e6c2dba47030c1dd19ada7f9108ef0db7043cf605a77",
+    "nats.log": "56e92c1b136e34c7e48cd4b90d083caf4a9cba9db5638bdbe46d3f86f4dbd17a",
+    "nats.conf": "20cfc512c3140a2c125faa32eb9c6a732c8d056dd101c340c6e8a38f070d272d",
+    "junit.xml": "49039d231474f8c1b658feed797c24f1cae5f1a013bbf6ec59839c343ed7e1e1"
+  }
+}

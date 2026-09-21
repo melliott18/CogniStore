@@ -1,0 +1,50 @@
+Browser tab: 1, Title: "CogniStore · Discover", URL: "http://127.0.0.1:8763/ui/".
+1 AXWebArea CogniStore · Discover, URL: 127.0.0.1:8763/ui/
+	2 link Description: Skip to workspace, Value: 127.0.0.1:8763/ui/#workspace
+	3 container
+		4 link Description: CogniStore content discovery home, Value: 127.0.0.1:8763/ui/
+		5 text API online
+		6 link Description: Administration, Value: 127.0.0.1:8763/ui/admin/
+		7 link Description: API reference , Value: 127.0.0.1:8763/docs
+	8 container workspace
+		9 container Find the signal in your storage.
+			10 text CONTENT DISCOVERY
+			11 heading Find the signal in your storage., Value: 1, ID: page-title
+				12 text Find the signal in your storage.
+			46 text Ask across catalog, keyword, and vector signals. Every answer stays attached to inspectable evidence.
+			14 tab group Workspace view
+				15 tab (selectable, settable, boolean) Search, Value: 0, ID: search-tab
+				16 tab (selected, settable, boolean) Ask, Value: 1, ID: ask-tab
+				17 tab (selectable, settable, boolean) Placement, Value: 0, ID: placements-tab
+			18 container Description: Ask, ID: query-view
+				47 text Ask a grounded question
+				28 text entry area (settable) Ask a grounded question, Value: absent-163-needle, ID: query-text
+				29 button Ask, ID: submit-query
+				30 text Results remain grounded in the current catalog and include source citations.
+				31 button (collapsed) Filters Narrow by location, type, identity, or metadata +, Secondary Actions: Expand
+					32 text Filters
+					33 text Narrow by location, type, identity, or metadata
+					34 text +
+		35 container Results, ID: search-results-panel
+			36 text RANKED EVIDENCE
+			37 heading Results, Value: 2, ID: results-heading
+				38 text Results
+			48 container result-summary
+				52 text 0 results
+				53 text metadata
+			54 container query-status
+				55 heading No matching content, Value: 3
+					56 text No matching content
+				57 text Try broader wording, remove a filter, or check the provider notice above.
+			51 container provider-notices
+				58 text Keyword provider degraded
+				59 text Keyword retrieval is not configured. Results use the providers that remain available.
+				60 text Vector provider degraded
+				61 text Vector retrieval is not configured. Results use the providers that remain available.
+				62 text Answer generation degraded
+				63 text The answer provider is not configured. Ranked, cited retrieval results are still available below.
+			43 content list Description: Ranked content results, ID: results-list
+	44 container
+		45 text CogniStore · Discovery and placement evidence API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Discover, URL: 127.0.0.1:8763/ui/

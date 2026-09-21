@@ -1,0 +1,794 @@
+{
+  "schema_version": 1,
+  "specification": {
+    "id": "m5-pilot-v1",
+    "revision": 1
+  },
+  "selected_composition": "metadata-only; no keyword, vector, embedding or answer provider",
+  "scenarios": [
+    {
+      "id": "MA-01",
+      "title": "Upload, exact-byte download and placement",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier; API/SDK pagination and deletion agree with catalog/storage state.",
+      "cases": [
+        {
+          "id": "MA-01.api.pilot-a",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-a",
+          "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier; API/SDK pagination and deletion agree with catalog/storage state.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-01.api.pilot-b",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-b",
+          "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier; API/SDK pagination and deletion agree with catalog/storage state.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-01.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "writer",
+          "tenant": "pilot-a",
+          "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier; API/SDK pagination and deletion agree with catalog/storage state.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-01.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "writer",
+          "tenant": "pilot-b",
+          "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier; API/SDK pagination and deletion agree with catalog/storage state.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-01.cli.default-fixture",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "default-fixture",
+          "expected": "The complete upload/download bytes and SHA-256 match the seed; HEAD and catalog agree on size and tier.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-02",
+      "title": "Ranges and invalid range handling",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Closed, open and suffix ranges return exact bytes and correct 206 headers; invalid/multiple/out-of-bounds ranges return 416 with the total size.",
+      "cases": [
+        {
+          "id": "MA-02.api.pilot-a",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Closed, open and suffix ranges return exact bytes and correct 206 headers; invalid/multiple/out-of-bounds ranges return 416 with the total size.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-02.api.pilot-b",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Closed, open and suffix ranges return exact bytes and correct 206 headers; invalid/multiple/out-of-bounds ranges return 416 with the total size.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-02.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Closed, open and suffix ranges return exact bytes and correct 206 headers; invalid/multiple/out-of-bounds ranges return 416 with the total size.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-02.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Closed, open and suffix ranges return exact bytes and correct 206 headers; invalid/multiple/out-of-bounds ranges return 416 with the total size.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-03",
+      "title": "Catalog scans and extraction",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; sibling-tenant state does not change.",
+      "cases": [
+        {
+          "id": "MA-03.api.pilot-a",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; sibling-tenant state does not change.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-03.api.pilot-b",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; sibling-tenant state does not change.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-03.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; sibling-tenant state does not change.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-03.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; sibling-tenant state does not change.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-03.cli.default-fixture",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "default-fixture",
+          "expected": "Scoped scans finish; supported documents have expected normalized extraction and source checksums; the separate named-tenant fixtures do not change.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-04",
+      "title": "Durable jobs, failures and revalidation",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Submission is followed to a terminal state and checked against effects; restart retains IDs/history; failure and revoked-role execution perform no unauthorized mutation. Controlled failures include retry and DLQ/redrive with the original identity.",
+      "cases": [
+        {
+          "id": "MA-04.api.pilot-a.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Submission is followed to a terminal state and checked against effects; restart retains IDs/history; failure and revoked-role execution perform no unauthorized mutation.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-04.api.pilot-b.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Submission is followed to a terminal state and checked against effects; restart retains IDs/history; failure and revoked-role execution perform no unauthorized mutation.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-04.sdk.pilot-a.operator",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Submission is followed to a terminal state and checked against effects; restart retains IDs/history; failure and revoked-role execution perform no unauthorized mutation.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-04.sdk.pilot-b.operator",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Submission is followed to a terminal state and checked against effects; restart retains IDs/history; failure and revoked-role execution perform no unauthorized mutation.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-04.api.pilot-a.revoked-operator",
+          "surface": "api",
+          "role": "revoked-operator",
+          "tenant": "pilot-a",
+          "expected": "Queue a permitted scan, revoke the submitting binding before dispatch, and observe a terminal authorization failure without scan effects.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-04.api.pilot-b.revoked-operator",
+          "surface": "api",
+          "role": "revoked-operator",
+          "tenant": "pilot-b",
+          "expected": "Queue a permitted scan, revoke the submitting binding before dispatch, and observe a terminal authorization failure without scan effects.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-04.failure-retry",
+          "surface": "api",
+          "role": "trusted-operator",
+          "tenant": "isolated-fixture",
+          "expected": "A controlled local fixture failure records failed or retrying history; recovery follows the same job ID to its terminal state and verified effects. Exhaust a controlled job into the DLQ, redrive once with its original identity, and verify current permissions are rechecked.",
+          "minimum_repetitions": 1
+        }
+      ]
+    },
+    {
+      "id": "MA-05",
+      "title": "Policy preview and confirmed execution",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+      "cases": [
+        {
+          "id": "MA-05.api.pilot-a",
+          "surface": "api",
+          "role": "smoke",
+          "tenant": "pilot-a",
+          "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-05.api.pilot-b",
+          "surface": "api",
+          "role": "smoke",
+          "tenant": "pilot-b",
+          "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-05.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "smoke",
+          "tenant": "pilot-a",
+          "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-05.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "smoke",
+          "tenant": "pilot-b",
+          "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-05.cli.default-fixture",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "default-fixture",
+          "expected": "Preview leaves object bytes, catalog placement and move journals unchanged; explicit run reaches terminal success with matching destination bytes, catalog placement and retained decisions.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-06",
+      "title": "Consistency and conservative repair",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+      "cases": [
+        {
+          "id": "MA-06.cli.default-fixture",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "default-fixture",
+          "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-06.api.pilot-a",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-06.api.pilot-b",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-06.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-06.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Complete report findings and previews do not mutate source state; only an eligible existing move is resumed; ambiguous or held evidence remains for review; fresh scan verifies effects.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-07",
+      "title": "Reader, writer, operator and auditor permissions",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+      "cases": [
+        {
+          "id": "MA-07.api.pilot-a.reader",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-b.reader",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-a.writer",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-a",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-b.writer",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-b",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-a.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-b.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-a.auditor",
+          "surface": "api",
+          "role": "auditor",
+          "tenant": "pilot-a",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-07.api.pilot-b.auditor",
+          "surface": "api",
+          "role": "auditor",
+          "tenant": "pilot-b",
+          "expected": "Every allowed and denied operation in the role table is exercised; denial precedes lookup and has no unauthorized effects.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-08",
+      "title": "Tenant isolation including known IDs",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Both tenants retain distinct same-key bytes; foreign object-only keys, jobs, decisions, holds, repairs and audit IDs are absent to a permitted peer; headers and claims cannot select a tenant.",
+      "cases": [
+        {
+          "id": "MA-08.api.pilot-a.reader",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Both tenants retain distinct same-key bytes; foreign object-only keys, jobs, decisions, holds, repairs and audit IDs are absent to a permitted peer; headers and claims cannot select a tenant.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.api.pilot-b.reader",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Both tenants retain distinct same-key bytes; foreign object-only keys, jobs, decisions, holds, repairs and audit IDs are absent to a permitted peer; headers and claims cannot select a tenant.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.sdk.pilot-a.reader",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Both tenants retain distinct same-key bytes; foreign object-only keys, jobs, decisions, holds, repairs and audit IDs are absent to a permitted peer; headers and claims cannot select a tenant.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.sdk.pilot-b.reader",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Both tenants retain distinct same-key bytes; foreign object-only keys, jobs, decisions, holds, repairs and audit IDs are absent to a permitted peer; headers and claims cannot select a tenant.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.api.pilot-a.auditor",
+          "surface": "api",
+          "role": "auditor",
+          "tenant": "pilot-a",
+          "expected": "Peer-tenant audit events and retained decisions cannot be disclosed through listing or exact known IDs.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.api.pilot-b.auditor",
+          "surface": "api",
+          "role": "auditor",
+          "tenant": "pilot-b",
+          "expected": "Peer-tenant audit events and retained decisions cannot be disclosed through listing or exact known IDs.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.api.pilot-a.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Peer-tenant known repair IDs cannot be inspected or executed; repair listings contain only the resolved tenant.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-08.api.pilot-b.operator",
+          "surface": "api",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Peer-tenant known repair IDs cannot be inspected or executed; repair listings contain only the resolved tenant.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-09",
+      "title": "Authentication and browser proxy negatives",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Missing, expired, wrong-audience/issuer and invalid-signature credentials are denied; unmapped subjects receive no tenant access; proxy expiry, sign-out, forged headers and cross-site mutations fail closed.",
+      "cases": [
+        {
+          "id": "MA-09.api.pilot-a",
+          "surface": "api",
+          "role": "invalid-identities",
+          "tenant": "pilot-a",
+          "expected": "Missing, expired, wrong-audience/issuer and invalid-signature credentials are denied; unmapped subjects receive no tenant access; proxy expiry, sign-out, forged headers and cross-site mutations fail closed.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-09.api.pilot-b",
+          "surface": "api",
+          "role": "invalid-identities",
+          "tenant": "pilot-b",
+          "expected": "Missing, expired, wrong-audience/issuer and invalid-signature credentials are denied; unmapped subjects receive no tenant access; proxy expiry, sign-out, forged headers and cross-site mutations fail closed.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-09.web.pilot-a",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Real browser proxy tests preserve individual per-user identity; expiry/sign-out clear access; forged tenant/identity headers and cross-site mutable requests cannot acquire access.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-09.web.pilot-b",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Real browser proxy tests preserve individual per-user identity; expiry/sign-out clear access; forged tenant/identity headers and cross-site mutable requests cannot acquire access.",
+          "minimum_repetitions": 1
+        }
+      ]
+    },
+    {
+      "id": "MA-10",
+      "title": "Legal holds and release authority",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+      "cases": [
+        {
+          "id": "MA-10.api.pilot-a",
+          "surface": "api",
+          "role": "admin",
+          "tenant": "pilot-a",
+          "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-10.api.pilot-b",
+          "surface": "api",
+          "role": "admin",
+          "tenant": "pilot-b",
+          "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-10.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "admin",
+          "tenant": "pilot-a",
+          "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-10.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "admin",
+          "tenant": "pilot-b",
+          "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-10.cli.default-fixture",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "default-fixture",
+          "expected": "Active exact/prefix/bucket holds block destructive overwrite/delete/move/repair; readers can inspect; unauthorized release is denied; explicit authorized release retains history.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-11",
+      "title": "Browser Ask/search, citations and downloads",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Actual browser interaction returns scoped metadata results and relevant citations/download bytes; no-match is empty; unavailable keyword/vector/generation diagnostics remain explicit.",
+      "cases": [
+        {
+          "id": "MA-11.web.pilot-a",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Actual browser interaction returns scoped metadata results and relevant citations/download bytes; no-match is empty; unavailable keyword/vector/generation diagnostics remain explicit.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-11.web.pilot-b",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Actual browser interaction returns scoped metadata results and relevant citations/download bytes; no-match is empty; unavailable keyword/vector/generation diagnostics remain explicit.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-12",
+      "title": "Browser administration, confirmation and evidence",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+      "cases": [
+        {
+          "id": "MA-12.web.pilot-a.reader",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-b.reader",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-a.writer",
+          "surface": "web",
+          "role": "writer",
+          "tenant": "pilot-a",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-b.writer",
+          "surface": "web",
+          "role": "writer",
+          "tenant": "pilot-b",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-a.operator",
+          "surface": "web",
+          "role": "operator",
+          "tenant": "pilot-a",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-b.operator",
+          "surface": "web",
+          "role": "operator",
+          "tenant": "pilot-b",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-a.auditor",
+          "surface": "web",
+          "role": "auditor",
+          "tenant": "pilot-a",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-b.auditor",
+          "surface": "web",
+          "role": "auditor",
+          "tenant": "pilot-b",
+          "expected": "Actual browser interactions show role-scoped views, cancel/CONFIRM behavior, terminal jobs and effects, retained audit/repair evidence, clear failures and stale/empty states.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-a",
+          "surface": "web",
+          "role": "admin",
+          "tenant": "pilot-a",
+          "expected": "Preview, cancel, then explicitly CONFIRM a scoped scan/policy run and eligible repair; correlate terminal effects, audit evidence and a fresh consistency scan.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-12.web.pilot-b",
+          "surface": "web",
+          "role": "admin",
+          "tenant": "pilot-b",
+          "expected": "Preview, cancel, then explicitly CONFIRM a scoped scan/policy run and eligible repair; correlate terminal effects, audit evidence and a fresh consistency scan.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-13",
+      "title": "Selected metadata-only provider composition",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+      "cases": [
+        {
+          "id": "MA-13.api.pilot-a",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-13.api.pilot-b",
+          "surface": "api",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-13.sdk.pilot-a",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-13.sdk.pilot-b",
+          "surface": "sdk",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-13.web.pilot-a",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-a",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        },
+        {
+          "id": "MA-13.web.pilot-b",
+          "surface": "web",
+          "role": "reader",
+          "tenant": "pilot-b",
+          "expected": "Metadata-only relevant/no-match queries, grounded citations and downloads work; requested absent providers report unavailability, and no answer, embeddings or outbound model calls are claimed.",
+          "minimum_repetitions": 3
+        }
+      ]
+    },
+    {
+      "id": "MA-14",
+      "title": "Unsupported formats and extraction limits",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Unsupported, encrypted, corrupt, image-only and limit-boundary fixtures produce their documented outcomes without blocking the following valid document or changing source bytes.",
+      "cases": [
+        {
+          "id": "MA-14.api.pilot-a.limits",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-a",
+          "expected": "16 MiB API body is accepted and 16 MiB plus one is rejected with 413 without publishing an oversized object; verify generation/placement did not change on rejection. A valid JSON Ask body padded with whitespace to 256 KiB succeeds; the same body plus one byte is rejected with 413.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-14.api.pilot-b.limits",
+          "surface": "api",
+          "role": "writer",
+          "tenant": "pilot-b",
+          "expected": "16 MiB API body is accepted and 16 MiB plus one is rejected with 413 without publishing an oversized object; verify generation/placement did not change on rejection. A valid JSON Ask body padded with whitespace to 256 KiB succeeds; the same body plus one byte is rejected with 413.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-14.cli.extraction-boundaries",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "isolated-fixture",
+          "expected": "Synthetic extraction fixtures verify unsupported_mime, encrypted, corrupt, input_too_large, output_too_large, timeout/worker failure isolation and image-only empty-text success; later valid extraction succeeds.",
+          "minimum_repetitions": 1
+        }
+      ]
+    },
+    {
+      "id": "MA-15",
+      "title": "PII and search persistence boundaries",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Separate PII-enabled local fixture withholds text/properties on detection success or failure, does not feed content providers, retains source bytes, and fails closed for unknown required PII features.",
+      "cases": [
+        {
+          "id": "MA-15.cli.pii-enabled",
+          "surface": "cli",
+          "role": "trusted-operator",
+          "tenant": "isolated-fixture",
+          "expected": "Separate PII-enabled local fixture withholds text/properties on detection success or failure, does not feed content providers, retains source bytes, and fails closed for unknown required PII features.",
+          "minimum_repetitions": 1
+        },
+        {
+          "id": "MA-15.api.provider-boundary",
+          "surface": "api",
+          "role": "trusted-operator",
+          "tenant": "isolated-fixture",
+          "expected": "Synthetic provider observation confirms a PII-enabled rescan supplies no text to content indexing/embedding/Ask; old indexes and source bytes are not automatically erased.",
+          "minimum_repetitions": 1
+        }
+      ]
+    },
+    {
+      "id": "MA-16",
+      "title": "Findings, reruns and evidence closure",
+      "scope": "selected",
+      "production_provider_required": false,
+      "expected": "Each finding retains reproduction, severity, issue/fix reference and affected case rerun; incomplete/deferred evidence and environment limitations remain explicit.",
+      "cases": [
+        {
+          "id": "MA-16.review",
+          "surface": "review",
+          "role": "reviewer",
+          "tenant": "both",
+          "expected": "Each finding retains reproduction, severity, issue/fix reference and affected case rerun; incomplete/deferred evidence and environment limitations remain explicit.",
+          "minimum_repetitions": 1
+        }
+      ]
+    }
+  ]
+}

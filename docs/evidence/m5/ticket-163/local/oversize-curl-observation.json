@@ -1,0 +1,6 @@
+{
+  "method": "curl PUT with Expect: 100-continue",
+  "returncode": 0,
+  "stdout": "HTTP/1.1 413 Request Entity Too Large\ndate: Mon, 21 Sep 2026 21:44:23 GMT\nserver: uvicorn\nx-request-id: 1dc33857-1613-47a2-8ca4-8c684889552f\ncache-control: no-store\nconnection: close\ncontent-length: 198\ncontent-type: application/json\nx-cognistore-rehearsal: local-fixture-not-production\n\n{\"schema_version\":1,\"request_id\":\"1dc33857-1613-47a2-8ca4-8c684889552f\",\"error\":{\"code\":\"payload_too_large\",\"message\":\"Request bodies must not exceed 16777216 bytes\",\"retryable\":false,\"details\":[]}}",
+  "stderr": ""
+}

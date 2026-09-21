@@ -1,0 +1,119 @@
+Browser tab: 1, Title: "CogniStore · Administration", URL: "http://127.0.0.1:8763/ui/admin/".
+1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/
+	2 link Description: Skip to administration, Value: 127.0.0.1:8763/ui/admin/#admin-content
+	3 container
+		4 link Description: CogniStore / Administration, Value: 127.0.0.1:8763/ui/
+		5 link Description: Content discovery ↗, Value: 127.0.0.1:8763/ui/
+	6 container
+		7 container Storage, with context.
+			8 text OPERATIONS CONSOLE
+			9 heading Storage, with context., Value: 1, ID: admin-title
+				10 text Storage, with context.
+			11 text Inspect health, preview changes, and follow the evidence.
+			12 container connect-form
+				13 container
+					14 text Access token  Kept in memory for this page only
+				15 text field (settable) Access token Kept in memory for this page only
+				16 button Connect
+				17 button Disconnect, ID: disconnect
+			18 text Connected. Views and actions reflect your current grants.
+			19 text Tenant: pilot-a · Actor: principal:sha256:fed14a3fc2d94f1742fa76e924d95c8560cb98f9fbd7f78ac28718a0754d4388
+		20 container Description: Administration views, ID: admin-nav
+			21 button Storage
+			22 button Policies & actions
+			23 button Jobs
+			24 button Audit & explanations
+			25 button Repairs
+		26 container Description: Operational workspace, ID: admin-content
+			27 heading Policies & actions, Value: 2, ID: view-title
+				44 text Policies & actions
+			29 button Refresh, ID: refresh-view
+			45 text Draft a configuration, inspect its preview, then submit an allowed action.
+			31 container view-body
+				46 container
+					47 heading Policy configuration, Value: 3
+						48 text Policy configuration
+					49 text Bucket
+					50 text field (settable) Bucket, Value: documents, ID: policy-bucket
+					51 text Object key for preview
+					52 text field (settable) Object key for preview, Value: manual-report.txt, ID: policy-key
+					53 text Run key prefix (empty includes the entire bucket)
+					54 text field (settable) Run key prefix (empty includes the entire bucket), Value: manual-report.txt, ID: policy-prefix
+					55 text Policy JSON
+					56 text entry area (settable) Policy JSON, Value: {"policy":"simple","threshold":1048576,"allowed_tiers":["hot","warm"]}, ID: policy-config
+					57 text The preview evaluates one existing object. A submitted run evaluates all objects in the bucket and prefix and may move data or remove source copies. Workers recheck authorization and placement safeguards.
+					58 button Preview object
+					59 button Submit policy run
+					70 content list
+						71 container
+							72 text Dry run · No action executed
+							73 heading documents/manual-report.txt, Value: 3
+								74 text documents/manual-report.txt
+							75 text Evaluated 2026-09-21T21:40:57.562856Z
+							76 table Placement at decision time and proposed outcome
+								77 text Placement at decision time and proposed outcome
+								78 row
+									79 cell
+										80 text Field
+									81 cell
+										82 text Before decision
+									83 cell
+										84 text Proposed
+								85 row
+									86 cell
+										87 text Tier
+									88 cell
+										89 text hot
+									90 cell
+										91 text hot
+							92 text No placement fields changed Decision: Stay
+							93 heading Policy reason, Value: 4
+								94 text Policy reason
+							95 text Size threshold simple · Version 1
+							96 heading Decisive signals, Value: 4
+								97 text Decisive signals
+							98 content list
+								99 container
+									100 AXListMarker ◦
+									101 text Size bytes: 47 <= 1048576
+							102 heading Guardrail outcomes, Value: 4
+								103 text Guardrail outcomes
+							104 definition list
+								105 container Outcome
+									106 text Outcome
+								107 text Stay
+								108 container Allowed destinations
+									109 text Allowed destinations
+								110 text ["hot","warm"]
+								111 container Importance
+									112 text Importance
+								113 text Not tagged
+								114 container Residency active
+									115 text Residency active
+								116 text false
+								117 container Minimum residency (seconds)
+									118 text Minimum residency (seconds)
+								119 text 0
+								120 container Cooldown active
+									121 text Cooldown active
+								122 text false
+								123 container Cooldown (seconds)
+									124 text Cooldown (seconds)
+								125 text 0
+							126 heading Model details, Value: 4
+								127 text Model details
+							128 text Not applicable to this rule-based decision. Confidence unavailable · Not applicable
+				60 container
+					61 heading Catalog scan, Value: 3
+						62 text Catalog scan
+					63 text Tier
+					64 text field (settable) Tier, ID: scan-tier
+					65 text Bucket
+					66 text field (settable) Bucket, ID: scan-bucket
+					67 text Key prefix (empty includes the entire bucket)
+					68 text field (settable) Key prefix (empty includes the entire bucket), ID: scan-prefix
+					69 button Submit catalog scan
+	42 container
+		43 text CogniStore · Authorized operations API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/

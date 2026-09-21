@@ -1,0 +1,2 @@
+CogniStore manual acceptance synthetic corpus v1
+Alpha searchable record.
