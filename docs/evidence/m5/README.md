@@ -18,7 +18,7 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#161](https://github.com/melliott18/CogniStore/issues/161) | Isolated environment identity, production controls, versioned configuration, storage/memory/queue bounds and private telemetry | [Preparation and local checks](ticket-161/README.md); actual deployment and all live gates pending |
 | [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | Not recorded |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | [Local acceptance kit and rehearsal](ticket-163/README.md); selected staging qualification remains pending |
-| [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | Not recorded |
+| [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | [Campaign preparation and local regressions](ticket-164/README.md); live qualification pending |
 | [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [Local tooling and alert checks](ticket-165/README.md); staging adapter and all live qualification gates pending |
 | [#166](https://github.com/melliott18/CogniStore/issues/166) | Named entry decision, daily pilot records, user tasks and explicit expand/fix/stop decision | Not recorded |
 

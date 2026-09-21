@@ -7,6 +7,11 @@ API. Keep collected reports and logs in restricted incident storage. The
 [recorded operator drill](evidence/m4/README.md) exercises an interrupted move,
 preview, repair, and a fresh consistency scan on disposable local data.
 
+The selected M5 deployment's [recovery qualification campaign](recovery_qualification.md)
+adds repeated transfer/publication and dependency faults, uncertain REST
+submission reconciliation, identity/trust rotation, and tenant-bound evidence
+requirements. Complete its reconciliation before reopening ordinary work.
+
 ## First response and decision tree
 
 **Triage.** Record UTC onset, deployment version, recent changes, alert labels,
