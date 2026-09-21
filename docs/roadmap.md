@@ -191,9 +191,13 @@ The 2026-09-20 readiness assessment identified two P1 release blockers:
 case-insensitive POSIX tenant-namespace aliases bypassing isolation/holds
 ([#156](https://github.com/melliott18/CogniStore/issues/156)) and an older DELETE
 removing a concurrent replacement PUT's catalog record
-([#157](https://github.com/melliott18/CogniStore/issues/157)). Both fixes, hosted CI
-restoration, and the target specification can proceed independently. Historical
-feature acceptance does not establish production qualification for this candidate.
+([#157](https://github.com/melliott18/CogniStore/issues/157)). Both fixes and the
+target specification can proceed independently. Hosted CI
+restoration is suspended under the standing user instruction: do not dispatch,
+rerun or poll workflows. Hosted qualification is
+`skipped: user instruction; known GitHub billing/spending restriction` and
+remains an unmet release gate. Historical feature acceptance does not establish
+production qualification for this candidate.
 
 The API PUT/DELETE ordering fix's
 [implementation and validation record](evidence/m5/157-put-delete-ordering.md)
@@ -204,7 +208,7 @@ M1–M4 delivery evidence.
 | --- | --- | --- |
 | Fix tenant namespace aliases | [#156](https://github.com/melliott18/CogniStore/issues/156) | None; P1 pilot blocker |
 | Fix overlapping DELETE/PUT publication | [#157](https://github.com/melliott18/CogniStore/issues/157) | None; P1 pilot blocker |
-| Restore hosted CI and qualify supported runtimes | [#158](https://github.com/melliott18/CogniStore/issues/158) | None |
+| Restore hosted CI and qualify supported runtimes | [#158](https://github.com/melliott18/CogniStore/issues/158) | Explicit user request to resume; currently suspended |
 | Select deployment, workload, owners, and gates | [#159](https://github.com/melliott18/CogniStore/issues/159) | None; [versioned specification](production_pilot.md) |
 | Freeze reproducible release candidate | [#160](https://github.com/melliott18/CogniStore/issues/160) | #156, #157, #158, #159 |
 | Deploy isolated production-configured staging | [#161](https://github.com/melliott18/CogniStore/issues/161) | #159, #160 |
@@ -226,3 +230,21 @@ and defines entry, exit, stop, and rollback criteria. Material changes after
 qualification require scoped requalification. A failed or stopped pilot requires
 an explicit fix/stop decision and does not automatically satisfy M5. The next
 roadmap follows measured pilot outcomes and linked, prioritized follow-up tickets.
+
+### Pilot execution status and next decision
+
+Ticket [#166](https://github.com/melliott18/CogniStore/issues/166) now has a
+[gated operating procedure](pilot_operations.md) for entry review, bounded
+enrollment, daily records, change requalification, stop/rollback and exit.
+**Current assessment: no-go; pilot not started.** Named owner/specification
+acceptance, exact-candidate qualification, the deployed environment handoff
+and passing live #162–#165 evidence remain prerequisites, as detailed in the
+[M5 evidence index](evidence/m5/README.md). Local tooling does not satisfy
+#166's execution or exit criteria.
+
+The next operational step is to complete and review that prerequisite evidence,
+then obtain the accepted owner's explicit entry decision before enrollment.
+The measured exit will select expand, fix and repeat, or stop. Discovered
+defects and user needs must become linked tickets with impact, priority,
+owner and acceptance criteria; use those findings to order the next roadmap.
+No expansion or measured pilot outcome is approved by this preparation work.

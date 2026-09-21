@@ -1,0 +1,76 @@
+[
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0,
+    "seconds": 0.142,
+    "log": "ruff.log.gz"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-c",
+      "pyproject.toml",
+      "scripts/pilot_review.py",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0,
+    "seconds": 0.392,
+    "log": "bandit-pilot.log.gz"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.037,
+    "log": "whitespace.log.gz"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "exit_code": 0,
+    "result": "Success: no issues found in 164 source files",
+    "scope": "Unchanged application source at base revision; captured in task execution output."
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/pilot_review.py",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0,
+    "result": "No issues identified at configured severity/confidence threshold; 60709 lines scanned",
+    "scope": "Initial application plus pilot checker scan; pilot script rechecked after final report-field edit."
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "scripts/sync_ticket_mirror.py",
+      "--check"
+    ],
+    "exit_code": 0,
+    "result": "Ticket mirror matches 81 live issues."
+  }
+]

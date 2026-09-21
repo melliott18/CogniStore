@@ -9,6 +9,7 @@ well as the package version because multiple revisions share that version.
 
 | Task or symptom | Procedure | Completion evidence |
 | --- | --- | --- |
+| Review, run or stop the M5 pilot | [Gated pilot operations](pilot_operations.md) | Named entry/exit decisions, daily integrity/SLO/user-task evidence; current status is no-go, not started |
 | First installation | [Clean local walkthrough](operator_lifecycle.md#install), then [reference architectures](reference_architectures.md) | Installed CLI, indexed object, byte-identical download, complete clean scan |
 | Change application version | [Upgrade](operator_lifecycle.md#upgrade) and [rollback](operator_lifecycle.md#rollback) | All catalog partitions at the intended schema; smoke operation and jobs succeed |
 | Protect or recover state | [Backup](operator_lifecycle.md#backup) and [restore](operator_lifecycle.md#restore) | Coherent restore set, verified object hashes, fresh consistency scan, preserved job identities |
@@ -24,6 +25,12 @@ cloud storage, and cluster recovery must be rehearsed in the deployment's own
 isolated recovery environment. Existing [Kubernetes qualification](kubernetes.md#automated-qualification)
 and [scale/recovery qualification](scale_qualification.md) cover their separate
 contracts.
+
+The M5 pilot is currently **no-go and not started**: the
+[pilot runbook](pilot_operations.md) and [evidence index](evidence/m5/README.md)
+identify unresolved qualification and named-owner prerequisites. Local operator
+drills do not approve entry. Hosted CI is
+`skipped: user instruction; known GitHub billing/spending restriction`.
 
 ## Prepare before an incident
 

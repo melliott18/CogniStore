@@ -1,0 +1,607 @@
+{
+  "artifacts": {},
+  "blockers": [
+    "Owner acceptance and exact-candidate qualification remain pending."
+  ],
+  "cohort": {
+    "evidence": [],
+    "synthetic_only": true,
+    "tenants": [
+      "pilot-a",
+      "pilot-b"
+    ],
+    "testers": []
+  },
+  "daily": [],
+  "entry": {
+    "at": null,
+    "by": null,
+    "decision": "pending",
+    "evidence": [],
+    "rationale": null
+  },
+  "exit": {
+    "at": null,
+    "by": null,
+    "decision": "pending",
+    "evidence": [],
+    "followup_review": [],
+    "followups": [],
+    "operator_docs_evidence": [],
+    "rationale": null,
+    "roadmap_evidence": [],
+    "ticket_mirror_evidence": []
+  },
+  "exit_gates": {
+    "evidence_coverage": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "foreground_slos": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "integrity_and_isolation": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "material_change_requalification": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "movement_and_scan_slos": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "nominal_workload_and_bounds": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "recovery_and_backups": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "resources_and_queue": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "stop_incident_and_resume_review": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    }
+  },
+  "feedback": [],
+  "identity": {
+    "candidate_manifest_sha256": null,
+    "configuration_sha256": null,
+    "dependencies_sha256": null,
+    "environment_id": null,
+    "image_digest": null,
+    "providers_sha256": null,
+    "source_commit": null,
+    "specification_sha256": null,
+    "workload_sha256": null
+  },
+  "identity_artifacts": {
+    "candidate_manifest_sha256": null,
+    "configuration_sha256": null,
+    "dependencies_sha256": null,
+    "providers_sha256": null,
+    "specification_sha256": null,
+    "workload_sha256": null
+  },
+  "measurements": {
+    "evidence": [],
+    "expected_successes": null,
+    "offered_attempts": null,
+    "operation_attempts": {
+      "ask": null,
+      "catalog": null,
+      "delete": null,
+      "get": null,
+      "head": null,
+      "policy_preview": null,
+      "put": null
+    },
+    "scan_attempts": null,
+    "size_bin_attempts": {
+      "get": {
+        "1048576": null,
+        "16777216": null,
+        "4096": null,
+        "65536": null
+      },
+      "put": {
+        "1048576": null,
+        "16777216": null,
+        "4096": null,
+        "65536": null
+      }
+    }
+  },
+  "mode": "live-pilot",
+  "owner": {
+    "accepted_at": null,
+    "evidence": [],
+    "name": null
+  },
+  "plan": {
+    "declared_at": null,
+    "end_at": null,
+    "evidence": [],
+    "start_at": null,
+    "windows": []
+  },
+  "qualifications": {
+    "156": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "157": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "158": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "160": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "161": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "162": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "163": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "164": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "165": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    }
+  },
+  "readiness": {
+    "accepted_specification_and_roles": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "admission_caps_and_stop_controls": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "backups_and_restore": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "cohort_and_data_permission": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "current_encryption_attestations": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "private_support_and_on_call": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "release_blocker_review": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "telemetry_and_alert_delivery": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "tested_rollback": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    }
+  },
+  "retention": {
+    "evidence": [],
+    "owner": null,
+    "until": null
+  },
+  "schema_version": 1,
+  "slo_reviews": {
+    "day-14": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    },
+    "day-7": {
+      "at": null,
+      "evidence": [],
+      "identity": {
+        "candidate_manifest_sha256": null,
+        "configuration_sha256": null,
+        "dependencies_sha256": null,
+        "environment_id": null,
+        "image_digest": null,
+        "providers_sha256": null,
+        "source_commit": null,
+        "specification_sha256": null,
+        "workload_sha256": null
+      },
+      "result": "pending",
+      "reviewer": null
+    }
+  },
+  "specification": "m5-pilot-v1",
+  "specification_revision": 1,
+  "tasks": []
+}

@@ -20,7 +20,14 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | [Local acceptance kit and rehearsal](ticket-163/README.md); selected staging qualification remains pending |
 | [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | [Campaign preparation and local regressions](ticket-164/README.md); live qualification pending |
 | [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [Local tooling and alert checks](ticket-165/README.md); staging adapter and all live qualification gates pending |
-| [#166](https://github.com/melliott18/CogniStore/issues/166) | Named entry decision, daily pilot records, user tasks and explicit expand/fix/stop decision | Not recorded |
+| [#166](https://github.com/melliott18/CogniStore/issues/166) | Named entry decision, daily pilot records, user tasks and explicit expand/fix/stop decision | [Preparation and entry assessment](ticket-166/README.md); no-go, pilot not started, named entry/exit decisions and live outcomes not recorded |
+
+The [pilot operating procedure](../../pilot_operations.md) describes how the
+accepted owner reviews this bundle and records entry, daily observations,
+change requalification and exit. Current engineering assessment is **no-go;
+pilot not started**. An automated assessment is not a named owner approval.
+Hosted CI is `skipped: user instruction; known GitHub billing/spending restriction`;
+its explicit qualification requirement remains unmet.
 
 Each record must include:
 

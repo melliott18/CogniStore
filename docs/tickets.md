@@ -1,12 +1,12 @@
 # CogniStore Ticket Mirror
 
-> Snapshot synchronized from GitHub Issues through 2026-09-20T07:41:49Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
+> Snapshot synchronized from GitHub Issues through 2026-09-21T22:27:48Z (latest tracker update). GitHub is the source of truth; this file is a generated, read-only reference.
 
 - **Repository:** [melliott18/CogniStore](https://github.com/melliott18/CogniStore)
 - **Master tracker:** [#12](https://github.com/melliott18/CogniStore/issues/12)
 - **Source roadmap:** [roadmap.md](./roadmap.md)
 - **Original proposal:** [proposal.md](./proposal.md)
-- **Snapshot:** 80 issues; 12 open, 68 closed
+- **Snapshot:** 81 issues; 8 open, 73 closed
 
 ## How to use this mirror
 
@@ -37,7 +37,7 @@ git diff --check
 | M2 – Knowledge layer and search | [#13](https://github.com/melliott18/CogniStore/issues/13) | 13 | 3 | 0 | 0 / 17 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/1) |
 | M3 – Explainable policy engine | [#15](https://github.com/melliott18/CogniStore/issues/15) | 11 | 0 | 0 | 0 / 12 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/2) |
 | M4 – Production platform | [#14](https://github.com/melliott18/CogniStore/issues/14) | 20 | 1 | 0 | 0 / 22 | [Closed milestone](https://github.com/melliott18/CogniStore/milestone/3) |
-| M5 – Release readiness and controlled pilot | [#155](https://github.com/melliott18/CogniStore/issues/155) | 11 | 0 | 0 | 12 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/5) |
+| M5 – Release readiness and controlled pilot | [#155](https://github.com/melliott18/CogniStore/issues/155) | 11 | 0 | 0 | 8 / 12 | [Open milestone](https://github.com/melliott18/CogniStore/milestone/5) |
 
 ## Label taxonomy
 
@@ -3005,7 +3005,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 - **Original delivery tickets:** 11
 - **Verification follow-ups:** 0
 - **Other tracking issues:** 0
-- **Status:** 12 open, 0 closed (12 including the epic)
+- **Status:** 8 open, 4 closed (12 including the epic)
 
 ### Epic
 
@@ -3103,7 +3103,7 @@ Roadmap tracker: <a href="https://github.com/melliott18/CogniStore/issues/12">#1
 #### [#156 — \[M5\] \[P1\] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds](https://github.com/melliott18/CogniStore/issues/156)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M5 – Release readiness and controlled pilot
 - **Labels:** `area:security`, `area:storage`, `bug`, `roadmap`
 - **Last updated:** 2026-09-20
@@ -3200,7 +3200,7 @@ finally:
 #### [#157 — \[M5\] \[P1\] Prevent an older DELETE from removing a concurrent replacement PUT catalog record](https://github.com/melliott18/CogniStore/issues/157)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M5 – Release readiness and controlled pilot
 - **Labels:** `area:api`, `area:control-plane`, `bug`, `roadmap`
 - **Last updated:** 2026-09-20
@@ -3390,10 +3390,10 @@ Milestone: M5 – Release readiness and controlled pilot</p>
 #### [#160 — \[M5\] Assemble and freeze a reproducible release candidate for the selected workload](https://github.com/melliott18/CogniStore/issues/160)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M5 – Release readiness and controlled pilot
 - **Labels:** `area:delivery`, `area:indexing`, `roadmap`, `type:chore`
-- **Last updated:** 2026-09-20
+- **Last updated:** 2026-09-21
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
 Milestone: M5 – Release readiness and controlled pilot</p>
@@ -3517,10 +3517,10 @@ Milestone: M5 – Release readiness and controlled pilot</p>
 #### [#163 — \[M5\] Run manual end-to-end acceptance across CLI, API, SDK, search, and administration](https://github.com/melliott18/CogniStore/issues/163)
 
 - **Kind:** Original delivery ticket
-- **Status:** Open
+- **Status:** Closed
 - **Milestone:** M5 – Release readiness and controlled pilot
 - **Labels:** `area:api`, `area:indexing`, `area:ui`, `roadmap`, `type:chore`
-- **Last updated:** 2026-09-20
+- **Last updated:** 2026-09-21
 
 <p>Parent epic: <a href="https://github.com/melliott18/CogniStore/issues/155">#155</a>
 Milestone: M5 – Release readiness and controlled pilot</p>
@@ -3679,3 +3679,29 @@ Milestone: M5 – Release readiness and controlled pilot</p>
 <ul>
 <li><a href="https://github.com/melliott18/CogniStore/blob/2cce6ff4d43fd287ad008197f1e17f168c3580c4/docs/operator_handbook.md">operator_handbook.md</a></li>
 </ul>
+
+## Other unmilestoned issues
+
+### [#175 — \[M5\] \[P1\] Fence scan observations against concurrent API PUT/DELETE](https://github.com/melliott18/CogniStore/issues/175)
+
+- **Kind:** Unmilestoned issue
+- **Status:** Closed
+- **Milestone:** None
+- **Labels:** None
+- **Last updated:** 2026-09-21
+
+<p>Parent audit: <a href="https://github.com/melliott18/CogniStore/issues/162">#162</a></p>
+<p>A scanner can publish an old observation after a concurrent API replacement PUT or DELETE has completed. This was reproduced during the local CogniStore audit on source <code>8d3d50bb649cea617fe030859c51b196457e4648</code> with synthetic data and separate catalog handles.</p>
+<p>Severity: P1 / release-blocking data consistency defect.
+Proposed accountable owner: Mitchell Elliott; operational role acceptance remains separate.</p>
+<p>Trigger: the scanner reads a generation and completes its final backend check, an API operation changes/removes that generation before scan catalog publication, and the scanner then publishes the old size/content reference. A replacement PUT can retain stale catalog metadata; a DELETE can regain a catalog row despite absent storage bytes.</p>
+<p>Remediation: hold the existing per-key object-mutation fence from scan observation through catalog publication, inside the existing lifecycle/hold guard. PostgreSQL publication must use the owning fence session. Contended keys are deferred to a later scan.</p>
+<p>Validation retained with the audit implementation:</p>
+<ul>
+<li>Six regression cases failed before the fix across memory, SQLite and isolated PostgreSQL16.</li>
+<li>Fourteen new scanner coordination cases passed after the fix, including separate processes.</li>
+<li>Existing mutation/hold/movement/repair/cleanup regression campaign: 645 passed.</li>
+<li>Independent source review and local regression report retained alongside exact source hashes.</li>
+</ul>
+<p>The implementation PR will link the durable evidence at <code>docs/evidence/m5/ticket-162/</code>. Merge and candidate retest are required; filing this ticket alone does not resolve the release blocker. Exact production-candidate/native-S3/live-staging qualification stays under <a href="https://github.com/melliott18/CogniStore/issues/162">#162</a>.</p>
+<p>Hosted CI: skipped: user instruction; known GitHub billing/spending restriction.</p>

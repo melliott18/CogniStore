@@ -1,0 +1,32 @@
+[
+  {
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/pilot_review.py",
+      "check",
+      "--campaign",
+      "release/pilot/campaign.example.json",
+      "--stage",
+      "entry",
+      "--output",
+      "docs/evidence/m5/ticket-166/unobserved-entry.json"
+    ],
+    "exit_code": 1,
+    "expected_exit_code": 1
+  },
+  {
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/pilot_review.py",
+      "check",
+      "--campaign",
+      "release/pilot/campaign.example.json",
+      "--stage",
+      "exit",
+      "--output",
+      "docs/evidence/m5/ticket-166/unobserved-exit.json"
+    ],
+    "exit_code": 1,
+    "expected_exit_code": 1
+  }
+]
