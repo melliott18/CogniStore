@@ -113,6 +113,14 @@ have independent fences. A successful replacement PUT therefore cannot publish
 its catalog row while an older API DELETE still owns that object's fence.
 Once the winner exits, a subsequent request acts on the current state.
 
+Catalog scans also reserve each observed key from the first storage read
+through publication. A PUT/DELETE overlapping that observation receives the
+same retryable conflict. A scan encountering a key already reserved by an API
+mutation or another scan skips that key for the current pass; a later scan
+can revisit it. Dry-run scans do not reserve keys or publish observations.
+This prevents a stale scan from restoring a deleted row or overwriting a
+replacement's metadata and content identity.
+
 The existing legal-hold guard surrounds this fence and can delay a request
 before it reaches the object fence. Holds continue to block
 destructive operations and to serialize hold changes with storage work. Object
@@ -165,9 +173,9 @@ recovery if storage work overlaps session loss. A connection failure during
 catalog commit can also leave an uncertain commit outcome, with the retry
 behavior described above.
 
-Quiesce older workers before rolling out this contract. Direct
-backend writers, catalog scans, and move operations do not participate in this
-API mutation fence; their broader concurrency matrix is outside this contract.
+Quiesce older API and scan workers before rolling out this contract. Direct
+backend writers and move operations do not participate in this mutation
+fence; their broader concurrency matrix is outside this contract.
 Windows SQLite retains the legal-hold guard's conservative exclusive locking,
 which can serialize requests before object-fence contention is evaluated.
 See [catalog deployment constraints](postgres_catalog.md#api-object-mutation-fences)

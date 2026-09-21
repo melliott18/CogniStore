@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "base_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "affected_baseline": "2cce6ff4d43fd287ad008197f1e17f168c3580c4",
+  "fix_commit": "30b175d0088cbcd4e81995e89653058abbbd9f4b",
+  "source_sha256": {
+    "cognistore/core/scanner.py": "24a0ce8d5df55608ef3b480da1b0933577ebf1d141fce2434086ecf11a7df2d7",
+    "cognistore/db/catalog.py": "8083c95441c944f5ca6b77afb4e9032dce6789fbdbafde46e32020d8a3d98ba2",
+    "tests/integration/test_api_scan_coordination.py": "1762461230102b0d01800199fdbe532c6142b9714fa7a25f4c8fafc96e769420",
+    "scripts/audit/reproduce_known_mutations.py": "0f2c7214853c3bbf2707b86ec04ab60fb3c0963fd86e6391deb90405113b1145"
+  },
+  "runs": [
+    {
+      "id": "mutation-before",
+      "tests": 527,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 84.125,
+      "timestamp": "2026-09-21T14:38:23.020936-07:00",
+      "artifacts": {
+        "mutation-before.xml.gz": "6b55837e5cc28d7a64e2ea2c3cd3a050c3e3eab06a5f3777e35362cc1c3712dc",
+        "mutation-before.log.gz": "a7f1cca0e8ec1ad6246019ae2b21e5abc93fe3a29cae5a7da740f56809b155c1"
+      }
+    },
+    {
+      "id": "scan-before",
+      "tests": 6,
+      "failures": 6,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.784,
+      "timestamp": "2026-09-21T14:40:28.762071-07:00",
+      "artifacts": {
+        "scan-before.xml.gz": "df2609f71bcf7d5640ec07309b47b301d3338d205774c201c9b3ce02bcc847a8",
+        "scan-before.log.gz": "4cbb1fd8481560c877ed62509540aa1c4ffc763073a6510866d9857021a2e3b6"
+      }
+    },
+    {
+      "id": "scan-after",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 17.306,
+      "timestamp": "2026-09-21T14:43:35.214730-07:00",
+      "artifacts": {
+        "scan-after.xml.gz": "0232670f75d9cbeaf49697508a1a6adebb7d0d6e47adc0b31b22747daca1c019",
+        "scan-after.log.gz": "9d17e11a0e56e2834ddeeddaf8bc289e6152e3ceb713963e1d63b01ceb66994c"
+      }
+    },
+    {
+      "id": "mutation-after",
+      "tests": 645,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 98.814,
+      "timestamp": "2026-09-21T14:43:35.214685-07:00",
+      "artifacts": {
+        "mutation-after.xml.gz": "f44facb5c12b8c0d615c814a56348058033aadec140db7875c2814c7d5b7a562",
+        "mutation-after.log.gz": "a325dbedfd14135eaae7fd37865361183288794d7ebc5fa35ecf9935768f3947"
+      }
+    }
+  ],
+  "environment": {
+    "postgres_image": "pgvector/pgvector:0.8.6-pg16-bookworm",
+    "postgres_container": "cognistore-162-mutation-pg",
+    "database_storage": "temporary tmpfs; isolated per-test databases",
+    "postgres_network": "unique loopback-only host port; fixture trust authentication",
+    "python": "3.12.2",
+    "os": "macOS14.8.7 arm64",
+    "storage": "temporary native case-insensitive POSIX filesystem",
+    "postgres_image_id": "sha256:2dbfde49c067cafff2a69e7019423181adca6328b94f197ac93fbb01a96a3a9d",
+    "postgres_version": "16.15 (Debian 16.15-1.pgdg12+2)",
+    "fixture_cleanup": "container removed after completed checks; tmpfs state discarded"
+  },
+  "sanitization": "Local user/worktree/hostname replaced with placeholders; gzip mtime=0. Fixture-only identities and data. No environment dump.",
+  "production_qualified": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "reproduction_commands": {
+    "scan-before": "python -m pytest tests/integration/test_api_scan_coordination.py (initial six cases, before source fix)",
+    "scan-after": "python -m pytest tests/integration/test_api_scan_coordination.py --junitxml=/tmp/cognistore-162-new-scan-fixed.xml",
+    "mutation-after": "python -m pytest tests/unit/test_api_object_mutations.py tests/unit/test_object_mutation_fence.py tests/unit/test_tenant_namespace_api.py tests/unit/test_tenant_namespace_aliases.py tests/integration/test_postgres_object_mutations.py tests/integration/test_object_mutation_fence_postgres.py tests/integration/test_scanner_move_coordination.py tests/unit/test_consistency_repair.py tests/unit/test_orphan_cleanup_fence.py tests/integration/test_orphan_cleanup_postgres.py tests/integration/test_legal_hold_movement.py tests/integration/test_mover_catalog.py tests/unit/test_catalog_content_scan.py tests/unit/test_legal_hold_catalog.py tests/unit/test_orphan_cleanup.py --junitxml=/tmp/cognistore-162-mutation-fixed.xml --tb=short"
+  },
+  "command_note": "Commands reconstructed from retained invocation/process records for reproduction; raw test results and source hashes are authoritative for executed scope."
+}

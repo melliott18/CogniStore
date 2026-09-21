@@ -1648,7 +1648,7 @@ class SQLCatalog(Catalog):
             if content.size != size:
                 raise ValueError("content size must match the scan observation size")
         now = _timestamp()
-        with self._transaction(audit=False) as connection:
+        with self._object_publication(bucket, key) as connection:
             self._lock_object(connection, bucket, key)
             jobs = self._select_scan_move_jobs(connection, bucket, key)
             if self._scan_move_job_fingerprints(

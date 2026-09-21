@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "scope": "m5-pilot-v1",
+  "boundaries": [
+    {
+      "id": "authentication",
+      "responsibility": "API verifies identity and checks current RBAC before body, existence, or effects.",
+      "code": [
+        "cognistore/auth/jwt.py",
+        "cognistore/auth/authorization.py",
+        "cognistore/api/app.py",
+        "cognistore/api/gateway.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_jwt_auth.py",
+          "tests/unit/test_api_authentication.py",
+          "tests/unit/test_api_authorization.py",
+          "tests/unit/test_authorized_gateway.py"
+        ],
+        "postgres": [],
+        "services": []
+      },
+      "staging_checks": [
+        "Real OIDC expiry, wrong issuer/audience, key rotation and revoked roles for both tenants.",
+        "Browser proxy forwards individual identities; session expiry, sign-out, forged headers and CSRF denied; API upstream certificate verified."
+      ]
+    },
+    {
+      "id": "tenant-isolation",
+      "responsibility": "Trusted principal selects catalog schema, physical prefix, search and citation scope; default aliases must never access named tenants.",
+      "code": [
+        "cognistore/auth/tenancy.py",
+        "cognistore/drivers/namespaces.py",
+        "cognistore/drivers/tenancy.py",
+        "cognistore/core/tenant_dependencies.py",
+        "cognistore/search/ask.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_tenant_membership.py",
+          "tests/unit/test_tenant_catalog.py",
+          "tests/unit/test_tenant_storage_search.py",
+          "tests/unit/test_tenant_namespace_aliases.py",
+          "tests/unit/test_tenant_namespace_api.py",
+          "tests/integration/test_tenant_api.py"
+        ],
+        "postgres": [
+          "tests/integration/test_tenant_catalog_postgres.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Use identical keys in pilot-a/pilot-b: foreign object, job, hold IDs, cursors, citations and downloads reveal nothing.",
+        "Reproduce #156 on affected baseline and verify candidate on a real case-insensitive volume; record selected ext4 comparison/mount identity. Full semantic providers remain excluded."
+      ]
+    },
+    {
+      "id": "broker-worker",
+      "responsibility": "Only trusted producers assert identity; worker revalidates current policy and tenant binding before leases, effects, retries and redrive.",
+      "code": [
+        "cognistore/jobs/models.py",
+        "cognistore/jobs/nats_queue.py",
+        "cognistore/jobs/runtime.py",
+        "cognistore/jobs/handlers.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_worker_authorization.py",
+          "tests/unit/test_tenant_jobs.py",
+          "tests/unit/test_worker_runtime.py",
+          "tests/unit/test_nats_queue.py",
+          "tests/unit/test_staging_broker.py"
+        ],
+        "postgres": [],
+        "services": [
+          "tests/integration/test_nats_worker.py"
+        ]
+      },
+      "staging_checks": [
+        "Attempt untrusted publish, forged actor/role metadata, wrong tenant, expired/revoked producer credentials and subscriber access with real NATS ACL/TLS.",
+        "Queue while authorized, revoke role/tenant, deliver/retry/redrive on actual worker; no effects. Verify disabled schedules, TLS reconnect and bounded DLQ."
+      ]
+    },
+    {
+      "id": "legal-holds",
+      "responsibility": "Catalog legal holds and mutation exclusion preserve held bytes across overwrite/delete/move/cleanup; placement and release retain immutable audit.",
+      "code": [
+        "cognistore/core/legal_hold_lock.py",
+        "cognistore/core/legal_holds.py",
+        "cognistore/core/sqlite_catalog.py",
+        "cognistore/db/catalog.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_legal_holds_api.py",
+          "tests/unit/test_legal_hold_catalog.py",
+          "tests/unit/test_legal_hold_aliases.py",
+          "tests/unit/test_legal_hold_governance.py",
+          "tests/integration/test_legal_hold_movement.py"
+        ],
+        "postgres": [
+          "tests/integration/test_legal_hold_postgres.py",
+          "tests/integration/test_legal_hold_audit_integrity.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Concurrent hold placement/release and destructive work in both tenants across API and worker replicas; verify bytes, generations, holds and audit on actual POSIX/S3."
+      ]
+    },
+    {
+      "id": "audit-integrity",
+      "responsibility": "Durable intent/outcome and append-only chains precede disclosure/settlement; independently retained checkpoints detect privileged history rewrites.",
+      "code": [
+        "cognistore/core/audit.py",
+        "cognistore/core/audit_integrity.py",
+        "cognistore/core/audit_export.py",
+        "cognistore/db/audit_integrity.py",
+        "cognistore/api/audit.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_audit_integrity.py",
+          "tests/unit/test_audit_export_verification.py",
+          "tests/unit/test_api_audit.py",
+          "tests/unit/test_audit_coverage.py",
+          "tests/unit/test_consistency_audit_integrity.py",
+          "tests/unit/test_storage_audit.py"
+        ],
+        "postgres": [
+          "tests/integration/test_audit_integrity.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Export tenant evidence to independent restricted durable storage; verify against an external checkpoint after tampering and restore.",
+        "Fail catalog audit persistence before intent/ACK/disclosure and after physical I/O; reconcile unresolved intents without concealing failures."
+      ]
+    },
+    {
+      "id": "secrets-redaction",
+      "responsibility": "Secret resolution/rotation and diagnostic redaction must not disclose credentials; production transport and encryption attestations fail closed.",
+      "code": [
+        "cognistore/secrets/core.py",
+        "cognistore/secrets/providers.py",
+        "cognistore/secrets/diagnostics.py",
+        "cognistore/utils/redaction.py",
+        "cognistore/encryption.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_secrets.py",
+          "tests/unit/test_secret_providers.py",
+          "tests/unit/test_rotating_secrets.py",
+          "tests/unit/test_service_encryption.py",
+          "tests/unit/test_encryption_policy.py",
+          "tests/integration/test_secret_rotation_recovery.py"
+        ],
+        "postgres": [],
+        "services": []
+      },
+      "staging_checks": [
+        "Rotate actual secret versions and TLS/KMS keys; old access fails, current access and retained-key restore work.",
+        "Inspect sanitized logs, traces, browser output and alerts; platform evidence verifies all persistent/temporary storage and backups encrypted."
+      ]
+    },
+    {
+      "id": "untrusted-payloads",
+      "responsibility": "Bound API upload/JSON bodies, isolate document parser and suppress PII content where configured.",
+      "code": [
+        "cognistore/api/app.py",
+        "cognistore/core/document_extraction.py",
+        "cognistore/core/pii.py",
+        "cognistore/pii_runtime.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_rest_api.py",
+          "tests/unit/test_document_extraction.py"
+        ],
+        "postgres": [],
+        "services": []
+      },
+      "staging_checks": [
+        "Exercise 16 MiB object and 256 KiB JSON bounds, corrupt/encrypted documents, parser timeout/output limits; measure actual RSS, /tmp and /dev/shm.",
+        "Synthetic data only; PII disabled and model providers absent per pilot selection."
+      ]
+    },
+    {
+      "id": "put-delete",
+      "responsibility": "Per-key cross-process mutation fences serialize storage plus catalog publication and preserve replacement generations.",
+      "code": [
+        "cognistore/core/object_mutation_lock.py",
+        "cognistore/api/gateway.py",
+        "cognistore/core/sqlite_catalog.py",
+        "cognistore/db/catalog.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_object_mutation_fence.py",
+          "tests/unit/test_api_object_mutations.py",
+          "tests/integration/test_posix_publication_recovery.py"
+        ],
+        "postgres": [
+          "tests/integration/test_object_mutation_fence_postgres.py",
+          "tests/integration/test_postgres_object_mutations.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Reproduce #157 on affected baseline and verify candidate: overlap DELETE/replacement PUT both orders, publication failures, crash/restart and competing API replicas.",
+        "Verify byte checksums, generation, content references and catalog agree after each barrier on ext4 and native versioned S3."
+      ]
+    },
+    {
+      "id": "move",
+      "responsibility": "Durable move checkpoints, conditional deletion and generation fences preserve replacements through retries, verification, crash and publication failures.",
+      "code": [
+        "cognistore/core/mover.py",
+        "cognistore/core/move_jobs.py",
+        "cognistore/drivers/posix_driver.py",
+        "cognistore/drivers/s3_driver.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/integration/test_mover_catalog.py",
+          "tests/integration/test_move_jobs.py",
+          "tests/integration/test_mover_containment.py",
+          "tests/unit/test_s3_driver.py"
+        ],
+        "postgres": [],
+        "services": []
+      },
+      "staging_checks": [
+        "Overlap PUT/DELETE and hot-to-warm/warm-to-hot moves at every checkpoint across processes; kill worker and recover from retained move identity.",
+        "Native S3 version/conditional-write semantics, checksum validation and SSE-KMS must be exercised; MinIO/emulation is supplemental."
+      ]
+    },
+    {
+      "id": "scan",
+      "responsibility": "Scanner must not republish obsolete placement or observations across active/completed moves and catalog failures.",
+      "code": [
+        "cognistore/core/scanner.py",
+        "cognistore/core/content_identity.py",
+        "cognistore/core/content_references.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/integration/test_scanner_move_coordination.py",
+          "tests/unit/test_catalog_content_scan.py",
+          "tests/integration/test_api_scan_coordination.py"
+        ],
+        "postgres": [
+          "tests/integration/test_api_scan_coordination.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Overlap scans with PUT/DELETE/move from API and worker against production catalog/backends, including crash after storage read before observation publish."
+      ]
+    },
+    {
+      "id": "repair",
+      "responsibility": "Read-only reports and reviewed repair plans are tenant/source-bound; repairs revalidate generations, leases and holds before effects.",
+      "code": [
+        "cognistore/core/consistency.py",
+        "cognistore/core/consistency_repair.py",
+        "cognistore/core/consistency_report.py",
+        "cognistore/api/admin_repairs.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_consistency_safety.py",
+          "tests/unit/test_consistency_repair.py",
+          "tests/unit/test_consistency_repair_cli.py"
+        ],
+        "postgres": [
+          "tests/integration/test_consistency_postgres.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Race reviewed repair with foreground writes, scans, moves and holds; stale scope/generation must reject or quarantine. Interrupt/resume each allowed action.",
+        "Named-tenant admin/harness only; ordinary CLI writers are restricted to separate default-tenant fixtures."
+      ]
+    },
+    {
+      "id": "cleanup",
+      "responsibility": "Orphan quarantine/reclaim requires durable intent, unchanged generation/reference state, no hold and no active ownership.",
+      "code": [
+        "cognistore/core/orphan_cleanup.py",
+        "cognistore/cli/orphan_commands.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_orphan_cleanup.py",
+          "tests/unit/test_orphan_cleanup_fence.py",
+          "tests/unit/test_orphan_cleanup_cli.py"
+        ],
+        "postgres": [
+          "tests/integration/test_orphan_cleanup_postgres.py"
+        ],
+        "services": []
+      },
+      "staging_checks": [
+        "Race reclaim with new references, holds, PUT/DELETE/move/repair across actual API/worker processes; crash after deletion and before audit completion must reconcile."
+      ]
+    },
+    {
+      "id": "production-config",
+      "responsibility": "Selected one-node POSIX/S3, PostgreSQL16, persistent TLS JetStream and metadata-only composition are reviewed as a single deployment.",
+      "code": [
+        "release/pilot.json",
+        "release/staging/values.yaml",
+        "release/staging/resources.yaml",
+        "release/staging/nats-values.yaml",
+        "scripts/staging_preflight.py",
+        "scripts/staging_smoke.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_staging_preflight.py",
+          "tests/unit/test_staging_smoke.py",
+          "tests/unit/test_staging_chart.py"
+        ],
+        "postgres": [],
+        "services": [
+          "tests/integration/test_s3_minio.py"
+        ]
+      },
+      "staging_checks": [
+        "Record actual image, rendered configuration, service versions, filesystem/node/volume identity, network enforcement and least privilege.",
+        "Deny plaintext/untrusted TLS and forbidden ingress/egress; tenant metrics stay private; real alert delivery and backup/restore evidence required."
+      ]
+    },
+    {
+      "id": "artifacts",
+      "responsibility": "Freeze source, image, wheel/dependency/native inventory, migrations and provider absence; disposition every release-blocking finding.",
+      "code": [
+        "release/Dockerfile",
+        "pyproject.toml",
+        "scripts/release_candidate.py",
+        "scripts/release_smoke.py"
+      ],
+      "tests": {
+        "local": [
+          "tests/unit/test_release_candidate.py",
+          "tests/unit/test_release_smoke.py",
+          "tests/unit/test_system_audit.py"
+        ],
+        "postgres": [],
+        "services": []
+      },
+      "staging_checks": [
+        "Verify frozen artifact installation and registry manifest association, dependency/SBOM/image scans with database freshness, owner-reviewed findings and durable artifact retention.",
+        "Retest exact candidate after code/config/dependency changes; hosted qualification remains explicitly skipped under standing instruction."
+      ]
+    }
+  ]
+}

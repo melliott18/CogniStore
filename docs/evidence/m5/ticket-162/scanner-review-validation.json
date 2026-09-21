@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "base_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "reviewed_working_tree_files": {
+    "cognistore/core/scanner.py": "24a0ce8d5df55608ef3b480da1b0933577ebf1d141fce2434086ecf11a7df2d7",
+    "cognistore/db/catalog.py": "8083c95441c944f5ca6b77afb4e9032dce6789fbdbafde46e32020d8a3d98ba2",
+    "tests/integration/test_api_scan_coordination.py": "1762461230102b0d01800199fdbe532c6142b9714fa7a25f4c8fafc96e769420"
+  },
+  "recorded_at_utc": "2026-09-21T21:45:26.030134+00:00",
+  "runtime": {
+    "python": "3.12.2",
+    "os": "Darwin",
+    "architecture": "arm64"
+  },
+  "cwd": "/Users/mitchell/.codex/worktrees/ticket-162-system-audit/CogniStore",
+  "PYTHONPATH": "/Users/mitchell/.codex/worktrees/ticket-162-system-audit/CogniStore",
+  "command_argv": [
+    "/tmp/cognistore-73-validation/bin/python",
+    "-m",
+    "pytest",
+    "-o",
+    "addopts=",
+    "--import-mode=importlib",
+    "-q",
+    "-ra",
+    "tests/integration/test_api_scan_coordination.py",
+    "tests/integration/test_scanner_move_coordination.py",
+    "tests/unit/test_object_mutation_fence.py",
+    "tests/unit/test_catalog_content_scan.py",
+    "tests/unit/test_orphan_cleanup_fence.py",
+    "tests/unit/test_legal_hold_catalog.py"
+  ],
+  "result": {
+    "exit_code": 0,
+    "passed": 112,
+    "skipped": 12,
+    "seconds": 17.61
+  },
+  "skip_reason": "COGNISTORE_TEST_POSTGRES_DSN is not configured",
+  "log": "scanner-independent-review.log.gz",
+  "log_sha256": "936c062dfd68119640359050a5d208383e83a7dc5c97396e8c096840c353c68a",
+  "uncompressed_log_sha256": "e03daed963300b054e586345f6a80a8709a8f10f486a44dcb2f38ee81af6f67c",
+  "completed_at_utc": "2026-09-21T21:43:28.157374+00:00",
+  "review_result": "No actionable defect found in existing scanner changes; PostgreSQL behavior unqualified.",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction"
+}

@@ -1,0 +1,53 @@
+[
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "returncode": 0,
+    "log": "merge-ruff.log.gz",
+    "sha256": "7162964741fdb747d7ab27df2d1a1b64fa0636c4b7fe50ea8493de14cb62cbd4"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "returncode": 0,
+    "log": "merge-mypy.log.gz",
+    "sha256": "433585f6399f0639aeb399466457e8901b30b992e3bdacea63c9457bae561836"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/system_audit.py",
+      "-ll",
+      "-ii"
+    ],
+    "returncode": 0,
+    "log": "merge-bandit.log.gz",
+    "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "returncode": 0,
+    "log": "merge-whitespace.log.gz",
+    "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+  }
+]

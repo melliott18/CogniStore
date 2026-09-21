@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-21T22:25:17.242385+00:00",
+  "status": "local-audit-remediation-validated-production-signoff-incomplete",
+  "tested_revision": "b575dc96360d0a006fd385b117f3da5e3862134d",
+  "base_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "integrated_main_revision": "45cc884",
+  "implementation_sha256": {
+    "cognistore/core/scanner.py": "24a0ce8d5df55608ef3b480da1b0933577ebf1d141fce2434086ecf11a7df2d7",
+    "cognistore/db/catalog.py": "8083c95441c944f5ca6b77afb4e9032dce6789fbdbafde46e32020d8a3d98ba2",
+    "cognistore/jobs/runtime.py": "30087588434417cd3538405e06e937f3927e40fa2619408b5725150bd0dfc7a0",
+    "cognistore/jobs/nats_queue.py": "311638092a53cbfdbbf9a353a54b20f77a10f48f2e31bce542ec3853ac819356",
+    "cognistore/observability.py": "bc7e07ac2ffea1fdc6781f41f85e2672e58550a3b9b4a68ded297a5176e1d6e9",
+    "scripts/system_audit.py": "1d2016ab536a6b3c7313ad56f95f31fa82cb0586e135da62f280c6470118613f",
+    "scripts/audit/reproduce_known_mutations.py": "0f2c7214853c3bbf2707b86ec04ab60fb3c0963fd86e6391deb90405113b1145",
+    "release/audit-matrix.json": "fddd9a972a573f61416897e0cbcc12f176659d9b9c7137b7a16378d9d6c4c6ad",
+    "tests/unit/test_system_audit.py": "5688d00b7ae4ab6ae6fe90c96d39f3b00ac99f25d8a8a9af91237e53d78fa81c",
+    "tests/integration/test_api_scan_coordination.py": "1762461230102b0d01800199fdbe532c6142b9714fa7a25f4c8fafc96e769420",
+    "docs/system_audit.md": "2c2e2396363355be638928ef7a0f80beaf2b4a932d2213e8bb49407646d12ca8",
+    "docs/rest_api.md": "0855731a1c28d439b76d03b9039953ea98e2ec494391e3025766f5689475c946",
+    "docs/postgres_catalog.md": "e60df44c713c6ac78a23e446fa630c0a6a092a8ed7dd55d761d3f30800f5ecc1",
+    "docs/production_pilot.md": "d91283f25f1ca76fae3f3d1d2858f5dae1f24f942c92232b04d52a1d0f963ea7",
+    "release/pilot.json": "84c01b459b43b05b10f0f0fd9a50557ef85f91fbd69e11a5053dc44ad9873aab",
+    "pyproject.toml": "45d982c0a02a5cd71795ba6863e6f5f0cd4cb2d7cc8b43021da049f8cb1ce29d"
+  },
+  "tests": {
+    "full": {
+      "tests": 6071,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 315,
+      "passed": 5756,
+      "duration_seconds": 567.95,
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "pytest",
+        "-p",
+        "pytest_cov",
+        "-q",
+        "-o",
+        "addopts=",
+        "--import-mode=importlib",
+        "--cov=cognistore",
+        "--cov-report=term",
+        "--cov-report=xml:/tmp/cognistore-162-full/coverage.xml",
+        "--junitxml=/tmp/cognistore-162-full/tests.xml"
+      ],
+      "returncode": 0,
+      "external_service_configuration": "removed COGNISTORE_*; only local Helm and NATS chart restored",
+      "artifacts": {
+        "full-pytest.log.gz": "8c08cc93fe826b30e928ee712dc8599a7406ea0f5fa258d1ee872c02dbfcc133",
+        "full-tests.xml.gz": "e213310c39e3215d2444130e26fa995a3f570540ef894453df0542bd635a0532",
+        "full-coverage.xml.gz": "a2be1660bd236b93eea3ebc0b766bac4e310d6aac5089fe95fb1b1810304020f"
+      },
+      "combined_coverage_percent": 86.82,
+      "application_revision": "5b6a3c23e1fdf6ab930d1a93629f81ff5cb758a2",
+      "source_note": "Application sources unchanged throughout this run. Audit-runner XML hardening and two new tooling tests were added during the run and validated separately; this is not an exact final-commit full-suite claim."
+    },
+    "merge": {
+      "tests": 218,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 12,
+      "passed": 206,
+      "duration_seconds": 18.698,
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "addopts=",
+        "--import-mode=importlib",
+        "tests/unit/test_system_audit.py",
+        "tests/unit/test_worker_runtime.py",
+        "tests/unit/test_worker_authorization.py",
+        "tests/unit/test_worker_health.py",
+        "tests/unit/test_nats_queue.py",
+        "tests/unit/test_observability.py",
+        "tests/unit/test_api_object_mutations.py",
+        "tests/integration/test_api_scan_coordination.py",
+        "tests/integration/test_scanner_move_coordination.py",
+        "tests/unit/test_tenant_jobs.py",
+        "--junitxml=/tmp/cognistore-162-merge/tests.xml"
+      ],
+      "returncode": 0,
+      "artifacts": {
+        "merge-pytest.log.gz": "dc1cba0759628c08ee8ffa63081ef32902fbf2f67fa1de14a60e0020068b7ba9",
+        "merge-tests.xml.gz": "d39e676b3aa6d500b3178ce8f78397a17129098384bff80eb4fd0638cd58b3b5"
+      },
+      "tested_revision": "4293d2d7339d0058dc7fdc00b461d8a7d201e042"
+    },
+    "tooling": {
+      "tests": 31,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 31,
+      "duration_seconds": 2.921,
+      "command": "python -m pytest -q -o addopts= --import-mode=importlib tests/unit/test_system_audit.py --junitxml=/tmp/cognistore-162-tool-final.xml",
+      "artifact_sha256": "4b30b342f9f5200110dfe9d2f7bc5ec6c8135df53af0f77560a4df453261ab79"
+    },
+    "service-profile-initial": {
+      "result": {
+        "errors": 0,
+        "failures": 0,
+        "missing_test_files": [
+          "tests/integration/test_s3_minio.py"
+        ],
+        "passed": 0,
+        "skipped": 9,
+        "status": "failed",
+        "tests": 9,
+        "unexpected_cases": 1
+      },
+      "production_signoff": false,
+      "report": "service-profile-initial/report.json",
+      "pytest_exit_code": 0,
+      "cli_exit_code": 1,
+      "verification_exit_code": 0
+    },
+    "service-profile-final": {
+      "result": {
+        "errors": 0,
+        "failures": 0,
+        "missing_test_files": [],
+        "passed": 0,
+        "skipped": 10,
+        "status": "incomplete",
+        "tests": 10,
+        "unexpected_cases": 0
+      },
+      "production_signoff": false,
+      "report": "service-profile-final/report.json",
+      "pytest_exit_code": 0,
+      "cli_exit_code": 1,
+      "verification_exit_code": 0
+    }
+  },
+  "quality": "merge-quality.json",
+  "earlier_quality_and_artifact_checks": [
+    "final-quality.json",
+    "artifact-validation.json"
+  ],
+  "source_reviews": [
+    "security-review.md",
+    "mutation-review.md",
+    "scanner-fix-review.md",
+    "artifact-config-review.md",
+    "tool-review.md"
+  ],
+  "environment": {
+    "python": "3.12.2",
+    "system": "macOS14.8.7 arm64",
+    "dependency_inventory": "local-python-inventory.json",
+    "nats_chart_version": "2.14.6",
+    "nats_chart_sha256": "72f7412d6856a6c75c80d4aa4a1ed88c3846f5728fa8e0cc134a76da0febe3d9",
+    "helm_version": "v3.18.6+gb76a950",
+    "postgres": "See mutation-validation.json; disposable fixture removed."
+  },
+  "findings": {
+    "new_remediation_ticket": "https://github.com/melliott18/CogniStore/issues/175",
+    "remediation_commit": "30b175d",
+    "release_audit": "https://github.com/melliott18/CogniStore/issues/162",
+    "release_audit_signoff": false
+  },
+  "limitations": [
+    "No new frozen release image or registry digest; prior image remains unqualified with 69 unresolved reported findings.",
+    "No live Linux/ext4/native AWS S3/OIDC/proxy/TLS/network/secret rotation/checkpoint custody qualification.",
+    "Hosted CI skipped by standing user instruction; no passing hosted claim.",
+    "Full suite preceded integration of remote main; overlapping worker/queue/metrics/scanner scope was retested after integration.",
+    "Initial service-profile smoke conservatively misclassified a pytest collection skip as failed; corrected final profile is incomplete with ten skips.",
+    "A safeguard stopped the mutation agent; the blocked subtask was not retried. Exact error and preserved work are in README.md."
+  ],
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "production_qualified": false
+}

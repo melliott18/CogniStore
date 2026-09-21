@@ -1,0 +1,30 @@
+{
+  "expectation": "vulnerable",
+  "environment": {
+    "platform": "macOS-14.8.7-arm64-arm-64bit",
+    "python": "3.12.2",
+    "sqlite": "3.45.1",
+    "storage": "real temporary POSIX filesystem; no casefold emulation",
+    "case_insensitive": true
+  },
+  "156": {
+    "initial_put": 201,
+    "hold": 201,
+    "held_overwrite": 409,
+    "alias_put": 201,
+    "read_after_alias_put": 200,
+    "read_bytes_after_alias_put": "replaced",
+    "alias_delete": 204,
+    "final_get": 404
+  },
+  "157": {
+    "competing_put": 201,
+    "delete": [
+      204
+    ],
+    "final_get_before_retry": 404,
+    "catalog_present_before_retry": false,
+    "backend_bytes_before_retry": "replacement"
+  },
+  "assertions": "passed"
+}

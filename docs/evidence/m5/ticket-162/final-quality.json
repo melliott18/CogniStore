@@ -1,0 +1,90 @@
+[
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "returncode": 0,
+    "log": "final-ruff.log.gz",
+    "sha256": "7162964741fdb747d7ab27df2d1a1b64fa0636c4b7fe50ea8493de14cb62cbd4"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "returncode": 0,
+    "log": "final-mypy.log.gz",
+    "sha256": "433585f6399f0639aeb399466457e8901b30b992e3bdacea63c9457bae561836"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/system_audit.py",
+      "-ll",
+      "-ii"
+    ],
+    "returncode": 1,
+    "log": "final-bandit.log.gz",
+    "sha256": "2fa8dd2bc413f237436692321e0ffaa14fcfe45ee4c35cf0c613184917d474be"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/system_audit.py",
+      "-ll",
+      "-ii"
+    ],
+    "returncode": 0,
+    "log": "final-bandit-hardened.log.gz",
+    "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "build",
+      "--outdir",
+      "/tmp/cognistore-162-fixed-dist"
+    ],
+    "returncode": 0,
+    "log": "final-build-fixed.log.gz",
+    "sha256": "cc9eea4b02afc8960998520582e4292694dd2d7a7b5c9ec5d2b3e360cdb256f8"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "twine",
+      "check",
+      "/tmp/cognistore-162-fixed-dist/cognistore-0.1.1rc1-py3-none-any.whl",
+      "/tmp/cognistore-162-fixed-dist/cognistore-0.1.1rc1.tar.gz"
+    ],
+    "returncode": 0,
+    "log": "final-twine-fixed.log.gz",
+    "sha256": "fb3ee3144a4c033f6965efe504955cab34d4c3f94cf80a53dfbef977159ad67c",
+    "artifacts": {
+      "cognistore-0.1.1rc1-py3-none-any.whl": "2dc8f707339664e0bbc0fa29910a3b21adae2207c6878eec0fc43790230d3019",
+      "cognistore-0.1.1rc1.tar.gz": "2a58299be5dffead5cf5a31a2618643cf7b5f222137366be3e9daf9f1b9add3b"
+    }
+  }
+]
