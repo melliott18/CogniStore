@@ -76,7 +76,10 @@ The sanitized profile is a scope identity, not a deployable Helm values file.
 #161 supplies the rendered chart, drivers, authorization/tenant policy,
 encrypted mounts, service/issuer/resource identities and secret-version
 references. Hash the exact sanitized configuration used in qualification and
-bind restricted details through access-controlled references. A matching pilot
+bind restricted details through access-controlled references. The
+[staging preparation guide](staging.md) supplies those input templates, offline
+identity checks and the opt-in real-service smoke; its local tests do not
+establish deployment or qualification. A matching pilot
 profile cannot substitute for matching deployment configuration.
 
 ## Assembly and validation

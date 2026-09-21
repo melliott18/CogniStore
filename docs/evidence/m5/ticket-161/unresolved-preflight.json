@@ -1,0 +1,44 @@
+{
+  "checks": {
+    "environment.identity_and_bounds": false,
+    "image.candidate_link": false,
+    "input.authorization.json": false,
+    "input.drivers.yaml": false,
+    "input.environment.json": false,
+    "input.image-link.json": false,
+    "input.jetstream-dlq.json": true,
+    "input.jetstream-jobs.json": true,
+    "input.nats-values.yaml": false,
+    "input.resources.yaml": false,
+    "input.tenants.json": false,
+    "input.values.yaml": false,
+    "profile.valid_structure": false
+  },
+  "configuration_sha256": "b5336dda01e698f59625914b170926c030899717012e6c569b88fd0bbcc56af8",
+  "created_at": "2026-09-21T21:20:23.773259+00:00",
+  "deployment_performed": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "limitations": [
+    "Checks input consistency only; evidence references and registry provenance require review.",
+    "Does not validate arbitrary Helm overrides, rendered resources or live infrastructure.",
+    "No platform encryption, backup, network enforcement, OIDC, notification or spend verification.",
+    "Candidate release blockers, hosted gates and owner/pilot decisions remain independent."
+  ],
+  "production_qualified": false,
+  "schema_version": 1,
+  "scope": "offline-staging-input-contract",
+  "sha256": {
+    "authorization.json": "ce598b282f98da1f09f9a9bd3a578b3a76045fd9c3a4a42eaf3225efba28832d",
+    "candidate-manifest": "58e5083d0ecfac188bfc3ecc566b6b698d4a3122ba6d38d97badda3ceb1349e1",
+    "drivers.yaml": "c103de630f05d70aef276035f02a06aefce91eeb5ca1963709e32b42b8085f97",
+    "environment.json": "248b88e0bb356334309f1e68ffb7546cf851613840bf8086daf85f6fa56205fc",
+    "image-link.json": "236769bf6eb2d2e617bcc7344ca2eb5ba403780a4cb0fcfa0cb4769882c14142",
+    "jetstream-dlq.json": "134b3b7795de922228f34fd54e7b13829ae661212fbe4dcff2213c323b3bb7f0",
+    "jetstream-jobs.json": "b5036ad266aa5860dc75e352af79f9532d80ae784875e2afbec421d31491f563",
+    "nats-values.yaml": "90f9d43c23a784b0fc541ceab0ab98fa45345345292c7f3073eafddd8f540a28",
+    "resources.yaml": "8923f3a220ea154f013df79729e2d852a8dcba9b4655a22ac1ff86f4bb482207",
+    "tenants.json": "3d9d47a168fe261ec608cb7241da4867b1eddfa9daf66b066f1740b93b4c6ec9",
+    "values.yaml": "ea5b9ade6dfc36e99b183f8939648ab9478569812678189a66c841ef5623aca4"
+  },
+  "status": "incomplete"
+}

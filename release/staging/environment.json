@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "environment_id": "REPLACE_ENVIRONMENT_ID",
+  "aws_account_id": "REPLACE_AWS_ACCOUNT_ID",
+  "region": "us-east-1",
+  "cluster_arn": "REPLACE_CLUSTER_ARN",
+  "namespace": "cognistore-staging",
+  "data_classification": "synthetic-only",
+  "owners": {
+    "operations": "REPLACE_ACCEPTED_OWNER",
+    "security": "REPLACE_ACCEPTED_OWNER",
+    "recovery": "REPLACE_ACCEPTED_OWNER",
+    "cost": "REPLACE_ACCEPTED_OWNER"
+  },
+  "spend": {
+    "daily_limit_usd": null,
+    "total_limit_usd": null,
+    "expires_at": "REPLACE_EXPIRY_UTC"
+  },
+  "references": {
+    "specification_review": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "access_review": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "secret_versions": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "platform_encryption": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "backup_recovery": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "network_policy": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "oidc_proxy": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "telemetry": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE",
+    "alert_receipt": "REPLACE_RESTRICTED_EVIDENCE_REFERENCE"
+  }
+}

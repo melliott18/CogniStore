@@ -1,0 +1,14 @@
+# Native AWS S3; credentials come from the projected workload identity.
+# Both tiers use the same pre-created logical bucket, supplied by API operations.
+tiers:
+  hot:
+    driver: posix
+    path: /var/lib/cognistore/hot
+  warm:
+    driver: s3
+    region_name: us-east-1
+    server_side_encryption: aws:kms
+    kms_key_id: REPLACE_S3_KMS_KEY_ARN
+    auto_create_bucket: false
+    multipart_threshold: 8388608
+    chunk_size: 8388608

@@ -344,3 +344,10 @@ KEDA scaler errors point to monitoring endpoint reachability, TLS trust, or a
 wrong account/stream/consumer. Pending pods require capacity or storage-affinity
 investigation. A rollout blocked at migration requires catalog credentials,
 schema compatibility, and network access to be resolved before retrying.
+
+## Selected M5 staging profile
+
+The [isolated staging guide](staging.md) supplies the selected fixed-replica
+POSIX/S3 configuration, retained shared hot volume, restricted broker profile,
+offline input checks and authenticated synthetic smoke. Its unresolved inputs
+and local tests are deployment preparation, not a provisioned environment.

@@ -1,0 +1,117 @@
+{
+  "base_revision": "432bef2f05c52171c67b06d0d17ec0141e778bba",
+  "branch": "chore/161-isolated-staging",
+  "documentation_links": {
+    "broken": 0,
+    "local_targets_checked": 53
+  },
+  "environment_provisioned": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "docs/evidence/m5/README.md": "907b21748e1d0056abad0c10d93460acbae5d885bdcd74b30b19965d9785b72f",
+    "docs/evidence/m5/ticket-161/README.md": "dc20863954cf1dc66c09ab263219789092379e37e96c11bebbff7cbd7f89c8b3",
+    "docs/kubernetes.md": "2a81c9071d8c8dc40427979837526437feddde615be69154072257968f16acd9",
+    "docs/release_candidate.md": "596fa53a2539d272d9ae8218d69dec93acdcd0f83f4a69fd98918869bde33049",
+    "docs/staging.md": "afb3651673447e6720fc2bc263897b6b16997fe4ca683a0e0f4c3443f2047814",
+    "release/staging/authorization.json": "ce598b282f98da1f09f9a9bd3a578b3a76045fd9c3a4a42eaf3225efba28832d",
+    "release/staging/drivers.yaml": "c103de630f05d70aef276035f02a06aefce91eeb5ca1963709e32b42b8085f97",
+    "release/staging/environment.json": "248b88e0bb356334309f1e68ffb7546cf851613840bf8086daf85f6fa56205fc",
+    "release/staging/image-link.json": "236769bf6eb2d2e617bcc7344ca2eb5ba403780a4cb0fcfa0cb4769882c14142",
+    "release/staging/jetstream-dlq.json": "134b3b7795de922228f34fd54e7b13829ae661212fbe4dcff2213c323b3bb7f0",
+    "release/staging/jetstream-jobs.json": "b5036ad266aa5860dc75e352af79f9532d80ae784875e2afbec421d31491f563",
+    "release/staging/nats-values.yaml": "90f9d43c23a784b0fc541ceab0ab98fa45345345292c7f3073eafddd8f540a28",
+    "release/staging/nats.md": "d42ed466484e8072f9b411079c5fcfdfd2d8110c8bda129a51314534adf12b55",
+    "release/staging/resources.yaml": "8923f3a220ea154f013df79729e2d852a8dcba9b4655a22ac1ff86f4bb482207",
+    "release/staging/tenants.json": "3d9d47a168fe261ec608cb7241da4867b1eddfa9daf66b066f1740b93b4c6ec9",
+    "release/staging/values.yaml": "ea5b9ade6dfc36e99b183f8939648ab9478569812678189a66c841ef5623aca4",
+    "scripts/staging_preflight.py": "e862c622c56287541fe2e949e9205d6d22b80c7fd10dec0de99aeb7b36da3e79",
+    "scripts/staging_smoke.py": "b2b761ecad98292ed9a5fa0bed34288ec77f8f0fb81b8b0ba32453d53607085e",
+    "tests/unit/test_staging_broker.py": "1ecc3fa62e2e0fed469abeff1e73b5ee7689b6945b45d7dff03ab64c9be00106",
+    "tests/unit/test_staging_chart.py": "223ad71f073c8de6d7d6acdacee909b615d84cfe9d8973d63ccef458ca8b2080",
+    "tests/unit/test_staging_preflight.py": "ff3483a3a4daba64e91b08c2152622eafb9ba81ff72426c4bfdc03e9bf767cf5",
+    "tests/unit/test_staging_smoke.py": "c970aed76b4bb14653521e30fb6ec221cb43aa37ff28a8c8d07dff32642143c6"
+  },
+  "limitations": [
+    "No live AWS, cluster, database, object storage, broker, OIDC, proxy, network enforcement, encryption, backup or notification verification.",
+    "Image registry identity, target account/cluster, owner/spend acceptance and external credentials/configuration remain required inputs.",
+    "Smoke unit tests use synthetic HTTP transports; broker tests use real client methods with fake transport; Helm tests render locally.",
+    "Full product tests, package rebuild and dependency audit not repeated: application and dependency definitions unchanged.",
+    "Current ticket-160 development candidate remains unqualified; its security, registry and release evidence gaps are unchanged."
+  ],
+  "local_runtime": {
+    "helm_version": "v3.18.6+gb76a950",
+    "host_machine": "arm64",
+    "host_os": "Darwin",
+    "nats_chart_sha256": "72f7412d6856a6c75c80d4aa4a1ed88c3846f5728fa8e0cc134a76da0febe3d9",
+    "nats_chart_version": "2.14.6",
+    "python": "/tmp/cognistore-160-smoke-venv/bin/python",
+    "python_version": "3.12.2"
+  },
+  "negative_control": {
+    "actual_exit_code": 1,
+    "command": "/tmp/cognistore-160-smoke-venv/bin/python scripts/staging_preflight.py --configuration release/staging --candidate docs/evidence/m5/ticket-160/manifest.json --output docs/evidence/m5/ticket-161/unresolved-preflight.json",
+    "expected_exit_code": 1,
+    "result": "unresolved-template-inputs-rejected"
+  },
+  "production_qualified": false,
+  "quality": [
+    {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "scripts/staging_preflight.py",
+        "scripts/staging_smoke.py",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "recorded_at": "2026-09-21T21:21:29.905901+00:00",
+  "schema_version": 1,
+  "status": "local-preparation-validated-live-deployment-pending",
+  "tested_revision": "902066454d47283eb7a7e9276bb3ad300c64870c",
+  "tests": {
+    "command": "PATH=/tmp/cognistore-helm/darwin-arm64:$PATH HELM=/tmp/cognistore-helm/darwin-arm64/helm COGNISTORE_NATS_CHART=/tmp/nats-2.14.6.tgz /tmp/cognistore-160-smoke-venv/bin/python -m pytest tests/unit/test_staging_chart.py tests/unit/test_staging_broker.py tests/unit/test_staging_preflight.py tests/unit/test_staging_smoke.py tests/unit/test_helm_chart.py -q -o addopts='' --junitxml=docs/evidence/m5/ticket-161/tests.xml",
+    "duration_seconds": 8.377,
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "passed": 218,
+    "skipped": 0,
+    "tests": 218
+  }
+}
