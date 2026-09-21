@@ -1,0 +1,201 @@
+{
+  "environment": "local-loopback-8764",
+  "security_profile": "development",
+  "fixture": {
+    "created_at": "2026-09-21T21:59:47.240699+00:00",
+    "fixture_only": true,
+    "catalog": "SQLite",
+    "storage": "POSIX",
+    "tenants": [
+      "pilot-a",
+      "pilot-b"
+    ],
+    "roles": [
+      "reader",
+      "writer",
+      "operator",
+      "auditor",
+      "admin"
+    ],
+    "ask": "metadata-only",
+    "provider_inventory": {
+      "metadata": "CatalogMetadataRetriever",
+      "keyword_configured": false,
+      "vector_configured": false,
+      "answer_configured": false,
+      "policy_embedding_configured": false,
+      "outbound_model_evidence": "Construction inspection: every optional search/answer/embedding provider is None; there is no model-capable provider to call. This is not packet-capture evidence."
+    },
+    "queue": "not configured",
+    "identity": "in-process synthetic JWKS; RS256 verification",
+    "browser_session": "unauthenticated local subject selector; not an OIDC proxy",
+    "source_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+    "python": "3.12.2",
+    "platform": "macOS-14.8.7-arm64-arm-64bit"
+  },
+  "authorization": {
+    "bindings": [
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-reader",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-writer",
+        "roles": [
+          "writer"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-operator",
+        "roles": [
+          "operator"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-auditor",
+        "roles": [
+          "auditor"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-admin",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-reader",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-writer",
+        "roles": [
+          "writer"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-operator",
+        "roles": [
+          "operator"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-auditor",
+        "roles": [
+          "auditor"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-admin",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-revoked-tenant",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-revoked-tenant",
+        "roles": [
+          "reader"
+        ]
+      }
+    ]
+  },
+  "tenancy": {
+    "bindings": [
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-reader",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-writer",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-operator",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-auditor",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-admin",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-reader",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-writer",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-operator",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-auditor",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-admin",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-revoked-role",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-revoked-role",
+        "tenant_id": "pilot-b"
+      }
+    ]
+  },
+  "drivers": {
+    "hot": "private disposable POSIX hot root",
+    "warm": "separate private disposable POSIX warm root"
+  },
+  "application_source": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "helper_sha256": "c3c7d4bfbab755892296611cec8e9f0036ab2cf2ad5c852966a9123056f3d39e",
+  "server_identity_keys": "ephemeral synthetic RS256, excluded from retained evidence",
+  "cleanup": "owned loopback server stopped after final client exercise",
+  "candidate_image": null,
+  "earlier_browser_configuration": {
+    "path": "browser/configuration.json",
+    "sha256": "8007771dcb9406e2879786f262db228a89f9ffcc169a3c1bf436f295a51bebc4"
+  }
+}

@@ -1,0 +1,234 @@
+Browser tab: 1, Title: "CogniStore · Administration", URL: "http://127.0.0.1:8763/ui/admin/".
+1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/
+	2 link Description: Skip to administration, Value: 127.0.0.1:8763/ui/admin/#admin-content
+	3 container
+		4 link Description: CogniStore / Administration, Value: 127.0.0.1:8763/ui/
+		5 link Description: Content discovery ↗, Value: 127.0.0.1:8763/ui/
+	6 container
+		7 container Storage, with context.
+			8 text OPERATIONS CONSOLE
+			9 heading Storage, with context., Value: 1, ID: admin-title
+				10 text Storage, with context.
+			11 text Inspect health, preview changes, and follow the evidence.
+			12 container connect-form
+				13 container
+					14 text Access token  Kept in memory for this page only
+				15 text field (settable) Access token Kept in memory for this page only
+				16 button Connect
+				17 button Disconnect, ID: disconnect
+			18 text Connected. Views and actions reflect your current grants.
+			19 text Tenant: pilot-b · Actor: principal:sha256:1663331984268d3a40a0d98cba7044e6e9ef5a7cac769dad7315113a8b7f8609
+		20 container Description: Administration views, ID: admin-nav
+			21 button Audit & explanations
+		22 container Description: Operational workspace, ID: admin-content
+			23 heading Audit & explanations, Value: 2, ID: view-title
+				24 text Audit & explanations
+			25 button Refresh, ID: refresh-view
+			26 text Updated 2:42:03 PM · Tenant: pilot-b
+			27 container view-body
+				28 container
+					29 text Evidence
+					30 pop up button (collapsed, settable) Evidence, Value: Audit trail, ID: audit-source, Secondary Actions: Expand
+						31 menu
+							32 (selected) Audit trail
+							33 Placement explanations
+					34 text Bucket filter
+					35 text field (settable) Bucket filter, ID: audit-bucket
+					36 text Object key filter
+					37 text field (settable) Object key filter, ID: audit-key
+					38 text Job ID filter
+					39 text field (settable) Job ID filter, ID: audit-job
+					40 button Apply filters
+					41 button Verify audit integrity
+				42 table
+					43 row
+						44 cell
+							45 text Event
+						46 cell
+							47 text Outcome
+						48 cell
+							49 text Scope
+						50 cell
+							51 text Recorded
+						52 cell
+							53 text Evidence
+					54 row
+						55 cell
+							56 text authorization.decision
+						57 cell
+							58 text allowed
+						59 cell
+							60 text Tenant
+						61 cell
+							62 text 2026-09-21T21:42:03.853859Z
+						63 cell
+							64 button Inspect
+					65 row
+						66 cell
+							67 text authorization.decision
+						68 cell
+							69 text allowed
+						70 cell
+							71 text Tenant
+						72 cell
+							73 text 2026-09-21T21:42:03.849596Z
+						74 cell
+							75 button Inspect
+					76 row
+						77 cell
+							78 text authorization.decision
+						79 cell
+							80 text allowed
+						81 cell
+							82 text Tenant
+						83 cell
+							84 text 2026-09-21T21:42:03.841900Z
+						85 cell
+							86 button Inspect
+					87 row
+						88 cell
+							89 text authorization.decision
+						90 cell
+							91 text allowed
+						92 cell
+							93 text Tenant
+						94 cell
+							95 text 2026-09-21T21:42:03.837545Z
+						96 cell
+							97 button Inspect
+					98 row
+						99 cell
+							100 text authorization.decision
+						101 cell
+							102 text allowed
+						103 cell
+							104 text Tenant
+						105 cell
+							106 text 2026-09-21T21:42:03.830053Z
+						107 cell
+							108 button Inspect
+					109 row
+						110 cell
+							111 text authorization.decision
+						112 cell
+							113 text allowed
+						114 cell
+							115 text Tenant
+						116 cell
+							117 text 2026-09-21T21:42:03.824275Z
+						118 cell
+							119 button Inspect
+					120 row
+						121 cell
+							122 text authorization.decision
+						123 cell
+							124 text allowed
+						125 cell
+							126 text Tenant
+						127 cell
+							128 text 2026-09-21T21:39:24.144310Z
+						129 cell
+							130 button Inspect
+					131 row
+						132 cell
+							133 text authorization.decision
+						134 cell
+							135 text allowed
+						136 cell
+							137 text Tenant
+						138 cell
+							139 text 2026-09-21T21:39:24.134477Z
+						140 cell
+							141 button Inspect
+					142 row
+						143 cell
+							144 text storage.operation
+						145 cell
+							146 text succeeded
+						147 cell
+							148 text documents/no-sensitive-data.txt
+						149 cell
+							150 text 2026-09-21T21:39:24.100370Z
+						151 cell
+							152 button Inspect
+					153 row
+						154 cell
+							155 text storage.operation
+						156 cell
+							157 text started
+						158 cell
+							159 text documents/no-sensitive-data.txt
+						160 cell
+							161 text 2026-09-21T21:39:24.033934Z
+						162 cell
+							163 button Inspect
+					164 row
+						165 cell
+							166 text authorization.decision
+						167 cell
+							168 text allowed
+						169 cell
+							170 text Tenant
+						171 cell
+							172 text 2026-09-21T21:39:24.029396Z
+						173 cell
+							174 button Inspect
+					175 row
+						176 cell
+							177 text authorization.decision
+						178 cell
+							179 text allowed
+						180 cell
+							181 text Tenant
+						182 cell
+							183 text 2026-09-21T21:39:24.023055Z
+						184 cell
+							185 button Inspect
+					186 row
+						187 cell
+							188 text storage.operation
+						189 cell
+							190 text succeeded
+						191 cell
+							192 text documents/manual-report.txt
+						193 cell
+							194 text 2026-09-21T21:39:23.994594Z
+						195 cell
+							196 button Inspect
+					197 row
+						198 cell
+							199 text storage.operation
+						200 cell
+							201 text started
+						202 cell
+							203 text documents/manual-report.txt
+						204 cell
+							205 text 2026-09-21T21:39:23.488723Z
+						206 cell
+							207 button Inspect
+					208 row
+						209 cell
+							210 text authorization.decision
+						211 cell
+							212 text allowed
+						213 cell
+							214 text Tenant
+						215 cell
+							216 text 2026-09-21T21:39:23.484325Z
+						217 cell
+							218 button Inspect
+					219 row
+						220 cell
+							221 text authorization.decision
+						222 cell
+							223 text allowed
+						224 cell
+							225 text Tenant
+						226 cell
+							227 text 2026-09-21T21:39:23.478391Z
+						228 cell
+							229 button Inspect
+	230 container
+		231 text CogniStore · Authorized operations API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/

@@ -1,0 +1,54 @@
+Browser tab: 1, Title: "CogniStore · Discover", URL: "http://127.0.0.1:8763/ui/".
+1 AXWebArea CogniStore · Discover, URL: 127.0.0.1:8763/ui/
+	2 link Description: Skip to workspace, Value: 127.0.0.1:8763/ui/#workspace
+	3 container
+		4 link Description: CogniStore content discovery home, Value: 127.0.0.1:8763/ui/
+		5 text API online
+		6 link Description: Administration, Value: 127.0.0.1:8763/ui/admin/
+		7 link Description: API reference , Value: 127.0.0.1:8763/docs
+	8 container workspace
+		9 container Find the signal in your storage.
+			10 text CONTENT DISCOVERY
+			11 heading Find the signal in your storage., Value: 1, ID: page-title
+				12 text Find the signal in your storage.
+			55 text Search extracted document content with a ranked keyword or vector query.
+			14 tab group Workspace view
+				15 tab (selected, settable, boolean) Search, Value: 1, ID: search-tab
+				16 tab (selectable, settable, boolean) Ask, Value: 0, ID: ask-tab
+				17 tab (selectable, settable, boolean) Placement, Value: 0, ID: placements-tab
+			18 container Description: Search, ID: query-view
+				56 container Description: Search signal, ID: search-modes
+					57 text Search signal
+					58 container
+						59 radio button (settable, integer) Description: Keyword Exact terms · BM25, Value: 1
+						60 text Keyword Exact terms · BM25
+					61 container
+						62 radio button (settable, integer) Description: Vector Similar meaning · pgvector, Value: 0
+						63 text Vector Similar meaning · pgvector
+				64 text Search your content
+				28 text entry area (settable) Search your content, Value: manual-report, ID: query-text
+				29 button Search, ID: submit-query
+				30 text Results remain grounded in the current catalog and include source citations.
+				31 button (collapsed) Filters Narrow by location, type, identity, or metadata +, Secondary Actions: Expand
+					32 text Filters
+					33 text Narrow by location, type, identity, or metadata
+					34 text +
+		35 container Results, ID: search-results-panel
+			36 text RANKED EVIDENCE
+			37 heading Results, Value: 2, ID: results-heading
+				38 text Results
+			65 container result-summary
+				66 text 0 results
+				67 text metadata
+			54 container query-status
+				68 heading No matching content, Value: 3
+					69 text No matching content
+				70 text Try broader wording, remove a filter, or check the provider notice above.
+			71 container provider-notices
+				72 text Keyword provider degraded
+				73 text Keyword retrieval is not configured. Results use the providers that remain available.
+			43 content list Description: Ranked content results, ID: results-list
+	44 container
+		45 text CogniStore · Discovery and placement evidence API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Discover, URL: 127.0.0.1:8763/ui/

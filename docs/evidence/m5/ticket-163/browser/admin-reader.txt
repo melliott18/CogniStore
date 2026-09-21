@@ -1,0 +1,32 @@
+Browser tab: 1, Title: "CogniStore · Administration", URL: "http://127.0.0.1:8763/ui/admin/".
+1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/
+	2 link Description: Skip to administration, Value: 127.0.0.1:8763/ui/admin/#admin-content
+	3 container
+		4 link Description: CogniStore / Administration, Value: 127.0.0.1:8763/ui/
+		5 link Description: Content discovery ↗, Value: 127.0.0.1:8763/ui/
+	6 container
+		7 container Storage, with context.
+			8 text OPERATIONS CONSOLE
+			9 heading Storage, with context., Value: 1, ID: admin-title
+				10 text Storage, with context.
+			11 text Inspect health, preview changes, and follow the evidence.
+			12 container connect-form
+				13 container
+					14 text Access token  Kept in memory for this page only
+				15 text field (settable) Access token Kept in memory for this page only
+				16 button Connect
+				17 button Disconnect, ID: disconnect
+			18 text Connected. Views and actions reflect your current grants.
+			19 text Tenant: pilot-a · Actor: principal:sha256:316db44d29393c009a88f1d6c02ad196f63e615ad048c84a9234f61347ac59b3
+		20 container Description: Administration views, ID: admin-nav
+			21 button Jobs
+		22 container Description: Operational workspace, ID: admin-content
+			23 heading Jobs, Value: 2, ID: view-title
+				24 text Jobs
+			25 button Refresh, ID: refresh-view
+			26 text Updated 2:40:32 PM · Tenant: pilot-a
+			27 text No records found in this tenant and scope.
+	28 container
+		29 text CogniStore · Authorized operations API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/

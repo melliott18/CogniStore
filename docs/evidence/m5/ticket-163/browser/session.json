@@ -1,0 +1,109 @@
+{
+  "tester": "Codex through actual CUA browser interactions",
+  "date": "2026-09-21",
+  "browser": {
+    "name": "Codex In-app Browser",
+    "version": "Codex desktop 26.810.41047; embedded engine version not exposed",
+    "interaction": "actual-browser"
+  },
+  "environment": "http://127.0.0.1:8763; synthetic JWT session selector, SQLite, POSIX hot/warm; metadata-only Ask; queue not configured",
+  "source_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "production_qualified": false,
+  "steps": [
+    {
+      "inputs": "Select pilot-a-reader; Ask manual-report",
+      "expected": "Metadata citation, download link; missing provider diagnostics; no fabricated answer",
+      "actual": "One result documents/manual-report.txt, hot, 47 bytes; keyword/vector/generation not configured",
+      "evidence": [
+        "ask-metadata.txt",
+        "ask-citation-full.png"
+      ]
+    },
+    {
+      "inputs": "Both tenant readers: alternate manual-report and absent-163-needle three times each",
+      "expected": "Relevant metadata citation and explicit empty result",
+      "actual": "12 completed query observations retained; browser readiness awaited before checking",
+      "evidence": [
+        "repeated-ask.json",
+        "ask-empty.png",
+        "pilot-b-empty.png"
+      ]
+    },
+    {
+      "inputs": "Click Download cited object for pilot-a-reader",
+      "expected": "Download cited bytes",
+      "actual": "Link clicked in actual browser; no saved file path exposed. Full downloaded-file checksum not verified through browser; API/SDK checks are separate",
+      "evidence": [
+        "ask-metadata.txt"
+      ]
+    },
+    {
+      "inputs": "Keyword then Vector Search manual-report as pilot-a-reader",
+      "expected": "Unavailable provider notices and no provider-backed matches",
+      "actual": "Both show explicit provider-not-configured and No matching content",
+      "evidence": [
+        "search-keyword-unavailable.png",
+        "search-keyword-unavailable.txt",
+        "search-vector-unavailable.txt"
+      ]
+    },
+    {
+      "inputs": "Open admin as pilot-a-reader and pilot-b-auditor",
+      "expected": "Only granted views, correct tenant",
+      "actual": "Reader Jobs only; auditor Audit & explanations only",
+      "evidence": [
+        "admin-reader.png",
+        "admin-reader.txt",
+        "admin-auditor.txt"
+      ]
+    },
+    {
+      "inputs": "Admin Storage then preview documents/manual-report.txt with simple threshold1048576",
+      "expected": "Honest dependency state; preview distinct from execution",
+      "actual": "Catalog ready, queue not_configured, driver health unverified/encryption unattested; preview Dry run, no action executed, hot to hot",
+      "evidence": [
+        "admin-storage.txt",
+        "admin-preview.txt"
+      ]
+    },
+    {
+      "inputs": "Open policy submission dialog, cancel, reopen, type CONFIRM and submit",
+      "expected": "Tenant/bucket/prefix/payload visible; cancel no submission; absent queue visibly rejects",
+      "actual": "Dialog scopes pilot-a/documents/manual-report.txt; confirmed request reports queue not configured; no success claimed",
+      "evidence": [
+        "admin-confirmation.png",
+        "admin-confirmation.txt",
+        "admin-queue-error.png",
+        "admin-queue-error.txt"
+      ]
+    },
+    {
+      "inputs": "Admin audit verification then inspect Jobs",
+      "expected": "Retained failed action and honest integrity limits",
+      "actual": "job.submission_failed and job.queued/requested evidence; audit valid46 entries but unanchored; policy job failed attempt0 BackendUnavailableError",
+      "evidence": [
+        "admin-audit.txt",
+        "admin-failed-job.png",
+        "admin-failed-job.txt"
+      ]
+    },
+    {
+      "inputs": "Local session sign-out; Ask manual-report; open admin",
+      "expected": "Authentication error and cleared administration state",
+      "actual": "Query could not be completed; admin Access denied or expired; no privileged views",
+      "evidence": [
+        "ask-authentication-error.png",
+        "ask-authentication-error.txt",
+        "admin-signed-out.txt"
+      ]
+    }
+  ],
+  "limitations": [
+    "Agent-operated browser rehearsal, not human user/operator signoff.",
+    "Local session selection is a fixture, not OIDC or authenticated reverse-proxy qualification.",
+    "Browser download bytes not verified; no successful queued execution or registered repair browser workflow.",
+    "All role/tenant/repetition combinations in the full matrix were not completed.",
+    "Initial Chrome tab creation timed out; actual recorded interactions used Codex In-app Browser.",
+    "No live cloud resources, account/billing credentials, production services or model providers used."
+  ]
+}

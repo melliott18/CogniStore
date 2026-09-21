@@ -1,0 +1,41 @@
+[
+  {
+    "name": "ruff",
+    "command": [
+      "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "bandit",
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/manual_acceptance.py",
+      "scripts/manual_acceptance_local.py",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "whitespace",
+    "command": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0
+  }
+]

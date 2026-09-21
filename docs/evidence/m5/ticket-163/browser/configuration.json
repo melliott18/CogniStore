@@ -1,0 +1,189 @@
+{
+  "environment": "local-loopback-8763",
+  "security_profile": "development",
+  "fixture": {
+    "created_at": "2026-09-21T21:39:11.983695+00:00",
+    "fixture_only": true,
+    "catalog": "SQLite",
+    "storage": "POSIX",
+    "tenants": [
+      "pilot-a",
+      "pilot-b"
+    ],
+    "roles": [
+      "reader",
+      "writer",
+      "operator",
+      "auditor",
+      "admin"
+    ],
+    "ask": "metadata-only",
+    "queue": "not configured",
+    "identity": "in-process synthetic JWKS; RS256 verification",
+    "browser_session": "unauthenticated local subject selector; not an OIDC proxy",
+    "source_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+    "python": "3.12.2",
+    "platform": "macOS-14.8.7-arm64-arm-64bit"
+  },
+  "authorization": {
+    "bindings": [
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-reader",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-writer",
+        "roles": [
+          "writer"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-operator",
+        "roles": [
+          "operator"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-auditor",
+        "roles": [
+          "auditor"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-admin",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-reader",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-writer",
+        "roles": [
+          "writer"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-operator",
+        "roles": [
+          "operator"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-auditor",
+        "roles": [
+          "auditor"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-admin",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-revoked-tenant",
+        "roles": [
+          "reader"
+        ]
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-revoked-tenant",
+        "roles": [
+          "reader"
+        ]
+      }
+    ]
+  },
+  "tenancy": {
+    "bindings": [
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-reader",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-writer",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-operator",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-auditor",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-admin",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-reader",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-writer",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-operator",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-auditor",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-admin",
+        "tenant_id": "pilot-b"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-a-revoked-role",
+        "tenant_id": "pilot-a"
+      },
+      {
+        "issuer": "https://fixture-identity.example.test/manual-acceptance",
+        "subject": "pilot-b-revoked-role",
+        "tenant_id": "pilot-b"
+      }
+    ]
+  },
+  "drivers": {
+    "hot": "private disposable POSIX hot root",
+    "warm": "separate private disposable POSIX warm root"
+  },
+  "application_source": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "helper_sha256": "3049fbe13988d0f04fcb394edf4d3c0e4723883742eb8d55148cac36e1b066bd",
+  "server_identity_keys": "ephemeral synthetic RS256, excluded from retained evidence",
+  "cleanup": "owned loopback server stopped after browser and client exercises",
+  "candidate_image": null
+}

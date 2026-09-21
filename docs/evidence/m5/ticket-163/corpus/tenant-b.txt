@@ -1,0 +1,1 @@
+CogniStore synthetic tenant B distinct same-key payload.
