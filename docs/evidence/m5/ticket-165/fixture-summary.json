@@ -1,0 +1,26 @@
+{
+  "cohort": "nominal",
+  "counts": {
+    "failures": 3,
+    "http_error": 3,
+    "issued": 100,
+    "ok": 97,
+    "recorded": 100,
+    "successes": 97
+  },
+  "duration_seconds": 10.0,
+  "execution_scope": "synthetic-fixture",
+  "limitations": [
+    "No service requests were made; timings describe the fixture runner only.",
+    "A staging adapter, key-pool coordinator and campaign orchestration are required.",
+    "No background jobs, fault injection, integrity, telemetry or alert delivery proof."
+  ],
+  "max_outstanding_observed": 1,
+  "max_puts_observed": 1,
+  "offered": 100,
+  "offered_requests_per_second": 10,
+  "production_qualified": false,
+  "qualification_eligible": false,
+  "schema_version": 1,
+  "scope": "open-loop-workload-component"
+}

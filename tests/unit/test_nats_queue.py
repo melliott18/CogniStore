@@ -16,6 +16,7 @@ from nats.js.api import (
 )
 from nats.js.errors import APIError, NotFoundError
 
+from cognistore import observability
 from cognistore.cli.cognistore_cli import _enqueue_job
 from cognistore.jobs.models import (
     DEAD_LETTER_CHAIN_METADATA,
@@ -860,8 +861,14 @@ def test_enqueue_propagates_bounded_stream_saturation(
             description=reason,
         )
 
+        before = observability.REGISTRY.get_sample_value(
+            "cognistore_job_admission_rejections_total"
+        )
         with pytest.raises(QueueSaturatedError, match=reason) as raised:
             await queue.enqueue(JobEnvelope.create("test.saturated", {}))
+        assert observability.REGISTRY.get_sample_value(
+            "cognistore_job_admission_rejections_total"
+        ) == before + 1
         assert raised.value.retryable is True
         assert raised.value.stream == queue.config.stream
         await queue.close()
@@ -889,9 +896,15 @@ def test_enqueue_does_not_overmatch_stream_store_failure(
         )
         jetstream.publish_error = error
 
+        before = observability.REGISTRY.get_sample_value(
+            "cognistore_job_admission_rejections_total"
+        )
         with pytest.raises(APIError) as raised:
             await queue.enqueue(JobEnvelope.create("test.store-error", {}))
         assert raised.value is error
+        assert observability.REGISTRY.get_sample_value(
+            "cognistore_job_admission_rejections_total"
+        ) == before
         await queue.close()
 
     asyncio.run(scenario())

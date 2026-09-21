@@ -1,0 +1,30 @@
+{
+  "cohort": "nominal",
+  "counts": {
+    "failures": 3,
+    "http_error": 3,
+    "issued": 100,
+    "ok": 97,
+    "recorded": 100,
+    "successes": 97
+  },
+  "duration_seconds": 10.0,
+  "execution_scope": "synthetic-fixture",
+  "generator_source_sha256": "f37dc25fa1f1306ab98f833d57400f96d559d1a65a9c488081c5abbfea761444",
+  "limitations": [
+    "No service requests were made; timings describe the fixture runner only.",
+    "A staging adapter, key-pool coordinator and campaign orchestration are required.",
+    "No background jobs, fault injection, integrity, telemetry or alert delivery proof."
+  ],
+  "max_outstanding_observed": 1,
+  "max_puts_observed": 1,
+  "offered": 100,
+  "offered_requests_per_second": 10,
+  "production_qualified": false,
+  "qualification_eligible": false,
+  "schema_version": 1,
+  "scope": "open-loop-workload-component",
+  "seed": "m5-pilot-v1",
+  "seed_sha256": "766141eec312065bd02eaf38b9f17ddbe0f8bfdc57c163be6630e7d8c8b7d10c",
+  "started_at": "2026-09-21T21:51:06.579012+00:00"
+}

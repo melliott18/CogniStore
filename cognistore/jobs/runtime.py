@@ -42,6 +42,7 @@ from cognistore.observability import (
     record_job_event,
     record_job_queue_latency,
     request_context,
+    set_job_queue_byte_utilization,
     set_job_queue_depth,
 )
 
@@ -1358,6 +1359,10 @@ class AsyncWorker:
 
     def _record_probe(self, health: QueueHealth) -> None:
         self._last_health = health
+        set_job_queue_byte_utilization(
+            health.stored_bytes if health.ready else None,
+            health.max_bytes if health.ready else None,
+        )
         # Broker consumer statistics, rather than this process's active tasks,
         # account for backlog and all workers sharing the durable consumer.
         for state, value in (("pending", health.pending), ("in_flight", health.ack_pending)):

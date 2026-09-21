@@ -1,0 +1,166 @@
+{
+  "base_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "branch": "chore/165-load-capacity-qualification",
+  "build": {
+    "artifact_sha256": {
+      "cognistore-0.1.1rc1-py3-none-any.whl": "6b415fb8257fc46d9a4eb9f40a0658c5bc79082ccb2293ac037eb98a8636f131",
+      "cognistore-0.1.1rc1.tar.gz": "e4434652fe78bc4a2c2ae589d5a2a09f160b62af714cb72c0fbf2830e3e549bb"
+    },
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "build",
+      "--outdir",
+      "/tmp/cognistore-165-dist"
+    ],
+    "exit_code": 0,
+    "scope": "local source sdist/wheel; no release image or publication"
+  },
+  "corpus": {
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/load_corpus.py",
+      "--output",
+      "docs/evidence/m5/ticket-165/corpus-reduced",
+      "--objects",
+      "1000",
+      "--seed",
+      "m5-pilot-v1"
+    ],
+    "exit_code": 0,
+    "logical_bytes": 284262400,
+    "payloads_written": false
+  },
+  "environment_adjustments": [
+    "Original workspace Python has pre-existing native readline startup failure.",
+    "Initial collection in separate runtime lacked declared dev dependency openapi-spec-validator; installed >=0.7.2,<0.8 there, then final run passed.",
+    "Final run supplied local Helm/NATS archive paths, resolving the preliminary optional render skip."
+  ],
+  "evidence_sanitization": "JUnit hostname normalized to local-validation-host; no result/count changes.",
+  "fixture": {
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/load_workload.py",
+      "--run-synthetic-fixture",
+      "--cohort",
+      "nominal",
+      "--duration-seconds",
+      "10",
+      "--output",
+      "docs/evidence/m5/ticket-165/fixture-final.jsonl",
+      "--summary",
+      "docs/evidence/m5/ticket-165/fixture-final-summary.json"
+    ],
+    "exit_code": 0,
+    "scope": "synthetic-transport-no-service-requests"
+  },
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "cognistore/jobs/nats_queue.py": "311638092a53cbfdbbf9a353a54b20f77a10f48f2e31bce542ec3853ac819356",
+    "cognistore/jobs/runtime.py": "30087588434417cd3538405e06e937f3927e40fa2619408b5725150bd0dfc7a0",
+    "cognistore/observability.py": "bc7e07ac2ffea1fdc6781f41f85e2672e58550a3b9b4a68ded297a5176e1d6e9",
+    "docker/observability/rules/slo.yml": "b38976e27aa42387ee6c39c8d173dd1167fb1643cd6d73ac79156e95cb62f984",
+    "docs/evidence/m5/README.md": "848401e5a667704a1281f7b91e3d53a4efbb0bac67d10c4f25f2f5e295574eb7",
+    "docs/load_qualification.md": "2de144239f05259e7e52fd404ab7b34070ec9e78540693af3185d6b1ae0dcb65",
+    "docs/operational_slos.md": "584dfacd2ee74f7eaee7714843400520f1ff7f9522e3163917fc72ce53fd657e",
+    "docs/production_pilot.md": "d91283f25f1ca76fae3f3d1d2858f5dae1f24f942c92232b04d52a1d0f963ea7",
+    "release/load/campaign.example.json": "332b73762f2c37f128309eb9936f08946f7341c5683e1d859243afc959256145",
+    "release/load/profile.json": "6f302de703550d73268473f75c91282fe1aca6d27b80f46faed253c3f8016a74",
+    "scripts/load_corpus.py": "b80a6880d2633b6fbed2323af98e300749a654c8659c958ae7e29699df8eef2b",
+    "scripts/load_qualification.py": "27778b1126201202800fe69ddc75661e0ff057925d330c105b728b3be0fe091f",
+    "scripts/load_workload.py": "f37dc25fa1f1306ab98f833d57400f96d559d1a65a9c488081c5abbfea761444",
+    "tests/observability/slo_rules.test.yml": "3ecf43b02cf9a0b164c3d329a0dc51d3c8fed26c6869b6247a3c92bc8e1f323d",
+    "tests/unit/test_load_corpus.py": "c5a6e725a2a8606307d9343b7a4a832eeafd86b9e9cc64e0db46962a6b94d6c0",
+    "tests/unit/test_load_qualification.py": "22df4a6842510be5ac877f02960545566d3486d624d858773ffe564ffcc15ae9",
+    "tests/unit/test_load_workload.py": "5c9f84b801be77507c79241b3837141935bfc249899e9ad7bab719b8d0607970",
+    "tests/unit/test_nats_queue.py": "bc7f6ed672b16893767544a247738211a881e3219e45f2b9e059e26e4d84b972",
+    "tests/unit/test_observability.py": "ba45a3afc3813ff2d02d63de2ba1b1d15c472b995e7e5013bcf7e05eeb1695de",
+    "tests/unit/test_worker_health.py": "bbfc944fd9294be27685e29633ba8ef9ec62db9f8799894ed214bfe02b23476b"
+  },
+  "limitations": [
+    "No accepted specification/owner, qualified candidate, deployment handoff or live environment supplied.",
+    "Real staging adapter, mutation key pool, background/fault orchestrator and stop enforcement remain to be integrated.",
+    "No 72-hour soak, burst recovery, doubled-capacity, real notifications or measured cost/scaling evidence.",
+    "Private oldest-pending-age and tenant producer-rejection collectors remain deployment requirements.",
+    "Local parser tests do not establish native Linux libmagic/extraction behavior.",
+    "Full product suite, coverage campaign, live broker/cloud integration and dependency audit not rerun; dependency definitions unchanged.",
+    "Existing #160 candidate security/release findings and hosted qualification gaps are not resolved by this work."
+  ],
+  "local_runtime": {
+    "machine": "arm64",
+    "platform": "Darwin",
+    "python": "/private/tmp/cognistore-160-smoke-venv/bin/python",
+    "version": "3.12.2"
+  },
+  "local_tests": {
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/unit/test_load_corpus.py",
+      "tests/unit/test_load_workload.py",
+      "tests/unit/test_load_qualification.py",
+      "tests/unit/test_observability.py",
+      "tests/unit/test_api_observability.py",
+      "tests/unit/test_nats_queue.py",
+      "tests/unit/test_worker_health.py",
+      "tests/unit/test_worker_runtime.py",
+      "tests/unit/test_worker_authorization.py",
+      "tests/unit/test_job_retry.py",
+      "tests/unit/test_job_handlers.py",
+      "tests/unit/test_slo.py",
+      "tests/unit/test_indexing_slo.py",
+      "tests/unit/test_alert_runbooks.py",
+      "tests/unit/test_staging_broker.py",
+      "tests/unit/test_staging_preflight.py",
+      "tests/unit/test_tenant_jobs.py",
+      "tests/unit/test_tenant_namespace_api.py",
+      "tests/unit/test_legal_holds_api.py",
+      "tests/integration/test_tenant_api.py",
+      "-q",
+      "-o",
+      "addopts=",
+      "--junitxml=docs/evidence/m5/ticket-165/tests.xml"
+    ],
+    "duration_seconds": 39.363,
+    "environment": {
+      "COGNISTORE_NATS_CHART": "/tmp/nats-2.14.6.tgz",
+      "HELM": "/tmp/cognistore-helm/darwin-arm64/helm"
+    },
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "passed": 584,
+    "skipped": 0,
+    "tests": 584
+  },
+  "negative_control": {
+    "actual_exit_code": 1,
+    "command": [
+      "/private/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/load_qualification.py",
+      "--input",
+      "docs/evidence/m5/ticket-165/unresolved-inputs",
+      "--output",
+      "docs/evidence/m5/ticket-165/unresolved-evaluation.json"
+    ],
+    "expected_exit_code": 1,
+    "scope": "unresolved-template-rejection"
+  },
+  "production_qualified": false,
+  "prometheus": {
+    "command": [
+      "bash",
+      "docker/observability/verify.sh"
+    ],
+    "exit_code": 0,
+    "real_notification_delivery": "not-executed",
+    "rules_valid": 55,
+    "synthetic_rule_tests": "passed"
+  },
+  "quality": "quality.json",
+  "recorded_at": "2026-09-21T21:53:25.621314+00:00",
+  "schema_version": 1,
+  "status": "local-components-validated-live-qualification-pending",
+  "tested_revision": "3f43a278865ccf887a36802e3a9e965f6aa5027f"
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "execution_scope": "pending-staging",
+  "profile_sha256": "REPLACE_WITH_SHA256_OF_RELEASE_LOAD_PROFILE_JSON",
+  "bindings": {
+    "source_revision": "REPLACE_WITH_CANDIDATE_SOURCE_SHA",
+    "image_digest": "REPLACE_WITH_REGISTRY_MANIFEST_DIGEST",
+    "configuration_sha256": "REPLACE_WITH_RENDERED_CONFIGURATION_SHA256",
+    "specification_sha256": "REPLACE_WITH_ACCEPTED_SPECIFICATION_SHA256",
+    "dependency_manifest_sha256": "REPLACE_WITH_DEPENDENCY_MANIFEST_SHA256",
+    "corpus_manifest_sha256": "REPLACE_WITH_CORPUS_MANIFEST_SHA256",
+    "environment_id": "REPLACE_WITH_PUBLIC_ENVIRONMENT_ID"
+  },
+  "phases": {
+    "nominal": {"started_at": "REPLACE_WITH_ACTUAL_UTC_START", "duration_seconds": 259200, "warmup_seconds": 1800, "object_count": 100000},
+    "burst": {"started_at": "REPLACE_WITH_ACTUAL_UTC_START", "duration_seconds": 900, "warmup_seconds": 0, "object_count": 100000},
+    "capacity": {"started_at": "REPLACE_WITH_ACTUAL_UTC_START", "duration_seconds": 7200, "warmup_seconds": 1800, "object_count": 200000}
+  }
+}
