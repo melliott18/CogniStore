@@ -1,0 +1,91 @@
+{
+  "checks": {
+    "bandit": {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "bandit",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-09-21T21:36:34.892797+00:00",
+      "log": "artifact-bandit.log.gz",
+      "log_sha256": "2b7fbfe179b0663d9804248839b393b4f4533ef4137482ff804bfacbce655538",
+      "started_at": "2026-09-21T21:36:31.419726+00:00"
+    },
+    "build": {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "build",
+        "--outdir",
+        "/tmp/cognistore-162-review-dist"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-09-21T21:36:34.677677+00:00",
+      "log": "artifact-build.log.gz",
+      "log_sha256": "9afe9c67a4f27d10e14ecf578315fe4e13c9a12d0ea72c0f1e6866115464f1b5",
+      "started_at": "2026-09-21T21:36:31.422290+00:00"
+    },
+    "pip-audit": {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "pip_audit",
+        ".",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-09-21T21:36:39.956751+00:00",
+      "log": "artifact-pip-audit.log.gz",
+      "log_sha256": "047f347e13110f61b62cce8b89c4ef502d5378c5f5bfe7fefda65226bafdc700",
+      "started_at": "2026-09-21T21:36:31.421274+00:00"
+    },
+    "pip-check": {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-09-21T21:36:31.825546+00:00",
+      "log": "artifact-pip-check.log.gz",
+      "log_sha256": "3e4cf6952f32777a9582d83c1b1b06b347528ca765022b6c97f049c340fd32d7",
+      "started_at": "2026-09-21T21:36:31.422817+00:00"
+    },
+    "twine": {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "twine",
+        "check",
+        "/tmp/cognistore-162-review-dist/cognistore-0.1.1rc1-py3-none-any.whl",
+        "/tmp/cognistore-162-review-dist/cognistore-0.1.1rc1.tar.gz"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-09-21T21:36:40.343147+00:00",
+      "log": "artifact-twine.log.gz",
+      "log_sha256": "a169a007800506e7cfaf2ec42f2bd8b0f1a04c1878345e7733f0a2838fe2197a",
+      "started_at": "2026-09-21T21:36:39.957306+00:00"
+    }
+  },
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "platform": "macOS-14.8.7-arm64-arm-64bit",
+  "python": "3.12.7",
+  "scope": "local macOS source checkout; independently resolved build/dependencies; not frozen Linux candidate qualification",
+  "source_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "tools": {
+    "bandit": "1.9.4",
+    "build": "1.5.0",
+    "pip": "25.2",
+    "pip-audit": "2.10.1",
+    "twine": "7.0.0"
+  }
+}
