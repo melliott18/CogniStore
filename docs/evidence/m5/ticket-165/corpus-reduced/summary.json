@@ -1,0 +1,100 @@
+{
+  "document_padding": "valid PDF whitespace and DOCX XML comments; tiny extracted text",
+  "generator_source_sha256": "b80a6880d2633b6fbed2323af98e300749a654c8659c958ae7e29699df8eef2b",
+  "generator_version": "m5-corpus-v1",
+  "joint_histogram": {
+    "1048576": {
+      "application/octet-stream": 72,
+      "application/pdf": 9,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 9
+    },
+    "16777216": {
+      "application/octet-stream": 8,
+      "application/pdf": 1,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 1
+    },
+    "4096": {
+      "application/octet-stream": 480,
+      "application/pdf": 60,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 60
+    },
+    "65536": {
+      "application/octet-stream": 240,
+      "application/pdf": 30,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 30
+    }
+  },
+  "logical_payload_bytes": 284262400,
+  "manifest_sha256": "70ff8bbb81ccf59c276bdad4809b33b239969b8a579e58c6000e7f9c421f8dbb",
+  "mime_histogram": {
+    "application/octet-stream": 800,
+    "application/pdf": 100,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 100
+  },
+  "object_count": 1000,
+  "payloads_written": false,
+  "qualification_status": "input-generation-only; no deployment qualification performed",
+  "seed": "m5-pilot-v1",
+  "seed_sha256": "766141eec312065bd02eaf38b9f17ddbe0f8bfdc57c163be6630e7d8c8b7d10c",
+  "size_histogram": {
+    "1048576": 90,
+    "16777216": 10,
+    "4096": 600,
+    "65536": 300
+  },
+  "specification": "m5-pilot-v1",
+  "tenant_joint_histograms": {
+    "pilot-a": {
+      "1048576": {
+        "application/octet-stream": 36,
+        "application/pdf": 5,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 4
+      },
+      "16777216": {
+        "application/octet-stream": 4,
+        "application/pdf": 0,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 1
+      },
+      "4096": {
+        "application/octet-stream": 240,
+        "application/pdf": 30,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 30
+      },
+      "65536": {
+        "application/octet-stream": 120,
+        "application/pdf": 15,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 15
+      }
+    },
+    "pilot-b": {
+      "1048576": {
+        "application/octet-stream": 36,
+        "application/pdf": 4,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 5
+      },
+      "16777216": {
+        "application/octet-stream": 4,
+        "application/pdf": 1,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 0
+      },
+      "4096": {
+        "application/octet-stream": 240,
+        "application/pdf": 30,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 30
+      },
+      "65536": {
+        "application/octet-stream": 120,
+        "application/pdf": 15,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 15
+      }
+    }
+  },
+  "tenant_logical_bytes": {
+    "pilot-a": 142131200,
+    "pilot-b": 142131200
+  },
+  "tenant_object_counts": {
+    "pilot-a": 500,
+    "pilot-b": 500
+  }
+}

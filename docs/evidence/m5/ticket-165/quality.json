@@ -1,0 +1,68 @@
+[
+  {
+    "command": [
+      "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0,
+    "log": "quality-0.log.gz"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "exit_code": 0,
+    "log": "quality-1.log.gz"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "bandit",
+      "-q",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "scripts/load_corpus.py",
+      "scripts/load_workload.py",
+      "scripts/load_qualification.py",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0,
+    "log": "quality-2.log.gz"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "log": "quality-3.log.gz"
+  },
+  {
+    "command": [
+      "/tmp/cognistore-73-validation/bin/python",
+      "-m",
+      "twine",
+      "check",
+      "/tmp/cognistore-165-dist/cognistore-0.1.1rc1-py3-none-any.whl",
+      "/tmp/cognistore-165-dist/cognistore-0.1.1rc1.tar.gz"
+    ],
+    "exit_code": 0,
+    "log": "quality-4.log.gz"
+  },
+  {
+    "check": "local_documentation_targets",
+    "checked": 35,
+    "missing": []
+  }
+]
