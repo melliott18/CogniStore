@@ -63,3 +63,19 @@ shasum -a 256 -c SHA256SUMS
 Hosted CI: `skipped: user instruction; known GitHub billing/spending restriction`.
 Suspended hosted checks remain an explicit release-qualification gap. No hosted
 workflow was dispatched, rerun, watched or polled.
+
+## Integration validation after concurrent merges
+
+After #163/#165 reached main at `36430dcdc35120cc793ffce811da7570d7a2535b`,
+the #164 branch was rebased and the shared evidence-index conflict was resolved
+by retaining all three tickets' entries. The #164 implementation and tests
+were unchanged. The incoming queue/worker metrics changes justified a fresh
+recovery regression run plus observability and worker-health tests.
+
+On revision `d39a23da884fd631950220dcfe01073bcdc58a10`, **455 tests passed with
+zero failures or skips**, and repository Ruff, mypy and Bandit passed.
+[merge-validation.json](merge-validation.json), [test log](merge-tests.log.gz),
+[JUnit report](merge-tests.xml.gz), and [static checks](merge-quality.json)
+retain the commands and results. The original 425-test record remains the
+historical pre-integration result; its evidence-index and README hashes refer
+to that earlier snapshot. Both records retain the same live qualification gaps.
