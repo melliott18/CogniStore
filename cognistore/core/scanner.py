@@ -17,6 +17,7 @@ from .catalog import CatalogStore
 from .content_identity import ContentSizeMismatchError
 from .indexer import Indexer
 from .legal_holds import LegalHoldError
+from .object_mutation_lock import ObjectMutationConflictError
 from .pii import PIIDetectionPipeline
 
 _MAX_MIME_SAMPLE_BYTES = 1024 * 1024
@@ -180,17 +181,20 @@ def _scan_catalog(
     active_pii_pipeline = pii_pipeline or PIIDetectionPipeline(detectors=())
     results: list[ScanResult] = []
     for key in driver.list_objects(bucket, prefix=prefix):
-        # A cleanup must not delete a generation between the final backend
-        # check and publication of its content references. Hold the shared
-        # lifecycle fence for the entire observation, before reading bytes.
+        # Cleanup and API mutations must not retire a generation between the
+        # final backend check and publication of its content references. Keep
+        # hold/lifecycle protection outside the same per-key fence used by API
+        # PUT/DELETE, and retain both through catalog publication.
         protection: AbstractContextManager[None] = nullcontext()
+        mutation: AbstractContextManager[None] = nullcontext()
         if not dry_run:
             assert catalog is not None
             protection = catalog.destructive_operation(
                 bucket, key, operation="catalog.scan_observation",
             )
+            mutation = catalog.object_mutation(bucket, key)
         try:
-            with protection:
+            with protection, mutation:
                 if dry_run:
                     fence = None
                 else:
@@ -281,6 +285,8 @@ def _scan_catalog(
                 if not published:
                     continue
                 results.append(ScanResult(tier=tier, bucket=bucket, key=key, size=size))
-        except LegalHoldError:
+        except (LegalHoldError, ObjectMutationConflictError):
+            # A held or busy key has no authoritative observation this pass.
+            # A later scan can revisit it after the competing work settles.
             continue
     return results
