@@ -21,7 +21,15 @@ cognistore-api --host 127.0.0.1 --port 8080
 The standalone process builds metadata-only Ask retrieval. Deployments that
 configure Tantivy, pgvector, or answer generation should construct
 `CogniStoreGateway` with a fully assembled `AskService` and pass it to
-`create_app`. Configure JWT/OIDC authentication with
+`create_app`. The [first production pilot](production_pilot.md) explicitly
+selects the standalone metadata-only composition. It configures no keyword,
+vector, embedding or answer provider, omits the root `embedding` block, and
+expects unavailable-provider diagnostics and no generated answer. Installing
+pgvector or an extra does not activate production retrieval. Enabling those
+providers changes the scope and requires
+[candidate requalification](release_candidate.md#change-control).
+
+Configure JWT/OIDC authentication with
 `COGNISTORE_AUTH_ISSUER` and `COGNISTORE_AUTH_AUDIENCE`, or pass
 `authentication=JWTAuthConfig(...)` to `create_app`. Every `/v1` request then
 requires a valid bearer access token before request body handling. Set

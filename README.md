@@ -11,6 +11,13 @@ TLS and persistent volumes require current encryption attestations. Follow the
 [encryption deployment and recovery guide](docs/encryption.md) before deploying.
 The local Docker stack explicitly selects the isolated `development` profile.
 
+The [first production pilot](docs/production_pilot.md) selects metadata-only
+Ask, POSIX/S3 storage and no keyword/vector/embedding/answer providers. Its
+owner acceptance and hosted qualification are pending. Use the
+[release candidate guide](docs/release_candidate.md) to freeze and reuse exact
+package, dependency, image and configuration identities; this is not approval
+to deploy or enable customer traffic.
+
 Start with the [operator handbook](docs/operator_handbook.md) for a tested
 clean-install walkthrough, upgrade/rollback and backup/restore procedures,
 incident and security runbooks, migration guides, and supported reference
@@ -160,6 +167,11 @@ The service exposes physical objects, bounded catalog pages, grounded Ask,
 policy evaluation, queued scans and policy runs, and durable job polling under
 `/v1`. See the [REST API reference](docs/rest_api.md) and the checked
 [OpenAPI 3.1 contract](docs/openapi/v1.json).
+
+The standalone API's Ask results use catalog metadata. Full keyword/vector
+retrieval and generated answers require an explicitly assembled `AskService`;
+they are excluded from the selected pilot. Missing providers remain visible
+in diagnostics, and no generated answer is expected.
 
 The local development example permits anonymous requests. Set `COGNISTORE_AUTH_ISSUER`
 and `COGNISTORE_AUTH_AUDIENCE` to require JWT access tokens on every `/v1`

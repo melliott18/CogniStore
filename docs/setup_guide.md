@@ -19,10 +19,19 @@ defaults to `production` outside this stack; see the
 deployment attestations. Changing local passwords alone does not turn this
 Compose stack into a production deployment.
 
-Base images are digest-pinned. Python dependency versions are resolved from
-the bounds in `pyproject.toml` at build time, so identical source is not yet a
-byte-for-byte reproducible dependency build. Rebuild and rerun the integration
-suite when evaluating a later dependency resolution.
+Base images are digest-pinned. This development stack resolves Python
+dependency versions from the bounds in `pyproject.toml` at build time. Rebuild
+and rerun the integration suite when evaluating a later dependency resolution.
+For the selected production pilot, use the separate
+[release candidate assembly and reuse procedure](release_candidate.md), which
+retains the wheel, hash-locked binary dependencies, built image and inventories.
+Do not rebuild this Compose stack and treat it as the same frozen candidate.
+
+The first [pilot](production_pilot.md) selects metadata-only Ask with no
+keyword/vector/embedding/answer providers; no Azure/embedding extras or GCS
+spooling are selected. Its ownership and hosted qualification gates remain
+open. The content-search sample below uses a different provider composition
+and does not qualify production semantic search.
 
 ## Prerequisites
 
