@@ -1,5 +1,9 @@
 # Audit event coverage
 
+The [M5 system audit](system_audit.md) adds a versioned trust-boundary and
+mutation matrix, reproducible local campaign and candidate/staging signoff
+requirements. This page maps emitted events; it does not grant system signoff.
+
 This matrix defines the security and lifecycle evidence required at CogniStore's
 application boundaries. All catalog events use the operation's correlation ID,
 a trusted actor, and the bound tenant's audit chain. Job and move events also
