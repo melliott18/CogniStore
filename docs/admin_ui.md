@@ -6,6 +6,9 @@ and repair eligible incomplete moves. The packaged interface requires no
 separate frontend service or JavaScript build. Content search remains at
 `/ui/`.
 
+Use the [manual acceptance matrix](manual_acceptance.md) for repeatable browser,
+role, tenant, confirmation, job and audit checks with retained evidence.
+
 ## Connect and establish scope
 
 Configure [JWT authentication](authentication.md),

@@ -324,7 +324,7 @@ tests:
   interval: 15s
   input_series:
   - series: cognistore_job_queue_depth{state="pending"}
-    values: 10001x80 0x80
+    values: 5000x80 0x80
   - series: up{job="cognistore-worker"}
     values: 0x80 1x80
   - series: up{job="cognistore-api"}
@@ -346,8 +346,8 @@ tests:
     - exp_labels:
         severity: warning
       exp_annotations:
-        summary: CogniStore pending queue exceeds 10,000 jobs.
-        description: Shared broker backlog has remained above the operating threshold for 10 minutes.
+        summary: CogniStore pending queue has reached 5,000 jobs.
+        description: Shared broker backlog has remained at or above half of the 10,000-message cap for 2 minutes.
         runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
   - eval_time: 40m
     alertname: CogniStoreQueueCapacity
@@ -636,9 +636,9 @@ tests:
   interval: 15s
   input_series:
   - series: cognistore_job_queue_depth{state="pending",instance="worker-1"}
-    values: 6000x80
+    values: 4000x80
   - series: cognistore_job_queue_depth{state="pending",instance="worker-2"}
-    values: 6000x80
+    values: 4000x80
   alert_rule_test:
   - eval_time: 20m
     alertname: CogniStoreQueueCapacity
@@ -648,7 +648,7 @@ tests:
     eval_time: 20m
     exp_samples:
     - labels: cognistore:queue_pending
-      value: 6000
+      value: 4000
 - name: Unknown budget accounting on one API replica cannot be hidden by another finite ratio
   interval: 15s
   input_series:
@@ -706,4 +706,221 @@ tests:
     exp_alerts: []
   - eval_time: 10m
     alertname: CogniStorePolicyBudgetCritical
+    exp_alerts: []
+
+- name: Pending warning fires at exactly half-cap after two minutes and clears below it
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 4999x7 5000x9 4999x4
+  alert_rule_test:
+  - eval_time: 1m45s
+    alertname: CogniStoreQueueCapacity
+    exp_alerts: []
+  - eval_time: 3m45s
+    alertname: CogniStoreQueueCapacity
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: CogniStoreQueueCapacity
+    exp_alerts:
+    - exp_labels: &id001
+        severity: warning
+      exp_annotations: &id002
+        summary: CogniStore pending queue has reached 5,000 jobs.
+        description: Shared broker backlog has remained at or above half of the 10,000-message cap for 2 minutes.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 4m30s
+    alertname: CogniStoreQueueCapacity
+    exp_alerts: []
+- name: Pending admission stop fires at exactly 8000 without delay and clears below it
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 7999x3 8000x3 7999x4
+  alert_rule_test:
+  - eval_time: 45s
+    alertname: CogniStoreQueueAdmissionStop
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: CogniStoreQueueAdmissionStop
+    exp_alerts:
+    - exp_labels: &id003
+        severity: critical
+      exp_annotations: &id004
+        summary: CogniStore queue requires an admission stop.
+        description: Shared broker backlog has reached 8,000 pending jobs; stop new submissions and preserve recovery headroom.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 2m
+    alertname: CogniStoreQueueAdmissionStop
+    exp_alerts: []
+- name: Byte warning can fire while message backlog is low
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_byte_utilization_ratio
+    values: 0.499x7 0.5x9 0.499x4
+  alert_rule_test:
+  - eval_time: 1m45s
+    alertname: CogniStoreQueueByteCapacity
+    exp_alerts: []
+  - eval_time: 3m45s
+    alertname: CogniStoreQueueByteCapacity
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: CogniStoreQueueByteCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: CogniStore queue has consumed half of its byte capacity.
+        description: Main-stream stored bytes have remained at or above 50% of the configured byte cap for 2 minutes.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 4m30s
+    alertname: CogniStoreQueueByteCapacity
+    exp_alerts: []
+- name: Byte admission stop fires at exactly 80 percent and clears below it
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_byte_utilization_ratio
+    values: 0.799x3 0.8x3 0.799x4
+  alert_rule_test:
+  - eval_time: 45s
+    alertname: CogniStoreQueueByteAdmissionStop
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: CogniStoreQueueByteAdmissionStop
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+      exp_annotations:
+        summary: CogniStore queue byte capacity requires an admission stop.
+        description: Main-stream stored bytes have reached 80% of the configured byte cap; stop new submissions and preserve
+          recovery headroom.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 2m
+    alertname: CogniStoreQueueByteAdmissionStop
+    exp_alerts: []
+- name: Oldest pending age is strict and requires five continuous minutes
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_oldest_pending_age_seconds
+    values: 300x3 301x24 300x4
+  alert_rule_test:
+  - eval_time: 45s
+    alertname: CogniStoreQueueOldestPendingAge
+    exp_alerts: []
+  - eval_time: 5m45s
+    alertname: CogniStoreQueueOldestPendingAge
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: CogniStoreQueueOldestPendingAge
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+      exp_annotations:
+        summary: CogniStore oldest pending job requires an admission stop.
+        description: Oldest pending message age has exceeded 300 seconds for 5 minutes; stop new submissions and investigate
+          queue progress.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 7m15s
+    alertname: CogniStoreQueueOldestPendingAge
+    exp_alerts: []
+- name: A single confirmed admission rejection fires on the next evaluation then clears
+  interval: 15s
+  input_series:
+  - series: cognistore_job_admission_rejections_total{instance="producer-1"}
+    values: 0 1x24
+  alert_rule_test:
+  - eval_time: 0s
+    alertname: CogniStoreQueueAdmissionRejected
+    exp_alerts: []
+  - eval_time: 15s
+    alertname: CogniStoreQueueAdmissionRejected
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+      exp_annotations:
+        summary: CogniStore broker rejected a job admission.
+        description: A main-stream publication was explicitly rejected by message or byte capacity; reconcile the submission
+          before retrying.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#queue-capacity
+  - eval_time: 5m15s
+    alertname: CogniStoreQueueAdmissionRejected
+    exp_alerts: []
+- name: Counter resets alone are not admission rejections
+  interval: 15s
+  input_series:
+  - series: cognistore_job_admission_rejections_total{instance="producer-1"}
+    values: 10x19 0x20
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: CogniStoreQueueAdmissionRejected
+    exp_alerts: []
+  - eval_time: 9m45s
+    alertname: CogniStoreQueueAdmissionRejected
+    exp_alerts: []
+- name: Shared stream byte utilization is not summed across worker replicas
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_byte_utilization_ratio{instance="worker-1"}
+    values: 0.4x20
+  - series: cognistore_job_queue_byte_utilization_ratio{instance="worker-2"}
+    values: 0.4x20
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: CogniStoreQueueByteCapacity
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: CogniStoreQueueByteAdmissionStop
+    exp_alerts: []
+- name: Message hard cap is reachable and fires warning and stop
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_depth{state="pending"}
+    values: 10000x8
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: CogniStoreQueueCapacity
+    exp_alerts:
+    - exp_labels: *id001
+      exp_annotations: *id002
+  - eval_time: 0s
+    alertname: CogniStoreQueueAdmissionStop
+    exp_alerts:
+    - exp_labels: *id003
+      exp_annotations: *id004
+
+- name: Missing byte telemetry is unknown after five minutes
+  interval: 15s
+  input_series: []
+  alert_rule_test:
+  - eval_time: 4m45s
+    alertname: CogniStoreQueueByteTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: CogniStoreQueueByteTelemetryUnavailable
+    exp_alerts:
+    - exp_labels: &id001
+        severity: warning
+      exp_annotations: &id002
+        summary: CogniStore queue byte capacity is unknown.
+        description: Broker byte utilization is absent or NaN; byte admission headroom cannot be established.
+        runbook_url: https://github.com/melliott18/CogniStore/blob/main/docs/operational_slos.md#telemetry-unavailable
+- name: One unknown byte observation is not hidden by a healthy replica and clears on recovery
+  interval: 15s
+  input_series:
+  - series: cognistore_job_queue_byte_utilization_ratio{instance="healthy"}
+    values: 0.1x40
+  - series: cognistore_job_queue_byte_utilization_ratio{instance="unknown"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.1x20
+  alert_rule_test:
+  - eval_time: 4m45s
+    alertname: CogniStoreQueueByteTelemetryUnavailable
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: CogniStoreQueueByteTelemetryUnavailable
+    exp_alerts:
+    - exp_labels: *id001
+      exp_annotations: *id002
+  - eval_time: 5m15s
+    alertname: CogniStoreQueueByteTelemetryUnavailable
     exp_alerts: []

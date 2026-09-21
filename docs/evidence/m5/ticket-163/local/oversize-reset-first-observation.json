@@ -1,0 +1,1084 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-09-21T21:43:04.247217+00:00",
+  "fixture": {
+    "created_at": "2026-09-21T21:39:11.983695+00:00",
+    "fixture_only": true,
+    "catalog": "SQLite",
+    "storage": "POSIX",
+    "tenants": [
+      "pilot-a",
+      "pilot-b"
+    ],
+    "roles": [
+      "reader",
+      "writer",
+      "operator",
+      "auditor",
+      "admin"
+    ],
+    "ask": "metadata-only",
+    "queue": "not configured",
+    "identity": "in-process synthetic JWKS; RS256 verification",
+    "browser_session": "unauthenticated local subject selector; not an OIDC proxy",
+    "source_commit": "8d3d50bb649cea617fe030859c51b196457e4648",
+    "python": "3.12.2",
+    "platform": "macOS-14.8.7-arm64-arm-64bit"
+  },
+  "tester": "Codex local rehearsal agent",
+  "qualification": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "scope": "actual loopback HTTP/API/SDK and separate trusted default-tenant CLI",
+  "observations": [
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:04.503614+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/api-1.bin",
+        "bytes": 4688,
+        "sha256": "1432acdf745ad068fe46aa024c55f1a0cba6f890ee122b1d64298e87070f9665"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:04.551482+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:04.604316+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:04.604327+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/api-1.bin",
+        "evaluated_at": "2026-09-21T21:43:04.581607Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:04.581607Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:42:47.924720Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:04.720449+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "d5a82f66-79c5-42a2-b275-2fdc05fdad3f",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:04.795195+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/api-2.bin",
+        "bytes": 4688,
+        "sha256": "e401e225cca95d5b270487a3afe00cbc770d1e556a928e8913014953f7cb72cc"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:04.841272+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:04.890104+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:04.890113+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/api-2.bin",
+        "evaluated_at": "2026-09-21T21:43:04.869980Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:04.869980Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:43:04.763521Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:04.995044+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "1c41e8fc-cc6a-4c08-b569-5af1f1c7d350",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:05.081896+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/api-3.bin",
+        "bytes": 4688,
+        "sha256": "a12c559139be784893be22bf2e7aecf855b30f193a054a2b36f79fedb9322f06"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:05.145273+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:05.215508+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:05.215518+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/api-3.bin",
+        "evaluated_at": "2026-09-21T21:43:05.178193Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:05.178193Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:43:05.046010Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:05.337604+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "c5b48224-f919-4fb2-b384-537dfb578d94",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.496269+00:00",
+      "status": "passed",
+      "expected": "Pagination has no duplicate or missing keys",
+      "actual": [
+        "page/0.txt",
+        "page/1.txt",
+        "page/2.txt"
+      ]
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.560898+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/sdk-1.bin",
+        "bytes": 4688,
+        "sha256": "01a57baa116ec3ec9e219ea941e8cbcbf113c8fc0265a238c6994f50615e0792"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.609471+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.663701+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.663709+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/sdk-1.bin",
+        "evaluated_at": "2026-09-21T21:43:05.641310Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:05.641310Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:43:05.526399Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:05.787467+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "c64fca2f-fe4b-43db-bd39-4361e4cedf54",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:05.853616+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/sdk-2.bin",
+        "bytes": 4688,
+        "sha256": "7eae9c2bc095fa7163d376c96c857991afac840190427ff18d353e12829e83d6"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:05.902633+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:05.960354+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:05.960365+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/sdk-2.bin",
+        "evaluated_at": "2026-09-21T21:43:05.935592Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:05.935592Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:43:05.820565Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 2,
+      "at": "2026-09-21T21:43:06.086162+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "d6381483-55f4-4ff1-bb58-ce2ed4110c13",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:06.329959+00:00",
+      "status": "passed",
+      "expected": "Upload, HEAD length and SHA-256 download agree",
+      "actual": {
+        "key": "rehearsal/sdk-3.bin",
+        "bytes": 4688,
+        "sha256": "e3d394dca11747d013f055f7784dd400f64bfeaed8176364772d59bd87d18f00"
+      }
+    },
+    {
+      "scenario": "MA-02",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:06.380930+00:00",
+      "status": "passed",
+      "expected": "Closed, open and suffix ranges return exact requested bytes",
+      "actual": [
+        "bytes=4-17",
+        "bytes=18-",
+        "bytes=-23"
+      ]
+    },
+    {
+      "scenario": "MA-13",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:06.431956+00:00",
+      "status": "passed",
+      "expected": "Relevant metadata and no-match queries; providers honestly missing, no answer",
+      "actual": {
+        "providers": {
+          "metadata": "succeeded",
+          "keyword": "missing",
+          "vector": "missing",
+          "generation": "missing"
+        },
+        "no_match_count": 0
+      }
+    },
+    {
+      "scenario": "MA-05",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:06.431965+00:00",
+      "status": "passed",
+      "expected": "Policy preview returns reasons without changing object bytes or placement",
+      "actual": {
+        "schema_version": 1,
+        "decision_id": null,
+        "bucket": "documents",
+        "key": "rehearsal/sdk-3.bin",
+        "evaluated_at": "2026-09-21T21:43:06.410715Z",
+        "action": "stay",
+        "disposition": "stay",
+        "current": {
+          "tier": "hot"
+        },
+        "proposed": {
+          "tier": "hot"
+        },
+        "changed_fields": [],
+        "explanation": {
+          "state": "available",
+          "structured_reason": {
+            "schema_version": 1,
+            "code": "size_threshold",
+            "disposition": "stay",
+            "decisive_signals": [
+              {
+                "name": "size_bytes",
+                "value": 4688,
+                "operator": "<=",
+                "threshold": 1048576,
+                "rule_index": null
+              }
+            ],
+            "constraints": {
+              "evaluated_at": "2026-09-21T21:43:06.410715Z",
+              "importance_level": null,
+              "importance_revision": 0,
+              "importance_allowed_tiers": null,
+              "allowed_destination_tiers": [
+                "hot",
+                "warm"
+              ],
+              "placement_started_at": "2026-09-21T21:43:06.160001Z",
+              "minimum_residency_seconds": 0,
+              "residency_expires_at": null,
+              "residency_active": false,
+              "last_tier_move_at": null,
+              "cooldown_seconds": 0,
+              "cooldown_expires_at": null,
+              "cooldown_active": false,
+              "size_hysteresis_bytes": 0,
+              "similarity_hysteresis": 0.0,
+              "stability_override_kind": null,
+              "rejected_destination_tier": null,
+              "candidate_action": null,
+              "candidate_destination_tier": null,
+              "hysteresis_checks": [],
+              "budgets": [],
+              "objectives": null,
+              "legal_hold": false,
+              "legal_hold_ids": [],
+              "locality": null
+            },
+            "policy": {
+              "name": "simple",
+              "version": "1",
+              "model": null
+            },
+            "confidence": {
+              "value": null,
+              "source": "not_applicable"
+            }
+          },
+          "model_details": "not_applicable"
+        },
+        "execution": {
+          "mode": "preview",
+          "state": "dry_run",
+          "job_id": null,
+          "correlation_id": null,
+          "move_id": null,
+          "job": null,
+          "event_id": null,
+          "updated_at": null
+        }
+      }
+    },
+    {
+      "scenario": "MA-10",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 3,
+      "at": "2026-09-21T21:43:06.561374+00:00",
+      "status": "passed",
+      "expected": "Hold denies overwrite/delete, preserves bytes; release permits deletion",
+      "actual": {
+        "hold_id": "618baeb2-91bd-4d21-be32-46414807cc12",
+        "blocked_status": 409,
+        "deleted_status": 204,
+        "enforcement_interface": "API"
+      }
+    },
+    {
+      "scenario": "MA-01",
+      "tenant": "pilot-a",
+      "interface": "SDK",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.732489+00:00",
+      "status": "passed",
+      "expected": "Pagination has no duplicate or missing keys",
+      "actual": [
+        "page/0.txt",
+        "page/1.txt",
+        "page/2.txt"
+      ]
+    },
+    {
+      "scenario": "MA-07",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.737839+00:00",
+      "status": "passed",
+      "expected": "reader cannot perform PUT /v1/objects/hot/documents/denied.txt",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-07",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.743056+00:00",
+      "status": "passed",
+      "expected": "writer cannot perform GET /v1/admin/storage",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-07",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.747821+00:00",
+      "status": "passed",
+      "expected": "operator cannot perform POST /v1/policies/preview",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-07",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.752291+00:00",
+      "status": "passed",
+      "expected": "auditor cannot perform GET /v1/objects/hot/documents/manual-report.txt",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-09",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.758883+00:00",
+      "status": "passed",
+      "expected": "expired fixture is denied",
+      "actual": 401
+    },
+    {
+      "scenario": "MA-09",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.762803+00:00",
+      "status": "passed",
+      "expected": "wrong-audience fixture is denied",
+      "actual": 401
+    },
+    {
+      "scenario": "MA-09",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.768136+00:00",
+      "status": "passed",
+      "expected": "revoked-role fixture is denied",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-09",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.772967+00:00",
+      "status": "passed",
+      "expected": "revoked-tenant fixture is denied",
+      "actual": 403
+    },
+    {
+      "scenario": "MA-04",
+      "tenant": "pilot-a",
+      "interface": "API",
+      "repetition": 1,
+      "at": "2026-09-21T21:43:06.789605+00:00",
+      "status": "passed",
+      "expected": "Absent queue gives honest rejection; no accepted job",
+      "actual": 503
+    }
+  ],
+  "limitations": [
+    "Local SQLite/POSIX development profile, not the frozen candidate/staging topology.",
+    "Synthetic JWKS and unauthenticated fixture session selector do not qualify OIDC/proxy/TLS.",
+    "No NATS configured: successful queued execution/retry/DLQ/redrive not exercised here.",
+    "POSIX-to-POSIX movement is not S3 provider qualification.",
+    "CLI runs only against its separate default-tenant database and storage roots.",
+    "Metadata-only Ask, no semantic or answer-quality claim; PII disabled."
+  ],
+  "failure": {
+    "type": "ReadError",
+    "message": "[Errno 54] Connection reset by peer"
+  },
+  "finished_at": "2026-09-21T21:43:06.798216+00:00",
+  "observation_count": 41
+}

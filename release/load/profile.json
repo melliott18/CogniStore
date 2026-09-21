@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "specification": "m5-pilot-v1",
+  "specification_revision": 1,
+  "status": "engineering-baseline-owner-acceptance-pending",
+  "seed": "m5-pilot-v1",
+  "sizes": {"4096": 60, "65536": 30, "1048576": 9, "16777216": 1},
+  "mime_percent": {"opaque": 80, "pdf": 10, "docx": 10},
+  "tenants": ["pilot-a", "pilot-b"],
+  "hotspot_request_percent": 80,
+  "hotspot_key_percent": 20,
+  "operation_percent": {"get": 20, "head": 20, "catalog": 20, "ask": 15, "put_replace": 10, "put_create": 5, "delete": 5, "policy_preview": 5},
+  "phases": {
+    "nominal": {"duration_seconds": 259200, "warmup_seconds": 1800, "object_count": 100000, "offered_per_second": 10, "max_outstanding": 16, "max_puts": 4},
+    "burst": {"duration_seconds": 900, "warmup_seconds": 0, "object_count": 100000, "offered_per_second": 30, "max_outstanding": 32, "max_puts": 4},
+    "capacity": {"duration_seconds": 7200, "warmup_seconds": 1800, "object_count": 200000, "offered_per_second": 10, "max_outstanding": 16, "max_puts": 4}
+  },
+  "foreground": {
+    "availability": 0.995, "successful_per_second": 9.95,
+    "nominal_min_attempts": 1000000, "nominal_min_per_operation": 10000,
+    "nominal_min_per_size_bin": 1000, "failure_latency_seconds": 30,
+    "latency_seconds": {
+      "head": [0.5, 2], "catalog": [0.5, 2], "policy_preview": [0.5, 2],
+      "ask": [2, 5], "delete": [2, 5], "small_object": [2, 5], "large_object": [5, 10]
+    }
+  },
+  "telemetry": {"interval_seconds": 15, "coverage": 0.999, "max_gap_seconds": 60, "cpu_rss_p95_limit_ratio": 0.7, "min_disk_free_ratio": 0.3},
+  "queue": {"max_messages": 10000, "max_bytes": 1073741824, "warn_pending": 5000, "stop_pending": 8000, "stop_oldest_seconds": 300},
+  "excluded": {"gcs_spool_bytes": 0, "sqlite_scheduler": true, "keyword_index": true}
+}

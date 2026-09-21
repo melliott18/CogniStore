@@ -76,6 +76,16 @@ _JOB_DEPTH = Gauge(
     "cognistore_job_queue_depth", "Broker consumer messages (count); NaN when unavailable.",
     ("state",), registry=REGISTRY,
 )
+_JOB_ADMISSION_REJECTIONS = Counter(
+    "cognistore_job_admission_rejections_total",
+    "Job publications explicitly rejected by broker message or byte capacity (count).",
+    registry=REGISTRY,
+)
+_JOB_BYTE_UTILIZATION = Gauge(
+    "cognistore_job_queue_byte_utilization_ratio",
+    "Main-stream stored bytes / configured byte cap; NaN when unavailable or unbounded.",
+    ("scope",), registry=REGISTRY,
+)
 _JOB_LATENCY = Histogram(
     "cognistore_job_queue_latency_seconds", "Broker publication-to-current-claim age (seconds).",
     ("operation",), buckets=_BUCKETS, registry=REGISTRY,
@@ -477,6 +487,23 @@ def record_job_event(event: str, operation: str = "other") -> None:
 def set_job_queue_depth(depth: float, state: str = "pending") -> None:
     if state in {"pending", "in_flight"}:
         _JOB_DEPTH.labels(state).set(float("nan") if math.isnan(depth) else max(0, depth))
+
+
+def record_job_admission_rejection() -> None:
+    """Count confirmed capacity rejection, never uncertain publication failure."""
+    _JOB_ADMISSION_REJECTIONS.inc()
+
+
+def set_job_queue_byte_utilization(stored_bytes: int | None, max_bytes: int | None) -> None:
+    """Expose the live broker byte limit independently of pending message count."""
+    if (
+        isinstance(stored_bytes, int) and not isinstance(stored_bytes, bool)
+        and isinstance(max_bytes, int) and not isinstance(max_bytes, bool)
+        and stored_bytes >= 0 and max_bytes > 0
+    ):
+        _JOB_BYTE_UTILIZATION.labels("main").set(stored_bytes / max_bytes)
+    else:
+        _JOB_BYTE_UTILIZATION.labels("main").set(float("nan"))
 
 
 def record_job_queue_latency(seconds: float, operation: str = "other") -> None:

@@ -1,0 +1,111 @@
+{
+  "corpus_id": "manual-acceptance-v1",
+  "limit_bytes": 65536,
+  "limitations": [
+    "Fixture generation does not execute uploads, extraction, PII detection or search.",
+    "Use the matching configured limit; the default is a reduced local 64 KiB fixture.",
+    "Output/time/worker extraction limits require separate controlled runtime settings."
+  ],
+  "objects": [
+    {
+      "bytes": 1762,
+      "path": "sample.pdf",
+      "purpose": "document extraction and failure isolation",
+      "sha256": "7363b6b349aec296a3d6d8ea2bc3a918c6cda8f6d34d6423a25894e962974c42",
+      "source": "tests/fixtures/documents/sample.pdf"
+    },
+    {
+      "bytes": 34567,
+      "path": "sample.docx",
+      "purpose": "document extraction and failure isolation",
+      "sha256": "c6c0f85b92f235790969086cebdcb284987499cd1faf518097c3534308131dc7",
+      "source": "tests/fixtures/documents/sample.docx"
+    },
+    {
+      "bytes": 2163,
+      "path": "encrypted.pdf",
+      "purpose": "document extraction and failure isolation",
+      "sha256": "72fe40beb7b432cb1f5123c80e7c9a32191a13dd3b5a719dc6f6ec6c9268e013",
+      "source": "tests/fixtures/documents/encrypted.pdf"
+    },
+    {
+      "bytes": 35,
+      "path": "corrupt.pdf",
+      "purpose": "document extraction and failure isolation",
+      "sha256": "1f0e4a94f702d6682e4ee7752bcdc6ef0a6497a568a893113eb3ee40e7a8b7e9",
+      "source": "tests/fixtures/documents/corrupt.pdf"
+    },
+    {
+      "bytes": 926,
+      "path": "corrupt.docx",
+      "purpose": "document extraction and failure isolation",
+      "sha256": "e9a38b458f1074f9330bf820df2bbe3c0af34c10e5eab5c2ee845849fbf06a37",
+      "source": "tests/fixtures/documents/corrupt.docx"
+    },
+    {
+      "bytes": 74,
+      "path": "alpha.txt",
+      "purpose": "exact bytes, range reads and content duplicate",
+      "sha256": "b51a1984cee08f9a6b95788f73d7ff2169bf5ee751ce0b8c05275fa20a622fe3",
+      "source": null
+    },
+    {
+      "bytes": 74,
+      "path": "alpha-copy.txt",
+      "purpose": "same bytes under a different key",
+      "sha256": "b51a1984cee08f9a6b95788f73d7ff2169bf5ee751ce0b8c05275fa20a622fe3",
+      "source": null
+    },
+    {
+      "bytes": 57,
+      "path": "tenant-b.txt",
+      "purpose": "upload under the same logical key in the second tenant",
+      "sha256": "fe7214b1e4d97ff719e118ab791bb98e796c404a7050213ec59269f8c120a8e5",
+      "source": null
+    },
+    {
+      "bytes": 52,
+      "path": "notes.md",
+      "purpose": "multiple formats",
+      "sha256": "157ddc4441e0cb5b88013b73f26852b9c399ecfc9625257e5031d559674da6c4",
+      "source": null
+    },
+    {
+      "bytes": 256,
+      "path": "unsupported.bin",
+      "purpose": "unsupported document MIME remains object-scoped",
+      "sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+      "source": null
+    },
+    {
+      "bytes": 825,
+      "path": "pii.pdf",
+      "purpose": "synthetic PII detection and search persistence boundary",
+      "sha256": "17ba1d09a6f9381cb67025937d9b3c7ae0c99284340b309ec48aa1ec513e3bf8",
+      "source": null
+    },
+    {
+      "bytes": 765,
+      "path": "image-only.pdf",
+      "purpose": "image-only PDF extracts empty text; no OCR claim",
+      "sha256": "8c4c96aefed0530d98636657217bcbe7ebe44f2ddc26220b8c2e42e68d9a062f",
+      "source": null
+    },
+    {
+      "bytes": 65536,
+      "path": "at-limit.pdf",
+      "purpose": "configured input/body limit exactly reached",
+      "sha256": "c7823fa8875aa668418b058f4440133afd00098f86155ecc02cdf41085700c00",
+      "source": null
+    },
+    {
+      "bytes": 65537,
+      "path": "over-limit.pdf",
+      "purpose": "configured limit plus one byte",
+      "sha256": "906e442bbb42407e4bfdf7f75a6d973a106c181a50f0351b3be617b6b7996d0c",
+      "source": null
+    }
+  ],
+  "schema_version": 1,
+  "synthetic": true
+}

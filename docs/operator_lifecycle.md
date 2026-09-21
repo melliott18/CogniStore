@@ -5,6 +5,12 @@ the recovery set and verify data. Use the [handbook](operator_handbook.md) for
 incident records and the [architecture matrix](reference_architectures.md) to
 select a supported topology.
 
+For the selected two-tenant M5 deployment, use the
+[recovery qualification campaign](recovery_qualification.md) for independent
+fault/restore trials, complete pre-resume reconciliation, measured RPO/RTO,
+retained-key recovery and upgrade/rollback evidence. This general runbook and
+its local SQLite walkthrough do not establish that production qualification.
+
 ## Install
 
 ### Clean local walkthrough

@@ -247,9 +247,10 @@ The shipped [SLO model](slo_model.md) retains its definitions and rolling
 (target 99.9%); neither the 72-hour run nor 14-day pilot establishes 30-day
 attainment. Tenant API `/metrics` returns 404: #161/#165 must provide private
 ingress/client, worker and dependency telemetry without disabling tenancy.
-The shipped queue alert's `>10000` threshold is insufficient for a 10,000 cap;
-the lower thresholds above and real delivery routes must be deployed and tested
-before entry. They are requirements for #165, not changes made by this document.
+The [load qualification tooling](load_qualification.md) supplies reachable
+queue-depth and byte-capacity rules in place of the former `>10000` threshold.
+Deploy and test those rules, private age/rejection collection and real delivery
+routes before entry. Local rule tests do not satisfy #165's live alert gates.
 
 ## Recovery objectives and stop/rollback policy
 

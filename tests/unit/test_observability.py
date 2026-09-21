@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from uuid import UUID
 
 import pytest
@@ -223,6 +224,24 @@ def test_job_and_movement_metrics_have_explicit_units_and_finite_labels():
     body, _ = telemetry.metrics_response()
     assert b'cognistore_job_queue_depth{state="pending"} NaN' in body
     assert b"private-state" not in body
+
+
+@pytest.mark.parametrize(
+    ("stored_bytes", "max_bytes", "expected"),
+    [(0, 100, 0), (50, 100, 0.5), (80, 100, 0.8), (101, 100, 1.01)],
+)
+def test_queue_byte_capacity_uses_live_limit(stored_bytes, max_bytes, expected):
+    telemetry.set_job_queue_byte_utilization(stored_bytes, max_bytes)
+    assert sample("cognistore_job_queue_byte_utilization_ratio", {"scope": "main"}) == expected
+
+
+@pytest.mark.parametrize(
+    ("stored_bytes", "max_bytes"),
+    [(None, 100), (0, None), (-1, 100), (0, -1), (0, 0), (False, 100), (0, True)],
+)
+def test_unknown_or_unbounded_queue_bytes_never_report_free_capacity(stored_bytes, max_bytes):
+    telemetry.set_job_queue_byte_utilization(stored_bytes, max_bytes)
+    assert math.isnan(sample("cognistore_job_queue_byte_utilization_ratio", {"scope": "main"}))
 
 
 def test_disabled_configuration_does_not_construct_exporter(monkeypatch):

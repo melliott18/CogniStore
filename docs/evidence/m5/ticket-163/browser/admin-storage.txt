@@ -1,0 +1,46 @@
+Browser tab: 1, Title: "CogniStore · Administration", URL: "http://127.0.0.1:8763/ui/admin/".
+1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/
+	2 link Description: Skip to administration, Value: 127.0.0.1:8763/ui/admin/#admin-content
+	3 container
+		4 link Description: CogniStore / Administration, Value: 127.0.0.1:8763/ui/
+		5 link Description: Content discovery ↗, Value: 127.0.0.1:8763/ui/
+	6 container
+		7 container Storage, with context.
+			8 text OPERATIONS CONSOLE
+			9 heading Storage, with context., Value: 1, ID: admin-title
+				10 text Storage, with context.
+			11 text Inspect health, preview changes, and follow the evidence.
+			12 container connect-form
+				13 container
+					14 text Access token  Kept in memory for this page only
+				15 text field (settable) Access token Kept in memory for this page only
+				16 button Connect
+				17 button Disconnect, ID: disconnect
+			18 text Connected. Views and actions reflect your current grants.
+			19 text Tenant: pilot-a · Actor: principal:sha256:fed14a3fc2d94f1742fa76e924d95c8560cb98f9fbd7f78ac28718a0754d4388
+		20 container Description: Administration views, ID: admin-nav
+			21 button Storage
+			22 button Policies & actions
+			23 button Jobs
+			24 button Audit & explanations
+			25 button Repairs
+		26 container Description: Operational workspace, ID: admin-content
+			27 heading Storage, Value: 2, ID: view-title
+				28 text Storage
+			29 button Refresh, ID: refresh-view
+			30 text Updated 2:40:40 PM · Tenant: pilot-a
+			31 container view-body
+				32 text Catalog: ready · Job queue: not_configured · Observed: 2026-09-21T21:40:40.625264+00:00
+				33 text Driver health marked unverified has not been probed. Configuration availability does not establish backend reachability. Secrets and connection locations are omitted.
+				34 container
+					35 heading hot, Value: 3
+						36 text hot
+					37 text Driver: PosixDriver · Active Health: unverified range reads: true · range writes: true · atomic no overwrite: true · conditional delete: true Encryption: unattested · Key configured: false
+				38 container
+					39 heading warm, Value: 3
+						40 text warm
+					41 text Driver: PosixDriver · Activation unknown Health: unverified range reads: true · range writes: true · atomic no overwrite: true · conditional delete: true Encryption: unattested · Key configured: false
+	42 container
+		43 text CogniStore · Authorized operations API v1
+
+The focused UI element is 1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/

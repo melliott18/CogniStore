@@ -1,0 +1,75 @@
+Browser tab: 1, Title: "CogniStore · Administration", URL: "http://127.0.0.1:8763/ui/admin/".
+1 AXWebArea CogniStore · Administration, URL: 127.0.0.1:8763/ui/admin/
+	2 link Description: Skip to administration, Value: 127.0.0.1:8763/ui/admin/#admin-content
+	3 container
+		4 link Description: CogniStore / Administration, Value: 127.0.0.1:8763/ui/
+		5 link Description: Content discovery ↗, Value: 127.0.0.1:8763/ui/
+	6 container
+		7 container Storage, with context.
+			8 text OPERATIONS CONSOLE
+			9 heading Storage, with context., Value: 1, ID: admin-title
+				10 text Storage, with context.
+			11 text Inspect health, preview changes, and follow the evidence.
+			12 container connect-form
+				13 container
+					14 text Access token  Kept in memory for this page only
+				15 text field (settable) Access token Kept in memory for this page only
+				16 button Connect
+				17 button Disconnect, ID: disconnect
+			18 text Connected. Views and actions reflect your current grants.
+			19 text Tenant: pilot-a · Actor: principal:sha256:fed14a3fc2d94f1742fa76e924d95c8560cb98f9fbd7f78ac28718a0754d4388
+		20 container Description: Administration views, ID: admin-nav
+			21 button Storage
+			22 button Policies & actions
+			23 button Jobs
+			24 button Audit & explanations
+			25 button Repairs
+		26 container Description: Operational workspace, ID: admin-content
+			27 heading Jobs, Value: 2, ID: view-title
+				117 text Jobs
+			29 button Refresh, ID: refresh-view
+			118 text Auto-refresh paused while inspecting evidence. Refresh to load the latest job history.
+			119 container view-body
+				120 table
+					121 row
+						122 cell
+							123 text Job
+						124 cell
+							125 text Type
+						126 cell
+							127 text Status
+						128 cell
+							129 text Updated
+						130 cell
+							131 text Evidence
+					132 row
+						133 cell
+							134 text ee77450e-aba1-4262-857b-2a2a0d287a6e
+						135 cell
+							136 text policy.run
+						137 cell
+							138 text failed
+						139 cell
+							140 text 2026-09-21T21:41:20.703720Z
+						141 cell
+							142 button Inspect
+				143 heading Job status, Value: 3
+					144 text Job status
+				145 text {
+  "schema_version": 1,
+  "job_id": "ee77450e-aba1-4262-857b-2a2a0d287a6e",
+  "correlation_id": "0934bb0d-2138-4542-b2a5-c0edc39d771e",
+  "job_type": "policy.run",
+  "status": "failed",
+  "created_at": "2026-09-21T21:41:20.700500Z",
+  "updated_at": "2026-09-21T21:41:20.703720Z",
+  "status_url": "/v1/jobs/ee77450e-aba1-4262-857b-2a2a0d287a6e",
+  "attempt": 0,
+  "retryable": true,
+  "error_type": "BackendUnavailableError"
+}
+				146 button Placement explanations
+	115 container
+		116 text CogniStore · Authorized operations API v1
+
+The focused UI element is 142 button Inspect

@@ -1,0 +1,64 @@
+{
+  "automated_status": "incomplete",
+  "checks": {
+    "identity.configuration_sha256": {
+      "status": "incomplete"
+    },
+    "identity.corpus_manifest_sha256": {
+      "status": "incomplete"
+    },
+    "identity.dependency_manifest_sha256": {
+      "status": "incomplete"
+    },
+    "identity.environment_id": {
+      "status": "incomplete"
+    },
+    "identity.image_digest": {
+      "status": "incomplete"
+    },
+    "identity.profile": {
+      "status": "failed"
+    },
+    "identity.source_revision": {
+      "status": "incomplete"
+    },
+    "identity.specification_sha256": {
+      "status": "incomplete"
+    },
+    "identity.staging_scope": {
+      "status": "incomplete"
+    }
+  },
+  "created_at": "2026-09-21T21:52:14.204065+00:00",
+  "errors": [
+    "missing_malformed_or_unreadable_evidence"
+  ],
+  "foreground": {},
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "input_sha256": {
+    "campaign.json": "332b73762f2c37f128309eb9936f08946f7341c5683e1d859243afc959256145"
+  },
+  "limitations": [
+    "Input identities and observations are supplied evidence, not independently attested deployment facts.",
+    "This calculator does not run background/fault campaigns, measure notifications or authorize pilot entry.",
+    "No final passing qualification is emitted: independent evidence and named review remain required.",
+    "Actual observations remain in hashed raw JSONL; failures score at least 30 seconds for latency gates."
+  ],
+  "pending_evidence": [
+    "Accepted specification/owners and exact qualified candidate, configuration and deployed environment.",
+    "Reviewed corpus size/MIME/checksum manifests, hot spots, balanced mutations and background workload.",
+    "Verified movement calls/windows, scan publication-to-completion lag and all jobs drained/reconciled.",
+    "Full object/checksum/catalog/hold/audit and tenant reconciliation before/after load and every fault.",
+    "Saturation, bounded retries, backend throttling, fault recovery and burst recovery within 600 seconds.",
+    "Actual private alert receipt <=300s, acknowledgement <=900s, runbook execution and recovery receipt <=300s.",
+    "Post-drain RSS/tmp <=110% of warm baseline, no leaks/OOM/exhaustion, stop controls and connection headroom.",
+    "Measured physical consumption/cost inputs, fixed-node scaling recommendation and affected reruns."
+  ],
+  "production_qualified": false,
+  "profile_sha256": "6f302de703550d73268473f75c91282fe1aca6d27b80f46faed253c3f8016a74",
+  "schema": "cognistore.m5-load-evaluation",
+  "schema_version": 1,
+  "scope": "offline-client-and-resource-calculation",
+  "status": "failed",
+  "telemetry": {}
+}

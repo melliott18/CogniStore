@@ -1,0 +1,42 @@
+{
+  "checks": [
+    {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0,
+      "output": "Success: no issues found in 164 source files\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "scripts/recovery_qualification.py",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ]
+}
