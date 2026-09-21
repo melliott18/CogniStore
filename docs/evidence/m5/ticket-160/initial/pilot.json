@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "specification": "m5-pilot-v1",
+  "specification_revision": 1,
+  "status": "proposed-owner-acceptance-pending",
+  "platform": "linux/amd64",
+  "python_minor": "3.12",
+  "storage": ["posix", "s3"],
+  "catalog": "postgresql-16-with-pgvector",
+  "broker": "nats-jetstream",
+  "runtime_extras": [],
+  "ask": {"mode": "metadata", "keyword_provider": null, "vector_provider": null, "answer_provider": null, "models": []},
+  "embedding_configuration": null,
+  "pii_enabled": false,
+  "scheduler_enabled": false,
+  "azure_enabled": false,
+  "gcs_enabled": false,
+  "gcs_spool_bytes": 0,
+  "configuration_kind": "sanitized-selection-only",
+  "deployment_configuration": "pending-ticket-161"
+}

@@ -120,12 +120,20 @@ blockers recorded even when the build's local checks pass.
 
 The output retains `manifest.json`, `SHA256SUMS`, `source.tar`, `image.tar`,
 `pilot.json`, `Dockerfile`, `python-inventory.json`, `native-inventory.tsv`,
-`wheelhouse/`, `runtime.lock`, `runtime.txt`, `build-wheelhouse/`, `build.lock`,
+`wheelhouse/`, `runtime.lock`, `runtime.txt`, `dependencies.txt`, `bootstrap.lock`,
+`build-wheelhouse/`, `build.lock`,
 `tools-wheelhouse/`, `tools.lock` and `reports/`. The manifest identifies the
 sanitized [pilot profile](../release/pilot.json), source/migrations, providers,
 runtime, artifacts and commands. Build/test tools have separate locks and
 inventories; their versions must not silently alter the recorded runtime
 dependency set. Preserve the entire directory when transferring it.
+
+The runtime lock includes pip. `bootstrap.lock` selects that same hashed wheel
+to update the base interpreter's installer; the application virtualenv uses the
+full runtime lock. `dependencies.txt` is the frozen third-party audit input,
+including pip but excluding the unpublished CogniStore package, whose source
+is checked by Bandit. This prevents the base image's bundled installer from
+silently falling outside dependency auditing.
 
 `reports/smoke.json` records the installed package smoke;
 `reports/regressions.xml` and its log retain regression outcomes.
