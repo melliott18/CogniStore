@@ -1,0 +1,138 @@
+{
+  "base_revision": "8d3d50bb649cea617fe030859c51b196457e4648",
+  "branch": "chore/164-recovery-qualification",
+  "documentation_links": {
+    "broken": 0,
+    "local_targets_and_anchors_checked": 71
+  },
+  "environment_provisioned": false,
+  "faults_injected_into_live_services": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "docs/evidence/m5/README.md": "acdaa77d3e7338f6821fb544053936f4169d8aee16aec9d4face13cb902de9cb",
+    "docs/evidence/m5/ticket-164/README.md": "6f6e5158771e87f2d3d219e7b9899459441880c009445c93180284cd4b2fe201",
+    "docs/operator_incidents.md": "e900892a5d4ca0e0cdecc709115aeee4818c20cd8351855e52879084597cec46",
+    "docs/operator_lifecycle.md": "19e28ecb89af0273c59380b2e4f0f5a55ba92a8032c77d43c2fbc7ca41cc428c",
+    "docs/recovery_qualification.md": "b845c8fa857c41805ceae4f2079dd303dd6123cb7be0fe85672984e560870220",
+    "scripts/recovery_qualification.py": "93edadfde80fb679867931e31165a9ceeff187a9226a83730ecad0c3c73042f6",
+    "tests/integration/test_coherent_restore_recovery.py": "a05647043d77ad2331959c62ef489cf5aca2260aa9a8b87a5443c4a5165759f1",
+    "tests/unit/test_recovery_qualification.py": "b8491e14e942d1a8bbbd3a5a7c29fe7b0a676b2f2dfc8ff6543f4cd890fcc3a4"
+  },
+  "limitations": [
+    "No accepted #159 specification, qualified candidate or actual #161 deployed staging target available; no live #164 acceptance criterion is claimed.",
+    "New integration regression uses local SQLite/POSIX partitions and synthetic data, not selected PostgreSQL/S3/JetStream, provider sidecar semantics or retained encryption-key service.",
+    "Existing TLS tests use local ephemeral certificates; queue and authorization tests use fixtures; no live credential/CA/grant campaign or released-image upgrade/rollback was performed.",
+    "The checker validates declared evidence shape, hashes, coverage and timing; raw observation truth, identity semantics, signer authority and durability require human review.",
+    "Full product suite/coverage, package rebuild and dependency audit not repeated because application and dependency definitions are unchanged.",
+    "No measured production RPO/RTO; unobserved negative control is not a live campaign result.",
+    "The base revision plus implementation_sha256 identify tested worktree changes; changes are not yet committed."
+  ],
+  "local_runtime": {
+    "host_machine": "arm64",
+    "host_os": "Darwin",
+    "python": "/tmp/cognistore-160-smoke-venv/bin/python",
+    "python_version": "3.12.2"
+  },
+  "negative_control": {
+    "actual_exit_code": 1,
+    "command": [
+      "/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/recovery_qualification.py",
+      "check",
+      "--campaign",
+      "<temporary-bundle>/campaign.json",
+      "--output",
+      "docs/evidence/m5/ticket-164/unobserved-campaign.json"
+    ],
+    "expected_exit_code": 1,
+    "result": "unobserved-template-rejected",
+    "setup_command": [
+      "/tmp/cognistore-160-smoke-venv/bin/python",
+      "scripts/recovery_qualification.py",
+      "init",
+      "--output",
+      "<temporary-bundle>/campaign.json"
+    ]
+  },
+  "production_qualified": false,
+  "quality": [
+    {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0,
+      "output": "Success: no issues found in 164 source files\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "scripts/recovery_qualification.py",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "recorded_at": "2026-09-21T21:47:49.402673+00:00",
+  "schema_version": 1,
+  "status": "local-preparation-validated-live-qualification-pending",
+  "tests": {
+    "command": [
+      "/tmp/cognistore-160-smoke-venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/unit/test_recovery_qualification.py",
+      "tests/integration/test_coherent_restore_recovery.py",
+      "tests/integration/test_move_jobs.py",
+      "tests/integration/test_posix_publication_recovery.py",
+      "tests/integration/test_secret_rotation_recovery.py",
+      "tests/unit/test_encryption_recovery.py",
+      "tests/unit/test_worker_authorization.py",
+      "tests/unit/test_tenant_jobs.py",
+      "tests/unit/test_principal_jobs.py",
+      "tests/unit/test_nats_queue.py",
+      "tests/unit/test_job_retry.py",
+      "tests/unit/test_catalog_migrations.py",
+      "tests/unit/test_topology_migrations.py",
+      "-q",
+      "-o",
+      "addopts=",
+      "--junitxml=docs/evidence/m5/ticket-164/tests.xml"
+    ],
+    "duration_seconds": 21.351,
+    "environment_policy": "Inherited COGNISTORE_* settings removed; selected tests use isolated local fixtures.",
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "passed": 425,
+    "skipped": 0,
+    "tests": 425
+  },
+  "whitespace": {
+    "command": "git diff --check plus trailing-whitespace/newline check over all eight modified/new source files",
+    "exit_code": 0
+  },
+  "working_tree_modified": true
+}

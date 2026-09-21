@@ -1,0 +1,108 @@
+{
+  "base_revision": "36430dcdc35120cc793ffce811da7570d7a2535b",
+  "conflict_resolution": "Preserved all #163, #164 and #165 evidence-index entries.",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "docs/evidence/m5/README.md": "c3a9f1509f5e6ecd67784e3b9037c80b8e2a5fdad6bdea52afdf3e6f4ef6110d",
+    "docs/evidence/m5/ticket-164/README.md": "6f6e5158771e87f2d3d219e7b9899459441880c009445c93180284cd4b2fe201",
+    "docs/operator_incidents.md": "e900892a5d4ca0e0cdecc709115aeee4818c20cd8351855e52879084597cec46",
+    "docs/operator_lifecycle.md": "19e28ecb89af0273c59380b2e4f0f5a55ba92a8032c77d43c2fbc7ca41cc428c",
+    "docs/recovery_qualification.md": "b845c8fa857c41805ceae4f2079dd303dd6123cb7be0fe85672984e560870220",
+    "scripts/recovery_qualification.py": "93edadfde80fb679867931e31165a9ceeff187a9226a83730ecad0c3c73042f6",
+    "tests/integration/test_coherent_restore_recovery.py": "a05647043d77ad2331959c62ef489cf5aca2260aa9a8b87a5443c4a5165759f1",
+    "tests/unit/test_recovery_qualification.py": "b8491e14e942d1a8bbbd3a5a7c29fe7b0a676b2f2dfc8ff6543f4cd890fcc3a4"
+  },
+  "limitations": [
+    "No accepted #159 specification, qualified candidate or actual #161 deployed staging target available; no live #164 acceptance criterion is claimed.",
+    "New integration regression uses local SQLite/POSIX partitions and synthetic data, not selected PostgreSQL/S3/JetStream, provider sidecar semantics or retained encryption-key service.",
+    "Existing TLS tests use local ephemeral certificates; queue and authorization tests use fixtures; no live credential/CA/grant campaign or released-image upgrade/rollback was performed.",
+    "The checker validates declared evidence shape, hashes, coverage and timing; raw observation truth, identity semantics, signer authority and durability require human review.",
+    "Full product suite/coverage, package rebuild and dependency audit not repeated because application and dependency definitions are unchanged.",
+    "No measured production RPO/RTO; unobserved negative control is not a live campaign result."
+  ],
+  "production_qualified": false,
+  "quality": [
+    {
+      "command": [
+        "/Users/mitchell/Projects/CogniStore/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0,
+      "output": "Success: no issues found in 164 source files\n"
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "bandit",
+        "-q",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "scripts/recovery_qualification.py",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "quality_report": "merge-quality.json",
+  "reason": "Rebased after #163/#165 reached main; resolved shared evidence-index conflict and reran recovery/queue/worker/observability regressions against incoming runtime changes.",
+  "recorded_at": "2026-09-21T22:12:17.060031+00:00",
+  "runtime": {
+    "host_machine": "arm64",
+    "host_os": "Darwin",
+    "python": "/tmp/cognistore-160-smoke-venv/bin/python",
+    "python_version": "3.12.2"
+  },
+  "schema_version": 1,
+  "tested_revision": "d39a23da884fd631950220dcfe01073bcdc58a10",
+  "tests": {
+    "command": [
+      "/tmp/cognistore-160-smoke-venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/unit/test_recovery_qualification.py",
+      "tests/integration/test_coherent_restore_recovery.py",
+      "tests/integration/test_move_jobs.py",
+      "tests/integration/test_posix_publication_recovery.py",
+      "tests/integration/test_secret_rotation_recovery.py",
+      "tests/unit/test_encryption_recovery.py",
+      "tests/unit/test_worker_authorization.py",
+      "tests/unit/test_tenant_jobs.py",
+      "tests/unit/test_principal_jobs.py",
+      "tests/unit/test_nats_queue.py",
+      "tests/unit/test_job_retry.py",
+      "tests/unit/test_catalog_migrations.py",
+      "tests/unit/test_topology_migrations.py",
+      "tests/unit/test_observability.py",
+      "tests/unit/test_worker_health.py",
+      "-q",
+      "-o",
+      "addopts=",
+      "--junitxml=docs/evidence/m5/ticket-164/merge-tests.xml"
+    ],
+    "duration_seconds": 22.422,
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "passed": 455,
+    "skipped": 0,
+    "tests": 455
+  }
+}
