@@ -13,8 +13,9 @@ RUN mkdir -p /bundle/build-wheelhouse /bundle/wheelhouse /bundle/tools-wheelhous
     && python -m venv /build-tools \
     && /build-tools/bin/pip install --no-index --find-links /bundle/build-wheelhouse --require-hashes -r /bundle/build.lock \
     && /build-tools/bin/python -m build --wheel --no-isolation --outdir /bundle/wheelhouse \
-    && python -m pip download --only-binary=:all: --dest /bundle/wheelhouse /bundle/wheelhouse/cognistore-*.whl \
+    && python -m pip download --only-binary=:all: --dest /bundle/wheelhouse /bundle/wheelhouse/cognistore-*.whl pip \
     && python scripts/release_candidate.py lock --wheels /bundle/wheelhouse --output /bundle/runtime.lock \
+    && python scripts/release_candidate.py lock --wheels /bundle/wheelhouse --output /bundle/bootstrap.lock --only-package pip \
     && python scripts/release_candidate.py constraints --lock /bundle/runtime.lock --output /bundle/runtime.txt \
     && python scripts/release_candidate.py constraints --lock /bundle/runtime.lock --output /bundle/dependencies.txt --exclude-project \
     && python -m pip download --only-binary=:all: --dest /bundle/tools-wheelhouse \
@@ -30,7 +31,9 @@ LABEL org.opencontainers.image.title="CogniStore release candidate" \
       org.opencontainers.image.version="${PACKAGE_VERSION}"
 COPY --from=assembly /bundle/wheelhouse /install/wheelhouse
 COPY --from=assembly /bundle/runtime.lock /install/runtime.lock
-RUN python -m venv /opt/cognistore \
+COPY --from=assembly /bundle/bootstrap.lock /install/bootstrap.lock
+RUN python -m pip install --no-index --find-links /install/wheelhouse --require-hashes -r /install/bootstrap.lock \
+    && python -m venv /opt/cognistore \
     && /opt/cognistore/bin/pip install --no-index --find-links /install/wheelhouse --require-hashes -r /install/runtime.lock \
     && /opt/cognistore/bin/pip check \
     && rm -rf /install \

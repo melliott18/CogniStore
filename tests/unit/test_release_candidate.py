@@ -66,6 +66,16 @@ def test_lock_uses_distribution_metadata_not_vendored_packages(assembler, tmp_pa
     assert output.read_text().startswith("setuptools==84.0.0 --hash=sha256:")
 
 
+def test_bootstrap_lock_selects_the_same_hashed_runtime_installer(assembler, tmp_path):
+    pip = _wheel(tmp_path, "pip.whl", "pip", "26.2.1")
+    _wheel(tmp_path, "runtime.whl", "example")
+    output = tmp_path.parent / "bootstrap.lock"
+    assembler.wheel_lock(tmp_path, output, only_package="pip")
+    assert output.read_text() == "pip==26.2.1 --hash=sha256:" + assembler.digest(pip) + "\n"
+    with pytest.raises(ValueError, match="empty wheelhouse"):
+        assembler.wheel_lock(tmp_path, output, only_package="missing")
+
+
 @pytest.mark.parametrize("invalid", ["empty", "source-archive", "symlink", "metadata", "name"])
 def test_lock_rejects_unfreezable_artifacts(assembler, tmp_path, invalid):
     wheels = tmp_path / "wheels"

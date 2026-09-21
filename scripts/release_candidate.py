@@ -36,7 +36,7 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
-def wheel_lock(wheels: Path, output: Path) -> None:
+def wheel_lock(wheels: Path, output: Path, only_package: str | None = None) -> None:
     """Only the exact retained binary artifacts may satisfy installation."""
     packages = {}
     for path in sorted(wheels.iterdir()):
@@ -57,6 +57,8 @@ def wheel_lock(wheels: Path, output: Path) -> None:
         if name in packages:
             raise ValueError(f"Duplicate distribution: {name}")
         packages[name] = f"{name}=={version} --hash=sha256:{digest(path)}\n"
+    if only_package:
+        packages = {name: value for name, value in packages.items() if name == only_package}
     if not packages:
         raise ValueError("Cannot freeze an empty wheelhouse")
     output.write_text("".join(packages[name] for name in sorted(packages)))
@@ -309,6 +311,7 @@ def main() -> None:
     lock = commands.add_parser("lock")
     lock.add_argument("--wheels", type=Path, required=True)
     lock.add_argument("--output", type=Path, required=True)
+    lock.add_argument("--only-package")
     constraints = commands.add_parser("constraints")
     constraints.add_argument("--lock", type=Path, required=True)
     constraints.add_argument("--output", type=Path, required=True)
@@ -320,7 +323,7 @@ def main() -> None:
         verify(args.bundle)
         print("Bundle checksums verified (integrity only, not release approval).")
     elif args.command == "lock":
-        wheel_lock(args.wheels, args.output)
+        wheel_lock(args.wheels, args.output, args.only_package)
     else:
         args.output.write_text("".join(line.split(" --hash=")[0] + "\n"
                                       for line in args.lock.read_text().splitlines()
