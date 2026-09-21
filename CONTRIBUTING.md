@@ -43,6 +43,10 @@ author-specific prefixes such as `codex/`.
 
 ## Workflows and guidelines
 
+- Hosted CI is suspended by standing user instruction. Follow the
+  [agent validation policy](AGENTS.md#validation-policy-hosted-ci-suspended):
+  run appropriate local checks, record hosted CI as skipped, and do not
+  dispatch, rerun, or wait for hosted workflows until explicitly requested.
 - Git workflows: see `docs/git_workflows.md`
 - Bug tracker: see `docs/bug_tracker.md`
 - Roadmap: see `docs/roadmap.md`
@@ -141,7 +145,12 @@ git rebase -i --autosquash origin/main
 ```
 
 7) Finalize and merge
-- Ensure CI/tests are green.
+
+- Verify applicable local checks and record their scope and results. While
+  [hosted CI is suspended](AGENTS.md#validation-policy-hosted-ci-suspended),
+  record it as skipped and proceed with an otherwise authorized merge subject
+  to enforced branch rules. Local results do not establish hosted or production
+  qualification. After explicit resumption, require the applicable hosted checks.
 - Prefer "Squash and merge" (clean history) or "Rebase and merge" if preserving commits matters.
 - The squash commit message should follow Conventional Commits.
 
