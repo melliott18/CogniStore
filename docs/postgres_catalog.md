@@ -45,6 +45,13 @@ reconnecting or using another connection without the original locks. The API
 reports a retryable `503 backend_unavailable`. No database transaction spans
 backend I/O.
 
+Catalog scans use the same reservation for each observation, from before the
+storage read through catalog publication. Scan publication uses the owning
+session too: a lost session cannot reconnect and publish stale content over a
+replacement. The scan fails on session loss; keys busy with an API mutation or
+another scan are skipped for that pass and can be revisited. Dry-run scans
+neither acquire this reservation nor publish catalog state.
+
 Excluding competing backend work requires that session to remain live for the
 whole storage operation. Session loss releases its advisory locks and may
 admit another request; it neither cancels storage calls already in progress nor
@@ -67,10 +74,10 @@ SQLite on Windows retains the surrounding legal-hold guard's exclusive CRT
 lock fallback: requests can wait there before reaching the nonblocking object
 fence, including requests for unrelated keys.
 
-Quiesce old API workers before starting the updated worker set; older binaries
+Quiesce old API and scan workers before starting the updated worker set; older binaries
 do not take the object fence. Use a common catalog partition and storage
-namespace for all workers serving that tenant. This fence is specific to API
-PUT/DELETE. Direct backend writes, scans, and moves are outside its ordering
+namespace for all workers serving that tenant. This fence coordinates API
+PUT/DELETE and catalog scan observations. Direct backend writes and moves are outside its ordering
 guarantee. The existing legal-hold guard and its broader protection remain in
 force. No catalog migration is introduced for this lock contract.
 

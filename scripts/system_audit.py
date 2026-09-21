@@ -103,7 +103,13 @@ def summarize(junit: Path, expected_files: list[str], returncode: int) -> dict:
     observed: set[str] = set()
     if not junit.is_file():
         return {**counts, "status": "failed", "missing_test_files": expected_files}
-    tree = ET.parse(junit)
+    if junit.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("JUnit report exceeds 64 MiB")
+    raw = junit.read_text(encoding="utf-8")
+    if "\x00" in raw or re.search(r"<!\s*(?:DOCTYPE|ENTITY)", raw, re.IGNORECASE):
+        raise ValueError("JUnit declarations/entities are forbidden")
+    # Only bounded UTF-8 pytest XML without DTD/entity declarations is accepted.
+    tree = ET.fromstring(raw)  # nosec B314
     unexpected = 0
     for case in tree.iter("testcase"):
         classname = case.get("classname", "")

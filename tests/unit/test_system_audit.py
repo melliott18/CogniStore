@@ -180,3 +180,14 @@ def test_ambiguous_json_is_rejected(audit, tmp_path, raw):
     path.write_text(raw)
     with pytest.raises(ValueError):
         audit.read_json(path)
+
+
+@pytest.mark.parametrize("raw", [
+    '<!DOCTYPE testsuite [<!ENTITY x "expanded">]><testsuite>&x;</testsuite>',
+    '<testsuites>\x00</testsuites>',
+])
+def test_junit_rejects_entity_declarations_and_non_utf8_forms(audit, tmp_path, raw):
+    path = tmp_path / "tests.xml"
+    path.write_text(raw)
+    with pytest.raises(ValueError, match="forbidden"):
+        audit.summarize(path, ["tests/unit/test_one.py"], 0)
