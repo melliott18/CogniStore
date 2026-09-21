@@ -1,0 +1,97 @@
+{
+  "issues": [
+    {
+      "number": 175,
+      "state": "CLOSED",
+      "title": "[M5] [P1] Fence scan observations against concurrent API PUT/DELETE",
+      "updatedAt": "2026-09-21T22:27:48Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/175"
+    },
+    {
+      "number": 166,
+      "state": "OPEN",
+      "title": "[M5] Run a gated pilot and decide expansion from measured results",
+      "updatedAt": "2026-09-20T07:41:11Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/166"
+    },
+    {
+      "number": 165,
+      "state": "OPEN",
+      "title": "[M5] Qualify realistic load, sustained operation, capacity limits, and alert delivery",
+      "updatedAt": "2026-09-20T07:41:10Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/165"
+    },
+    {
+      "number": 164,
+      "state": "OPEN",
+      "title": "[M5] Qualify failure recovery, coherent restore, credential rotation, and upgrade rollback",
+      "updatedAt": "2026-09-20T07:41:09Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/164"
+    },
+    {
+      "number": 163,
+      "state": "CLOSED",
+      "title": "[M5] Run manual end-to-end acceptance across CLI, API, SDK, search, and administration",
+      "updatedAt": "2026-09-21T22:09:58Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/163"
+    },
+    {
+      "number": 162,
+      "state": "OPEN",
+      "title": "[M5] Audit system safety, security, and data consistency for the release candidate",
+      "updatedAt": "2026-09-20T07:41:08Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/162"
+    },
+    {
+      "number": 161,
+      "state": "OPEN",
+      "title": "[M5] Deploy isolated staging with the selected production security and infrastructure configuration",
+      "updatedAt": "2026-09-20T07:41:07Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/161"
+    },
+    {
+      "number": 160,
+      "state": "CLOSED",
+      "title": "[M5] Assemble and freeze a reproducible release candidate for the selected workload",
+      "updatedAt": "2026-09-21T21:02:26Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/160"
+    },
+    {
+      "number": 159,
+      "state": "OPEN",
+      "title": "[M5] Define the first production deployment, workload, and pilot acceptance gates",
+      "updatedAt": "2026-09-20T17:53:37Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/159"
+    },
+    {
+      "number": 158,
+      "state": "OPEN",
+      "title": "[M5] Restore hosted CI and qualify the supported runtime matrix",
+      "updatedAt": "2026-09-20T07:41:03Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/158"
+    },
+    {
+      "number": 157,
+      "state": "CLOSED",
+      "title": "[M5] [P1] Prevent an older DELETE from removing a concurrent replacement PUT catalog record",
+      "updatedAt": "2026-09-20T17:59:11Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/157"
+    },
+    {
+      "number": 156,
+      "state": "CLOSED",
+      "title": "[M5] [P1] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds",
+      "updatedAt": "2026-09-20T17:54:12Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/156"
+    },
+    {
+      "number": 155,
+      "state": "OPEN",
+      "title": "[Epic] M5 \u2013 Release readiness and controlled pilot",
+      "updatedAt": "2026-09-20T07:41:48Z",
+      "url": "https://github.com/melliott18/CogniStore/issues/155"
+    }
+  ],
+  "recorded_at": "2026-09-21T22:37:59.871136+00:00",
+  "source": "GitHub Issues (read-only snapshot, not qualification evidence)"
+}

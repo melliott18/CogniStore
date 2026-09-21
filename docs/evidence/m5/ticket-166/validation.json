@@ -1,0 +1,90 @@
+{
+  "base_revision": "714ea55adb7568fd670e89f66f57dc5c832468d2",
+  "branch": "chore/166-gated-pilot",
+  "environment_adjustments": [
+    "Used existing isolated runtimes because the original workspace runtime has a previously recorded native readline startup issue; it was not used.",
+    "Smoke runtime lacks Ruff and markdown_it; the first invocations reported ModuleNotFoundError. Existing validation runtime supplies those tools and successfully regenerated/checked the mirror.",
+    "Initial agent pytest command used unsupported --no-cov in smoke runtime; removed the unnecessary option and retained the successful final run. No product test failure resulted."
+  ],
+  "evidence_sanitization": "JUnit hostnames replaced with local-validation-host; results unchanged.",
+  "expansion_authorized": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_sha256": {
+    "docs/evidence/m5/README.md": "79cf52b74e5118e5f1fa335093ddebbbf5a6e55fbece2904660b194b00b387c3",
+    "docs/operator_handbook.md": "77c392eb2be3330289a72f6d9206dd5ca1ded995978c32f83004ad62fc83d44f",
+    "docs/pilot_operations.md": "ad94bffb24852e423a19ddb79d52c6693e624464f88a5296725c44ceff6a8138",
+    "docs/roadmap.md": "ecf901048f7a6ea9a5ab6c36a23171e31e01960e792cb88b87b3b97b16606169",
+    "docs/tickets.md": "23da12dd020621a52c20d5a217dae1b8b7f8e9a3239b5bfad602a1b7b03b04e2",
+    "release/pilot/campaign.example.json": "292b4589284feb6b0f995c4accd0afeab4d157b4bac450eaeeeaee0c914af4b5",
+    "scripts/pilot_review.py": "54d660c71dfa83ab2205747c23336781f9c8142389ef1a57c74ae1454d443d28",
+    "tests/unit/test_pilot_review.py": "e13deec0091eb840dea0acf4a954f22b682d582802a2f4fb59738bf594be036f"
+  },
+  "limits": [
+    "Only offline checker, related evidence tool/mirror tests and static checks; no full product coverage campaign, build or dependency audit because runtime/package dependencies are unchanged.",
+    "All positive pilot fixtures are fabricated in temporary storage to test checker behavior; they are not live observations or accepted identities.",
+    "No deployment, data admission, operator enrollment or named approval performed.",
+    "Exact candidate/staging qualification and 14-day pilot workload remain blocked by readiness-assessment.json.",
+    "Raw measurement truth, signatures, private data permissions and durable remote retention require human review; checker completeness cannot authorize entry/resume/expansion."
+  ],
+  "local_markdown_targets": {
+    "checked": 91,
+    "missing": 0
+  },
+  "negative_controls": "negative-controls.json",
+  "pilot_entry_authorized": false,
+  "production_qualified": false,
+  "recorded_at": "2026-09-21T22:43:00.973031+00:00",
+  "resume_authorized": false,
+  "runtime": {
+    "machine": "arm64",
+    "os": "Darwin",
+    "python_version": "3.12.2",
+    "quality_and_adjacent_python": "/tmp/cognistore-73-validation/bin/python",
+    "test_python": "/private/tmp/cognistore-160-smoke-venv/bin/python"
+  },
+  "schema_version": 1,
+  "static_checks": "quality.json",
+  "status": "local-preparation-validated-live-pilot-blocked",
+  "tested_revision": "247a178fe64ce0dc8d057230308c13ef7178e0c5",
+  "tests": [
+    {
+      "command": [
+        "/private/tmp/cognistore-160-smoke-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit/test_pilot_review.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=/tmp/cognistore-166-pilot.xml"
+      ],
+      "errors": 0,
+      "exit_code": 0,
+      "failures": 0,
+      "junit": "tests.xml.gz",
+      "skipped": 0,
+      "tests": 122
+    },
+    {
+      "command": [
+        "/tmp/cognistore-73-validation/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit/test_recovery_qualification.py",
+        "tests/unit/test_load_qualification.py",
+        "tests/unit/test_ticket_mirror_sync.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "--junitxml=/tmp/cognistore-166-adjacent.xml"
+      ],
+      "errors": 0,
+      "exit_code": 0,
+      "failures": 0,
+      "junit": "adjacent-tests.xml.gz",
+      "skipped": 0,
+      "tests": 282
+    }
+  ],
+  "total_passed": 404
+}

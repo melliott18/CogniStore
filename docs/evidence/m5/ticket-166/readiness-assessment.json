@@ -1,0 +1,102 @@
+{
+  "blockers": [
+    {
+      "finding": "Specification and proposed operational roles remain unaccepted.",
+      "next_action": "Accepted owner records exact-specification acceptance and private staffing/contact/data permissions.",
+      "priority": "P1",
+      "tickets": [
+        159
+      ]
+    },
+    {
+      "finding": "Required hosted runtime qualification remains unsatisfied; hosted CI is suspended by user instruction.",
+      "next_action": "Retain the release-qualification gap; do not dispatch, rerun, poll or seek billing changes. Only an explicit future user instruction can resume hosted CI.",
+      "priority": "P1",
+      "tickets": [
+        158
+      ]
+    },
+    {
+      "finding": "Historical image has 69 unresolved scan findings (3 critical, 14 high), no registry manifest/durable binary handoff, and predates newer scanner and worker/telemetry changes.",
+      "next_action": "Qualify a fresh exact candidate including required fixes, retain complete immutable artifacts, and review image findings; never combine current-source tests with old-image claims.",
+      "priority": "P1",
+      "tickets": [
+        160,
+        162,
+        175
+      ]
+    },
+    {
+      "finding": "Selected staging environment and accepted owners remain unresolved placeholders.",
+      "next_action": "Supply and verify isolated resource/configuration identities and active controls before onboarding.",
+      "priority": "P1",
+      "tickets": [
+        161
+      ]
+    },
+    {
+      "finding": "Signed audit and exact-candidate UAT remain incomplete; retained UAT has 12 passed, 2 failed and 66 incomplete cases including LOCAL-163-001.",
+      "next_action": "Resolve the eager oversize-upload finding and complete signed audit/UAT on the selected exact candidate; administrative closure is not evidence.",
+      "priority": "P1",
+      "tickets": [
+        162,
+        163
+      ]
+    },
+    {
+      "finding": "Recovery, load/capacity and real alert delivery have local preparation only.",
+      "next_action": "Complete the approved isolated live campaigns and preserve candidate-bound raw results and accepted operator acknowledgement.",
+      "priority": "P1",
+      "tickets": [
+        164,
+        165
+      ]
+    },
+    {
+      "finding": "No named entry approval, enrolled cohort, predeclared staffed windows, observed pilot duration or measured exit exists.",
+      "next_action": "After all entry gates pass, accepted owner records the decision and runs the bounded pilot using the prepared records; retain fix/repeat or stop outcomes honestly.",
+      "priority": "P1",
+      "tickets": [
+        166
+      ]
+    }
+  ],
+  "evidence_sha256": {
+    "docs/evidence/m5/ticket-160/README.md": "0dfa447d378351432dfcfd645325c473bb1843e4c2313ee280972bad6527f7b4",
+    "docs/evidence/m5/ticket-160/manifest.json": "58e5083d0ecfac188bfc3ecc566b6b698d4a3122ba6d38d97badda3ceb1349e1",
+    "docs/evidence/m5/ticket-160/security-summary.json": "13202c3d939cb57af8d941ef226e214defa7cac1c8a9a380a9a9e279c505c0eb",
+    "docs/evidence/m5/ticket-161/README.md": "5986d7c25b25d34bfe13b5162bf8368139535bb5aeaee70fe96bd71313ddf2a6",
+    "docs/evidence/m5/ticket-162/README.md": "e5a8a72858e1046c3ecce7d67e4fe9de1809834d81236974d65b9bd7c5ebdf3e",
+    "docs/evidence/m5/ticket-163/README.md": "a1cc7500141004075cf8ddb424673c4c141d9c5544b7657d01ab58401061d4ba",
+    "docs/evidence/m5/ticket-163/acceptance-validation.json": "2a28f032a998f7c9b5d8e9831c9320ac15d06a9d55ea1146a291ff720a71ed64",
+    "docs/evidence/m5/ticket-164/README.md": "176ad0aa260e89f455bb7a1d7874548593e3e9ca105f3c82098914414a454c82",
+    "docs/evidence/m5/ticket-165/README.md": "4005af8f25efa1077c31bf9a72f54558316bfc1367870a375b7eda1a11e854d0",
+    "docs/production_pilot.md": "d91283f25f1ca76fae3f3d1d2858f5dae1f24f942c92232b04d52a1d0f963ea7",
+    "release/staging/environment.json": "248b88e0bb356334309f1e68ffb7546cf851613840bf8086daf85f6fa56205fc"
+  },
+  "expansion_authorized": false,
+  "findings_policy": "Existing blockers remain linked to their owning tickets. No new defect was reproduced and no measured pilot needs are invented.",
+  "historical_candidate": {
+    "docker_configuration_digest": "sha256:1f065e90bbcb256970782f16622d931b84e83ffe91d5e00321bd8b8f8bb33a05",
+    "qualified": false,
+    "registry_manifest_digest": null,
+    "source_commit": "e51cb39cc84b819ecbed43b56513888a956812cf"
+  },
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "named_owner_decision": "pending",
+  "pilot_entry_authorized": false,
+  "pilot_status": "not-started",
+  "production_qualified": false,
+  "recommendation": "no-go",
+  "recorded_at": "2026-09-21T22:37:59.871746+00:00",
+  "remaining_acceptance": [
+    "Named entry decision with all passing gates",
+    "Active bounded cohort and operations controls",
+    "14 calendar days and at least 80 staffed hours with retained workload evidence",
+    "Named measured expand/fix-and-repeat/stop decision",
+    "Prioritized tickets and roadmap/operator/mirror updates from actual pilot findings"
+  ],
+  "reviewed_repository_revision": "714ea55adb7568fd670e89f66f57dc5c832468d2",
+  "schema_version": 1,
+  "scope": "Repository evidence assessment only; no live pilot or owner signoff"
+}
