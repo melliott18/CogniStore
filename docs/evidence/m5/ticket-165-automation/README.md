@@ -36,10 +36,30 @@ record does not close #165 or authorize pilot entry.
 
 ## Validation and limits
 
-`validation.json` records tested revisions, source hashes, commands, runtime,
+[validation.json](validation.json) records tested revisions, source hashes, commands, runtime,
 results and retained log hashes. Checks use isolated local storage, synthetic
 tenant identities and fixture credentials. Native libmagic was installed only
 in the development environment to exercise real PDF/DOCX scanner handlers.
+
+The final implementation revision is
+`2be88b7984ab4c3314828f5b277e5acdbffe92e1`, based on
+`f68cda455a911fcbac58e69764302d84ca49ca64`. Final focused validation passed
+373 tests with 10 optional-parser skips. Installing `httptools` and running the
+35 parser/upload tests resolved those skips: **383 unique targeted tests passed**.
+Both XML reports parse successfully and preserve the individual outcomes.
+
+An earlier full-suite diagnostic completed with **6,302 passed, 260 skipped,
+one failure, and 85.97% coverage**. It ran before the final fixes and rebase;
+it is not final-revision certification. The existing OpenTelemetry redirect
+test fails because the installed exporter no longer exposes its expected private
+`_session` attribute; the same failure reproduces on the integration base.
+Mypy reports 17 existing annotation errors in six unchanged database files,
+also reproduced on the base. Neither check is reported as passing.
+
+Ruff, application/script Bandit, runtime dependency audit, build, Twine and
+whitespace checks passed. The placeholder staging configuration is rejected
+before network traffic, as expected. Full-suite skips cover unavailable external
+services, Helm inputs and optional capabilities; see the retained reasons.
 
 Deployment-specific inputs remain necessary: private metric expressions,
 directional backlog observations, backend-call timing/retries, scoped fault

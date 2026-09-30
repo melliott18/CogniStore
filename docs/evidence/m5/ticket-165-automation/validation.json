@@ -1,0 +1,189 @@
+{
+  "branch": "feature/165-live-load-automation",
+  "checks": [
+    {
+      "command": "python -m pytest tests/unit/test_load_*.py tests/unit/test_worker_runtime.py tests/unit/test_observability.py tests/unit/test_nats_queue.py tests/unit/test_rejected_body.py tests/integration/test_upload_limits.py --junitxml=/tmp/cognistore-165-final-tests.xml -q -o addopts=",
+      "counts": {
+        "passed": 373,
+        "skipped": 10
+      },
+      "evidence": [
+        "final-tests.log.gz",
+        "final-tests.xml.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1",
+      "skips": {
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "command": "python -m pytest tests/integration/test_upload_limits.py tests/unit/test_rejected_body.py --junitxml=/tmp/cognistore-165-parser-tests.xml -q -o addopts=",
+      "counts": {
+        "passed": 35
+      },
+      "evidence": [
+        "parser-tests.log.gz",
+        "parser-tests.xml.gz"
+      ],
+      "exit_code": 0,
+      "notes": "After installing optional httptools; resolves all 10 parser skips in the focused run.",
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m pytest --cov=cognistore --cov-report=term-missing --cov-report=xml --junitxml=/tmp/cognistore-165-full-tests.xml",
+      "counts": {
+        "failed": 1,
+        "passed": 6302,
+        "skipped": 260
+      },
+      "coverage_percent": 85.97,
+      "evidence": [
+        "full-tests.log.gz",
+        "full-tests.xml.gz",
+        "full-coverage.xml.gz"
+      ],
+      "exit_code": 1,
+      "revision": "04ee37a plus interim uncommitted automation; diagnostic run before final fixes/rebase, not final revision certification",
+      "skip_reasons": {
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "COGNISTORE_TEST_POSTGRES_DSN is not configured": 192,
+        "Helm is required for chart contract tests": 23,
+        "Helm is required for staging render tests": 5,
+        "backend does not advertise range writes": 1,
+        "collection skipped": 4,
+        "set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+        "set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 10,
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1
+      }
+    },
+    {
+      "command": "python -m pytest tests/unit/test_encryption_policy.py::test_telemetry_redirect_cannot_forward_payload_to_plaintext -q",
+      "evidence": [
+        "otel-failure.log.gz",
+        "otel-baseline.log.gz"
+      ],
+      "exit_code": 1,
+      "notes": "Same baseline failure: installed OTLPSpanExporter no longer exposes private _session expected by existing test. No telemetry security pass is claimed.",
+      "revision": "f68cda455a911fcbac58e69764302d84ca49ca64"
+    },
+    {
+      "command": "python -m ruff check .",
+      "evidence": [
+        "ruff.log.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m mypy cognistore",
+      "evidence": [
+        "mypy.log.gz",
+        "mypy-baseline.log.gz"
+      ],
+      "exit_code": 1,
+      "notes": "17 var-annotated errors in 6 unchanged database files; baseline reproduces the same 17 errors. No errors in changed runtime.",
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m bandit -c pyproject.toml -r cognistore -ll -ii",
+      "evidence": [
+        "bandit.log.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m bandit -r scripts/load_service.py scripts/load_campaign.py scripts/load_observations.py scripts/load_acceptance.py scripts/load_export.py -ll -ii",
+      "evidence": [
+        "scripts-bandit.log.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m pip_audit .",
+      "evidence": [
+        "pip-audit.log.gz"
+      ],
+      "exit_code": 0,
+      "notes": "Declared runtime dependency audit; pyproject.toml unchanged by this change. No known vulnerabilities reported.",
+      "pyproject_sha256": "45d982c0a02a5cd71795ba6863e6f5f0cd4cb2d7cc8b43021da049f8cb1ce29d"
+    },
+    {
+      "command": "python -m build",
+      "evidence": [
+        "build.log.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python -m twine check dist/*",
+      "evidence": [
+        "twine.log.gz"
+      ],
+      "exit_code": 0,
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    },
+    {
+      "command": "python scripts/load_campaign.py preflight --config release/load/staging.example.json --output /tmp/cognistore-165-unaccepted-preflight.json",
+      "evidence": [
+        "placeholder-preflight.log.gz"
+      ],
+      "exit_code": 2,
+      "notes": "Expected negative control: unaccepted placeholders cannot launch a campaign. No output file was created.",
+      "revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1"
+    }
+  ],
+  "created_at": "2026-09-30T03:22:18.588919+00:00",
+  "execution_scope": "isolated-local-development",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "implementation_revision": "2be88b7984ab4c3314828f5b277e5acdbffe92e1",
+  "integration_base": "f68cda455a911fcbac58e69764302d84ca49ca64",
+  "material_gaps": [
+    "No accepted #159 owner/specification or completed #161 deployment handoff, candidate access, private collector mapping or operator notification route was supplied.",
+    "No staging traffic, 72-hour soak, physical resource/cost measurement, real notification delivery or live fault was performed.",
+    "The paced directional driver cannot prove sustained platform backlog; required movement-backlog observations need the accepted private producer.",
+    "Intentional saturation may latch a campaign stop. Recovery is attempted, but automatic operator resumption is absent and stopped bundles cannot qualify.",
+    "Deployment-specific backend-call/retry, integrity/hold/isolation, notification and cost producers remain inputs. Missing observations cannot pass.",
+    "The full-suite diagnostic has one confirmed baseline OpenTelemetry failure, 260 skips and is not a final-revision suite; final scoped validation covers all changed code and rebased upload behavior.",
+    "Mypy has 17 confirmed baseline errors. Hosted/release qualification is not supplied by these local results."
+  ],
+  "production_qualified": false,
+  "runtime": {
+    "native_libmagic": "Homebrew 5.48; installed only for local scanner verification",
+    "optional_parser": "httptools installed only for local socket regression verification",
+    "packages": "runtime-packages.json",
+    "platform": "macOS-14.8.7-arm64-arm-64bit",
+    "python": "3.12.2",
+    "python_executable": "/private/tmp/cognistore-165-automation-venv/bin/python"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "cognistore/jobs/runtime.py": "5a8724f6fa62cd8c3a23a26f14cda9fd4b375e815fac74c2b22545a57ba9d61e",
+    "docs/load_evidence_schema.md": "3ffc6e6cb75a1f7274434ab0c72883a1b25f2b27712b5c5202fd81458bc5c6de",
+    "docs/load_qualification.md": "d9195e513f2f2dff2e365d4047232382bd97dfccec0a6754948c991ea73aa9f1",
+    "release/load/staging.example.json": "cfecda34e5092e235c7d6207848ea513001a66115357538555facbe8ce6ae503",
+    "release/load/telemetry.example.json": "1870c018de352ae0e25aefb61ecbcd479dee83650233fb9dc19cf880bc7f19de",
+    "scripts/load_acceptance.py": "f1871ed529d11be86ebe70d1a4b479a318df0f60d89608a38857b352fe860a29",
+    "scripts/load_campaign.py": "4b25b0673b855b5b57c54bc5787300a692405947ec46a7bd91642c0918356329",
+    "scripts/load_export.py": "5b55af3851a0b25eaa77c196a8a6ce41a99c0cb907d1f30ed068f8998cb57c33",
+    "scripts/load_observations.py": "78f5d2678b7d75728d34bf5c99dfc1907b47b34eeea6cb019d6a3b382445fdfe",
+    "scripts/load_service.py": "2820a20a3fc3abacf994a3467d84f7cd3f36c111efd3a1505ac5053afc662529",
+    "scripts/load_workload.py": "29a3842c9aec439de6039502a051355ec4b4056cbc561682eedca940567edb2a",
+    "tests/unit/test_load_acceptance.py": "2c5bd9a4f935e501e060d96a225e0e98c6226c0474f32f9cf3eee4b2fa4a6f30",
+    "tests/unit/test_load_campaign.py": "37c1bc0cd5f4b35c0e92a2a557e7f1036741a0bc5019cb67cfc7f73f4d03f75c",
+    "tests/unit/test_load_export.py": "42959828fb53c81cba547b2e525e48fda8f868067c98bf9b346f6f4d7c461ec2",
+    "tests/unit/test_load_observations.py": "1ac2555be9f788d778b4a945489a0c75581a2c775f59bb2a59273ed693fb5fa6",
+    "tests/unit/test_load_service.py": "6ab5b052498fdacad5545d82a38bb9cebfb0e8427caa274718914adbc9ed919e",
+    "tests/unit/test_load_workload.py": "ae31041c2cc950d2bfef511f01f715da8a8334076247cd19806ca8ea85ecaa7e",
+    "tests/unit/test_worker_runtime.py": "29b31f0d07a9230f68371c31090abaf0ea6a81d825f50aba10fa1c3035063ed0"
+  },
+  "ticket": 165,
+  "ticket_closure_supported": false,
+  "unique_final_scoped_test_statuses": {
+    "passed": 383
+  }
+}
