@@ -1,0 +1,112 @@
+{
+  "_instructions": "Reviewed example only. Replace endpoint, credential paths and every exporter-specific expression with the accepted private deployment mapping. cognistore_pilot_* are explicit exporter contract examples, not metrics supplied by the application. No absent()/or vector(0) fallbacks: unknown is a failed observation. Timestamp expressions must return the oldest underlying source sample timestamp, not the instant-query evaluation timestamp. Include every operand when computing resource ratios.",
+  "endpoint": "https://prometheus.private.example/api/v1/query",
+  "trusted_ca_file": "/run/secrets/pilot-prometheus-ca.pem",
+  "token_file": "/run/secrets/pilot-prometheus-token",
+  "interval_seconds": 15,
+  "max_sample_age_seconds": 60,
+  "total_timeout_seconds": 15,
+  "request_timeout_seconds": 5,
+  "queries": {
+    "api_cpu_ratio": {
+      "value": "max(cognistore_pilot_api_cpu_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_cpu_ratio))"
+    },
+    "worker_cpu_ratio": {
+      "value": "max(cognistore_pilot_worker_cpu_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_cpu_ratio))"
+    },
+    "api_rss_ratio": {
+      "value": "max(cognistore_pilot_api_rss_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_rss_ratio))"
+    },
+    "worker_rss_ratio": {
+      "value": "max(cognistore_pilot_worker_rss_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_rss_ratio))"
+    },
+    "hot_free_ratio": {
+      "value": "max(cognistore_pilot_hot_free_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_hot_free_ratio))"
+    },
+    "catalog_free_ratio": {
+      "value": "max(cognistore_pilot_catalog_free_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_catalog_free_ratio))"
+    },
+    "broker_free_ratio": {
+      "value": "max(cognistore_pilot_broker_free_ratio)",
+      "timestamp": "min(timestamp(cognistore_pilot_broker_free_ratio))"
+    },
+    "api_rss_bytes": {
+      "value": "max(cognistore_pilot_api_rss_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_rss_bytes))"
+    },
+    "worker_rss_bytes": {
+      "value": "max(cognistore_pilot_worker_rss_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_rss_bytes))"
+    },
+    "api_tmp_bytes": {
+      "value": "max(cognistore_pilot_api_tmp_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_tmp_bytes))"
+    },
+    "worker_tmp_bytes": {
+      "value": "max(cognistore_pilot_worker_tmp_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_tmp_bytes))"
+    },
+    "api_shm_bytes": {
+      "value": "max(cognistore_pilot_api_shm_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_shm_bytes))"
+    },
+    "worker_shm_bytes": {
+      "value": "max(cognistore_pilot_worker_shm_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_shm_bytes))"
+    },
+    "api_connections": {
+      "value": "max(cognistore_pilot_api_connections)",
+      "timestamp": "min(timestamp(cognistore_pilot_api_connections))"
+    },
+    "worker_connections": {
+      "value": "max(cognistore_pilot_worker_connections)",
+      "timestamp": "min(timestamp(cognistore_pilot_worker_connections))"
+    },
+    "catalog_connections": {
+      "value": "max(cognistore_pilot_catalog_connections)",
+      "timestamp": "min(timestamp(cognistore_pilot_catalog_connections))"
+    },
+    "broker_connections": {
+      "value": "max(cognistore_pilot_broker_connections)",
+      "timestamp": "min(timestamp(cognistore_pilot_broker_connections))"
+    },
+    "queue_pending": {
+      "value": "max(cognistore_pilot_queue_pending)",
+      "timestamp": "min(timestamp(cognistore_pilot_queue_pending))"
+    },
+    "queue_oldest_seconds": {
+      "value": "max(cognistore_pilot_queue_oldest_seconds)",
+      "timestamp": "min(timestamp(cognistore_pilot_queue_oldest_seconds))"
+    },
+    "queue_bytes": {
+      "value": "max(cognistore_pilot_queue_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_queue_bytes))"
+    },
+    "hot_used_bytes": {
+      "value": "max(cognistore_pilot_hot_used_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_hot_used_bytes))"
+    },
+    "catalog_used_bytes": {
+      "value": "max(cognistore_pilot_catalog_used_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_catalog_used_bytes))"
+    },
+    "broker_used_bytes": {
+      "value": "max(cognistore_pilot_broker_used_bytes)",
+      "timestamp": "min(timestamp(cognistore_pilot_broker_used_bytes))"
+    },
+    "ingress_bytes_total": {
+      "value": "max(cognistore_pilot_ingress_bytes_total)",
+      "timestamp": "min(timestamp(cognistore_pilot_ingress_bytes_total))"
+    },
+    "egress_bytes_total": {
+      "value": "max(cognistore_pilot_egress_bytes_total)",
+      "timestamp": "min(timestamp(cognistore_pilot_egress_bytes_total))"
+    }
+  }
+}

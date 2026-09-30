@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "run_id": "replace-with-unique-run",
+  "bindings": {
+    "source_revision": "REPLACE_WITH_CANDIDATE_SOURCE_SHA",
+    "image_digest": "REPLACE_WITH_REGISTRY_MANIFEST_DIGEST",
+    "configuration_sha256": "REPLACE_WITH_RENDERED_CONFIGURATION_SHA256",
+    "specification_sha256": "REPLACE_WITH_ACCEPTED_SPECIFICATION_SHA256",
+    "dependency_manifest_sha256": "REPLACE_WITH_DEPENDENCY_MANIFEST_SHA256",
+    "corpus_manifest_sha256": "REPLACE_WITH_CORPUS_MANIFEST_SHA256",
+    "environment_id": "REPLACE_WITH_PUBLIC_ENVIRONMENT_ID"
+  },
+  "approval": {
+    "operator": "REPLACE_WITH_ACCEPTED_OPERATOR_REFERENCE",
+    "specification_review": "REPLACE_WITH_ACCEPTED_159_REVIEW",
+    "staging_review": "REPLACE_WITH_COMPLETED_161_HANDOFF",
+    "spend_review": "REPLACE_WITH_ACCEPTED_SPEND_AND_EXPIRY_REVIEW",
+    "faults_approved": false
+  },
+  "service": {
+    "origin": "https://staging.private.example",
+    "ca_file": "/run/secrets/pilot-service-ca.pem",
+    "token_files": {
+      "pilot-a": "/run/secrets/pilot-a-token",
+      "pilot-b": "/run/secrets/pilot-b-token"
+    },
+    "bucket": "pilot"
+  },
+  "telemetry_file": "telemetry.example.json",
+  "retry_limit": 3,
+  "induced_alert_ids": [
+    "REPLACE_WITH_EXPECTED_RECEIVER_ALERT_IDS"
+  ],
+  "faults": [
+    {
+      "fault_id": "message-saturation",
+      "kind": "saturation",
+      "injection_argv": [
+        "/opt/pilot/fault-control",
+        "message-saturation",
+        "--run-id",
+        "{run_id}"
+      ],
+      "recovery_argv": [
+        "/opt/pilot/fault-control",
+        "recover-message-saturation",
+        "--run-id",
+        "{run_id}"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "fault_id": "byte-saturation",
+      "kind": "saturation",
+      "injection_argv": [
+        "/opt/pilot/fault-control",
+        "byte-saturation",
+        "--run-id",
+        "{run_id}"
+      ],
+      "recovery_argv": [
+        "/opt/pilot/fault-control",
+        "recover-byte-saturation",
+        "--run-id",
+        "{run_id}"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "fault_id": "backend-throttle",
+      "kind": "backend_throttle",
+      "injection_argv": [
+        "/opt/pilot/fault-control",
+        "backend-throttle",
+        "--run-id",
+        "{run_id}"
+      ],
+      "recovery_argv": [
+        "/opt/pilot/fault-control",
+        "recover-backend-throttle",
+        "--run-id",
+        "{run_id}"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "fault_id": "bounded-retry",
+      "kind": "bounded_retry",
+      "injection_argv": [
+        "/opt/pilot/fault-control",
+        "bounded-retry",
+        "--run-id",
+        "{run_id}"
+      ],
+      "recovery_argv": [
+        "/opt/pilot/fault-control",
+        "recover-bounded-retry",
+        "--run-id",
+        "{run_id}"
+      ],
+      "timeout_seconds": 600
+    }
+  ],
+  "evidence_export_argv": [
+    "/opt/pilot/venv/bin/python",
+    "/opt/pilot/CogniStore/scripts/load_export.py",
+    "--source",
+    "/var/lib/pilot/evidence/{run_id}",
+    "--output",
+    "{output}",
+    "--run-id",
+    "{run_id}",
+    "--binding-sha256",
+    "{binding_sha256}"
+  ]
+}
