@@ -121,9 +121,11 @@ def _pipeline_for(
     parser: object,
     *,
     max_file_bytes: int = 1024,
-    timeout_seconds: float = 2,
+    timeout_seconds: float = document_extraction.DEFAULT_TIMEOUT_SECONDS,
     max_output_bytes: int = 1024,
 ) -> DocumentExtractionPipeline:
+    # Semantic assertions need the normal worker budget, including spawn imports.
+    # Deadline tests pass their own short timeout explicitly.
     return DocumentExtractionPipeline(
         [parser],  # type: ignore[list-item]
         limits=ExtractionLimits(
