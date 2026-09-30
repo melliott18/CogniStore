@@ -240,6 +240,9 @@ def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch, red
     monkeypatch.setenv("COGNISTORE_SECURITY_PROFILE", "production")
     monkeypatch.setenv("COGNISTORE_OTEL_ENABLED", "true")
     monkeypatch.setenv("COGNISTORE_OTEL_ENDPOINT", "https://collector.invalid/v1/traces")
+    # Keep the payload assertion independent of ambient exporter compression.
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_COMPRESSION", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_COMPRESSION", raising=False)
     monkeypatch.setattr(observability, "_configured", False)
     monkeypatch.setattr(observability, "_provider", None)
     monkeypatch.setattr(observability, "_tracer", observability._tracer)
