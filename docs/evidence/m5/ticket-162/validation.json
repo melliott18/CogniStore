@@ -50,7 +50,7 @@
       "external_service_configuration": "removed COGNISTORE_*; only local Helm and NATS chart restored",
       "artifacts": {
         "full-pytest.log.gz": "8c08cc93fe826b30e928ee712dc8599a7406ea0f5fa258d1ee872c02dbfcc133",
-        "full-tests.xml.gz": "e213310c39e3215d2444130e26fa995a3f570540ef894453df0542bd635a0532",
+        "full-tests.xml.gz": "13751ad037b68c8c5dc12942abb63c3998dd46fcfaf6c03f7052a67e5036a9ad",
         "full-coverage.xml.gz": "a2be1660bd236b93eea3ebc0b766bac4e310d6aac5089fe95fb1b1810304020f"
       },
       "combined_coverage_percent": 86.82,
@@ -87,7 +87,7 @@
       "returncode": 0,
       "artifacts": {
         "merge-pytest.log.gz": "dc1cba0759628c08ee8ffa63081ef32902fbf2f67fa1de14a60e0020068b7ba9",
-        "merge-tests.xml.gz": "d39e676b3aa6d500b3178ce8f78397a17129098384bff80eb4fd0638cd58b3b5"
+        "merge-tests.xml.gz": "e96272a6fbb2ac3a453fd165b6262fc0eef0bed22c91534fa74bc636bdf82427"
       },
       "tested_revision": "4293d2d7339d0058dc7fdc00b461d8a7d201e042"
     },
@@ -99,7 +99,7 @@
       "passed": 31,
       "duration_seconds": 2.921,
       "command": "python -m pytest -q -o addopts= --import-mode=importlib tests/unit/test_system_audit.py --junitxml=/tmp/cognistore-162-tool-final.xml",
-      "artifact_sha256": "4b30b342f9f5200110dfe9d2f7bc5ec6c8135df53af0f77560a4df453261ab79"
+      "artifact_sha256": "01cb93e1c3e64708ee75ffc51c3e5d2e61a4cbed31c01ea7b1549abe4ea7aaee"
     },
     "service-profile-initial": {
       "result": {
