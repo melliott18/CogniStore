@@ -2,7 +2,10 @@
 
 **Conclusion: local audit and remediation implemented; final release audit
 signoff is incomplete.** This record does not approve a candidate, environment,
-deployment or pilot entry, and must not close #162.
+deployment or pilot entry. On 2026-09-29 the owner requested closure of #162
+after repairing its retained XML evidence. The [repair and closure disposition](xml-repair.md)
+preserves the outstanding qualification requirements; ticket closure is not
+production audit signoff.
 
 Audit scope is `m5-pilot-v1`, revision 1, based on
 `8d3d50bb649cea617fe030859c51b196457e4648`. The

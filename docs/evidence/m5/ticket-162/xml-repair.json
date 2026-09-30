@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-30T02:42:14.775935+00:00",
+  "repair_base_revision": "04ee37a499d58695645d739971fadc72ab5af459",
+  "purpose": "Repair only XML serialization of previously sanitized placeholders; no product regression campaign rerun.",
+  "archives": {
+    "full-tests.xml.gz": {
+      "before_gzip_sha256": "e213310c39e3215d2444130e26fa995a3f570540ef894453df0542bd635a0532",
+      "before_xml_sha256": "86a4e093f1e00c5dd0a7adaeb2f5638515b7e1997836892b473c4bdf90feadb5",
+      "after_gzip_sha256": "13751ad037b68c8c5dc12942abb63c3998dd46fcfaf6c03f7052a67e5036a9ad",
+      "after_xml_sha256": "d1697ef330096167d4d2f99a35c6a810fbfb16678f3948b2632b51bf5958812e",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1,
+        "WORKTREE": 315
+      }
+    },
+    "merge-tests.xml.gz": {
+      "before_gzip_sha256": "d39e676b3aa6d500b3178ce8f78397a17129098384bff80eb4fd0638cd58b3b5",
+      "before_xml_sha256": "81103c93a1f1e5ec35375997cc3d7e94bc68a8a3dccea86463e888b94c06b2b0",
+      "after_gzip_sha256": "e96272a6fbb2ac3a453fd165b6262fc0eef0bed22c91534fa74bc636bdf82427",
+      "after_xml_sha256": "bffe6780c4f341574513f1e008805b6e754a370186cfccbd896cb730cae74c0e",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1,
+        "WORKTREE": 12
+      }
+    },
+    "mutation-after.xml.gz": {
+      "before_gzip_sha256": "f44facb5c12b8c0d615c814a56348058033aadec140db7875c2814c7d5b7a562",
+      "before_xml_sha256": "0a68a75060945b318a68adb570862f4c11b79cf2e74a6b32e2db293306f33c2e",
+      "after_gzip_sha256": "d09335bb0ddf7b06890b8b563d1d298dd75e249f79bcc5f64b72102624432ae8",
+      "after_xml_sha256": "808d577a096aa10a2a718b1ed164f9a0373abd3a45a253f28ce9459aae731f6e",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1
+      }
+    },
+    "mutation-before.xml.gz": {
+      "before_gzip_sha256": "6b55837e5cc28d7a64e2ea2c3cd3a050c3e3eab06a5f3777e35362cc1c3712dc",
+      "before_xml_sha256": "724649faeb5dc5e6ef8cd6e6619b64495e4638017acb5bf153c0cd309bde362c",
+      "after_gzip_sha256": "322a43565de8886f4ba1bb21072e2e4b2ffc2cd7685f27c1b2a5ad45c7fe3707",
+      "after_xml_sha256": "329196294b41f0a8d2cc600f45ab2768b01e59f81dbdbcc11922f98288422b25",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1
+      }
+    },
+    "scan-after.xml.gz": {
+      "before_gzip_sha256": "0232670f75d9cbeaf49697508a1a6adebb7d0d6e47adc0b31b22747daca1c019",
+      "before_xml_sha256": "2bdc94d426217e75e2be5fbd3ebb2ae6c535de34c2d200a56606452c85d37f6a",
+      "after_gzip_sha256": "2dc16660ce978e6bb70e836ee503314ba8c07aa9ca1136e9cf1869ebe2d3d5c9",
+      "after_xml_sha256": "2c5b70df7aa48cfd4cfcaabd3bcfd8c584de08c77ee4b6148677d8580f9e774b",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1
+      }
+    },
+    "scan-before.xml.gz": {
+      "before_gzip_sha256": "df2609f71bcf7d5640ec07309b47b301d3338d205774c201c9b3ce02bcc847a8",
+      "before_xml_sha256": "26515439e7ff47ed618694450614984013a698f74916ab42f4228433e46bd383",
+      "after_gzip_sha256": "4fd8e0cff0e6f2a82f176d55464717aa94e46a695acc6ee2ce1008b88a2122d8",
+      "after_xml_sha256": "b9f4eecfba581df53d547170359e7fb0d21d7ffaab63cdf3294b1aa64318f137",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1
+      }
+    },
+    "service-profile-final/tests.xml.gz": {
+      "before_gzip_sha256": "6e3d9111ef8e081581f19f180222dfd94e445ced9f7868b91052f535fbd0fbce",
+      "before_xml_sha256": "49c9b8db7e4067c4ec2993c120693da68e9616932b3e44cf7479b27f9e98665b",
+      "after_gzip_sha256": "97e8afae7b91791c4387e995eff624063feeebf996789918ed47110a13507964",
+      "after_xml_sha256": "a2aa6c4cfa24e9c89721188c90fc0b2c775289247a8adfcf10938e2c44d5d07a",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1,
+        "WORKTREE": 10
+      }
+    },
+    "service-profile-initial/tests.xml.gz": {
+      "before_gzip_sha256": "9a513aaa1eb0c45bdd19d7bb1171407aa1bd0ec16796b2385cf1f8eb1d99e2b7",
+      "before_xml_sha256": "14b03c2ddb05d5ae6cdb4e10de50cb77961dbeb64e2485f1ca69ef99c3b4d30d",
+      "after_gzip_sha256": "7022e92806e8c76ee90dee20e0780daf473b00d1a36a3f5ddca947f27b0e53b8",
+      "after_xml_sha256": "fdefa92bc419c1c9da53fe5e86442697b5a949f35c19397d97a7f6c115bebdbc",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1,
+        "WORKTREE": 10
+      }
+    },
+    "tooling-final.xml.gz": {
+      "before_gzip_sha256": "4b30b342f9f5200110dfe9d2f7bc5ec6c8135df53af0f77560a4df453261ab79",
+      "before_xml_sha256": "c5e4df56192bf2af07bf25c52869736d85a1235cad62333297e8c431b6dbdce8",
+      "after_gzip_sha256": "01cb93e1c3e64708ee75ffc51c3e5d2e61a4cbed31c01ea7b1549abe4ea7aaee",
+      "after_xml_sha256": "760e18c0da809a13ca6a3450a64ea1a01ac301430c797784aa8d0ee2fd11f9ae",
+      "placeholder_counts": {
+        "LOCAL_HOST": 1
+      }
+    }
+  },
+  "unchanged_coverage_gzip_sha256": "a2be1660bd236b93eea3ebc0b766bac4e310d6aac5089fe95fb1b1810304020f",
+  "preservation": "Only literal placeholder tokens changed in decompressed XML; reverse the listed escaping to obtain the recorded before_xml_sha256. All historical source identities, timestamps, diagnostics, expected failures/skips and qualification limits remain unchanged. Original compressed bytes remain in repair_base_revision.",
+  "manifest_repairs": {
+    "validation.json": "full/merge compressed JUnit and tooling compressed JUnit digests",
+    "mutation-validation.json": "four compressed JUnit digests",
+    "service-profile-initial/report.json": "decompressed tests.xml digest only; historical failed classification preserved",
+    "service-profile-final/report.json": "decompressed tests.xml digest only; incomplete classification preserved",
+    "SHA256SUMS": "complete retained artifact inventory, including the new repair record"
+  },
+  "owner_requested_ticket_closure": true,
+  "production_signoff": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction"
+}

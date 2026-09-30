@@ -1,0 +1,234 @@
+[
+  {
+    "name": "alembic",
+    "version": "1.20.0"
+  },
+  {
+    "name": "annotated-doc",
+    "version": "0.0.5"
+  },
+  {
+    "name": "annotated-types",
+    "version": "0.8.0"
+  },
+  {
+    "name": "anyio",
+    "version": "4.15.1"
+  },
+  {
+    "name": "boto3",
+    "version": "1.43.105"
+  },
+  {
+    "name": "botocore",
+    "version": "1.43.105"
+  },
+  {
+    "name": "certifi",
+    "version": "2026.7.22"
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1"
+  },
+  {
+    "name": "charset-normalizer",
+    "version": "3.5.1"
+  },
+  {
+    "name": "click",
+    "version": "8.5.0"
+  },
+  {
+    "name": "cognistore",
+    "version": "0.1.1rc1"
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.1"
+  },
+  {
+    "name": "fastapi",
+    "version": "0.141.1"
+  },
+  {
+    "name": "google-auth",
+    "version": "2.59.0"
+  },
+  {
+    "name": "googleapis-common-protos",
+    "version": "1.75.5"
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0"
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9"
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1"
+  },
+  {
+    "name": "idna",
+    "version": "3.20"
+  },
+  {
+    "name": "jmespath",
+    "version": "1.1.0"
+  },
+  {
+    "name": "lxml",
+    "version": "6.1.3"
+  },
+  {
+    "name": "Mako",
+    "version": "1.4.3"
+  },
+  {
+    "name": "MarkupSafe",
+    "version": "3.0.3"
+  },
+  {
+    "name": "nats-py",
+    "version": "2.16.0"
+  },
+  {
+    "name": "opentelemetry-api",
+    "version": "1.45.0"
+  },
+  {
+    "name": "opentelemetry-exporter-http-transport",
+    "version": "0.66b0"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-common",
+    "version": "0.66b0"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-proto-common",
+    "version": "1.45.0"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-proto-http",
+    "version": "1.45.0"
+  },
+  {
+    "name": "opentelemetry-proto",
+    "version": "1.45.0"
+  },
+  {
+    "name": "opentelemetry-sdk",
+    "version": "1.45.0"
+  },
+  {
+    "name": "opentelemetry-semantic-conventions",
+    "version": "0.66b0"
+  },
+  {
+    "name": "pip",
+    "version": "26.2.1"
+  },
+  {
+    "name": "prometheus_client",
+    "version": "0.26.0"
+  },
+  {
+    "name": "protobuf",
+    "version": "7.36.2"
+  },
+  {
+    "name": "psycopg",
+    "version": "3.3.6"
+  },
+  {
+    "name": "psycopg-binary",
+    "version": "3.3.6"
+  },
+  {
+    "name": "pyasn1",
+    "version": "0.6.4"
+  },
+  {
+    "name": "pyasn1_modules",
+    "version": "0.4.2"
+  },
+  {
+    "name": "pycparser",
+    "version": "3.0"
+  },
+  {
+    "name": "pydantic",
+    "version": "2.13.5"
+  },
+  {
+    "name": "pydantic_core",
+    "version": "2.46.5"
+  },
+  {
+    "name": "PyJWT",
+    "version": "2.15.1"
+  },
+  {
+    "name": "pypdf",
+    "version": "6.19.0"
+  },
+  {
+    "name": "python-dateutil",
+    "version": "2.9.0.post0"
+  },
+  {
+    "name": "python-docx",
+    "version": "1.2.0"
+  },
+  {
+    "name": "python-magic",
+    "version": "0.4.27"
+  },
+  {
+    "name": "PyYAML",
+    "version": "6.0.3"
+  },
+  {
+    "name": "requests",
+    "version": "2.34.2"
+  },
+  {
+    "name": "s3transfer",
+    "version": "0.19.2"
+  },
+  {
+    "name": "six",
+    "version": "1.17.0"
+  },
+  {
+    "name": "SQLAlchemy",
+    "version": "2.1.1"
+  },
+  {
+    "name": "starlette",
+    "version": "1.7.0"
+  },
+  {
+    "name": "tantivy",
+    "version": "0.26.2"
+  },
+  {
+    "name": "typing_extensions",
+    "version": "4.16.0"
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4"
+  },
+  {
+    "name": "urllib3",
+    "version": "2.8.0"
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.52.4"
+  }
+]

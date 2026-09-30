@@ -1,0 +1,34 @@
+{
+  "scope": "Read-only archive file observations; no exploitability or exception decision",
+  "observed_at": "2026-09-30T02:47:41.324170+00:00",
+  "selected_files": {
+    "usr/bin/perl": {
+      "layer": "ae944ad5d460a6090dc99295b31ca5906149cd4e23a7e1a78fa99f69b136bc97/layer.tar",
+      "sha256": "f01fa7776dc21c9e4b5f60b2d231ca4d96dab958b8d06aff611cb1c16f871574",
+      "size": 3804464,
+      "elf_magic": "7f454c46",
+      "elf_class": 2,
+      "elf_machine_little_endian": 62
+    },
+    "usr/local/lib/python3.12/site-packages/pip/_vendor/vendor.txt": {
+      "layer": "e3ae3814e0629ac68c64b28d9923218b479e12be748882758dbbe2ed84c99db1/layer.tar",
+      "sha256": "3df0c9601bfa2e0dca23cc574a4f900a4d7fdad060ab203fab8354350ed93320",
+      "size": 317,
+      "relevant_lines": [
+        "msgpack==1.1.2",
+        "setuptools==70.3.0"
+      ]
+    },
+    "opt/cognistore/lib/python3.12/site-packages/pip/_vendor/vendor.txt": {
+      "layer": "e3ae3814e0629ac68c64b28d9923218b479e12be748882758dbbe2ed84c99db1/layer.tar",
+      "sha256": "3df0c9601bfa2e0dca23cc574a4f900a4d7fdad060ab203fab8354350ed93320",
+      "size": 317,
+      "relevant_lines": [
+        "msgpack==1.1.2",
+        "setuptools==70.3.0"
+      ]
+    }
+  },
+  "setuptools_package_index_paths": [],
+  "sbom_paths": []
+}

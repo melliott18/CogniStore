@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-30T02:44:37.732307+00:00",
+  "status": "xml-evidence-repair-validated",
+  "base_revision": "04ee37a499d58695645d739971fadc72ab5af459",
+  "new_regression_test_sha256": "5dde306d51001df5c01c6220603f24bdc2b8cb81fff3392c7f90fc62435490a3",
+  "command": [
+    "/tmp/cognistore-73-validation/bin/python",
+    "-m",
+    "pytest",
+    "tests/unit/test_retained_audit_evidence.py",
+    "tests/unit/test_system_audit.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "-o",
+    "filterwarnings=",
+    "--import-mode=importlib"
+  ],
+  "environment": {
+    "python": "3.12.2",
+    "pytest_plugin_autoload": "disabled",
+    "warning_filter_override": "Clear the repository Starlette-specific filter because this minimal stdlib/pytest evidence environment does not install Starlette; no application tests or runtime imports require it."
+  },
+  "before_repair": {
+    "selected_tests": 9,
+    "failed": 9,
+    "failure": "Malformed XML: unescaped sanitization placeholders"
+  },
+  "after_repair": {
+    "passed": 43,
+    "failed": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "checks": {
+    "all_xml_archives_parse": 10,
+    "junit_archives_repaired": 9,
+    "compressed_and_decompressed_digest_links": "passed",
+    "outcome_preservation": "passed including six expected baseline failures and both historical service-profile dispositions",
+    "reversible_placeholder_only_repair": "passed",
+    "coverage_archive_unchanged": "passed",
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "logs": {
+    "xml-repair-environment.log.gz": "29c6244ec90b2b32714e3ed8b7902296299c7b7a6ff50c788db19a9c96396f8f",
+    "xml-repair-before.log.gz": "4d28698aace2a9403b77d4c2354e4198a00dd69647dcbd2fb4d623186a533fe0",
+    "xml-repair-tests.log.gz": "e645e92cf4d465dfaaf3b59b779a5efb343c5de1b607eb80f2558bd314f31bf2"
+  },
+  "initial_environment_attempt": {
+    "exit_code": 4,
+    "error": "ModuleNotFoundError: No module named 'starlette'",
+    "disposition": "Used explicit warning-filter override for these dependency-neutral tests; did not change dependencies or suppress test failures."
+  },
+  "production_signoff": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "independent_review": {
+    "result": "no actionable issues",
+    "base_revision": "04ee37a499d58695645d739971fadc72ab5af459",
+    "verified": "Nine placeholder-only XML repairs; all 27 other existing gzip artifacts unchanged; exactly nine digest-reference leaves changed; source identities and outcomes preserved."
+  }
+}

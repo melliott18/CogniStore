@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "verified_at_utc": "2026-09-30T02:54:59.888129+00:00",
+  "storage": "GitHub draft prerelease assets",
+  "repository": "melliott18/CogniStore",
+  "release_id": 399680445,
+  "release_api_url": "https://api.github.com/repos/melliott18/CogniStore/releases/399680445",
+  "release_html_url": "https://github.com/melliott18/CogniStore/releases/tag/untagged-43537a438c155a4b0e58",
+  "draft": true,
+  "prerelease": true,
+  "tag_name": "candidate-0.1.1rc1-20260929-04ee37a",
+  "target_commitish": "04ee37a499d58695645d739971fadc72ab5af459",
+  "assets": [
+    {
+      "id": 599878705,
+      "name": "cognistore-analysis-20260929-04ee37a.tar.gz",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/599878705",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-43537a438c155a4b0e58/cognistore-analysis-20260929-04ee37a.tar.gz",
+      "size": 211759926,
+      "digest": "sha256:132e10b55f3118c75cd168e0015527f52ebcd16869547b18c966b60117f80e8f",
+      "state": "uploaded",
+      "created_at": "2026-09-30T02:54:17Z",
+      "updated_at": "2026-09-30T02:54:26Z",
+      "local_sha256": "132e10b55f3118c75cd168e0015527f52ebcd16869547b18c966b60117f80e8f",
+      "github_digest_matches_local": true
+    },
+    {
+      "id": 599875818,
+      "name": "cognistore-candidate-0.1.1rc1-04ee37a499d5-6e818b49e7e9.tar.gz",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/599875818",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-43537a438c155a4b0e58/cognistore-candidate-0.1.1rc1-04ee37a499d5-6e818b49e7e9.tar.gz",
+      "size": 232000335,
+      "digest": "sha256:60a33c3f7896005e5d6919d99af8dddecac013449f3ee1c5913592d4416173d3",
+      "state": "uploaded",
+      "created_at": "2026-09-30T02:52:27Z",
+      "updated_at": "2026-09-30T02:52:37Z",
+      "local_sha256": "60a33c3f7896005e5d6919d99af8dddecac013449f3ee1c5913592d4416173d3",
+      "github_digest_matches_local": true
+    },
+    {
+      "id": 599878706,
+      "name": "SHA256SUMS",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/599878706",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-43537a438c155a4b0e58/SHA256SUMS",
+      "size": 239,
+      "digest": "sha256:ff63bd4cf5fde82c0c3796f8893e1ce1ad496d76f246339229d114b60e83cc7d",
+      "state": "uploaded",
+      "created_at": "2026-09-30T02:54:17Z",
+      "updated_at": "2026-09-30T02:54:18Z",
+      "local_sha256": "ff63bd4cf5fde82c0c3796f8893e1ce1ad496d76f246339229d114b60e83cc7d",
+      "github_digest_matches_local": true
+    }
+  ],
+  "verification": "All three GitHub asset sizes and server-reported SHA-256 digests match local files; both archive member sets separately verified locally. No full download round trip claimed.",
+  "access": "Authenticated repository collaborator access is required while draft. gh release download works with the recorded tag name.",
+  "retention_requirement": "Retain at least 90 days after pilot exit and longer while findings remain unresolved. No automatic expiry configured; do not replace assets or delete this draft.",
+  "immutability": "Recorded hashes identify bytes; draft release storage is mutable and is not a content-addressed registry or attestation.",
+  "registry_manifest_digest": null,
+  "publication": "Draft only; no published release, registry image, deployment, or pilot approval.",
+  "archive_members_verified": {
+    "cognistore-analysis-20260929-04ee37a.tar.gz": 31,
+    "cognistore-candidate-0.1.1rc1-04ee37a499d5-6e818b49e7e9.tar.gz": 126
+  }
+}

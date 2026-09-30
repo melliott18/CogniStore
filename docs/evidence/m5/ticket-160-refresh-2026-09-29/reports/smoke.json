@@ -1,0 +1,261 @@
+{
+  "check_count": 48,
+  "checks": [
+    {
+      "name": "package.record_contains_module",
+      "passed": true
+    },
+    {
+      "name": "package.import_matches_distribution",
+      "passed": true
+    },
+    {
+      "name": "package.noneditable",
+      "passed": true
+    },
+    {
+      "name": "package.not_checkout",
+      "passed": true
+    },
+    {
+      "name": "cwd.not_checkout",
+      "passed": true
+    },
+    {
+      "name": "package.outside_source_root",
+      "passed": true
+    },
+    {
+      "name": "cwd.outside_source_root",
+      "passed": true
+    },
+    {
+      "name": "native.libmagic_detection",
+      "passed": true
+    },
+    {
+      "name": "catalog.at_packaged_migration_head",
+      "passed": true
+    },
+    {
+      "name": "providers.policy_embedding_absent",
+      "passed": true
+    },
+    {
+      "name": "providers.optional_ask_providers_absent",
+      "passed": true
+    },
+    {
+      "name": "http.put.objects.201",
+      "passed": true
+    },
+    {
+      "name": "storage.upload_size",
+      "passed": true
+    },
+    {
+      "name": "http.head.objects.200",
+      "passed": true
+    },
+    {
+      "name": "storage.head",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.200",
+      "passed": true
+    },
+    {
+      "name": "storage.download_exact_bytes",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.206",
+      "passed": true
+    },
+    {
+      "name": "storage.range_closed",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.206",
+      "passed": true
+    },
+    {
+      "name": "storage.range_open",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.206",
+      "passed": true
+    },
+    {
+      "name": "storage.range_suffix",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.416",
+      "passed": true
+    },
+    {
+      "name": "storage.invalid_range",
+      "passed": true
+    },
+    {
+      "name": "http.post.ask.200",
+      "passed": true
+    },
+    {
+      "name": "ask.metadata_only",
+      "passed": true
+    },
+    {
+      "name": "ask.metadata_citation",
+      "passed": true
+    },
+    {
+      "name": "ask.provider_diagnostics",
+      "passed": true
+    },
+    {
+      "name": "http.post.ask.200",
+      "passed": true
+    },
+    {
+      "name": "ask.no_match",
+      "passed": true
+    },
+    {
+      "name": "http.post.ask.200",
+      "passed": true
+    },
+    {
+      "name": "ask.explicit_missing_answer_provider",
+      "passed": true
+    },
+    {
+      "name": "http.post.policies.200",
+      "passed": true
+    },
+    {
+      "name": "policy.preview_move",
+      "passed": true
+    },
+    {
+      "name": "policy.preview_does_not_move",
+      "passed": true
+    },
+    {
+      "name": "http.post.actions.503",
+      "passed": true
+    },
+    {
+      "name": "actions.missing_queue_fails_closed",
+      "passed": true
+    },
+    {
+      "name": "policy.real_move_completed",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.200",
+      "passed": true
+    },
+    {
+      "name": "policy.destination_exact_bytes",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.404",
+      "passed": true
+    },
+    {
+      "name": "http.delete.objects.204",
+      "passed": true
+    },
+    {
+      "name": "http.get.objects.404",
+      "passed": true
+    },
+    {
+      "name": "storage.delete_catalog_removed",
+      "passed": true
+    },
+    {
+      "name": "http.get.ui.200",
+      "passed": true
+    },
+    {
+      "name": "package.ui_html_present",
+      "passed": true
+    },
+    {
+      "name": "providers.sample_modules_not_loaded",
+      "passed": true
+    }
+  ],
+  "configuration": {
+    "catalog": "sqlite",
+    "queue": null,
+    "security_profile": "development",
+    "storage": {
+      "hot": "posix",
+      "warm": "posix"
+    }
+  },
+  "counts": {
+    "ask_queries": 3,
+    "http_requests": 17,
+    "objects_uploaded": 1,
+    "policy_moves": 1,
+    "range_cases": 4
+  },
+  "elapsed_seconds": 2.421,
+  "fixture_sha256": "bee3c5b96922a1a6fa5f5ce345557109212204ce3ed25d51ab5fdad8f6b36849",
+  "http_request_count": 17,
+  "limitations": [
+    "Disposable single-process SQLite and two POSIX roots; warm is not S3.",
+    "ASGI in-process transport; no network, TLS, OIDC, tenant isolation or browser qualification.",
+    "Policy execution uses the real synchronous runner; no broker or worker delivery is exercised.",
+    "PostgreSQL/pgvector, native S3 and NATS JetStream remain separate external-service gates.",
+    "No load, durability, recovery, encryption attestation or production qualification claim."
+  ],
+  "migration": {
+    "current": "0014_legal_holds",
+    "packaged_heads": [
+      "0014_legal_holds"
+    ]
+  },
+  "native_libmagic": {
+    "detected_mime": "text/plain",
+    "version": 544
+  },
+  "package": {
+    "import_location": "installed-distribution",
+    "module_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "name": "cognistore",
+    "source_root_checked": true,
+    "version": "0.1.1rc1"
+  },
+  "passed_count": 48,
+  "production_qualified": false,
+  "providers": {
+    "answer": null,
+    "embedding": null,
+    "keyword": null,
+    "metadata": "CatalogMetadataRetriever",
+    "policy": "simple",
+    "sample_providers": false,
+    "vector": null
+  },
+  "python": {
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "system": "Linux",
+    "version": "3.12.14"
+  },
+  "schema_version": 1,
+  "scope": "installed-base-runtime-local-smoke",
+  "started_at": "2026-09-30T02:41:43.837797+00:00",
+  "status": "passed"
+}

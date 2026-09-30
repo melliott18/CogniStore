@@ -14,9 +14,9 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#156](https://github.com/melliott18/CogniStore/issues/156) | Fix commit and namespace isolation/legal-hold regression reports | [Recorded below](#ticket-156-reserved-storage-namespace-aliases); local results and limitations retained |
 | [#157](https://github.com/melliott18/CogniStore/issues/157) | Fix commit and overlapping DELETE/PUT regression reports | [Local fix and merge regressions retained](157-put-delete-ordering.md); hosted qualification remains separate |
 | [#158](https://github.com/melliott18/CogniStore/issues/158) | Hosted runtime matrix on the exact candidate | [Hosted runs blocked before execution](../ci-158/README.md); qualification incomplete |
-| [#160](https://github.com/melliott18/CogniStore/issues/160) | Immutable source/image/dependency/provider/configuration manifest and exact-artifact checks | [Assembly procedure and open gates](#ticket-160-release-candidate-assembly); no qualified candidate recorded |
+| [#160](https://github.com/melliott18/CogniStore/issues/160) | Immutable source/image/dependency/provider/configuration manifest and exact-artifact checks | [Clean-main candidate refresh](ticket-160-refresh-2026-09-29/README.md); administratively closed, candidate remains unqualified |
 | [#161](https://github.com/melliott18/CogniStore/issues/161) | Isolated environment identity, production controls, versioned configuration, storage/memory/queue bounds and private telemetry | [Preparation and local checks](ticket-161/README.md); actual deployment and all live gates pending |
-| [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | [Local audit, findings and regression evidence](ticket-162/README.md); exact candidate/live staging signoff pending |
+| [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | [Local audit and repaired XML evidence](ticket-162/README.md); owner-directed ticket closure after evidence repair; exact candidate/live staging signoff pending |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | [Local acceptance kit and rehearsal](ticket-163/README.md); [upload failure fix and rerun](ticket-163-upload-fix/README.md); selected staging qualification remains pending |
 | [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | [Campaign preparation and local regressions](ticket-164/README.md); live qualification pending |
 | [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [Local tooling and alert checks](ticket-165/README.md); staging adapter and all live qualification gates pending |
@@ -177,39 +177,43 @@ From `docs/evidence/m5/ticket-156`, verify the retained reports with
 
 ## Ticket #160: release candidate assembly
 
-[Local candidate evidence](ticket-160/README.md) records the exact clean branch
-source, frozen artifacts and findings: 44 tooling tests, 48 installed smoke
-checks and 287 regressions passed, with eight explained filesystem skips.
-Bandit and the top-level dependency audit passed. The image scan retains 69
-unresolved findings, including critical/high findings; no exception is approved.
-The candidate remains `assembled-unqualified`, and #160 remains open.
+The [2026-09-29 refresh](ticket-160-refresh-2026-09-29/README.md) assembles
+candidate `0.1.1rc1-04ee37a499d5-6e818b49e7e9` from clean `origin/main`
+source `04ee37a499d58695645d739971fadc72ab5af459`, including the later scanner
+and worker/telemetry changes. Its Linux amd64 image configuration digest is
+`sha256:6e818b49e7e92735efb278dac5a029e4f299a9def255076e45a7d775f94d143d`.
+This supersedes the earlier branch candidate for current local analysis;
+the [historical #160 evidence](ticket-160/README.md) remains unchanged.
+#160 is administratively closed. The candidate remains `assembled-unqualified`.
+
+The refreshed image passed 48 installed smoke checks and 287 installed-wheel
+regressions, with eight native case-insensitive-filesystem cases skipped.
+Supplemental regressions passed 179 cases, with 12 PostgreSQL cases deselected.
+Bandit and the frozen top-level Python dependency audit passed. These scoped
+local results do not establish the selected PostgreSQL/S3/JetStream environment
+or its production controls.
+
+Trivy 0.74, using a database updated `2026-09-30T01:15:45Z`, reports 286 raw
+package findings, normalized to 133 source-package/advisory records and 133
+distinct advisory IDs: **5 critical, 19 high, 50 medium, 56 low and 3 unknown**.
+All 107 native package versions match the historical inventory. Differences
+between scanner outputs and counts are not evidence of remediation. Findings
+remain unresolved; the refresh record retains the exact scan and disposition.
 
 The [release candidate guide](../../release_candidate.md) defines the frozen
-bundle, exact-artifact reuse, selected metadata-only provider composition and
-change-control rules. The assembly tooling is intended for package series
-`0.1.1rc1`, on Linux amd64 / CPython 3.12 / Debian bookworm with native
-libmagic. The selected `main` base
-`bbfb5efb63b09693fab2158514716aaa1a146d19` contains both #156/#157 fixes; that
-base and their historical regression reports do not qualify a new candidate.
+bundle, exact-artifact reuse, metadata-only provider composition and change
+control. The refreshed record binds source/tree, image archive, wheel/locks,
+Python/native inventories, migrations and sanitized configuration, and gives
+the bundle-retention handoff. A local image configuration digest is not a
+registry manifest digest; the registry-transfer identity remains a separate gate.
 
-Record the final clean-main source SHA/tree, wheel and binary dependency lock
-hashes, installed Python/native inventory, migration hashes, sanitized profile
-and deployment configuration hashes, explicit provider/model absences, saved
-image checksum and immutable image identity together. A local Docker image ID
-is a configuration digest, not a registry manifest digest; record the latter
-and its verified association before claiming the image-digest acceptance gate.
-Retain exact-artifact smoke/regression/security reports with the same identity,
-plus applicable hosted check links and documented finding dispositions.
+**Release qualification remains incomplete.** Named owner/specification
+acceptance, accepted #161 configuration/environment, image-security disposition,
+registry identity and downstream audit/UAT/recovery/load/pilot gates remain
+outstanding. The September 23 #162 exception accepted only the documented
+external safeguard interruption; it did not waive reported image findings or
+unperformed live checks. No deployment or pilot entry is approved here.
 
-**Release qualification remains incomplete.** The named owner has not accepted
-the pilot specification, #158 records a hosted account billing/spending-limit
-block, and no accepted environment/configuration or passing candidate-specific
-hosted campaign is recorded here. Local tooling tests or an unmerged branch
-build are development validation only. No deployment, publication, customer
-traffic, pilot entry, or completed #160 acceptance is asserted.
-
-Current user direction prohibits further hosted CI dispatches, reruns and
-polling while the billing restriction is unresolved; local work continues.
-The release workflow is manual-only for future explicitly authorized use.
-Hosted gates remain unavailable/unmet, and this tooling change records no new
-hosted execution or passing hosted evidence.
+Hosted CI: `skipped: user instruction; known GitHub billing/spending restriction`.
+No workflow was dispatched, rerun or polled for this refresh; the explicit
+hosted qualification requirement remains unmet.
