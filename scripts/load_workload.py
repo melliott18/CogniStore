@@ -118,6 +118,7 @@ async def run(
     settings: Settings, transport: Transport, record: Recorder, *,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    start_time: float | None = None,
 ) -> dict:
     """Offer fixed-rate arrivals without queueing or retrying rejected requests.
 
@@ -128,8 +129,13 @@ async def run(
     wait. Every slot not admitted is still recorded as
     bad. Records are streamed in completion order and contain no transport data.
     A failed recorder aborts the runner instead of silently discarding evidence.
+    ``start_time`` optionally anchors arrivals to an existing monotonic schedule;
+    late invocation then records missed slots instead of shifting the window.
     """
-    start = clock()
+    if start_time is not None and (type(start_time) not in (float, int)
+                                   or not math.isfinite(start_time) or start_time < 0):
+        raise ValueError("invalid workload start time")
+    start = clock() if start_time is None else start_time
     started_at = datetime.now(timezone.utc).isoformat()
     pending: dict[asyncio.Task, Request] = {}
     counters: Counter = Counter()

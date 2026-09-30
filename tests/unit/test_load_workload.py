@@ -173,6 +173,24 @@ def test_scheduler_delay_records_missed_arrivals_without_catchup_burst():
     assert delayed["elapsed_seconds"] >= 0.05 - 1e-8
 
 
+def test_existing_schedule_anchor_does_not_hide_late_capacity_extension():
+    clock = Clock()
+    clock.now = .35
+    rows = []
+    report = asyncio.run(workload.run(workload.Settings("capacity", 1), success,
+                                      rows.append, clock=clock, sleep=clock.sleep, start_time=0))
+    assert {row["sequence"] for row in rows if row["outcome"] == "missed"} == {0, 1, 2}
+    assert report["offered"] == 10 and len(rows) == 10
+    assert next(row for row in rows if row["sequence"] == 3)["elapsed_seconds"] >= .05 - 1e-8
+
+
+@pytest.mark.parametrize("start_time", [True, -1, "0", float("nan"), float("inf")])
+def test_invalid_schedule_anchor_rejected_before_any_request(start_time):
+    with pytest.raises(ValueError, match="invalid workload start time"):
+        asyncio.run(workload.run(workload.Settings("capacity", 1), success,
+                                 lambda _row: None, start_time=start_time))
+
+
 def test_timeout_budget_includes_scheduled_wait(monkeypatch):
     original = asyncio.wait_for
     timeouts = []

@@ -671,6 +671,20 @@ class AsyncWorker:
         )
         return attempt_offset + delivery.attempt
 
+    @staticmethod
+    def _source_publication_details(delivery: JobDelivery) -> dict[str, str]:
+        """Preserve broker time without substituting claim, envelope, or poll time."""
+        published = getattr(delivery, "source_published_at", None)
+        if not isinstance(published, datetime):
+            return {}
+        try:
+            if published.tzinfo is None or published.utcoffset() is None:
+                return {}
+            value = published.astimezone(timezone.utc).isoformat()
+        except (ValueError, OverflowError):
+            return {}
+        return {"source_published_at": value}
+
     def _audit_delivery_details(
         self,
         delivery: JobDelivery,
@@ -820,7 +834,7 @@ class AsyncWorker:
                 event_id=event_id,
                 occurred_at=occurred_at,
                 recorded_at=occurred_at,
-                details=details,
+                details={**details, **self._source_publication_details(delivery)},
             )
             return await asyncio.to_thread(
                 audit_catalog.append_audit_event,

@@ -1727,3 +1727,62 @@ def test_concurrent_worker_attempts_keep_distinct_context_in_storage_threads(mon
             assert driver.parent.span_id == consumers[driver.context.trace_id].context.span_id
     finally:
         provider.shutdown()
+
+
+def test_worker_audit_preserves_actual_broker_publication_time():
+    """Success, failure and retry events retain the same native source timestamp."""
+    from datetime import timedelta
+
+    async def scenario(failed):
+        catalog = Catalog(audit_retention=AuditRetentionPolicy(max_age_seconds=None))
+        queue = FakeQueue()
+        job = JobEnvelope.create("test.publication", {})
+        published = datetime(2026, 8, 29, 8, 12, 13, 456789,
+                             tzinfo=timezone(timedelta(hours=-7)))
+        delivery = FakeDelivery(job, source_published_at=published)
+        await queue.deliveries.put(delivery)
+
+        async def handler(job, context):
+            if failed:
+                raise TimeoutError("synthetic temporary failure")
+
+        worker = AsyncWorker(queue, {job.job_type: handler}, audit_catalog=catalog,
+                             config=_worker_config(stop_after_jobs=1))
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        await worker.shutdown()
+        events = catalog.list_audit_events(AuditQuery(job_id=job.job_id))
+        expected = {AuditEventType.JOB_STARTED.value,
+                    AuditEventType.JOB_FAILURE.value if failed else AuditEventType.JOB_SUCCEEDED.value}
+        assert expected.issubset({event.event_type for event in events})
+        assert all(event.details["source_published_at"] == "2026-08-29T15:12:13.456789+00:00"
+                   for event in events)
+        assert all(event.details["source_published_at"] != job.created_at for event in events)
+
+    asyncio.run(scenario(False))
+    asyncio.run(scenario(True))
+
+
+def test_worker_audit_does_not_invent_missing_or_naive_publication_time():
+    async def scenario(value):
+        catalog = Catalog(audit_retention=AuditRetentionPolicy(max_age_seconds=None))
+        queue = FakeQueue()
+        job = JobEnvelope.create("test.publication-absent", {})
+        delivery = FakeDelivery(job)
+        delivery.source_published_at = value
+        await queue.deliveries.put(delivery)
+
+        async def handler(job, context):
+            return None
+
+        worker = AsyncWorker(queue, {job.job_type: handler}, audit_catalog=catalog,
+                             config=_worker_config(stop_after_jobs=1))
+        await worker.start()
+        await worker.wait_for_shutdown_request()
+        await worker.shutdown()
+        events = catalog.list_audit_events(AuditQuery(job_id=job.job_id))
+        assert len(events) == 2
+        assert all("source_published_at" not in event.details for event in events)
+
+    for value in (None, "2026-08-29T15:12:13Z", datetime(2026, 8, 29)):
+        asyncio.run(scenario(value))

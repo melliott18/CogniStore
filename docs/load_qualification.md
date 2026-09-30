@@ -6,8 +6,9 @@ Ticket [#165](https://github.com/melliott18/CogniStore/issues/165) applies the
 qualification is blocked.** No deployed environment, owner acceptance, real
 operator notification or measured capacity recommendation is claimed.
 
-The [retained local record](evidence/m5/ticket-165/README.md) identifies what
-was actually tested. Historical [movement qualification](scale_qualification.md)
+The [original local record](evidence/m5/ticket-165/README.md) and
+[automation validation record](evidence/m5/ticket-165-automation/README.md)
+identify what was actually tested. Historical [movement qualification](scale_qualification.md)
 and synthetic Prometheus tests cannot stand in for this campaign. Hosted CI is
 `skipped: user instruction; known GitHub billing/spending restriction`.
 
@@ -28,27 +29,85 @@ behalf. Hash the profile before testing. Threshold or scope changes require a
 reviewed specification revision and affected reruns; never alter a threshold
 to make an existing failed run pass.
 
-This implementation supplies three reusable components:
+This implementation supplies the campaign driver and independently usable components:
 
-| Component | Implemented behavior | Remaining live integration |
+| Component | Implemented behavior | Required deployment input |
 | --- | --- | --- |
-| `scripts/load_corpus.py` | Deterministic full-size synthetic payloads and streamed SHA-256/joint-size-MIME manifests | Seed the selected stores through tenant-authenticated interfaces; verify actual catalog/MIME/extraction/placement |
-| `scripts/load_workload.py` | Bounded open-loop scheduling, exact offered-slot records, mixed request descriptors and sanitized outcomes | Deployment adapter, key-pool coordinator, background work, fault/campaign orchestration and stop controls |
-| `scripts/load_qualification.py` | Offline exact client percentiles/denominators, resource quantiles, disk/coverage checks and input hashes | Independent evidence review for integrity, recovery, alert delivery, workload fidelity, cost and final acceptance |
+| `scripts/load_corpus.py` | Exact deterministic corpus and streamed manifests | Candidate native MIME/extraction evidence |
+| `scripts/load_workload.py` | Bounded open-loop request scheduling and offered-slot records | Actual measured service traffic |
+| `scripts/load_service.py` | HTTPS tenant adapter, bounded mutation pool, byte/catalog verification, job polling, audit checkpoints and owned-prefix cleanup | Service origin, trusted CA, rotating token files |
+| `scripts/load_campaign.py` | Warm-up, soak, burst/recovery, capacity, movement, background jobs, fault hooks and stop controls | Accepted configuration and scoped fault commands |
+| `scripts/load_observations.py` | Private Prometheus collection, source-age checks, latched stops, bounded fault/recovery execution and receipt validation | Private metric expressions and actual operator artifacts |
+| `scripts/load_export.py` | Exact-byte import of bound deployment observations, exclusive outputs and hashes | Private collector spool in the evidence contract |
+| `scripts/load_qualification.py`, `scripts/load_acceptance.py` | Client/resource arithmetic and supplemental acceptance gates | Actual platform observations and independent owner review |
 
-The workload CLI deliberately runs a **synthetic transport fixture**. It does
-not send HTTP requests. No turnkey 72-hour live campaign runner is claimed;
-the missing adapter requires the real staging handoff and must be tested before
-the campaign. The calculator always leaves full qualification incomplete and
-returns nonzero; its `automated_status` describes only the calculations it can
-perform. None of these tools deploys, sends notifications or changes tenancy.
+The workload CLI remains a **synthetic transport fixture**. The campaign CLI
+uses the real service adapter. Configuration examples contain unaccepted
+placeholders and cannot launch a campaign. The base calculator always leaves full
+qualification incomplete; the supplemental evaluator reports passing measurements
+only when every supplied evidence gate passes. Both keep `production_qualified:
+false`: deployment attestation and owner acceptance are separate decisions.
+
+## Running the service campaign
+
+Copy [staging.example.json](../release/load/staging.example.json) and
+[telemetry.example.json](../release/load/telemetry.example.json) to restricted
+operator storage. Fill every identity, accepted review, credential path, metric
+expression and fault command from the #159/#161 handoff. Service and collector
+origins require verified HTTPS; requests never follow redirects or inherit proxy
+credentials. Token files reload for each request. Do not put tokens in JSON,
+command arguments or public artifacts. Verify the 15-second query budget against
+the selected Prometheus deployment before starting the long campaign.
+
+```bash
+python scripts/load_campaign.py preflight --config /private/pilot/staging.json --output /private/pilot/preflight.json
+python scripts/load_campaign.py run --run-staging --config /private/pilot/staging.json --output /private/pilot/load-run-unique
+python scripts/load_campaign.py evaluate --input /private/pilot/load-run-unique
+```
+
+Preflight validates configuration locally; it does not prove service reachability
+or approvals. The run performs authenticated service checks before seeding. Use
+fresh output paths. Failed runs retain planned windows and uncertain mutations;
+there is no automatic resume. Reconcile retained objects/jobs before a separately
+reviewed new run. Cleanup only deletes acknowledged objects in its own prefix
+after complete reconciliation. Final capacity data remains for review.
+
+Fault controls use explicit absolute executable/argument arrays without a shell
+or inherited credential variables. Injection commands must hold and exercise the
+fault until their experiment is complete; recovery runs even after timeout,
+cancellation or injection failure. Recovery commands must be idempotent and able
+to restore the scoped service independently. Hard termination of the host still
+requires the staging operator's recovery procedure. Subprocess output is bounded
+and omitted from public evidence. Only `{output}`, `{run_id}` and
+`{binding_sha256}` are substituted.
+
+Resource/queue stops remain latched after recovery. Faults must target the approved
+isolated fault scope while retaining measurements of the protected workload. A
+fault that trips the campaign stop threshold produces a stopped run requiring
+investigation; it cannot silently resume to obtain a pass. No command acknowledges
+an alert on the operator's behalf.
+
+The configured export command runs the deployment's read-only exporter or the
+supplied spool importer. The importer requires the supplemental files below,
+already carrying actual run bindings. It rejects missing files, symlinks,
+duplicate JSON keys, nonfinite numbers, reused output and mismatched identities.
+It preserves exact bytes and never fills an unknown observation with zero.
+Collector expressions, fault controls and platform/receiver exports remain
+deployment inputs; the examples are contracts, not installed exporters.
+
+The [supplemental evidence schema](load_evidence_schema.md) defines movement,
+worker jobs/scans, reconciliation, resources, faults, receiver artifacts and
+cost observations. Every row binds the run ID and canonical candidate bindings;
+the final manifest binds the exact campaign windows and all input files. Retain
+the sanitized source artifacts as well as normalized rows. Hash correspondence
+detects mismatches; it does not attest that supplied observations are truthful.
 
 ## Repeatable local commands
 
 Run from the implementation checkout with the development dependencies installed:
 
 ```bash
-python -m pytest tests/unit/test_load_corpus.py tests/unit/test_load_workload.py tests/unit/test_load_qualification.py
+python -m pytest tests/unit/test_load_*.py
 python scripts/load_corpus.py --output test-results/m5-corpus-reduced --objects 1000 --seed m5-pilot-v1
 python scripts/load_workload.py --run-synthetic-fixture --cohort nominal --duration-seconds 10 --output test-results/m5-fixture.jsonl --summary test-results/m5-fixture-summary.json
 bash docker/observability/verify.sh
@@ -123,8 +182,7 @@ hours at 10 offered requests/s, and extend for minimum sample counts. Run burst
 at 30/s for 15 minutes; measure return to nominal latency/queue age within ten
 minutes. Run capacity at 200,000 objects for at least two hours and until the
 round-trip movement pass finishes. Record actual UTC starts/durations including
-maintenance, pauses and failures. The recorder itself does not enforce warm-up,
-background work or recovery phases.
+maintenance, pauses and failures. The campaign driver enforces these stages around the reusable recorder.
 
 Add one scan per tenant every five minutes over rotating prefixes of at most
 100 objects and one policy pass per tenant per hour over at most 1,000 objects,
