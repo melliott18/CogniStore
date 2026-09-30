@@ -7,10 +7,20 @@ or qualified by this change.** The actual account/cluster, accepted owners,
 spend limits, registry image, OIDC/proxy, secret delivery and alert destination
 have not been supplied. Every live acceptance criterion remains open.
 
-The [retained #160 candidate](evidence/m5/ticket-160/README.md) is an unqualified
-branch build with no registry manifest digest and unresolved image findings.
-Ticket closure is not artifact or environment qualification. Continue local
-work while hosted CI is suspended; record
+**Current owner constraint: no spending.** Purchases, paid services and cloud
+provisioning are not authorized. The AWS deployment below remains an unaccepted
+proposal, and its provisioning steps must not be executed under this constraint.
+No-spend local checks can prepare the implementation but do not qualify this
+AWS environment or remove its original live acceptance gates.
+
+The [refreshed #160 candidate](evidence/m5/ticket-160-refresh-2026-09-29/README.md)
+was assembled from clean main source `04ee37a499d58695645d739971fadc72ab5af459`
+and has [retained binary archives](evidence/m5/ticket-160-refresh-2026-09-29/retention.json).
+It remains unqualified, with no registry manifest digest and unresolved image
+findings, and predates the [upload fix](evidence/m5/ticket-163-upload-fix/README.md).
+Rebuild with subsequent runtime fixes and complete the image-security disposition
+before qualifying staging. Ticket closure is not artifact or environment
+qualification. Continue local work while hosted CI is suspended; record
 `skipped: user instruction; known GitHub billing/spending restriction`.
 Do not dispatch, rerun or poll hosted workflows.
 

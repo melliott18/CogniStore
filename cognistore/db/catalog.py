@@ -7,7 +7,7 @@ import os
 import sqlite3
 import tempfile
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -17,7 +17,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
-from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.engine import Connection, Engine, RowMapping, ScalarResult
 
 from cognistore.auth.tenancy import TenantIsolationError, require_tenant, validate_tenant_id
 from cognistore.core.access import (
@@ -384,7 +384,9 @@ class SQLCatalog(Catalog):
                         raise TenantIsolationError()
                     return
                 raise TenantIsolationError()
-            owner = connection.execute(sa.select(catalog_tenant.c.tenant_id)).scalars().all()
+            owner: Sequence[str] = connection.execute(
+                sa.select(catalog_tenant.c.tenant_id)
+            ).scalars().all()
             if owner != [self.tenant_id]:
                 raise TenantIsolationError()
 
@@ -521,7 +523,7 @@ class SQLCatalog(Catalog):
                     connection: Connection = state.local.connection
                     advisory_key = int.from_bytes(digest[:8], "big", signed=True)
                     try:
-                        acquired = connection.execute(
+                        acquired: bool = connection.execute(
                             sa.text("SELECT pg_try_advisory_lock(:key)"),
                             {"key": advisory_key},
                         ).scalar_one()
@@ -856,7 +858,9 @@ class SQLCatalog(Catalog):
 
     def list_budgets(self) -> List[BudgetDefinition]:
         with self._connection() as connection:
-            values = connection.execute(sa.select(budget_definitions.c.definition)).scalars().all()
+            values: Sequence[dict[str, Any]] = connection.execute(
+                sa.select(budget_definitions.c.definition)
+            ).scalars().all()
         return sorted((BudgetDefinition.from_mapping(value) for value in values),
                       key=lambda item: item.budget_id)
 
@@ -865,7 +869,7 @@ class SQLCatalog(Catalog):
         if budget_id is not None:
             statement = statement.where(budget_reservations.c.budget_id == budget_id)
         with self._connection() as connection:
-            values = connection.execute(statement).scalars().all()
+            values: Sequence[dict[str, Any]] = connection.execute(statement).scalars().all()
         return sorted((deepcopy(value) for value in values),
                       key=lambda item: (item["budget_id"], item["move_id"], item["attempt"]))
 
@@ -893,10 +897,13 @@ class SQLCatalog(Catalog):
         now: str, owner_id: str, audit_context: AuditContext | None, trusted_override: bool,
     ) -> dict[str, Any]:
         self._lock_budgets(connection)
-        definitions = [BudgetDefinition.from_mapping(value) for value in connection.execute(
+        definition_values: ScalarResult[dict[str, Any]] = connection.execute(
             sa.select(budget_definitions.c.definition)
-        ).scalars()]
-        previous = list(connection.execute(sa.select(budget_reservations.c.reservation)).scalars())
+        ).scalars()
+        definitions = [BudgetDefinition.from_mapping(value) for value in definition_values]
+        previous: list[dict[str, Any]] = list(
+            connection.execute(sa.select(budget_reservations.c.reservation)).scalars()
+        )
         pools_by_id = {row["pool_id"]: self._pool_record(row) for row in connection.execute(
             sa.select(pools)
         ).mappings()}
@@ -949,7 +956,7 @@ class SQLCatalog(Catalog):
             tiers,
             {"name": tier, "metadata": {}, "active": True, "created_at": now, "updated_at": now},
         )
-        active = connection.execute(
+        active: bool = connection.execute(
             sa.select(tiers.c.active).where(tiers.c.name == tier)
         ).scalar_one()
         if not active:
@@ -3710,7 +3717,7 @@ class SQLCatalog(Catalog):
         reason: str,
         now: str,
     ) -> MoveJobTransition:
-        next_sequence = connection.execute(
+        next_sequence: int = connection.execute(
             sa.select(sa.func.coalesce(sa.func.max(move_job_transitions.c.sequence), 0) + 1).where(
                 move_job_transitions.c.idempotency_key == idempotency_key
             )

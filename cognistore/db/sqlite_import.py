@@ -13,7 +13,7 @@ from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, ScalarResult
 
 from cognistore.auth.tenancy import TenantIsolationError, require_tenant
 from cognistore.core.access import AccessEvent
@@ -2060,10 +2060,10 @@ def _validate_imported_audit_heads(destination: Connection) -> None:
         row["move_id"]: (int(row["last_sequence"]), row["last_event_id"])
         for row in destination.execute(sa.select(audit_move_heads)).mappings()
     }
-    active_event_ids = set(
+    active_event_ids: set[UUID] = set(
         destination.execute(sa.select(audit_events.c.event_id)).scalars()
     )
-    tombstoned_event_ids = set(
+    tombstoned_event_ids: set[UUID] = set(
         destination.execute(
             sa.select(audit_event_tombstones.c.event_id)
         ).scalars()
@@ -2104,9 +2104,10 @@ def _validate_imported_audit_heads(destination: Connection) -> None:
             raise SQLiteCatalogImportError(
                 "SQLite audit move head does not identify its latest retained event"
             )
-    for raw_move_id in destination.execute(
+    raw_move_ids: ScalarResult[str] = destination.execute(
         sa.select(move_jobs.c.idempotency_key)
-    ).scalars():
+    ).scalars()
+    for raw_move_id in raw_move_ids:
         try:
             safe_move_id = audit_text_identity(raw_move_id)
         except ValueError as exc:

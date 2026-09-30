@@ -200,25 +200,34 @@ def test_cli_status_reports_tier_encryption_without_key_ids(tmp_path, monkeypatc
     assert str(tmp_path) not in json.dumps(status)
 
 
-def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch):
+@pytest.mark.parametrize("redirect_status", [307, 308])
+def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch, redirect_status):
     import requests
     from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    from opentelemetry.sdk.trace import ReadableSpan
+    from opentelemetry.sdk.trace.export import SpanExportResult
+    from opentelemetry.trace import SpanContext
 
     from cognistore import observability
 
     captured = []
+    sent = []
     original = trace_exporter.OTLPSpanExporter
 
     def exporter(**kwargs):
+        # Intercept the public session argument, not SDK-private transport fields.
+        session = kwargs["session"]
+        session.mount("https://", Redirect())
+        session.mount("http://", Redirect())
         result = original(**kwargs)
         captured.append(result)
         return result
 
     class Redirect(requests.adapters.BaseAdapter):
         def send(self, request, **kwargs):
-            assert request.url.startswith("https://")
+            sent.append(request)
             response = requests.Response()
-            response.status_code = 307
+            response.status_code = redirect_status
             response.headers["Location"] = "http://plaintext.invalid/trace"
             response.url = request.url
             response.request = request
@@ -238,10 +247,16 @@ def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch):
     observability.configure_observability()
     try:
         assert len(captured) == 1
-        session = captured[0]._session
-        session.mount("https://", Redirect())
-        session.mount("http://", Redirect())
-        with pytest.raises(requests.TooManyRedirects):
-            session.post("https://collector.invalid/v1/traces", data=b"private payload")
+        span = ReadableSpan(
+            "private-payload-sentinel", context=SpanContext(1, 1, is_remote=False),
+            start_time=1, end_time=2,
+        )
+        # SDK versions may raise or return FAILURE; the application handles both.
+        result = observability._SafeExporter(captured[0]).export([span])
+        assert result == SpanExportResult.FAILURE
+        assert [request.url for request in sent] == ["https://collector.invalid/v1/traces"]
+        assert sent[0].method == "POST"
+        assert b"private-payload-sentinel" in sent[0].body
     finally:
-        observability._provider.shutdown()
+        if observability._provider is not None:
+            observability._provider.shutdown()

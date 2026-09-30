@@ -382,7 +382,7 @@ class PgVectorEmbeddingStore:
                 index_name = values["hnsw_index_name"]
                 assert isinstance(index_name, str)
                 dimensions = space.dimensions
-                index_exists = connection.execute(
+                index_exists: str | None = connection.execute(
                     sa.text("SELECT to_regclass(:index_name)"),
                     {"index_name": self._qualified_name(connection, index_name)},
                 ).scalar_one()
@@ -956,7 +956,7 @@ class PgVectorEmbeddingStore:
         """Return sanitized pgvector/index settings for qualification reports."""
 
         with self._connection() as connection:
-            postgres_version = connection.exec_driver_sql("SHOW server_version").scalar_one()
+            postgres_version: str = connection.exec_driver_sql("SHOW server_version").scalar_one()
             pgvector_version = _require_pgvector_capabilities(connection)
             config = self._space_config(connection, space)
             if config is None:

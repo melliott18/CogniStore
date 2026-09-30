@@ -100,6 +100,15 @@ with package-index access disabled and hash verification required. Missing
 compatible wheels must fail assembly; do not silently build new runtime
 dependencies during qualification.
 
+The shared native stage applies available Debian updates to `openssl`,
+`libssl3`, and `tzdata` before installing `libmagic1`. It uses the pinned
+bookworm base and signed distribution repositories, fails on an incomplete
+package-index refresh, and retains the resulting versions in the candidate's
+native inventory and image archive. This resolves these packages during
+assembly only; an updated assembly creates a new candidate requiring its own
+tests and image scan. These updates do not remediate pip's vendored components
+or establish that other image findings are resolved.
+
 Build the actual release candidate from a clean, recorded `main` commit after
 the implementation has merged and the owner has accepted the specification.
 Fetch `origin/main`, select the exact commit, verify it includes both fixes,
