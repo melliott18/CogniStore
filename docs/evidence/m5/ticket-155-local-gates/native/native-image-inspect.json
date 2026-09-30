@@ -1,0 +1,90 @@
+[
+    {
+        "Id": "sha256:b83c2ab06b815fb8f868f5b86fafe605ebaa9d9c847edd7af1886fedd581f632",
+        "RepoTags": [
+            "cognistore:155-native-remediation"
+        ],
+        "RepoDigests": [],
+        "Parent": "",
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-09-30T05:52:22.213980218Z",
+        "Container": "",
+        "ContainerConfig": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": null,
+            "Cmd": null,
+            "Image": "",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": null
+        },
+        "DockerVersion": "",
+        "Author": "",
+        "Config": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+                "PYTHON_VERSION=3.12.14",
+                "PYTHON_SHA256=5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a",
+                "PIP_DISABLE_PIP_VERSION_CHECK=1",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "PYTHONUNBUFFERED=1"
+            ],
+            "Cmd": [
+                "python3"
+            ],
+            "Image": "",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": null
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 143489982,
+        "VirtualSize": 143489982,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/d7d19deaa05eae1829b2edc0935369f6a97fe7d2a6270e88fd12dd8aea33ba63/diff:/var/lib/docker/overlay2/6b894f0a2c5581f7111170e725e820b8b5380262317e305f86178879972d55e2/diff:/var/lib/docker/overlay2/918e57c73a28fec28e29b530dd1e93a6b0fd536cd7604aa837d5420b1bea4f50/diff:/var/lib/docker/overlay2/2cfd02ca77576ea52fb1f1e355b414c38e581f55a13310bf75e848e2aaecb736/diff",
+                "MergedDir": "/var/lib/docker/overlay2/lzq29s6blewl5gwvwtxhw6a13/merged",
+                "UpperDir": "/var/lib/docker/overlay2/lzq29s6blewl5gwvwtxhw6a13/diff",
+                "WorkDir": "/var/lib/docker/overlay2/lzq29s6blewl5gwvwtxhw6a13/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+                "sha256:16df0073c13c96653ee2b601b16e514321513eb4af983de156c2d4e17df8a5d9",
+                "sha256:9639007baab8a136bc468bd5d757fdf79cf5d77b6ff2a87889071252e334fab3",
+                "sha256:abca6d63c9dbe51fa3bc42e75e0387da12803ef64430ad151814e468d5e1c203",
+                "sha256:586e73b61758ed38fd919da1f2af310c2a66b42f5d12328d5153915bbfe2625a"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-09-30T05:52:22.334347926Z"
+        }
+    }
+]

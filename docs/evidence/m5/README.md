@@ -35,6 +35,12 @@ unaccepted. Continue no-spend local development and validation; those results
 do not satisfy the original live AWS or pilot gates. A different qualification
 scope would require an explicit specification revision and acceptance.
 
+The [local gate repairs for #155](ticket-155-local-gates/README.md) retain
+typing, telemetry, native-package and extraction-fixture changes with local
+validation and diagnostic history. They do not establish cloud or pilot
+qualification; the complete run's three extraction failures and subsequent
+34-test focused pass remain separately recorded.
+
 The sealed [#165 preparation record](ticket-165/README.md) and
 [#166 entry assessment](ticket-166/README.md) describe their recorded revisions.
 Later evidence supersedes their pending-adapter, old-candidate and upload-defect

@@ -1,0 +1,95 @@
+{
+  "source_revision": "65fc9bb9451fe09a280eba7df3907924240b78fe",
+  "change": "tests/unit/test_document_extraction.py helper default now uses unchanged production DEFAULT_TIMEOUT_SECONDS (30 seconds) instead of 2 seconds; all five explicit 0.05-second deadline tests are unchanged.",
+  "test_sha256": "4b9ac2bdc4148a4c8071c04d12728e291d1cf4f0ed79053fdaeb4c7a2483fede",
+  "production_sha256": "c504f2bdab7eebacd44a8e618426d3d1787cc8ef40e29b34f093693c56eaccf3",
+  "production_unchanged_from_revision": true,
+  "original_full_suite_extraction_failures": [
+    {
+      "classname": "tests.unit.test_document_extraction",
+      "name": "test_non_finite_metadata_is_rejected_as_parser_error",
+      "time": "2.150",
+      "failure": {
+        "message": "AssertionError: assert 'timeout' == 'parser_error'\n  \n  - parser_error\n  + timeout"
+      }
+    },
+    {
+      "classname": "tests.unit.test_document_extraction",
+      "name": "test_abnormal_worker_exit_is_recorded",
+      "time": "2.074",
+      "failure": {
+        "message": "AssertionError: assert 'timeout' == 'worker_error'\n  \n  - worker_error\n  + timeout"
+      }
+    },
+    {
+      "classname": "tests.unit.test_document_extraction",
+      "name": "test_scan_streams_a_complete_document_larger_than_the_mime_sample",
+      "time": "2.319",
+      "failure": {
+        "message": "AssertionError: assert 'failed' == 'succeeded'\n  \n  - succeeded\n  + failed"
+      }
+    }
+  ],
+  "baseline": {
+    "command": "COVERAGE_FILE=/tmp/cognistore-155-extraction/.coverage-before /private/tmp/cognistore-165-automation-venv/bin/python -m pytest tests/unit/test_document_extraction.py --override-ini addopts='' -q --cov=cognistore --cov-report= --cov-fail-under=0 --junitxml=/tmp/cognistore-155-extraction/before.xml --durations=15",
+    "result": "34 passed in 21.11s; full-suite failures did not reproduce in this focused baseline run",
+    "limitation": "This focused baseline cleared configured addopts, including importlib mode; final corrected run uses all normal repository addopts."
+  },
+  "corrected": {
+    "command": "COVERAGE_FILE=/tmp/cognistore-155-extraction/.coverage-after /private/tmp/cognistore-165-automation-venv/bin/python -m pytest tests/unit/test_document_extraction.py --cov=cognistore --cov-report=term --cov-fail-under=0 --junitxml=/tmp/cognistore-155-extraction/after.xml --durations=15",
+    "result": "34 passed in 24.48s",
+    "deadline_regressions": [
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_timeout_stops_the_isolated_parser",
+        "time": "0.057",
+        "passed": true
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_timeout_includes_spawn_bootstrap_without_serializing_document_bytes",
+        "time": "0.059",
+        "passed": true
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_timeout_includes_bootstrap_with_large_adapter_state",
+        "time": "0.059",
+        "passed": true
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_timeout_bounds_a_stalled_result_receive",
+        "time": "0.264",
+        "passed": true
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_timeout_includes_receiver_thread_start",
+        "time": "0.112",
+        "passed": true
+      }
+    ]
+  },
+  "ruff": {
+    "command": "/private/tmp/cognistore-165-automation-venv/bin/python -m ruff check tests/unit/test_document_extraction.py",
+    "result": "passed"
+  },
+  "whitespace": {
+    "command": "git diff --check",
+    "result": "passed"
+  },
+  "rationale": "The helper tests parser classification and complete output, while its 2-second deadline additionally bounded spawn/import bootstrap and reception. Production defaults to 30 seconds. The three original failed cases took 2.150, 2.074, and 2.319 seconds. This is consistent with the timing sensitivity documented in prior #156/#157 evidence, not proof of a specific host-load cause. No production code or deadline checks changed; no test skips were added.",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "qualification": "Local scoped regression only. The original full suite retains its three failures; no new completely passing full invocation is claimed.",
+  "committed_revision": "65fc9bb9451fe09a280eba7df3907924240b78fe",
+  "runtime": {
+    "executable": "/private/tmp/cognistore-165-automation-venv/bin/python",
+    "python": "3.12.2",
+    "platform": "macOS-14.8.7-arm64-arm-64bit",
+    "pytest": "9.1.1",
+    "pytest-cov": "7.1.0",
+    "coverage": "7.16.2"
+  },
+  "full_failure_interpretation": "Two failure messages explicitly show timeout instead of parser_error/worker_error. The streaming test reports failed instead of succeeded and took 2.319 seconds; the retained failure message does not expose its failure_code, so timeout is consistent with timing but not directly proven for that case."
+}

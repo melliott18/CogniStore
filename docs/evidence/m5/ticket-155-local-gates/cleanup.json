@@ -1,0 +1,14 @@
+{
+  "recorded_at": "2026-09-30T06:22:24.430059+00:00",
+  "stopped_and_removed": [
+    "cognistore-155-postgres",
+    "cognistore-155-nats",
+    "cognistore-155-minio",
+    "cognistore-155-azurite",
+    "cognistore-155-gcs",
+    "cognistore-155-gcs-pinned"
+  ],
+  "matching_containers_remaining": 0,
+  "images_retained_for_review": true,
+  "notes": "All stop commands succeeded. Pinned GCS lacked --rm and was explicitly removed after inspecting stopped state and task label; original automatic-removal assertion was corrected."
+}

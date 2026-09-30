@@ -1,0 +1,78 @@
+[
+  {
+    "check": "ruff",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0,
+    "report": "ruff.log.gz"
+  },
+  {
+    "check": "mypy",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "mypy",
+      "cognistore"
+    ],
+    "exit_code": 0,
+    "report": "mypy.log.gz"
+  },
+  {
+    "check": "bandit",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "bandit",
+      "-c",
+      "pyproject.toml",
+      "-r",
+      "cognistore",
+      "-ll",
+      "-ii"
+    ],
+    "exit_code": 0,
+    "report": "bandit.log.gz"
+  },
+  {
+    "check": "openapi",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "cognistore.api.openapi",
+      "--check",
+      "docs/openapi/v1.json"
+    ],
+    "exit_code": 0,
+    "report": "openapi.log.gz"
+  },
+  {
+    "check": "build",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "build",
+      "--outdir",
+      "/tmp/cognistore-155-validation/dist"
+    ],
+    "exit_code": 0,
+    "report": "build.log.gz"
+  },
+  {
+    "check": "twine",
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "twine",
+      "check",
+      "/tmp/cognistore-155-validation/dist/cognistore-0.1.1rc1-py3-none-any.whl",
+      "/tmp/cognistore-155-validation/dist/cognistore-0.1.1rc1.tar.gz"
+    ],
+    "exit_code": 0,
+    "report": "twine.log.gz"
+  }
+]

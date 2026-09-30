@@ -1,0 +1,12 @@
+{
+  "helm": {
+    "version": "v3.18.6+gb76a950",
+    "archive_sha256": "48e30d236a1f334c6acb78501be5a851eaa2a267fefeb1131b6484eb2f9f30d7",
+    "official_checksum_source": "https://get.helm.sh/helm-v3.18.6-darwin-arm64.tar.gz.sha256sum"
+  },
+  "nats_chart": {
+    "version": "2.14.6",
+    "archive_sha256": "72f7412d6856a6c75c80d4aa4a1ed88c3846f5728fa8e0cc134a76da0febe3d9",
+    "official_asset_source": "https://github.com/nats-io/k8s/releases/download/nats-2.14.6/nats-2.14.6.tgz"
+  }
+}

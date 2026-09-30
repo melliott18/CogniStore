@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "scope": "disposable native stage only; offline synthetic fixture",
+  "observed_at": "2026-09-30T05:53:48.472254+00:00",
+  "installed_packages": {
+    "libmagic1:amd64": "1:5.44-3",
+    "libssl3:amd64": "3.0.22-1~deb12u1",
+    "openssl": "3.0.22-1~deb12u1",
+    "tzdata": "2026c-0+deb12u1"
+  },
+  "python_ssl": "OpenSSL 3.0.22 25 Aug 2026",
+  "tls_verification": "required with hostname checking",
+  "libmagic": "libmagic.so.1",
+  "fixture_mime_type": "text/plain",
+  "zoneinfo_fixture_offset_hours": -7.0
+}

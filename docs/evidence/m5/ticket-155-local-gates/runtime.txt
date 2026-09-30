@@ -1,0 +1,2 @@
+Python 3.12.2
+Darwin 23.6.0 arm64
