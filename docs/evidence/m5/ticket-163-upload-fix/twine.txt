@@ -1,0 +1,2 @@
+Checking /tmp/cognistore-163-upload-dist/cognistore-0.1.1rc1-py3-none-any.whl: PASSED
+Checking /tmp/cognistore-163-upload-dist/cognistore-0.1.1rc1.tar.gz: PASSED
