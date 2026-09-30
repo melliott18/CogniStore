@@ -160,5 +160,16 @@
       "Helm is required for staging render tests": 5
     }
   },
-  "artifact_sanitization": "Full-suite text and parsed XML values replace this worktree path and JWT-shaped fixture tokens; JUnit hostname is replaced through XML serialization, preserving XML validity and test outcomes."
+  "artifact_sanitization": "Full-suite text and parsed XML values replace this worktree path and JWT-shaped fixture tokens; JUnit hostname is replaced through XML serialization, preserving XML validity and test outcomes.",
+  "main_integration": {
+    "upstream_revision": "0f0e51592218acc7232a1e4a9d40caf69cb3ba7e",
+    "merge_revision": "a3213c212b7181b31d5004f336d52f37dbcb5dc8",
+    "application_and_scripts_unchanged_from_tested_fix": true,
+    "only_added_test_file": "tests/unit/test_retained_audit_evidence.py",
+    "command": ".venv/bin/python -m pytest tests/unit/test_retained_audit_evidence.py -q",
+    "exit_code": 0,
+    "passed": 12,
+    "report": "integrated-evidence-tests.log.gz",
+    "resolution": "Preserved incoming ticket160 and ticket162 evidence updates alongside ticket163 follow-up link."
+  }
 }
