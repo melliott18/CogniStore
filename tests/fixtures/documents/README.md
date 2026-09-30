@@ -2,7 +2,8 @@
 
 These fixtures support ticket #33's deterministic PDF and DOCX extraction
 tests. All visible content, metadata, and malformed payloads were authored for
-CogniStore; no third-party document content is included.
+CogniStore. The DOCX package scaffold comes from python-docx's MIT-licensed
+default template; its notice is retained in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 
 ## Expected valid-document output
 
@@ -57,6 +58,6 @@ The checked-in binaries were generated with Python 3.12, `python-docx` 1.2.0,
 small broadly readable encrypted-test artifact; it is not an example of a
 recommended encryption choice.
 
-The fixture corpus and generator are original CogniStore project material,
-copyright (c) 2025 Mitchell Elliott, and are licensed under the repository's
-MIT License. See `LICENSE` in this directory or the repository root.
+The project-authored fixture content and generator are copyright (c) 2025
+Mitchell Elliott and licensed under the repository's MIT License. See `LICENSE`
+in this directory or the repository root, and the DOCX scaffold attribution above.

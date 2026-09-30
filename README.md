@@ -3,8 +3,8 @@ AI-Powered Data Lifecycle Manager
 
 ## Quickstart
 
-CogniStore supports CPython 3.10 through 3.14. CI exercises every supported
-minor version.
+CogniStore supports CPython 3.10 through 3.14. CI is configured to exercise
+every supported minor version.
 
 Production is the default security profile: data connections require verified
 TLS and persistent volumes require current encryption attestations. Follow the

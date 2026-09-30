@@ -22,12 +22,13 @@ release blockers. A successful local build, branch check, smoke test, or ticket
 closure does not satisfy either gate. This procedure grants no deployment,
 registry publication, customer traffic, or pilot-entry authorization.
 
-**Hosted CI is on hold under the current user instruction.** Do not dispatch,
-rerun, or poll hosted workflows while the billing/spending-limit restriction
-and that instruction remain in force. Continue local validation and record
-hosted gates as unavailable/unmet. The future workflow procedure below applies
-only after the user explicitly lifts this hold.
-Hosted CI: `skipped: user instruction; known GitHub billing/spending restriction`.
+**Hosted CI resumption is authorized after publication.** On 2026-09-30 the
+user requested making the repository public to use hosted CI. Once visibility
+is public, follow the [CI runbook](ci_runbook.md) to collect fresh results;
+before that change, the earlier suspension remains in effect. Publication
+does not establish billing recovery, successful checks or release qualification.
+Historical records retain
+`skipped: user instruction; known GitHub billing/spending restriction`.
 
 ## Selected product behavior
 
@@ -164,8 +165,8 @@ and workflows still require #161–#165 evidence on this exact candidate.
 
 Run the #156 namespace/legal-hold and #157 concurrent PUT/DELETE regressions
 locally. All applicable hosted gates from the [CI runbook](ci_runbook.md)
-remain required and unmet while the current hosted hold applies. A normal
-CI build that resolves dependencies afresh is useful source-matrix evidence
+remain required until fresh passing evidence exists for the selected revision.
+A normal CI build that resolves dependencies afresh is useful source-matrix evidence
 but does not prove the frozen candidate's dependency set. Candidate-specific
 validation must install the retained wheel/lock or execute the retained image;
 record the association rather than treating a same-version rebuild as equal.
@@ -183,17 +184,16 @@ component to fix a finding produces a new candidate and affected reruns.
 ### Hosted assembly
 
 The [Release candidate assembly](../.github/workflows/release-candidate.yml)
-workflow is manual-only. It is retained for future use after merge and after
-the user explicitly lifts the hosted CI hold; do not dispatch it as part of
-current local work. Future authorized dispatch uses `main` with no inputs;
-other branches are rejected. There is no automatic pull-request or push
-assembly trigger. It records the latest same-SHA
+workflow is manual-only. The 2026-09-30 authorization permits hosted CI after
+the repository becomes public. Dispatch uses merged `main` with no inputs,
+after the same-revision prerequisites below pass; other branches are rejected.
+There is no automatic pull-request or push assembly trigger. It records the latest same-SHA
 main `push`/manual runs of `ci.yml`, `kubernetes.yml` and `terraform.yml`,
 including run/attempt IDs, URLs and conclusions. Main assembly fails its
 hosted gate when any required run is missing, pending or failed; it still
-attempts to retain the built bundle and evidence. Once hosted work is explicitly
-authorized again, the three prerequisites must pass on the selected main
-revision using the [CI runbook](ci_runbook.md) before assembly can pass its
+attempts to retain the built bundle and evidence. The three prerequisites
+must pass on the selected main revision using the [CI runbook](ci_runbook.md)
+before assembly can pass its
 hosted gate. Repeated assembly resolves a new bundle and creates a new candidate.
 
 Local builders may attach existing retained evidence with

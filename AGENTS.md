@@ -15,28 +15,34 @@
 - The former `dev` integration branch is retired. Do not recreate it, base new
   work on it, or open pull requests against it.
 
-## Validation policy: hosted CI suspended
+<a id="validation-policy-hosted-ci-suspended"></a>
 
-- Standing user instruction, effective 2026-09-21: do not attempt GitHub-hosted
-  CI. The known account billing/spending restriction prevents jobs from
-  starting. Resume hosted CI only when the user explicitly requests it.
-- Do not dispatch or rerun hosted workflows, poll/watch their runs, create
-  CI-only trigger commits, or repeatedly investigate the known outage. Do not
-  ask again for permission to skip hosted CI or restore account billing.
+## Validation policy: hosted CI resumption
+
+- On 2026-09-30, the user explicitly requested making the repository public
+  to resume GitHub-hosted CI. Once repository visibility is public, resume
+  applicable hosted checks, including dispatch, observation and necessary
+  reruns. Until then, the 2026-09-21 suspension remains in effect.
+- This authorization does not establish that the account billing/spending
+  restriction is resolved or that any hosted check passed. Use standard
+  GitHub-hosted runners; paid services, spending increases and cloud
+  provisioning still require separate authorization.
 - Run appropriate local checks for the change, using
   [CONTRIBUTING.md](CONTRIBUTING.md). Record the revision, commands, results,
-  and material validation gaps. Report hosted CI as
+  and material validation gaps. Preserve historical hosted results recorded as
   `skipped: user instruction; known GitHub billing/spending restriction`,
-  never as passing. Existing failed hosted runs are not new test failures.
+  never relabeling them as passing. Record fresh hosted run identities and
+  actual outcomes; missing or unexecuted checks are not passes. Existing
+  failed hosted runs are not new test failures.
 - Continue authorized implementation, local validation, commits, PR work,
-  merges, and ticket updates within the user's requested scope. Normal pushes
-  or PRs may still trigger automatic workflows; do not wait for or rerun them.
+  merges, and ticket updates within the user's requested scope.
   This policy does not grant new merge authority, change branch protection,
   or satisfy explicit release-qualification criteria. Record any remaining
   qualification gap once and continue independent work.
 - Keep workflow definitions and security/regression checks intact. The
-  [CI runbook](docs/ci_runbook.md) retains recovery procedures for a future
-  explicitly requested campaign; they are inactive during this suspension.
+  [CI runbook](docs/ci_runbook.md) defines recovery and qualification after
+  publication. If jobs remain blocked before execution, record the cause
+  once and continue independent work without repeated blind reruns.
 - Pass this policy to delegated agents and tasks, including agents working in
   older worktrees that may not contain these instructions yet.
 

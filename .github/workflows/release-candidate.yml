@@ -3,9 +3,9 @@ name: Release candidate assembly
 on:
   workflow_dispatch:
 
-# Hosted gates are currently unavailable/unmet. The standing user policy stops
-# hosted attempts, reruns and billing investigation. This manual entrypoint is
-# retained only for future, explicit owner authorization after that policy changes.
+# On 2026-09-30 the owner authorized hosted CI resumption once the repo is public.
+# Dispatch only after publication and the documented same-revision prerequisites.
+# Historical skipped gates remain unmet until fresh hosted evidence passes.
 
 # Assembly retains workflow artifacts; it neither publishes packages
 # nor deploys infrastructure. Reading prior hosted runs needs actions: read.
