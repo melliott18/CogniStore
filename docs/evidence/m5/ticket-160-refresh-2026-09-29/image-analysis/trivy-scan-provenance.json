@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "source_commit": "04ee37a499d58695645d739971fadc72ab5af459",
+  "image_id": "sha256:6e818b49e7e92735efb278dac5a029e4f299a9def255076e45a7d775f94d143d",
+  "image_labels": {
+    "org.opencontainers.image.revision": "04ee37a499d58695645d739971fadc72ab5af459",
+    "org.opencontainers.image.source": "https://github.com/melliott18/CogniStore",
+    "org.opencontainers.image.title": "CogniStore release candidate",
+    "org.opencontainers.image.version": "0.1.1rc1"
+  },
+  "platform": "linux/amd64",
+  "archive": "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/candidate-main/image.tar",
+  "archive_sha256": "cbbd1adcac7da58d4a638d7af8f21dc725394a99c0e1d53f49ccf5c6b7dd2203",
+  "scanner_binary": "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-0.74.0/trivy",
+  "scanner_binary_sha256": "0ed07c205ca9ecc1065dc57b9f9f77adc79393bb469d9d1de9ec90c8c94ffc2f",
+  "scanner_version": {
+    "Version": "0.74.0",
+    "VulnerabilityDB": {
+      "Version": 2,
+      "NextUpdate": "2026-10-01T01:15:45.849462202Z",
+      "UpdatedAt": "2026-09-30T01:15:45.849462612Z",
+      "DownloadedAt": "2026-09-30T02:42:05.58934Z"
+    }
+  },
+  "scanner_download_provenance_sha256": "84eb9eea415b4a61d2955a49787fed52a391a65a54ea031b227de5879478cd64",
+  "database_sha256_before": "dd0b4e5115b6e70e010bd6eeb3e746ef47ce77507602c829ff164658b3b68c53",
+  "database_metadata_before": {
+    "Version": 2,
+    "NextUpdate": "2026-10-01T01:15:45.849462202Z",
+    "UpdatedAt": "2026-09-30T01:15:45.849462612Z",
+    "DownloadedAt": "2026-09-30T02:42:05.58934Z"
+  },
+  "started_at": "2026-09-30T02:44:53.916559+00:00",
+  "policy": {
+    "scanners": [
+      "vuln"
+    ],
+    "package_types": [
+      "os",
+      "library"
+    ],
+    "detection_priority": "precise",
+    "ignore_unfixed": false,
+    "ignored_statuses": [],
+    "ignorefile": "/dev/null",
+    "offline_scan": true,
+    "telemetry_disabled": true,
+    "findings_exit_code": 0,
+    "exit_code_meaning": "0 means scan execution completed; it does not mean zero findings",
+    "qualification_claim": false
+  },
+  "commands": [
+    {
+      "argv": [
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-0.74.0/trivy",
+        "image",
+        "--config",
+        "/dev/null",
+        "--cache-dir",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-cache",
+        "--cache-backend",
+        "memory",
+        "--input",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/candidate-main/image.tar",
+        "--scanners",
+        "vuln",
+        "--pkg-types",
+        "os,library",
+        "--detection-priority",
+        "precise",
+        "--severity",
+        "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+        "--ignorefile",
+        "/dev/null",
+        "--list-all-pkgs=true",
+        "--offline-scan",
+        "--skip-db-update",
+        "--skip-java-db-update",
+        "--skip-check-update",
+        "--skip-vex-repo-update",
+        "--skip-version-check",
+        "--disable-telemetry",
+        "--no-progress",
+        "--timeout",
+        "15m",
+        "--exit-code",
+        "0",
+        "--format",
+        "json",
+        "--output",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/image-analysis/trivy-report.json"
+      ],
+      "started_at": "2026-09-30T02:44:53.917426+00:00",
+      "log": "trivy-scan.log",
+      "exit_code": 0,
+      "finished_at": "2026-09-30T02:44:54.662602+00:00"
+    },
+    {
+      "argv": [
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-0.74.0/trivy",
+        "convert",
+        "--config",
+        "/dev/null",
+        "--cache-dir",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-cache",
+        "--ignorefile",
+        "/dev/null",
+        "--format",
+        "cyclonedx",
+        "--output",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/image-analysis/trivy-sbom.cdx.json",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/image-analysis/trivy-report.json"
+      ],
+      "started_at": "2026-09-30T02:44:54.667632+00:00",
+      "log": "trivy-sbom-convert.log",
+      "exit_code": 0,
+      "finished_at": "2026-09-30T02:44:54.748422+00:00"
+    }
+  ],
+  "summary": {
+    "findings": 286,
+    "unique_vulnerability_ids": 133,
+    "severity": {
+      "LOW": 114,
+      "HIGH": 59,
+      "MEDIUM": 105,
+      "UNKNOWN": 3,
+      "CRITICAL": 5
+    },
+    "advisory_sources": {
+      "debian": 283,
+      "ghsa": 3
+    },
+    "results": [
+      {
+        "target": "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/candidate-main/image.tar (debian 12.15)",
+        "type": "debian",
+        "class": "os-pkgs",
+        "packages": 107,
+        "findings": 283
+      },
+      {
+        "target": "Python",
+        "type": "python-pkg",
+        "class": "lang-pkgs",
+        "packages": 95,
+        "findings": 3
+      }
+    ]
+  },
+  "database_metadata_after": {
+    "Version": 2,
+    "NextUpdate": "2026-10-01T01:15:45.849462202Z",
+    "UpdatedAt": "2026-09-30T01:15:45.849462612Z",
+    "DownloadedAt": "2026-09-30T02:42:05.58934Z"
+  },
+  "database_sha256_after": "dd0b4e5115b6e70e010bd6eeb3e746ef47ce77507602c829ff164658b3b68c53",
+  "database_unchanged_during_scan": true,
+  "finished_at": "2026-09-30T02:44:55.577949+00:00",
+  "report_sha256": "f7271d81b7fff45707f00dc63f1121186198d0cb4a0060ae0e4de920678f6272",
+  "sbom_sha256": "0d891344f1dc20d885701b024d888a76d319ef64690ac2afc4fddb279801e1d1"
+}

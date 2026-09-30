@@ -1,0 +1,39 @@
+{
+  "retrieved_at": "2026-09-30T02:41:17.085226+00:00",
+  "release_api_url": "https://api.github.com/repos/aquasecurity/trivy/releases/latest",
+  "release_api_sha256": "3075ebb91be3b7310f15d528a1d76afad41e7bf086a4736627c27def604b3149",
+  "release_tag": "v0.74.0",
+  "release_published_at": "2026-08-14T11:29:11Z",
+  "release_url": "https://github.com/aquasecurity/trivy/releases/tag/v0.74.0",
+  "platform": "macOS-arm64",
+  "download_method": "curl with HTTPS and default certificate verification",
+  "assets": [
+    {
+      "name": "trivy_0.74.0_checksums.txt",
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_checksums.txt",
+      "sha256": "bc701c3c3ee8b9acbea2c23257e41381e3854888f51281616a6ba5dc96963821",
+      "release_api_digest_verified": true
+    },
+    {
+      "name": "trivy_0.74.0_macOS-ARM64.tar.gz",
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_macOS-ARM64.tar.gz",
+      "sha256": "1caada5e0e2091909357c7525d3aa76f4b660b13821bc143b190c7483e31cc11",
+      "release_api_digest_verified": true
+    },
+    {
+      "name": "trivy_0.74.0_macOS-ARM64.tar.gz.sigstore.json",
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_macOS-ARM64.tar.gz.sigstore.json",
+      "sha256": "3d0fbe2d9a4dd43fb973443109916c62d3062bd5c60de9a0d0150dd7876b24ce",
+      "release_api_digest_verified": true
+    }
+  ],
+  "official_checksum_list_verified": true,
+  "signature_bundle_retained": true,
+  "signature_verification_performed": false,
+  "binary_path": "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/tools/trivy-0.74.0/trivy",
+  "binary_sha256": "0ed07c205ca9ecc1065dc57b9f9f77adc79393bb469d9d1de9ec90c8c94ffc2f",
+  "official_docs": [
+    "https://trivy.dev/docs/latest/getting-started/installation/",
+    "https://trivy.dev/docs/latest/configuration/db/"
+  ]
+}
