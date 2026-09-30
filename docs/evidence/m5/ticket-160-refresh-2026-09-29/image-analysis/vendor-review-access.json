@@ -1,0 +1,38 @@
+{
+  "recorded_at": "2026-09-30T02:52:36.947481+00:00",
+  "successful_primary_vendor_reads": [
+    "https://security-tracker.debian.org/tracker/CVE-2025-7458",
+    "https://security-tracker.debian.org/tracker/CVE-2026-8376",
+    "https://github.com/msgpack/msgpack-python/security/advisories/GHSA-6v7p-g79w-8964",
+    "https://github.com/pypa/setuptools/security/advisories/GHSA-5rjg-fvgr-3xxf",
+    "https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c"
+  ],
+  "blocked_reads": [
+    {
+      "url": "https://security-tracker.debian.org/tracker/CVE-2023-45853",
+      "tool_error": "Failed to fetch restricted URL",
+      "action": "Stopped this read; no retries or alternate access route used"
+    },
+    {
+      "url": "https://security-tracker.debian.org/tracker/CVE-2026-13221",
+      "tool_error": "Failed to fetch restricted URL",
+      "action": "Stopped this read; no retries or alternate access route used"
+    },
+    {
+      "url": "https://security-tracker.debian.org/tracker/CVE-2026-42496",
+      "tool_error": "Failed to fetch restricted URL",
+      "action": "Stopped this read; no retries or alternate access route used"
+    },
+    {
+      "url": "https://security-tracker.debian.org/tracker/CVE-2026-75803",
+      "tool_error": "Failed to fetch restricted URL",
+      "action": "Stopped this read; no retries or alternate access route used"
+    },
+    {
+      "url": "https://security-tracker.debian.org/tracker/CVE-2026-63072",
+      "tool_error": "Failed to fetch restricted URL",
+      "action": "Stopped this read; no retries or alternate access route used"
+    }
+  ],
+  "assessment": "The scanner completed successfully. This limits separate web-based vendor triage; no missing vendor read is treated as proof of absence or remediation."
+}

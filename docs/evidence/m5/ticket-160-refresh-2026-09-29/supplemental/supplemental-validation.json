@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "source_commit": "04ee37a499d58695645d739971fadc72ab5af459",
+  "image": {
+    "tag": "cognistore:rc-04ee37a499d5-qualification",
+    "id": "sha256:cf7a9febb5380fb48f0e4a0ae74cf81c0b3c7fd68de35cd661cee5e071a00ab0",
+    "platform": "linux/amd64"
+  },
+  "started_at_utc": "2026-09-30T02:43:06.968709+00:00",
+  "command_argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--platform",
+    "linux/amd64",
+    "--network",
+    "none",
+    "--mount",
+    "type=bind,source=/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/supplemental,target=/reports",
+    "sha256:cf7a9febb5380fb48f0e4a0ae74cf81c0b3c7fd68de35cd661cee5e071a00ab0",
+    "python",
+    "-m",
+    "pytest",
+    "-m",
+    "not integration",
+    "tests/integration/test_api_scan_coordination.py",
+    "tests/integration/test_scanner_move_coordination.py",
+    "tests/unit/test_catalog_content_scan.py",
+    "tests/unit/test_orphan_cleanup_fence.py",
+    "tests/unit/test_legal_hold_catalog.py",
+    "tests/unit/test_nats_queue.py",
+    "tests/unit/test_worker_health.py",
+    "tests/unit/test_observability.py",
+    "tests/integration/test_coherent_restore_recovery.py",
+    "--junitxml=/reports/supplemental-regressions.xml"
+  ],
+  "modules": [
+    "tests/integration/test_api_scan_coordination.py",
+    "tests/integration/test_scanner_move_coordination.py",
+    "tests/unit/test_catalog_content_scan.py",
+    "tests/unit/test_orphan_cleanup_fence.py",
+    "tests/unit/test_legal_hold_catalog.py",
+    "tests/unit/test_nats_queue.py",
+    "tests/unit/test_worker_health.py",
+    "tests/unit/test_observability.py",
+    "tests/integration/test_coherent_restore_recovery.py"
+  ],
+  "status": "passed",
+  "environment": "Disposable local container; installed frozen wheel; synthetic fixtures; network disabled",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "limitations": [
+    "PostgreSQL cases marked integration are deselected, not passed.",
+    "No production services, cloud storage, broker, or external identity provider is qualified.",
+    "Supplemental reports remain outside the sealed candidate bundle."
+  ],
+  "finished_at_utc": "2026-09-30T02:43:47.052220+00:00",
+  "elapsed_seconds": 40.081,
+  "exit_code": 0,
+  "junit": {
+    "well_formed": true,
+    "test_cases": 179,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 179,
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "179",
+        "time": "37.430",
+        "timestamp": "2026-09-30T02:43:08.904651+00:00",
+        "hostname": "b4d229498e87"
+      }
+    ]
+  },
+  "collection": {
+    "collected": 191,
+    "deselected": 12,
+    "selected": 179,
+    "source": "pytest collection summary in retained log"
+  },
+  "artifacts": {
+    "supplemental-regressions.log": {
+      "sha256": "a0d9127076016e7216e6ae56a1b83c6cb20734a4f8b57d8e8b297887bb0f70b6",
+      "bytes": 45844
+    },
+    "supplemental-regressions.xml": {
+      "sha256": "879b3be591dcaf8a7c579bdd05f942f328a5e4c6f6cf6b6cbe088813cdd8a499",
+      "bytes": 26742
+    }
+  }
+}

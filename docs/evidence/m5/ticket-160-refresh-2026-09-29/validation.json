@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "snapshot_date_local": "2026-09-29",
+  "timezone": "America/Los_Angeles",
+  "candidate_id": "0.1.1rc1-04ee37a499d5-6e818b49e7e9",
+  "source": {
+    "clean": true,
+    "commit": "04ee37a499d58695645d739971fadc72ab5af459",
+    "origin_main": "04ee37a499d58695645d739971fadc72ab5af459",
+    "tree": "40f1d9eaa454f434111d5ca3f7619881fb624e69",
+    "unmerged_validation": false
+  },
+  "image": {
+    "archive": "image.tar",
+    "base": "FROM python:3.12.14-slim-bookworm@sha256:1aaa65a85fda306ffb8b910824d4e93bdce61e212c7e87168123ea3073b41a1a AS native",
+    "digest_kind": "docker-config",
+    "image_id": "sha256:6e818b49e7e92735efb278dac5a029e4f299a9def255076e45a7d775f94d143d",
+    "local_tag": "cognistore:rc-04ee37a499d5",
+    "platform": "linux/amd64",
+    "registry_manifest_digest": null
+  },
+  "status": "assembled-unqualified",
+  "candidate_created_at_utc": "2026-09-30T02:42:34.528618+00:00",
+  "scope": "Candidate and image-analysis refresh; evidence-only repository changes; no new production qualification.",
+  "ticket": {
+    "number": 160,
+    "state_observed": "CLOSED",
+    "closed_at": "2026-09-21T21:02:26Z",
+    "interpretation": "Administrative completion; no waiver of release qualification criteria."
+  },
+  "commands": [
+    {
+      "cwd": "clean checkout at source.commit",
+      "argv": [
+        "docker",
+        "build",
+        "--no-cache",
+        "--platform",
+        "linux/amd64",
+        "--file",
+        "release/Dockerfile",
+        "--target",
+        "native",
+        "--tag",
+        "cognistore:160-refresh-native",
+        "."
+      ],
+      "exit_code": 0,
+      "log": "native-refresh.log.gz"
+    },
+    {
+      "cwd": "clean checkout at source.commit",
+      "argv": [
+        "python3",
+        "scripts/release_candidate.py",
+        "build",
+        "--output",
+        "/Users/mitchell/.codex/artifacts/cognistore-160-refresh-20260929/candidate-main"
+      ],
+      "exit_code": 0,
+      "manifest": "manifest.json"
+    },
+    {
+      "command_record": "supplemental/supplemental-validation.json",
+      "exit_code": 0
+    },
+    {
+      "command_record": "image-analysis/trivy-scan-provenance.json",
+      "exit_code": 0,
+      "exit_code_meaning": "Scan completed; vulnerability findings present."
+    }
+  ],
+  "checks": {
+    "installed_smoke": {
+      "passed": 48,
+      "http_requests": 17,
+      "report": "reports/smoke.json"
+    },
+    "original_regressions": {
+      "passed": 287,
+      "skipped": 8,
+      "failed": 0,
+      "errors": 0,
+      "report": "reports/regressions.xml.gz",
+      "skip_reason": "Native case-insensitive volume unavailable"
+    },
+    "supplemental_regressions": {
+      "passed": 179,
+      "deselected": 12,
+      "failed": 0,
+      "errors": 0,
+      "report": "supplemental/supplemental-validation.json",
+      "excluded": "PostgreSQL cases marked integration"
+    },
+    "bandit": {
+      "exit_code": 0,
+      "minimum_severity": "medium",
+      "minimum_confidence": "medium",
+      "report": "reports/bandit.json.gz"
+    },
+    "pip_check": {
+      "exit_code": 0,
+      "report": "reports/pip-check.log.gz"
+    },
+    "dependency_audit": {
+      "exit_code": 0,
+      "known_vulnerabilities_reported": 0,
+      "distributions_audited": 57,
+      "report": "reports/pip-audit.json",
+      "scope": "Frozen top-level third-party Python dependencies; bundled installer and native code separately image-scanned"
+    },
+    "bundle_integrity": {
+      "verified": true,
+      "sha256sum_files": 125,
+      "manifest_artifacts": 124,
+      "runtime_distributions_matching_lock_wheels_inventory": 58,
+      "source_archive_and_image_labels_match": true
+    },
+    "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction"
+  },
+  "image_analysis": {
+    "scanner_version": "0.74.0",
+    "database_updated_at": "2026-09-30T01:15:45.849462612Z",
+    "database_sha256": "dd0b4e5115b6e70e010bd6eeb3e746ef47ce77507602c829ff164658b3b68c53",
+    "raw_findings": 286,
+    "normalized_records": 133,
+    "distinct_advisory_ids": 133,
+    "normalized_severity": {
+      "CRITICAL": 5,
+      "HIGH": 19,
+      "MEDIUM": 50,
+      "LOW": 56,
+      "UNKNOWN": 3
+    },
+    "waivers": [],
+    "report": "image-analysis/trivy-scan-provenance.json",
+    "disposition": "image-analysis/security-disposition.md"
+  },
+  "retention": "retention.json",
+  "historical_evidence": {
+    "path": "../ticket-160",
+    "git_tree_at_source": "b7f32a578e123cbf9f8390ab7362374db9ad7af9",
+    "preserved_without_modification": true
+  },
+  "limitations": [
+    "Linux amd64 images executed locally on Docker/macOS arm64; scoped installed-wheel tests, not complete supported-runtime or default-suite qualification.",
+    "POSIX/SQLite synthetic fixtures and in-process HTTP; live PostgreSQL, S3, JetStream, TLS/OIDC, browser, filesystem, recovery and load campaigns not qualified.",
+    "Source current at assembly; evidence-only commits do not change the source claim.",
+    "Sealed manifest pending scan entry is supplemented by completed image analysis, not edited.",
+    "Staging templates still contain placeholders; configuration hashes bind templates only.",
+    "No registry manifest digest or production publication; authenticated draft asset retention does not establish registry promotion.",
+    "Image findings remain unresolved; scan differences from historical Docker Scout are not evidence of remediation.",
+    "Historical downstream reports keep their original source and qualification limitations. Separate PR #180 repaired #162 XML evidence after candidate assembly without changing runtime code."
+  ],
+  "remaining_gates": [
+    "Named owner/specification acceptance #159",
+    "Rendered deployment configuration and selected service workflows #161",
+    "Verified immutable registry manifest identity",
+    "Image security remediation or explicit reviewed acceptance #162",
+    "Applicable hosted qualification #158",
+    "Selected UAT/recovery/performance/pilot gates #163-#166"
+  ],
+  "post_assembly_main_update": {
+    "commit": "74d286efeae39dd08f404105c3d0c724e56e7402",
+    "pull_request": 180,
+    "scope": "#162 evidence XML repair and regression test; no runtime changes",
+    "candidate_rebuilt": false,
+    "reason": "Preserve exact tested source/archive identity; subsequent evidence-only changes do not modify candidate runtime."
+  },
+  "evidence_checks": {
+    "json_and_junit_documents_parsed": 24,
+    "local_markdown_targets_resolved": 62,
+    "historical_ticket_160_tree_preserved": true,
+    "git_diff_check": "passed",
+    "repository_change_scope": "docs/evidence only; runtime/test/workflow files unchanged by refresh"
+  }
+}

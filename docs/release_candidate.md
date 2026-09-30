@@ -7,8 +7,15 @@ amd64, Debian bookworm, CPython 3.12, native libmagic, POSIX hot storage, native
 AWS S3 warm storage, PostgreSQL and NATS JetStream. The package version for
 this candidate series is `0.1.1rc1`.
 
-**Status: assembly tooling, not a qualified or approved release.** Named owner
-acceptance of the pilot specification remains pending, and the
+**Status: locally rebuilt candidate; release qualification incomplete.** The
+[2026-09-29 evidence refresh](evidence/m5/ticket-160-refresh-2026-09-29/README.md)
+records the clean-main candidate, installed-artifact checks and current image
+analysis. It supersedes the earlier branch candidate for current local analysis;
+the [historical evidence](evidence/m5/ticket-160/README.md) remains preserved.
+#160 is administratively closed, while the candidate remains
+`assembled-unqualified`.
+
+Named owner acceptance of the pilot specification remains pending, and the
 [#158 hosted CI record](evidence/ci-158/README.md) records jobs blocked before
 runner assignment by an account billing/spending-limit restriction. Those are
 release blockers. A successful local build, branch check, smoke test, or ticket
@@ -20,6 +27,7 @@ rerun, or poll hosted workflows while the billing/spending-limit restriction
 and that instruction remain in force. Continue local validation and record
 hosted gates as unavailable/unmet. The future workflow procedure below applies
 only after the user explicitly lifts this hold.
+Hosted CI: `skipped: user instruction; known GitHub billing/spending restriction`.
 
 ## Selected product behavior
 
@@ -274,13 +282,18 @@ threshold retrospectively, or edit a passing report to describe a new input.
 Use the [M5 evidence index](evidence/m5/README.md#ticket-160-release-candidate-assembly)
 to record manifest, bundle and report checksums, immutable storage locations,
 source/image/configuration/environment identities and explicit limitations.
+The [current refresh record](evidence/m5/ticket-160-refresh-2026-09-29/README.md)
+provides the current candidate identities, security disposition and artifact
+handoff; historical reports retain their original source/image scope.
 Retain all needed artifacts for at least 90 days after the pilot exit decision,
 longer for unresolved findings. Export expiring CI artifacts to approved durable
 storage before expiry. An ignored local directory or an expired link is not
 release evidence.
 
-Before #160 acceptance, supply the real clean-main candidate and immutable
-registry image digest, accepted specification/configuration, exact-artifact
-install/workflow/regression evidence, passing applicable hosted checks, and
-reviewed security findings with no unresolved release blockers. The subsequent
-environment, audit, UAT, recovery, load and pilot-entry gates remain separate.
+The clean-main rebuild resolves the former branch-source limitation. Release
+acceptance still requires an immutable registry image digest, accepted
+specification/configuration, all required exact-artifact workflow/regression
+evidence, passing applicable hosted checks, and reviewed security findings with
+no unresolved release blockers. Administrative ticket closure does not satisfy
+those requirements. Environment, audit, UAT, recovery, load and pilot-entry
+gates remain separate.

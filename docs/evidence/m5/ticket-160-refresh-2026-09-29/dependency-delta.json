@@ -1,0 +1,91 @@
+{
+  "previous_source": "e51cb39cc84b819ecbed43b56513888a956812cf",
+  "current_source": "04ee37a499d58695645d739971fadc72ab5af459",
+  "changes": [
+    {
+      "name": "boto3",
+      "previous": "1.43.98",
+      "current": "1.43.105"
+    },
+    {
+      "name": "botocore",
+      "previous": "1.43.98",
+      "current": "1.43.105"
+    },
+    {
+      "name": "google-auth",
+      "previous": "2.58.0",
+      "current": "2.59.0"
+    },
+    {
+      "name": "googleapis-common-protos",
+      "previous": "1.75.3",
+      "current": "1.75.5"
+    },
+    {
+      "name": "greenlet",
+      "previous": "3.5.6",
+      "current": null
+    },
+    {
+      "name": "mako",
+      "previous": "1.4.1",
+      "current": "1.4.3"
+    },
+    {
+      "name": "opentelemetry-api",
+      "previous": "1.44.0",
+      "current": "1.45.0"
+    },
+    {
+      "name": "opentelemetry-exporter-http-transport",
+      "previous": null,
+      "current": "0.66b0"
+    },
+    {
+      "name": "opentelemetry-exporter-otlp-common",
+      "previous": null,
+      "current": "0.66b0"
+    },
+    {
+      "name": "opentelemetry-exporter-otlp-proto-common",
+      "previous": "1.44.0",
+      "current": "1.45.0"
+    },
+    {
+      "name": "opentelemetry-exporter-otlp-proto-http",
+      "previous": "1.44.0",
+      "current": "1.45.0"
+    },
+    {
+      "name": "opentelemetry-proto",
+      "previous": "1.44.0",
+      "current": "1.45.0"
+    },
+    {
+      "name": "opentelemetry-sdk",
+      "previous": "1.44.0",
+      "current": "1.45.0"
+    },
+    {
+      "name": "opentelemetry-semantic-conventions",
+      "previous": "0.65b0",
+      "current": "0.66b0"
+    },
+    {
+      "name": "pyjwt",
+      "previous": "2.14.0",
+      "current": "2.15.1"
+    },
+    {
+      "name": "sqlalchemy",
+      "previous": "2.0.54",
+      "current": "2.1.1"
+    },
+    {
+      "name": "starlette",
+      "previous": "1.6.0",
+      "current": "1.7.0"
+    }
+  ]
+}

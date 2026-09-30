@@ -1,0 +1,21 @@
+{
+  "configuration_kind": "committed selection and staging templates; live identities not supplied",
+  "deployment_configuration_accepted": false,
+  "files": {
+    "docs/production_pilot.md": "d91283f25f1ca76fae3f3d1d2858f5dae1f24f942c92232b04d52a1d0f963ea7",
+    "release/pilot.json": "84c01b459b43b05b10f0f0fd9a50557ef85f91fbd69e11a5053dc44ad9873aab",
+    "release/staging/authorization.json": "ce598b282f98da1f09f9a9bd3a578b3a76045fd9c3a4a42eaf3225efba28832d",
+    "release/staging/drivers.yaml": "c103de630f05d70aef276035f02a06aefce91eeb5ca1963709e32b42b8085f97",
+    "release/staging/environment.json": "248b88e0bb356334309f1e68ffb7546cf851613840bf8086daf85f6fa56205fc",
+    "release/staging/image-link.json": "236769bf6eb2d2e617bcc7344ca2eb5ba403780a4cb0fcfa0cb4769882c14142",
+    "release/staging/jetstream-dlq.json": "134b3b7795de922228f34fd54e7b13829ae661212fbe4dcff2213c323b3bb7f0",
+    "release/staging/jetstream-jobs.json": "b5036ad266aa5860dc75e352af79f9532d80ae784875e2afbec421d31491f563",
+    "release/staging/nats-values.yaml": "90f9d43c23a784b0fc541ceab0ab98fa45345345292c7f3073eafddd8f540a28",
+    "release/staging/nats.md": "d42ed466484e8072f9b411079c5fcfdfd2d8110c8bda129a51314534adf12b55",
+    "release/staging/resources.yaml": "8923f3a220ea154f013df79729e2d852a8dcba9b4655a22ac1ff86f4bb482207",
+    "release/staging/tenants.json": "3d9d47a168fe261ec608cb7241da4867b1eddfa9daf66b066f1740b93b4c6ec9",
+    "release/staging/values.yaml": "ea5b9ade6dfc36e99b183f8939648ab9478569812678189a66c841ef5623aca4"
+  },
+  "schema_version": 1,
+  "source_commit": "04ee37a499d58695645d739971fadc72ab5af459"
+}
