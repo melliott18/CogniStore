@@ -194,6 +194,17 @@ all policy strings together to 64 KiB of UTF-8. Embedding rules are available on
 `content` policy, use unique names and allowed destination tiers, and accept
 cosine thresholds from -1 through 1.
 
+For an oversized upload, the API sends the `payload_too_large` error envelope
+and `Connection: close`, then discards unread request bytes before completing
+the connection close. This lets eager clients read the 413 without a TCP reset
+at the upload boundary. Cleanup retains no body and is bounded to one second
+and 17 MiB of additional bytes (the last transport chunk may cross that budget).
+The 16 MiB object and 256 KiB JSON acceptance limits remain unchanged; rejected
+bytes never reach storage or catalog mutation. An `Expect: 100-continue` client
+receives the final error without needing to send the body. Stalled or much
+larger senders exhaust the cleanup budget and may still observe a transport
+close; the API does not drain arbitrary bodies indefinitely.
+
 Policy evaluation is the side-effect-free dry-run contract. Its response
 includes the schema-v1 MIME and embedding feature projection with explicit
 `fresh`, `missing`, `stale`, or `unavailable` state and source provenance.
