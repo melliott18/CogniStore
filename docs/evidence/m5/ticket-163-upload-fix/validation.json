@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-30T02:49:59.846771+00:00",
+  "base_revision": "04ee37a499d58695645d739971fadc72ab5af459",
+  "fix_revision": "cbefab12a273d3a5cd7345f1d87c84afe044cdbe",
+  "finding": "LOCAL-163-001",
+  "finding_status": "fixed",
+  "production_qualified": false,
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "runtime": {
+    "python": "3.12.2 (v3.12.2:6abddd9f6a, Feb  6 2024, 17:02:06) [Clang 13.0.0 (clang-1300.0.29.30)]",
+    "platform": "macOS-14.8.7-arm64-arm-64bit",
+    "packages": "runtime-packages.json"
+  },
+  "implementation_sha256": {
+    "cognistore/api/app.py": "48fe64d305499da2082059fa60e84ac96c6db0c0c2723865b73b92474f8fdd89",
+    "cognistore/api/rejected_body.py": "7696d17e2c34dc21f27a8b39d49521a374eca3e497cca7a59178f11e8bfe88ea",
+    "tests/unit/test_rejected_body.py": "510cd5a2aa5625a2d022295f8f136e4c92b90b7b083592f43ae41cee007a54f3",
+    "tests/integration/test_upload_limits.py": "e2f891ef03560e8d4bb8d530f440c0599618cbc82455de25b46f892565e7ba84",
+    "scripts/manual_acceptance_local.py": "c3c7d4bfbab755892296611cec8e9f0036ab2cf2ad5c852966a9123056f3d39e",
+    "docs/rest_api.md": "51917d58ab94ccc2f50703b924724a54757c52836d190408951a20ac84b8de3e"
+  },
+  "rehearsal": {
+    "baseline": {
+      "passed": 112,
+      "failed": 2,
+      "exit_code": 1,
+      "report": "rehearsal-baseline.json.gz",
+      "port": 8765,
+      "commands": [
+        "COGNISTORE_SECURITY_PROFILE=development PYTHONPATH=. .venv/bin/python scripts/manual_acceptance_local.py serve --root /tmp/cognistore-163-upload-baseline-fixture --port 8765",
+        "COGNISTORE_SECURITY_PROFILE=development PYTHONPATH=. .venv/bin/python scripts/manual_acceptance_local.py exercise --root /tmp/cognistore-163-upload-baseline-fixture --port 8765"
+      ]
+    },
+    "fixed": {
+      "passed": 114,
+      "failed": 0,
+      "exit_code": 0,
+      "report": "rehearsal-fixed.json.gz",
+      "port": 8766,
+      "commands": [
+        "COGNISTORE_SECURITY_PROFILE=development PYTHONPATH=. .venv/bin/python scripts/manual_acceptance_local.py serve --root /tmp/cognistore-163-upload-fixed-fixture --port 8766",
+        "COGNISTORE_SECURITY_PROFILE=development PYTHONPATH=. .venv/bin/python scripts/manual_acceptance_local.py exercise --root /tmp/cognistore-163-upload-fixed-fixture --port 8766"
+      ]
+    },
+    "qualification": false,
+    "servers_stopped": true
+  },
+  "socket_regression": {
+    "command": ".venv/bin/python -m pytest tests/integration/test_upload_limits.py -q",
+    "baseline_failed": 4,
+    "baseline_passed": 16,
+    "fixed_passed": 20,
+    "fixed_failed": 0,
+    "fixed_seconds": 14.6,
+    "protocols": [
+      "h11",
+      "httptools"
+    ],
+    "reports": [
+      "socket-baseline.log.gz",
+      "socket-fixed.log.gz"
+    ],
+    "overlaps_full_suite": true
+  },
+  "quality": [
+    {
+      "command": ".venv/bin/python -m ruff check .",
+      "exit_code": 0,
+      "report": "ruff.txt"
+    },
+    {
+      "command": ".venv/bin/python -m bandit -c pyproject.toml -r cognistore -ll -ii",
+      "exit_code": 0,
+      "report": "bandit.txt"
+    },
+    {
+      "command": ".venv/bin/python -m mypy cognistore",
+      "exit_code": 1,
+      "baseline_exit_code": 1,
+      "diagnostics": 17,
+      "baseline_diagnostics": 17,
+      "same_error_locations": true,
+      "changed_file_errors": 0,
+      "reports": [
+        "mypy-baseline.txt.gz",
+        "mypy-fixed.txt.gz"
+      ]
+    },
+    {
+      "command": ".venv/bin/python -m build --outdir /tmp/cognistore-163-upload-dist",
+      "exit_code": 0,
+      "report": "build.log.gz"
+    },
+    {
+      "command": ".venv/bin/python -m twine check /tmp/cognistore-163-upload-dist/*",
+      "exit_code": 0,
+      "report": "twine.txt"
+    }
+  ],
+  "limitations": [
+    "Only isolated local synthetic fixtures; no account, billing credentials, real cloud resources or external test targets.",
+    "Local test campaign excludes integration-marked tests; service integration/platform matrix and complete default suite not qualified.",
+    "Same 17 pre-existing mypy diagnostics as unchanged main in this freshly installed declared dependency environment.",
+    "Cleanup bounded to one second and 17 MiB of additional unread body, with possible one transport chunk overshoot; arbitrary huge or stalled senders may still see transport close.",
+    "The September21 manual acceptance matrix and staging/provider/browser qualification gaps remain historical and unqualified.",
+    "Pre-existing telemetry redirect test fails on baseline and fix because it inspects removed OpenTelemetry exporter private _session internals."
+  ],
+  "independent_review": {
+    "fix_revision": "cbefab12a273d3a5cd7345f1d87c84afe044cdbe",
+    "new_unit_tests_passed": 15,
+    "remaining_blocking_findings": 0,
+    "deadline_regression": "Synchronous empty receive messages no longer starve the total timeout; explicit cancellation propagates.",
+    "overlaps_full_suite": true
+  },
+  "pre_existing_telemetry_failure": {
+    "test": "tests/unit/test_encryption_policy.py::test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+    "baseline_revision": "74d286efeae39dd08f404105c3d0c724e56e7402",
+    "baseline_application_matches_original_base": true,
+    "command": ".venv/bin/python -m pytest tests/unit/test_encryption_policy.py::test_telemetry_redirect_cannot_forward_payload_to_plaintext -q",
+    "baseline_exit_code": 1,
+    "fixed_exit_code": 1,
+    "cause": "OpenTelemetry exporter 1.45.0 no longer exposes the private _session attribute used by the pre-existing test; production still supplies its protected session through the public session= argument.",
+    "reports": [
+      "telemetry-baseline.log.gz",
+      "telemetry-fixed.log.gz"
+    ]
+  },
+  "local_suite": {
+    "command": ".venv/bin/python -m pytest -m 'not integration' --cov=cognistore --cov-report=term-missing --cov-report=xml --junitxml=/tmp/cognistore-163-upload-suite.xml",
+    "exit_code": 1,
+    "passed": 6325,
+    "failed": 1,
+    "skipped": 36,
+    "deselected": 280,
+    "seconds": 704.63,
+    "total_coverage_percent": 86.86,
+    "required_coverage_percent": 80,
+    "coverage_threshold_met": true,
+    "junit_counts": {
+      "tests": 6362,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 36
+    },
+    "reports": [
+      "local-suite.log.gz",
+      "local-suite.xml.gz",
+      "coverage.xml.gz"
+    ],
+    "failure": "Pre-existing telemetry private-attribute compatibility test; targeted unchanged-main reproduction retained.",
+    "skips": "Unsupported range-write capabilities, unavailable native libmagic and Helm; full reasons in log and JUnit.",
+    "source_matches_fix_commit": true,
+    "skip_reasons": {
+      "collection skipped": 1,
+      "backend does not advertise range writes": 2,
+      "Helm is required for chart contract tests": 23,
+      "native libmagic is not installed": 4,
+      "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "Helm is required for staging render tests": 5
+    }
+  },
+  "artifact_sanitization": "Full-suite text and parsed XML values replace this worktree path and JWT-shaped fixture tokens; JUnit hostname is replaced through XML serialization, preserving XML validity and test outcomes.",
+  "main_integration": {
+    "upstream_revision": "0f0e51592218acc7232a1e4a9d40caf69cb3ba7e",
+    "merge_revision": "a3213c212b7181b31d5004f336d52f37dbcb5dc8",
+    "application_and_scripts_unchanged_from_tested_fix": true,
+    "only_added_test_file": "tests/unit/test_retained_audit_evidence.py",
+    "command": ".venv/bin/python -m pytest tests/unit/test_retained_audit_evidence.py -q",
+    "exit_code": 0,
+    "passed": 12,
+    "report": "integrated-evidence-tests.log.gz",
+    "resolution": "Preserved incoming ticket160 and ticket162 evidence updates alongside ticket163 follow-up link."
+  }
+}

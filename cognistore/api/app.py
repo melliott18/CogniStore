@@ -102,6 +102,7 @@ from .permissions import (
     OPERATION_PERMISSIONS,
     endpoint_operation,
 )
+from .rejected_body import RejectedBodyMiddleware
 from .telemetry import TelemetryMiddleware
 
 MAX_OBJECT_UPLOAD_BYTES = 16 * 1024 * 1024
@@ -1344,5 +1345,6 @@ def create_app(
         body += budget_metrics_response(getattr(services, "catalog", None))
         return Response(body, headers={"Content-Type": content_type})
 
+    app.add_middleware(RejectedBodyMiddleware)
     app.add_middleware(TelemetryMiddleware)
     return app
