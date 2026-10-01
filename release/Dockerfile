@@ -1,7 +1,9 @@
 # Each assembly resolves once; retain the resulting bundle, never re-resolve to promote.
 FROM python:3.12.14-slim-bookworm@sha256:1aaa65a85fda306ffb8b910824d4e93bdce61e212c7e87168123ea3073b41a1a AS native
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-RUN apt-get update && apt-get install --yes --no-install-recommends libmagic1 \
+RUN apt-get -o APT::Update::Error-Mode=any update \
+    && apt-get install --yes --no-install-recommends --only-upgrade openssl libssl3 tzdata \
+    && apt-get install --yes --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 FROM native AS assembly

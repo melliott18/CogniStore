@@ -318,7 +318,7 @@ def install_guards(connection: Connection) -> None:
                     AND entry_hash = NEW.entry_hash AND previous_hash = OLD.entry_hash)
             BEGIN SELECT RAISE(ABORT, 'audit head must advance with evidence'); END""")
     else:
-        schema = connection.exec_driver_sql("SELECT current_schema()").scalar_one()
+        schema: str = connection.exec_driver_sql("SELECT current_schema()").scalar_one()
         quoted_schema = connection.dialect.identifier_preparer.quote(schema)
         connection.exec_driver_sql(f"""CREATE FUNCTION cognistore_audit_guard() RETURNS trigger LANGUAGE plpgsql
         SET search_path = {quoted_schema}, pg_temp AS $$

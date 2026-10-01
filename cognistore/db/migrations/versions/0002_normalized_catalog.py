@@ -147,7 +147,7 @@ def _copy_legacy_objects() -> None:
         sa.column("src_tier", NulSafeText()),
         sa.column("dst_tier", NulSafeText()),
     )
-    tier_names = set(
+    tier_names: set[str] = set(
         connection.execute(sa.select(legacy.c.tier).distinct().order_by(legacy.c.tier)).scalars()
     )
     tier_names.update(
@@ -398,7 +398,7 @@ def downgrade() -> None:
         tiers_with_metadata = tiers_with_metadata or bool(row["metadata"])
     if tiers_with_metadata:
         incompatible_state.append("tier metadata")
-    referenced_tiers = set(
+    referenced_tiers: set[str] = set(
         connection.execute(sa.select(normalized_placements.c.tier_name).distinct()).scalars()
     )
     referenced_tiers.update(

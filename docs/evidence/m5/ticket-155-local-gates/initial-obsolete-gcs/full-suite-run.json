@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/private/tmp/cognistore-165-automation-venv/bin/python",
+    "-m",
+    "pytest",
+    "-p",
+    "pytest_cov",
+    "--cov=cognistore",
+    "--cov-report=term-missing",
+    "--cov-report=xml:/tmp/cognistore-155-validation/coverage.xml",
+    "--junitxml=/tmp/cognistore-155-validation/full-suite.xml",
+    "-q",
+    "-o",
+    "addopts=",
+    "--import-mode=importlib",
+    "-ra"
+  ],
+  "started_at": "2026-09-30T05:52:05Z",
+  "base_revision": "a48d7d7ce00bb8a9e4a55531b723fa899953410d",
+  "scope": "isolated-local-development",
+  "services": "services.json",
+  "source_hashes": "tested-files.json",
+  "exit_code": 2,
+  "ended_at": "2026-09-30T05:56:18Z"
+}

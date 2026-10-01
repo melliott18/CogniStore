@@ -1,0 +1,10 @@
+Initial smoke harness exited 1 on an incorrect assertion about Python's OpenSSL version tuple layout:
+
+Traceback (most recent call last):
+  File "<stdin>", line 22, in <module>
+AssertionError: OpenSSL 3.0.22 25 Aug 2026
+
+The harness expected ssl.OPENSSL_VERSION_INFO[:3] == (3, 0, 22).
+The same built image reports OPENSSL_VERSION_INFO == (3, 0, 0, 22, 0).
+The harness was corrected to assert ssl.OPENSSL_VERSION.split()[1] == "3.0.22".
+No image or repository change was needed; openssl-version.log retains the observed string and tuple.

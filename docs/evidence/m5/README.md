@@ -19,7 +19,7 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | [Local audit and repaired XML evidence](ticket-162/README.md); owner-directed ticket closure after evidence repair; exact candidate/live staging signoff pending |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | [Local acceptance kit and rehearsal](ticket-163/README.md); [upload failure fix and rerun](ticket-163-upload-fix/README.md); selected staging qualification remains pending |
 | [#164](https://github.com/melliott18/CogniStore/issues/164) | Repeated coherent restore/fault/rotation/rollback reports, recovery-set IDs, RPO/RTO and integrity results | [Campaign preparation and local regressions](ticket-164/README.md); live qualification pending |
-| [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [Local tooling and alert checks](ticket-165/README.md); staging adapter and all live qualification gates pending |
+| [#165](https://github.com/melliott18/CogniStore/issues/165) | Soak/burst/capacity reports, raw measurements, denominator coverage and real alert receipt/recovery evidence | [HTTPS adapter and campaign automation](ticket-165-automation/README.md) implemented and locally tested; accepted staging inputs and all live qualification gates pending |
 | [#166](https://github.com/melliott18/CogniStore/issues/166) | Named entry decision, daily pilot records, user tasks and explicit expand/fix/stop decision | [Preparation and entry assessment](ticket-166/README.md); no-go, pilot not started, named entry/exit decisions and live outcomes not recorded |
 
 The [pilot operating procedure](../../pilot_operations.md) describes how the
@@ -28,6 +28,38 @@ change requalification and exit. Current engineering assessment is **no-go;
 pilot not started**. An automated assessment is not a named owner approval.
 Hosted CI is `skipped: user instruction; known GitHub billing/spending restriction`;
 its explicit qualification requirement remains unmet.
+
+The owner's current constraint is **no spending**: no purchases, paid services
+or cloud provisioning are authorized. The proposed AWS specification remains
+unaccepted. Continue no-spend local development and validation; those results
+do not satisfy the original live AWS or pilot gates. A different qualification
+scope would require an explicit specification revision and acceptance.
+
+The [local gate repairs for #155](ticket-155-local-gates/README.md) retain
+typing, telemetry, native-package and extraction-fixture changes with local
+validation and diagnostic history. They do not establish cloud or pilot
+qualification; the complete run's three extraction failures and subsequent
+34-test focused pass remain separately recorded.
+
+The sealed [#165 preparation record](ticket-165/README.md) and
+[#166 entry assessment](ticket-166/README.md) describe their recorded revisions.
+Later evidence supersedes their pending-adapter, old-candidate and upload-defect
+statements: the [campaign adapter](ticket-165-automation/README.md) is implemented,
+the [clean-main candidate refresh](ticket-160-refresh-2026-09-29/README.md) has
+[retained binary archives](ticket-160-refresh-2026-09-29/retention.json), and
+[`LOCAL-163-001` is fixed](ticket-163-upload-fix/README.md). The refreshed candidate
+predates that upload fix and must be rebuilt to include it. These updates do not
+satisfy the remaining production gates; historical reports and hashes stay intact.
+
+The next handoff needs [explicit specification/role acceptance](../../production_pilot.md#ownership-review-and-version-control)
+and the [restricted staging inputs](../../staging.md#resolve-inputs-and-render-before-deployment):
+account/cluster, resource identities, spending limits/expiry, OIDC/proxy and
+secret delivery, private telemetry and the actual alert recipient. A new frozen
+candidate must include subsequent runtime fixes, resolve its image-security
+findings and retain a verified registry identity. That accepted candidate and
+environment then support audit/UAT, the [recovery campaign](../../recovery_qualification.md)
+and the [72-hour load campaign](../../load_qualification.md), before a named
+entry decision and the [14-day pilot](../../production_pilot.md#pilot-entry-duration-and-exit).
 
 Each record must include:
 

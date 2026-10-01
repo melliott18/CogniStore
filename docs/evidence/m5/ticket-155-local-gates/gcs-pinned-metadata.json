@@ -1,0 +1,44 @@
+{
+  "source_revision": "3c29d20789f6475f65d2554ad6898c4afd7124bb",
+  "source_context": "https://github.com/fsouza/fake-gcs-server.git#3c29d20789f6475f65d2554ad6898c4afd7124bb",
+  "image_id": "sha256:7b823bdc29e1cbd4eae520ca2720228f05ffd39520356c5bb21f418ced3b59a4",
+  "image_labels": {
+    "org.opencontainers.image.revision": "3c29d20789f6475f65d2554ad6898c4afd7124bb",
+    "org.opencontainers.image.source": "https://github.com/fsouza/fake-gcs-server"
+  },
+  "platform": "linux/arm64",
+  "started_at": "2026-09-30T05:58:19.933344+00:00",
+  "endpoint": "http://127.0.0.1:55077",
+  "command": [
+    "docker",
+    "run",
+    "--detach",
+    "--pull=never",
+    "--name",
+    "cognistore-155-gcs-pinned",
+    "--label",
+    "cognistore.validation=155",
+    "--publish",
+    "127.0.0.1:55077:4443",
+    "sha256:7b823bdc29e1cbd4eae520ca2720228f05ffd39520356c5bb21f418ced3b59a4",
+    "-scheme",
+    "http",
+    "-backend",
+    "memory",
+    "-external-url",
+    "http://127.0.0.1:55077"
+  ],
+  "source_provenance": "Built from exact repository-pinned Git context; see gcs-pinned-build.log.gz and gcs-pinned-build.sh. Existing cached tag did not embed source revision, so not treated as proven.",
+  "container_id": "3b268006fedffd720ebd99255880f214691917d4714c887a0f5070c089e9677d",
+  "test_revision": "a03477cf53761b2b87a4043124ca49bed0d5f47b",
+  "module_result": {
+    "passed": 20,
+    "skipped": 2,
+    "xfailed": 1,
+    "failed": 0,
+    "log": "gcs-pinned-tests.log.gz",
+    "junit": "gcs-pinned-tests.xml.gz",
+    "command_file": "gcs-pinned-tests.sh"
+  },
+  "limitation": "Anonymous local HTTP emulator only; no live GCS/cloud qualification. Existing strict media-generation xfail and live-bucket skip retained unchanged."
+}

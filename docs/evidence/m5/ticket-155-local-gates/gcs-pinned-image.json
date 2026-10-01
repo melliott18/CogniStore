@@ -1,0 +1,89 @@
+{
+  "Id": "sha256:7b823bdc29e1cbd4eae520ca2720228f05ffd39520356c5bb21f418ced3b59a4",
+  "RepoTags": [
+    "cognistore/gcs-emulator:155-3c29d20789f6"
+  ],
+  "RepoDigests": [],
+  "Parent": "",
+  "Comment": "buildkit.dockerfile.v0",
+  "Created": "2026-09-12T20:02:13.245025964Z",
+  "Container": "",
+  "ContainerConfig": {
+    "Hostname": "",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": false,
+    "AttachStdout": false,
+    "AttachStderr": false,
+    "Tty": false,
+    "OpenStdin": false,
+    "StdinOnce": false,
+    "Env": null,
+    "Cmd": null,
+    "Image": "",
+    "Volumes": null,
+    "WorkingDir": "",
+    "Entrypoint": null,
+    "OnBuild": null,
+    "Labels": null
+  },
+  "DockerVersion": "",
+  "Author": "",
+  "Config": {
+    "Hostname": "",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": false,
+    "AttachStdout": false,
+    "AttachStderr": false,
+    "ExposedPorts": {
+      "4443/tcp": {}
+    },
+    "Tty": false,
+    "OpenStdin": false,
+    "StdinOnce": false,
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    ],
+    "Cmd": null,
+    "Image": "",
+    "Volumes": null,
+    "WorkingDir": "/",
+    "Entrypoint": [
+      "/bin/fake-gcs-server",
+      "-data",
+      "/data"
+    ],
+    "OnBuild": null,
+    "Labels": {
+      "org.opencontainers.image.revision": "3c29d20789f6475f65d2554ad6898c4afd7124bb",
+      "org.opencontainers.image.source": "https://github.com/fsouza/fake-gcs-server"
+    }
+  },
+  "Architecture": "arm64",
+  "Variant": "v8",
+  "Os": "linux",
+  "Size": 55987183,
+  "VirtualSize": 55987183,
+  "GraphDriver": {
+    "Data": {
+      "LowerDir": "/var/lib/docker/overlay2/t2jcej4s6x9eifpr1rqlhrq94/diff:/var/lib/docker/overlay2/405zhbswiw0rj3819du1tw3mo/diff:/var/lib/docker/overlay2/d6383c2d5781d953e23da4101b46327733cd3164dd736f6b9847007c536cd5a3/diff",
+      "MergedDir": "/var/lib/docker/overlay2/jsck20et8s5afkjsew966pm50/merged",
+      "UpperDir": "/var/lib/docker/overlay2/jsck20et8s5afkjsew966pm50/diff",
+      "WorkDir": "/var/lib/docker/overlay2/jsck20et8s5afkjsew966pm50/work"
+    },
+    "Name": "overlay2"
+  },
+  "RootFS": {
+    "Type": "layers",
+    "Layers": [
+      "sha256:b2848c02ac6ff53d265469b5b30f649f335e546a83330cd8916d54e65e640409",
+      "sha256:4d4bf2b7c468c84d145040ca4774a16930767e8f20cf12af25c93d30713a338d",
+      "sha256:b263a441ac168e32c4ce2f78332f266aa225a2762e0a8f7d1bddfd41aca63d5e",
+      "sha256:eadd07fa8eef9d3f30cc0c3680d9c9f9bbc32e8f5a8eb3addbf14574c9bbeae7"
+    ]
+  },
+  "Metadata": {
+    "LastTagTime": "2026-09-30T05:58:13.007086505Z"
+  }
+}

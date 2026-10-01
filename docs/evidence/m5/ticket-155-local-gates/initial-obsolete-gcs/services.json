@@ -1,0 +1,32 @@
+[
+  {
+    "name": "postgres",
+    "image_reference": "pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b",
+    "image_id": "sha256:2dbfde49c067cafff2a69e7019423181adca6328b94f197ac93fbb01a96a3a9d",
+    "loopback_port": "53707"
+  },
+  {
+    "name": "nats",
+    "image_reference": "nats:2.10.26-alpine@sha256:d69eb29526c1d98afdfb2e2434763bef77b5f3c83e2e24769c13a4d104be475e",
+    "image_id": "sha256:b6700a7a44644d35a74467c9dcbbe2492e70d661075b7755d96a3cbae0229ff7",
+    "loopback_port": "53709"
+  },
+  {
+    "name": "minio",
+    "image_reference": "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e",
+    "image_id": "sha256:6c83c74c8028019d82d3f20d65cc6645fd5694b82a25dc38733df5227ffa4e8d",
+    "loopback_port": "53711"
+  },
+  {
+    "name": "azurite",
+    "image_reference": "mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37",
+    "image_id": "sha256:0245d36a4d060e6af4edda3657c2e05c9210fcc32a98e7bda172cd178a980178",
+    "loopback_port": "53713"
+  },
+  {
+    "name": "gcs",
+    "image_reference": "fsouza/fake-gcs-server:1.54.0",
+    "image_id": "sha256:7f700ff138926fdce85a4f498ff0142c0a1218f8bfa672d777c10dd0dd40f477",
+    "loopback_port": "53714"
+  }
+]

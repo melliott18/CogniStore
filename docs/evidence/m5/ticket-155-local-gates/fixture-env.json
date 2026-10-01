@@ -1,0 +1,23 @@
+{
+  "COGNISTORE_SECURITY_PROFILE": "development",
+  "COGNISTORE_TEST_POSTGRES_DSN": "postgresql://cognistore:cognistore-test-only@127.0.0.1:53707/postgres",
+  "COGNISTORE_NATS_URL": "nats://127.0.0.1:53709",
+  "COGNISTORE_MINIO_ENDPOINT_URL": "http://127.0.0.1:53711",
+  "COGNISTORE_MINIO_ACCESS_KEY": "cognistore",
+  "COGNISTORE_MINIO_SECRET_KEY": "cognistore-test-only",
+  "COGNISTORE_MINIO_REGION": "us-east-1",
+  "COGNISTORE_AZURITE_CONNECTION_STRING": "DefaultEndpointsProtocol=http;AccountName=cognistore;AccountKey=Y29nbmlzdG9yZS1henVyaXRlLWRldmVsb3BtZW50LW9ubHk=;BlobEndpoint=http://127.0.0.1:53713/cognistore;",
+  "COGNISTORE_GCS_EMULATOR_ENDPOINT": "http://127.0.0.1:55077",
+  "AWS_EC2_METADATA_DISABLED": "true",
+  "AWS_ACCESS_KEY_ID": "testing",
+  "AWS_SECRET_ACCESS_KEY": "testing",
+  "AWS_DEFAULT_REGION": "us-east-1",
+  "COGNISTORE_REQUIRE_LIBMAGIC": "1",
+  "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+  "HELM": "/tmp/cognistore-155-validation/tools/darwin-arm64/helm",
+  "COGNISTORE_NATS_CHART": "/tmp/cognistore-155-validation/tools/nats-2.14.6.tgz",
+  "PATH": "/tmp/cognistore-155-validation/tools/darwin-arm64:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:<LOCAL_HOME>/Downloads/google-cloud-sdk/bin:<LOCAL_HOME>/.opam/default/bin:/usr/local/sbin:/usr/local/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:<LOCAL_HOME>/.local/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/Wireshark.app/Contents/MacOS:/Applications/VMware Fusion Tech Preview.app/Contents/Public:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:<LOCAL_HOME>/.codex/tmp/arg0/codex-arg0GHCk9O:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:<LOCAL_HOME>/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:<LOCAL_HOME>/Downloads/google-cloud-sdk/bin:/opt/anaconda3/bin:/opt/anaconda3/condabin:<LOCAL_HOME>/.opam/default/bin:/usr/local/sbin:/opt/homebrew/sbin:<LOCAL_HOME>/.local/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Library/Frameworks/Python.framework/Versions/3.8/bin:<LOCAL_HOME>/go/bin:/opt/homebrew/opt/go/libexec/bin:/usr/local/opt/mongodb-community@6.0/bin:<LOCAL_HOME>/.config/gcu/scripts:<LOCAL_HOME>/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:<LOCAL_HOME>/go/bin:/opt/homebrew/opt/go/libexec/bin:/usr/local/opt/mongodb-community@6.0/bin:<LOCAL_HOME>/.config/gcu/scripts",
+  "LC_ALL": "en_US.UTF-8",
+  "LANG": "en_US.UTF-8",
+  "COVERAGE_FILE": "/tmp/cognistore-155-validation/.coverage"
+}

@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "ticket": 155,
+  "recorded_at": "2026-09-30T06:24:22.552368+00:00",
+  "implementation_revision": "65fc9bb9451fe09a280eba7df3907924240b78fe",
+  "full_suite_revision": "a03477cf53761b2b87a4043124ca49bed0d5f47b",
+  "extraction_followup": {
+    "source_revision": "65fc9bb9451fe09a280eba7df3907924240b78fe",
+    "change": "tests/unit/test_document_extraction.py helper default now uses unchanged production DEFAULT_TIMEOUT_SECONDS (30 seconds) instead of 2 seconds; all five explicit 0.05-second deadline tests are unchanged.",
+    "test_sha256": "4b9ac2bdc4148a4c8071c04d12728e291d1cf4f0ed79053fdaeb4c7a2483fede",
+    "production_sha256": "c504f2bdab7eebacd44a8e618426d3d1787cc8ef40e29b34f093693c56eaccf3",
+    "production_unchanged_from_revision": true,
+    "original_full_suite_extraction_failures": [
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_non_finite_metadata_is_rejected_as_parser_error",
+        "time": "2.150",
+        "failure": {
+          "message": "AssertionError: assert 'timeout' == 'parser_error'\n  \n  - parser_error\n  + timeout"
+        }
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_abnormal_worker_exit_is_recorded",
+        "time": "2.074",
+        "failure": {
+          "message": "AssertionError: assert 'timeout' == 'worker_error'\n  \n  - worker_error\n  + timeout"
+        }
+      },
+      {
+        "classname": "tests.unit.test_document_extraction",
+        "name": "test_scan_streams_a_complete_document_larger_than_the_mime_sample",
+        "time": "2.319",
+        "failure": {
+          "message": "AssertionError: assert 'failed' == 'succeeded'\n  \n  - succeeded\n  + failed"
+        }
+      }
+    ],
+    "baseline": {
+      "command": "COVERAGE_FILE=/tmp/cognistore-155-extraction/.coverage-before /private/tmp/cognistore-165-automation-venv/bin/python -m pytest tests/unit/test_document_extraction.py --override-ini addopts='' -q --cov=cognistore --cov-report= --cov-fail-under=0 --junitxml=/tmp/cognistore-155-extraction/before.xml --durations=15",
+      "result": "34 passed in 21.11s; full-suite failures did not reproduce in this focused baseline run",
+      "limitation": "This focused baseline cleared configured addopts, including importlib mode; final corrected run uses all normal repository addopts."
+    },
+    "corrected": {
+      "command": "COVERAGE_FILE=/tmp/cognistore-155-extraction/.coverage-after /private/tmp/cognistore-165-automation-venv/bin/python -m pytest tests/unit/test_document_extraction.py --cov=cognistore --cov-report=term --cov-fail-under=0 --junitxml=/tmp/cognistore-155-extraction/after.xml --durations=15",
+      "result": "34 passed in 24.48s",
+      "deadline_regressions": [
+        {
+          "classname": "tests.unit.test_document_extraction",
+          "name": "test_timeout_stops_the_isolated_parser",
+          "time": "0.057",
+          "passed": true
+        },
+        {
+          "classname": "tests.unit.test_document_extraction",
+          "name": "test_timeout_includes_spawn_bootstrap_without_serializing_document_bytes",
+          "time": "0.059",
+          "passed": true
+        },
+        {
+          "classname": "tests.unit.test_document_extraction",
+          "name": "test_timeout_includes_bootstrap_with_large_adapter_state",
+          "time": "0.059",
+          "passed": true
+        },
+        {
+          "classname": "tests.unit.test_document_extraction",
+          "name": "test_timeout_bounds_a_stalled_result_receive",
+          "time": "0.264",
+          "passed": true
+        },
+        {
+          "classname": "tests.unit.test_document_extraction",
+          "name": "test_timeout_includes_receiver_thread_start",
+          "time": "0.112",
+          "passed": true
+        }
+      ]
+    },
+    "ruff": {
+      "command": "/private/tmp/cognistore-165-automation-venv/bin/python -m ruff check tests/unit/test_document_extraction.py",
+      "result": "passed"
+    },
+    "whitespace": {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    "rationale": "The helper tests parser classification and complete output, while its 2-second deadline additionally bounded spawn/import bootstrap and reception. Production defaults to 30 seconds. The three original failed cases took 2.150, 2.074, and 2.319 seconds. This is consistent with the timing sensitivity documented in prior #156/#157 evidence, not proof of a specific host-load cause. No production code or deadline checks changed; no test skips were added.",
+    "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+    "qualification": "Local scoped regression only. The original full suite retains its three failures; no new completely passing full invocation is claimed.",
+    "committed_revision": "65fc9bb9451fe09a280eba7df3907924240b78fe",
+    "runtime": {
+      "executable": "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "python": "3.12.2",
+      "platform": "macOS-14.8.7-arm64-arm-64bit",
+      "pytest": "9.1.1",
+      "pytest-cov": "7.1.0",
+      "coverage": "7.16.2"
+    },
+    "full_failure_interpretation": "Two failure messages explicitly show timeout instead of parser_error/worker_error. The streaming test reports failed instead of succeeded and took 2.319 seconds; the retained failure message does not expose its failure_code, so timeout is consistent with timing but not directly proven for that case."
+  },
+  "base_revision": "a48d7d7ce00bb8a9e4a55531b723fa899953410d",
+  "execution_scope": "isolated-local-development",
+  "hosted_ci": "skipped: user instruction; known GitHub billing/spending restriction",
+  "production_qualified": false,
+  "milestone_closure_supported": false,
+  "owner_constraint": {
+    "statement": "I do not want to spend any money",
+    "spending_authorized": false,
+    "cloud_provisioned": false,
+    "proposed_aws_specification_accepted": false
+  },
+  "source_sha256": {
+    "cognistore/db/audit_integrity.py": "b7151853669291553606402226418433a56de28913b20e490a28b800fcca6846",
+    "cognistore/db/catalog.py": "14bf7eef7b15c1027b4e2922bcd4fe3e393c8231d14021dd63444f2287fce371",
+    "cognistore/db/embeddings.py": "04f59e9d549656694b8df67fdb4828d8ae2cc49808eeff9754b0622a19cfcc53",
+    "cognistore/db/migrations/versions/0002_normalized_catalog.py": "430556572ee1f0acdea059257910c52bf29b3d87cb56fe913ac4a6d5e237bfce",
+    "cognistore/db/migrations/versions/0014_legal_holds.py": "e964f3ca66d8ebc7c9652692faeb4e1ac94e299fd2db4e2b1c09bbd09918ac79",
+    "cognistore/db/sqlite_import.py": "6dba3268d1b08ca9b2fdc33721b1346c44fba8ccbcca1f066d0ca536c7a4061b",
+    "release/Dockerfile": "924d1fd31e71abdd7d9d0689a574d36e412dd5b1e96b62a9f1cef6e21351fedb",
+    "tests/unit/test_document_extraction.py": "4b9ac2bdc4148a4c8071c04d12728e291d1cf4f0ed79053fdaeb4c7a2483fede",
+    "tests/unit/test_encryption_policy.py": "3df50525029d08af0c0822b086798f60155f4de8114e175bf5f9954f39c5740c"
+  },
+  "full_suite": {
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "pytest",
+      "-p",
+      "pytest_cov",
+      "--cov=cognistore",
+      "--cov-report=term-missing",
+      "--cov-report=xml:/tmp/cognistore-155-validation/coverage.xml",
+      "--junitxml=/tmp/cognistore-155-validation/full-suite.xml",
+      "-q",
+      "-o",
+      "addopts=",
+      "--import-mode=importlib",
+      "-ra"
+    ],
+    "started_at": "2026-09-30T05:58:59Z",
+    "base_revision": "a03477cf53761b2b87a4043124ca49bed0d5f47b",
+    "scope": "isolated-local-development",
+    "services": "services.json",
+    "source_hashes": "tested-files.json",
+    "exit_code": 1,
+    "ended_at": "2026-09-30T06:19:33Z",
+    "counts": {
+      "passed": 6797,
+      "failed": 3,
+      "errors": 0,
+      "skipped": 33,
+      "xfailed": 1
+    },
+    "coverage_percent": 88.64,
+    "coverage_threshold_percent": 80,
+    "reports": [
+      "full-suite.log.gz",
+      "full-suite.xml.gz",
+      "coverage.xml.gz"
+    ]
+  },
+  "initial_interrupted_suite": {
+    "command": [
+      "/private/tmp/cognistore-165-automation-venv/bin/python",
+      "-m",
+      "pytest",
+      "-p",
+      "pytest_cov",
+      "--cov=cognistore",
+      "--cov-report=term-missing",
+      "--cov-report=xml:/tmp/cognistore-155-validation/coverage.xml",
+      "--junitxml=/tmp/cognistore-155-validation/full-suite.xml",
+      "-q",
+      "-o",
+      "addopts=",
+      "--import-mode=importlib",
+      "-ra"
+    ],
+    "started_at": "2026-09-30T05:52:05Z",
+    "base_revision": "a48d7d7ce00bb8a9e4a55531b723fa899953410d",
+    "scope": "isolated-local-development",
+    "services": "services.json",
+    "source_hashes": "tested-files.json",
+    "exit_code": 2,
+    "ended_at": "2026-09-30T05:56:18Z",
+    "implementation_revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52",
+    "counts": {
+      "passed": 592,
+      "failed": 2,
+      "errors": 0,
+      "skipped": 32,
+      "xfailed": 1
+    },
+    "reason": "Obsolete fake-gcs-server 1.54.0 lacked generation preconditions; stopped intentionally and reran with repository-pinned source, without weakening assertions or skips.",
+    "raw_junit_testcase_count": 628,
+    "unfinished_testcases_not_counted_as_passed": 1,
+    "count_source": "Pytest summary and JUnit suite counters; the interrupt left one additional unfinished testcase element, which is not a pass."
+  },
+  "quality": [
+    {
+      "check": "ruff",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "report": "ruff.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "mypy",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "mypy",
+        "cognistore"
+      ],
+      "exit_code": 0,
+      "report": "mypy.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "bandit",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "bandit",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "cognistore",
+        "-ll",
+        "-ii"
+      ],
+      "exit_code": 0,
+      "report": "bandit.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "openapi",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "cognistore.api.openapi",
+        "--check",
+        "docs/openapi/v1.json"
+      ],
+      "exit_code": 0,
+      "report": "openapi.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "build",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "build",
+        "--outdir",
+        "/tmp/cognistore-155-validation/dist"
+      ],
+      "exit_code": 0,
+      "report": "build.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "twine",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "twine",
+        "check",
+        "/tmp/cognistore-155-validation/dist/cognistore-0.1.1rc1-py3-none-any.whl",
+        "/tmp/cognistore-155-validation/dist/cognistore-0.1.1rc1.tar.gz"
+      ],
+      "exit_code": 0,
+      "report": "twine.log.gz",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    },
+    {
+      "check": "pip-audit",
+      "command": [
+        "/private/tmp/cognistore-165-automation-venv/bin/python",
+        "-m",
+        "pip_audit",
+        "."
+      ],
+      "exit_code": 0,
+      "report": "pip-audit.log.gz",
+      "scope": "Declared runtime dependencies resolved for audit, not a whole-image scan.",
+      "revision": "950ba37f9fcb0c9afeea463c0b128f8ffa762d52"
+    }
+  ],
+  "focused_validation": {
+    "typing_tests_passed": 314,
+    "telemetry_tests_passed": 62,
+    "redirect_mutation_failed_as_expected": 2,
+    "compression_before_failed": 2,
+    "compression_after_passed": 2,
+    "pinned_gcs_counts": {
+      "passed": 20,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 2,
+      "xfailed": 1
+    },
+    "counts_overlap_full_suite": true
+  },
+  "native": {
+    "image_configuration_digest": "sha256:b83c2ab06b815fb8f868f5b86fafe605ebaa9d9c847edd7af1886fedd581f632",
+    "smoke": {
+      "status": "passed",
+      "scope": "disposable native stage only; offline synthetic fixture",
+      "observed_at": "2026-09-30T05:53:48.472254+00:00",
+      "installed_packages": {
+        "libmagic1:amd64": "1:5.44-3",
+        "libssl3:amd64": "3.0.22-1~deb12u1",
+        "openssl": "3.0.22-1~deb12u1",
+        "tzdata": "2026c-0+deb12u1"
+      },
+      "python_ssl": "OpenSSL 3.0.22 25 Aug 2026",
+      "tls_verification": "required with hostname checking",
+      "libmagic": "libmagic.so.1",
+      "fixture_mime_type": "text/plain",
+      "zoneinfo_fixture_offset_hours": -7.0
+    },
+    "complete_application_image": false,
+    "candidate_assembled": false,
+    "fresh_full_image_scan": false,
+    "binary_retention": "Local native-stage image only; no new candidate bundle or binary upload."
+  },
+  "material_gaps": [
+    "No accepted deployment/workload specification or operational-role acceptance; AWS proposal cannot proceed under no-spend constraint.",
+    "No new final clean-main candidate, registry manifest, or full-image scan/disposition; pip-vendored and other image findings remain unresolved.",
+    "No selected-environment staging, audit/UAT/recovery/rotation/rollback qualification.",
+    "No 72-hour live load/capacity/alert delivery campaign or 14-day/80-staffed-hour pilot.",
+    "Local Python 3.12/macOS source tests and disposable service fixtures do not establish the full supported runtime matrix, installed application image, real cloud backend semantics or production qualification.",
+    "Live cloud/capability skips and the known GCS media-GET precondition expected failure remain explicit in JUnit and logs.",
+    "The full run contains three extraction failures (two explicit timeouts; one streaming failure with unobserved failure code) before the test-fixture correction; the final extraction module passes, but no second clean full-suite run is claimed.",
+    "Hosted qualification remains unmet under the standing suspension."
+  ],
+  "evidence_review": {
+    "ruff_exit_code": 0,
+    "ruff_report": "evidence-ruff.log.gz",
+    "xml_archives_parsed": 6,
+    "review_findings_resolved": [
+      "Initial interrupted run has 592 passes; an extra unfinished JUnit testcase is not counted as a pass."
+    ],
+    "no_additional_product_test_run": true
+  }
+}
