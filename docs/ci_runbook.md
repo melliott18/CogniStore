@@ -42,12 +42,13 @@ artifact retention. All three support `workflow_dispatch`.
 | Workflow | Qualification scope | Expected job/check names |
 | --- | --- | --- |
 | [CI](../.github/workflows/ci.yml) | Every PR and push to `main`; lint/types/OpenAPI, observability, supported Python matrix with isolated services, GCS emulator, default collection, packaging/operator drill, containers/movement, security and secrets | `Lint and type check`; `Prometheus rules and operational alerts`; `Tests (Python 3.10)` through `Tests (Python 3.14)`; `GCS HTTP emulator`; `Default full test suite`; `Build and install package`; `Container images and Compose integration`; `Dependency and static security scans`; `Secret scan` |
-| [Kubernetes acceptance](../.github/workflows/kubernetes.yml) | Path-filtered PRs/pushes; fresh kind installation, upgrade, rollback, persistence and autoscaling | `Install, upgrade, rollback and autoscale` |
-| [Terraform reference](../.github/workflows/terraform.yml) | Path-filtered PRs/pushes; mocked plans, validation and rendered Helm handoff | `Mocked production plan and Helm handoff` |
+| [Kubernetes acceptance](../.github/workflows/kubernetes.yml) | Every PR and push to `main`; fresh kind installation, upgrade, rollback, persistence and autoscaling | `Install, upgrade, rollback and autoscale` |
+| [Terraform reference](../.github/workflows/terraform.yml) | Every PR and push to `main`; mocked plans, validation and rendered Helm handoff | `Mocked production plan and Helm handoff` |
 
-Kubernetes and Terraform may legitimately have no automatic run after a
-docs-only change. A qualification campaign explicitly dispatches both; an
-absent or skipped workflow is not passing evidence. Concurrency cancels an
+All three workflows run for every PR and push to `main`, so each required
+context can report even for documentation-only changes. A qualification
+campaign records all three runs at one revision; an absent or skipped
+workflow is not passing evidence. Concurrency cancels an
 older run of the same workflow/ref, so do not dispatch duplicate campaigns
 while the first one is running.
 
@@ -161,11 +162,13 @@ expected checks and selected revision before merge and record that manual
 review. Before publication, record applicable local evidence and the known
 hosted gap without dispatching or waiting for runs. After publication, retain
 actual hosted outcomes; follow the user's existing merge authorization and
-any enforced branch rules. Path-filtered
-Kubernetes/Terraform jobs need a deliberate required-check
-strategy: a blanket required context can wait indefinitely when its workflow
-does not trigger. Do not declare these checks enforced without reviewing the
-actual settings and trigger behavior.
+any enforced branch rules. All three workflows now run on every PR and main
+push, including documentation-only changes. The #158 remediation requires all
+15 contexts above from the GitHub Actions app (15368), with an up-to-date
+branch, PR-based changes, and administrator enforcement. Force pushes and
+branch deletion remain disabled. Verify the actual settings after applying
+the reviewed [protection request](evidence/ci-158/remediation/protection-request.json);
+a committed request alone is not proof of enforcement.
 
 For failure visibility, verify that the PR/run shows failed jobs and that
 annotations explain startup failures even when step logs are unavailable.

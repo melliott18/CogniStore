@@ -2060,10 +2060,10 @@ def _validate_imported_audit_heads(destination: Connection) -> None:
         row["move_id"]: (int(row["last_sequence"]), row["last_event_id"])
         for row in destination.execute(sa.select(audit_move_heads)).mappings()
     }
-    active_event_ids = set(
+    active_event_ids: set[UUID] = set(
         destination.execute(sa.select(audit_events.c.event_id)).scalars()
     )
-    tombstoned_event_ids = set(
+    tombstoned_event_ids: set[UUID] = set(
         destination.execute(
             sa.select(audit_event_tombstones.c.event_id)
         ).scalars()
@@ -2104,6 +2104,7 @@ def _validate_imported_audit_heads(destination: Connection) -> None:
             raise SQLiteCatalogImportError(
                 "SQLite audit move head does not identify its latest retained event"
             )
+    raw_move_id: str
     for raw_move_id in destination.execute(
         sa.select(move_jobs.c.idempotency_key)
     ).scalars():

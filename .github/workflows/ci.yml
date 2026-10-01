@@ -118,6 +118,7 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         run: |
+          docker build --target minio --tag cognistore-minio:qualification .
           docker run --detach --rm \
             --name cognistore-nats \
             --publish 4222:4222 \
@@ -129,7 +130,7 @@ jobs:
             --publish 9000:9000 \
             --env MINIO_ROOT_USER=minioadmin \
             --env MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e \
+            cognistore-minio:qualification \
             server /data
           docker run --detach --rm \
             --name cognistore-postgres \

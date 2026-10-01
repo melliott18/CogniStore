@@ -45,6 +45,8 @@ if [[ "${COGNISTORE_KUBE_SKIP_BUILD:-0}" != 1 ]]; then
   docker build --target runtime --tag cognistore:helm-acceptance .
 fi
 kind load docker-image --name "$cluster" cognistore:helm-acceptance
+docker build --target minio --tag cognistore-minio:qualification .
+kind load docker-image --name "$cluster" cognistore-minio:qualification
 kubectl create namespace "$namespace"
 python3 scripts/kubernetes/fixtures.py | kubectl -n "$namespace" apply -f -
 kubectl -n "$namespace" apply -f scripts/kubernetes/prometheus.yaml

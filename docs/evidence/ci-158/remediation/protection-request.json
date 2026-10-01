@@ -1,0 +1,75 @@
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [
+      {
+        "context": "Default full test suite",
+        "app_id": 15368
+      },
+      {
+        "context": "Lint and type check",
+        "app_id": 15368
+      },
+      {
+        "context": "Build and install package",
+        "app_id": 15368
+      },
+      {
+        "context": "Prometheus rules and operational alerts",
+        "app_id": 15368
+      },
+      {
+        "context": "Secret scan",
+        "app_id": 15368
+      },
+      {
+        "context": "GCS HTTP emulator",
+        "app_id": 15368
+      },
+      {
+        "context": "Dependency and static security scans",
+        "app_id": 15368
+      },
+      {
+        "context": "Tests (Python 3.11)",
+        "app_id": 15368
+      },
+      {
+        "context": "Container images and Compose integration",
+        "app_id": 15368
+      },
+      {
+        "context": "Tests (Python 3.13)",
+        "app_id": 15368
+      },
+      {
+        "context": "Tests (Python 3.12)",
+        "app_id": 15368
+      },
+      {
+        "context": "Tests (Python 3.10)",
+        "app_id": 15368
+      },
+      {
+        "context": "Tests (Python 3.14)",
+        "app_id": 15368
+      },
+      {
+        "context": "Install, upgrade, rollback and autoscale",
+        "app_id": 15368
+      },
+      {
+        "context": "Mocked production plan and Helm handoff",
+        "app_id": 15368
+      }
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": true
+}

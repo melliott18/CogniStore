@@ -53,7 +53,7 @@ def main():
         [4222, 8222], args=["-js", "-sd", "/data", "-m", "8222"],
     ))
     items.extend(dependency(
-        "minio", "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e",
+        "minio", "cognistore-minio:qualification",
         [9000], args=["server", "/data"],
         env={"MINIO_ROOT_USER": "cognistore", "MINIO_ROOT_PASSWORD": "kind-test-only"},
     ))
