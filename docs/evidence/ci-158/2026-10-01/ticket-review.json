@@ -1,0 +1,626 @@
+[
+  {
+    "number": 12,
+    "title": "Roadmap: CogniStore delivery plan",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 14,
+    "title": "[Epic] M4 \u2013 Production platform",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 15,
+    "title": "[Epic] M3 \u2013 Explainable policy engine",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 17,
+    "title": "[M1] Implement an S3-compatible storage driver and conformance suite",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 18,
+    "title": "[M1] Add a message bus and background worker runtime",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 20,
+    "title": "[M1] Enforce movement and CLI safety guardrails",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 22,
+    "title": "[M1] Verify object integrity before deleting the source",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 23,
+    "title": "[M1] Make move jobs idempotent with two-phase catalog updates",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 24,
+    "title": "[M1] Add retry, backoff, dead-letter, and redrive handling",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 25,
+    "title": "[M1] Add per-tier concurrency, rate limiting, and backpressure",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 43,
+    "title": "[M3] Capture access events and compute recency/frequency signals",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 44,
+    "title": "[M3] Add importance tags and minimum-residency rules",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 45,
+    "title": "[M3] Prevent tier flapping with hysteresis and cooldowns",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 46,
+    "title": "[M3] Log versioned policy features and outcome labels",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 47,
+    "title": "[M3] Train and evaluate a supervised placement baseline",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 48,
+    "title": "[M3] Integrate schema-validated LLM-assisted placement decisions",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 49,
+    "title": "[M3] Persist structured policy decision reasons",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 50,
+    "title": "[M3] Expose placement explanations and before/after diffs",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 51,
+    "title": "[M3] Model tier pools, regions, latency, cost, and carbon attributes",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 52,
+    "title": "[M3] Build calibrated storage cost and carbon estimators",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 53,
+    "title": "[M3] Enforce cost/carbon budgets and provide what-if simulation",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 54,
+    "title": "[M4] Implement an Azure Blob storage driver",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 55,
+    "title": "[M4] Implement a Google Cloud Storage driver",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "passed: GCS emulator; 20 passes, 2 skips, 1 expected failure",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 56,
+    "title": "[M4] Add JWT and OIDC authentication",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 57,
+    "title": "[M4] Define and enforce role-based authorization",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 58,
+    "title": "[M4] Enforce per-tenant ownership and isolation",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 59,
+    "title": "[M4] Integrate Vault/KMS-backed secrets and key providers",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 60,
+    "title": "[M4] Enforce encryption at rest and in transit",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "failed: telemetry redirect test depends on removed OTLP exporter private attribute",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 61,
+    "title": "[M4] Add pluggable PII detection and policy hooks",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 62,
+    "title": "[M4] Implement legal holds and deletion protection",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 63,
+    "title": "[M4] Make the audit trail tamper-evident and coverage-complete",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 64,
+    "title": "[M4] Enforce data-locality constraints",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 65,
+    "title": "[M4] Add Prometheus metrics, OpenTelemetry traces, and structured logs",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "failed: telemetry redirect test depends on removed OTLP exporter private attribute",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 66,
+    "title": "[M4] Define SLOs, error budgets, and operational alerts",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "passed: synthetic alert and Prometheus configuration checks",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 67,
+    "title": "[M4] Build catalog-to-storage consistency checks",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 68,
+    "title": "[M4] Add idempotent auto-repair workflows",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "passed: 37 installed-package operator backup/restore and repair checks; no production recovery claim",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 69,
+    "title": "[M4] Clean confirmed orphaned content with grace periods",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 70,
+    "title": "[M4] Deliver the production administration UI",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 71,
+    "title": "[M4] Deploy CogniStore with Helm and Kubernetes autoscaling",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "blocked: MinIO HTTP 401 prevents cluster acceptance; 23 chart tests pass",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 72,
+    "title": "[M4] Publish Terraform and production reference configurations",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "passed: six mocked Terraform plans and Helm handoff; no live-cloud claim",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 73,
+    "title": "[M4] Publish operator runbooks, migration guides, and reference architectures",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "passed: 37 installed-package operator backup/restore and repair checks; no production recovery claim",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 91,
+    "title": "Make POSIX path containment race-safe against symlink swaps",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 156,
+    "title": "[M5] [P1] Prevent case-insensitive POSIX tenant namespace aliases from bypassing isolation and legal holds",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 157,
+    "title": "[M5] [P1] Prevent an older DELETE from removing a concurrent replacement PUT catalog record",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 160,
+    "title": "[M5] Assemble and freeze a reproducible release candidate for the selected workload",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "administrative/scoped closure preserved; current-main checks do not satisfy outstanding exact-candidate/staging qualification",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 162,
+    "title": "[M5] Audit system safety, security, and data consistency for the release candidate",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "administrative/scoped closure preserved; current-main checks do not satisfy outstanding exact-candidate/staging qualification",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 163,
+    "title": "[M5] Run manual end-to-end acceptance across CLI, API, SDK, search, and administration",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "administrative/scoped closure preserved; current-main checks do not satisfy outstanding exact-candidate/staging qualification",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  },
+  {
+    "number": 175,
+    "title": "[M5] [P1] Fence scan observations against concurrent API PUT/DELETE",
+    "prior_state": "CLOSED",
+    "state_decision": "remain closed; unresolved shared qualification tracked in #158",
+    "result": "scoped regressions executed; shared hosted qualification incomplete",
+    "source_sha": "fae9f64811c477703ac25e04ab938be038677d16",
+    "run_ids": [
+      36898446320,
+      36898449966,
+      36898454581
+    ]
+  }
+]

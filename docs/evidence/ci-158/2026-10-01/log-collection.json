@@ -1,0 +1,96 @@
+{
+  "aggregate_ci_log": "gh run view --log failed with stream error: stream ID 1; CANCEL; received from peer. Complete per-job logs retrieved via Actions jobs API instead.",
+  "jobs": [
+    {
+      "job": "Default full test suite",
+      "job_id": 110491274533,
+      "log": "job-110491274533.log",
+      "bytes": 2324152,
+      "status": "retrieved"
+    },
+    {
+      "job": "Lint and type check",
+      "job_id": 110491274953,
+      "log": "job-110491274953.log",
+      "bytes": 72988,
+      "status": "retrieved"
+    },
+    {
+      "job": "Build and install package",
+      "job_id": 110491274969,
+      "log": "job-110491274969.log",
+      "bytes": 151653,
+      "status": "retrieved"
+    },
+    {
+      "job": "Prometheus rules and operational alerts",
+      "job_id": 110491275001,
+      "log": "job-110491275001.log",
+      "bytes": 22850,
+      "status": "retrieved"
+    },
+    {
+      "job": "Secret scan",
+      "job_id": 110491275028,
+      "log": "job-110491275028.log",
+      "bytes": 161761,
+      "status": "retrieved"
+    },
+    {
+      "job": "GCS HTTP emulator",
+      "job_id": 110491275049,
+      "log": "job-110491275049.log",
+      "bytes": 107066,
+      "status": "retrieved"
+    },
+    {
+      "job": "Dependency and static security scans",
+      "job_id": 110491275106,
+      "log": "job-110491275106.log",
+      "bytes": 68803,
+      "status": "retrieved"
+    },
+    {
+      "job": "Tests (Python 3.11)",
+      "job_id": 110491275109,
+      "log": "job-110491275109.log",
+      "bytes": 2241991,
+      "status": "retrieved"
+    },
+    {
+      "job": "Container images and Compose integration",
+      "job_id": 110491275120,
+      "log": "job-110491275120.log",
+      "bytes": 31571,
+      "status": "retrieved"
+    },
+    {
+      "job": "Tests (Python 3.13)",
+      "job_id": 110491275147,
+      "log": "job-110491275147.log",
+      "bytes": 2313384,
+      "status": "retrieved"
+    },
+    {
+      "job": "Tests (Python 3.12)",
+      "job_id": 110491275167,
+      "log": "job-110491275167.log",
+      "bytes": 2241119,
+      "status": "retrieved"
+    },
+    {
+      "job": "Tests (Python 3.10)",
+      "job_id": 110491275288,
+      "log": "job-110491275288.log",
+      "bytes": 2242652,
+      "status": "retrieved"
+    },
+    {
+      "job": "Tests (Python 3.14)",
+      "job_id": 110491275378,
+      "log": "job-110491275378.log",
+      "bytes": 2313041,
+      "status": "retrieved"
+    }
+  ]
+}

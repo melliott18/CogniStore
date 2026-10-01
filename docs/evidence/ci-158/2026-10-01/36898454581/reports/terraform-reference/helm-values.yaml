@@ -1,0 +1,103 @@
+# Terraform fills infrastructure references only. Replace every REPLACE_* value.
+# Install as release cognistore in namespace cognistore; see docs/terraform.md.
+fullnameOverride: cognistore
+securityProfile: production
+image:
+  repository: REPLACE_WITH_IMAGE_REPOSITORY
+  digest: REPLACE_WITH_TESTED_SHA256_DIGEST
+config:
+  existingSecret: cognistore-config
+  revision: "1"
+credentials:
+  existingSecret: cognistore-credentials
+tls:
+  existingSecret: cognistore-tls
+auth:
+  issuer: https://REPLACE_WITH_ISSUER
+  audience: REPLACE_WITH_AUDIENCE
+  jwksUri: https://REPLACE_WITH_JWKS_HOST_AND_PATH
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/cognistore-test-workload
+    eks.amazonaws.com/sts-regional-endpoints: "true"
+# Explicit web-identity projection works with the chart's disabled automatic
+# Kubernetes API token mount. No static AWS credentials are supplied.
+extraEnv:
+  - {name: AWS_ROLE_ARN, value: "arn:aws:iam::111122223333:role/cognistore-test-workload"}
+  - {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /var/run/cognistore-aws/token}
+  - {name: AWS_REGION, value: "us-east-1"}
+  - {name: AWS_DEFAULT_REGION, value: "us-east-1"}
+  - {name: AWS_STS_REGIONAL_ENDPOINTS, value: regional}
+extraVolumes:
+  - name: aws-identity
+    projected:
+      defaultMode: 0440
+      sources:
+        - serviceAccountToken:
+            audience: sts.amazonaws.com
+            expirationSeconds: 86400
+            path: token
+extraVolumeMounts:
+  - name: aws-identity
+    mountPath: /var/run/cognistore-aws
+    readOnly: true
+api:
+  replicas: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target: {type: Utilization, averageUtilization: 70}
+worker:
+  replicas: 2
+  autoscaling:
+    enabled: false
+scheduler:
+  enabled: false
+  storage:
+    className: cognistore-encrypted-gp3
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: REPLACE_WITH_INGRESS_NAMESPACE}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: REPLACE_WITH_INGRESS_CONTROLLER_LABEL}
+      ports: [{protocol: TCP, port: 8080}]
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: cognistore
+              app.kubernetes.io/component: smoke
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - ipBlock: {cidr: "10.72.64.0/24"}
+        - ipBlock: {cidr: "10.72.65.0/24"}
+        - ipBlock: {cidr: "10.72.66.0/24"}
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: nats, app.kubernetes.io/instance: cognistore-nats}
+      ports: [{protocol: TCP, port: 4222}]
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: cognistore
+              app.kubernetes.io/component: api
+      ports: [{protocol: TCP, port: 8080}]
+    # Public HTTPS: S3 (through the gateway endpoint), regional STS and JWKS.
+    # L3/L4 NetworkPolicy cannot restrict by hostname. Narrow this with the
+    # organization's egress proxy/firewall; private IdPs need explicit CIDRs.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports: [{protocol: TCP, port: 443}]
+ingress:
+  enabled: false

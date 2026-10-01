@@ -1,0 +1,77 @@
+{
+  "attempt": 1,
+  "conclusion": "success",
+  "event": "workflow_dispatch",
+  "headSha": "fae9f64811c477703ac25e04ab938be038677d16",
+  "jobs": [
+    {
+      "completedAt": "2026-10-01T17:19:28Z",
+      "conclusion": "success",
+      "databaseId": 110491301080,
+      "name": "Mocked production plan and Helm handoff",
+      "startedAt": "2026-10-01T17:19:06Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-01T17:19:07Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-01T17:19:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:09Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 2,
+          "startedAt": "2026-10-01T17:19:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:11Z",
+          "conclusion": "success",
+          "name": "Install pinned Terraform and Helm",
+          "number": 3,
+          "startedAt": "2026-10-01T17:19:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:24Z",
+          "conclusion": "success",
+          "name": "Validate Terraform and render production Helm output",
+          "number": 4,
+          "startedAt": "2026-10-01T17:19:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:25Z",
+          "conclusion": "success",
+          "name": "Upload validation evidence",
+          "number": 5,
+          "startedAt": "2026-10-01T17:19:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:26Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 10,
+          "startedAt": "2026-10-01T17:19:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:26Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-01T17:19:26Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/36898454581/job/110491301080"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/melliott18/CogniStore/actions/runs/36898454581"
+}
