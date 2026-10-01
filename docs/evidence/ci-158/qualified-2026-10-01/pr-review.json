@@ -1,0 +1,83 @@
+{
+  "pr": "https://github.com/melliott18/CogniStore/pull/187",
+  "head": "5c8eae0c4a3d1c3b277a6a4bdefb7b390c169251",
+  "base": "fae9f64811c477703ac25e04ab938be038677d16",
+  "checks": [
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067460",
+      "name": "Lint and type check",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067568",
+      "name": "GCS HTTP emulator",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067400",
+      "name": "Tests (Python 3.14)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067542",
+      "name": "Secret scan",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067583",
+      "name": "Container images and Compose integration",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067405",
+      "name": "Tests (Python 3.11)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067749",
+      "name": "Tests (Python 3.12)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067896",
+      "name": "Tests (Python 3.13)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534068140",
+      "name": "Build and install package",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067083",
+      "name": "Default full test suite",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067281",
+      "name": "Tests (Python 3.10)",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067411",
+      "name": "Dependency and static security scans",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911167967/job/110534067399",
+      "name": "Prometheus rules and operational alerts",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911168035/job/110533869384",
+      "name": "Mocked production plan and Helm handoff",
+      "state": "SUCCESS"
+    },
+    {
+      "link": "https://github.com/melliott18/CogniStore/actions/runs/36911168050/job/110533869720",
+      "name": "Install, upgrade, rollback and autoscale",
+      "state": "SUCCESS"
+    }
+  ],
+  "review": "Reviewed schema-backed annotations, public-session redirect assertions, checksummed official MinIO source build, exact historical scanner dispositions, preserved gates, timeout allowance, required-check trigger coverage, deterministic capacity regression, and bounded planned-backend read recovery with negative regression tests. Local default, service integration, shutdown and reduced movement passed. Main qualification remains pending."
+}

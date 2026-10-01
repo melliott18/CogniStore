@@ -1,0 +1,116 @@
+[
+  {
+    "file": "36909140728/reports/terraform-reference/terraform.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 6
+    },
+    "skip_reasons": {}
+  },
+  {
+    "file": "36909140921/reports/default-full-suite-test-reports/default.xml",
+    "type": "junit",
+    "counts": {
+      "skipped": 302,
+      "passed": 6509
+    },
+    "skip_reasons": {
+      "collection skipped": 1,
+      "backend does not advertise range writes": 2,
+      "COGNISTORE_TEST_POSTGRES_DSN is not configured": 192,
+      "COGNISTORE_AZURITE_CONNECTION_STRING is not configured": 27,
+      "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+      "set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+      "set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 10,
+      "could not import 'httptools': No module named 'httptools'": 10,
+      "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "native POSIX regression requires a case-insensitive temporary volume": 8
+    }
+  },
+  {
+    "file": "36909140921/reports/gcs-emulator-test-reports/gcs.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 20,
+      "skipped": 2,
+      "xfail": 1
+    },
+    "skip_reasons": {
+      "backend does not advertise range writes": 1,
+      "fake-gcs-server 3c29d207 ignores ifGenerationMatch on media GET; live path checks it": 1,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1
+    }
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.13/coverage.xml",
+    "type": "coverage",
+    "line_percent": 91.14999999999999,
+    "branch_percent": 80.91000000000001,
+    "combined_percent": 88.63320914602966
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.13/test-results/integration.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 412,
+      "skipped": 62
+    },
+    "skip_reasons": {
+      "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+      "backend does not advertise range writes": 2,
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+      "could not import 'httptools': No module named 'httptools'": 10
+    }
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.13/test-results/unit.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 6331,
+      "skipped": 11
+    },
+    "skip_reasons": {
+      "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "native POSIX regression requires a case-insensitive temporary volume": 8,
+      "backend does not advertise range writes": 2
+    }
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.14/coverage.xml",
+    "type": "coverage",
+    "line_percent": 91.16,
+    "branch_percent": 80.9,
+    "combined_percent": 88.63320914602966
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.14/test-results/integration.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 412,
+      "skipped": 62
+    },
+    "skip_reasons": {
+      "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+      "backend does not advertise range writes": 2,
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+      "could not import 'httptools': No module named 'httptools'": 10
+    }
+  },
+  {
+    "file": "36909140921/reports/test-reports-python-3.14/test-results/unit.xml",
+    "type": "junit",
+    "counts": {
+      "passed": 6331,
+      "skipped": 11
+    },
+    "skip_reasons": {
+      "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "native POSIX regression requires a case-insensitive temporary volume": 8,
+      "backend does not advertise range writes": 2
+    }
+  }
+]
