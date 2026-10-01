@@ -127,7 +127,7 @@ for dependency in postgres nats minio; do
   kubectl -n "$namespace" rollout status "deployment/$dependency" --timeout=180s
 done
 forward
-"${exercise[@]}" verify --base-url "$base_url" --output "$output/invariants.json"
+"${exercise[@]}" verify --base-url "$base_url" --output "$output/invariants.json" --recover-backends
 "${exercise[@]}" autoscale --base-url "$base_url" --output "$output/autoscaling.json" --invariants "$output/invariants.json"
 "${exercise[@]}" security --base-url "$base_url"
 helm history acceptance --namespace "$namespace" -o json >"$output/helm-history.json"

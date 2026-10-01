@@ -10,6 +10,7 @@ import json
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -25,13 +26,13 @@ def kubectl(*args, stdin=None):
     )
 
 
-def request(base, path, *, payload=None, method="GET", raw=False):
+def request(base, path, *, payload=None, method="GET", raw=False, timeout=30):
     headers = {}
     if isinstance(payload, dict):
         payload = json.dumps(payload).encode()
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(base + path, data=payload, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=30) as response:
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         body = response.read()
     return body if raw else json.loads(body)
 
@@ -115,9 +116,49 @@ def seed(base, output):
     print("Clean install: API, UI, object persistence and real worker job passed", flush=True)
 
 
-def verify(base, output):
+def read_after_restart(base, path, output, *, timeout=120, clock=time.monotonic, sleep=time.sleep):
+    """Bound recovery after an intentional backend restart; never retry writes.
+
+    A TCP-ready replacement pod does not prove that existing SDK connections
+    have recovered. Record every transient read failure, then let verify check
+    the first returned payload and all original persistence invariants.
+    """
+    started = clock()
+    attempts = []
+    status = "failed"
+    try:
+        while clock() - started < timeout:
+            remaining = timeout - (clock() - started)
+            if remaining <= 0:
+                break
+            attempt = {"elapsed_seconds": clock() - started}
+            attempts.append(attempt)
+            try:
+                body = request(base, path, raw=True, timeout=min(10, remaining))
+            except urllib.error.HTTPError as exc:
+                attempt["http_status"] = exc.code
+                if exc.code not in {502, 503, 504}:
+                    raise
+            except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
+                attempt["error_type"] = type(exc).__name__
+            else:
+                if clock() - started >= timeout:
+                    raise TimeoutError("backend response exceeded the acceptance deadline")
+                status = "response_received"
+                return body
+            sleep(min(1, max(0, timeout - (clock() - started))))
+        raise TimeoutError("backend read did not recover within the acceptance deadline")
+    finally:
+        output.write_text(json.dumps({"status": status, "deadline_seconds": timeout,
+                                      "elapsed_seconds": clock() - started,
+                                      "attempts": attempts}, indent=2) + "\n")
+
+
+def verify(base, output, *, recover_backends=False):
     before = json.loads(output.read_text())
-    body = request(base, f"/v1/objects/hot/{BUCKET}/0.txt", raw=True)
+    path = f"/v1/objects/hot/{BUCKET}/0.txt"
+    body = (read_after_restart(base, path, output.with_name("backend-recovery.json"))
+            if recover_backends else request(base, path, raw=True))
     assert hashlib.sha256(body).hexdigest() == before["sha256"]
     catalog = request(base, f"/v1/catalog/objects/{BUCKET}/0.txt")
     for field in ("bucket", "key", "tier", "size"):
@@ -244,7 +285,11 @@ def main():
     parser.add_argument("--base-url", help="URL printed by this test's live kubectl port-forward")
     parser.add_argument("--output", type=Path, default=Path("test-results/kubernetes-invariants.json"))
     parser.add_argument("--invariants", type=Path, help="seed snapshot containing the preserved queued job")
+    parser.add_argument("--recover-backends", action="store_true",
+                        help="record bounded read recovery after deliberately restarting dependencies")
     args = parser.parse_args()
+    if args.recover_backends and args.mode != "verify":
+        parser.error("--recover-backends requires verify")
     if args.mode != "security" and args.base_url is None:
         parser.error("--base-url must identify the test's live kubectl port-forward")
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -252,6 +297,8 @@ def main():
         security()
     elif args.mode == "autoscale":
         autoscale(args.base_url, args.output, args.invariants)
+    elif args.mode == "verify":
+        verify(args.base_url, args.output, recover_backends=args.recover_backends)
     else:
         globals()[args.mode](args.base_url, args.output)
 

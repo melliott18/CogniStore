@@ -319,6 +319,17 @@ actual replica growth under request and queue load. The queue campaign checks
 one started and one successful audit event per submitted job. Template checks
 alone cannot establish those runtime properties.
 
+After deliberately restarting the persistent dependencies, the harness allows
+up to 120 seconds for an object read to recover, with requests limited to ten
+seconds each. MinIO must pass its HTTP readiness endpoint. Every transient
+read failure and the elapsed recovery time are retained in
+`backend-recovery.json`; missing objects, authorization/application errors,
+checksum mismatches and deadline overruns still fail acceptance. The original
+catalog, job, audit and scheduler persistence assertions run after the read
+recovers. This bounded restart-recovery check does not establish a production
+latency SLO. Reads during installation, upgrade and rollback retain their
+ordinary request deadline.
+
 The synthetic cluster uses development transport settings. Passing it validates
 the chart's installation and lifecycle mechanics; validate production
 certificates, authentication, tenant authorization, encryption evidence,

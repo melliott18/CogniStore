@@ -110,3 +110,32 @@ Production campaign behavior is unchanged. The campaign/workload suite has
 57 passing tests, and 10 independent repetitions passed both dispatch cases
 (20 targeted cases); Ruff also passes. This failure is repaired, not waived
 or hidden by a retry.
+
+## Explicit dependency-restart recovery
+
+The `7966b1f` campaign exposed two additional availability failures. Compose
+could not fetch the unchanged Azurite image because MCR timed out waiting for
+HTTP headers, before any integration test started. This is an external fetch
+failure, not an application assertion; its failed attempt is retained.
+
+Kubernetes passed install, upgrade and rollback, then the first object read
+after intentional PostgreSQL/NATS/MinIO restarts exceeded the harness's
+30-second request timeout while API readiness returned 200. The S3 SDK's
+default socket timeout is 60 seconds, and a replacement pod's TCP readiness
+does not establish recovery of existing clients. No corrupt payload was
+observed. The diagnostics are retained; stale client connections are a
+possible cause, not a proven data-integrity defect.
+
+The harness now uses MinIO HTTP readiness and an explicit, bounded read-recovery
+phase only after deliberate backend restarts: at most 120 seconds, ten seconds
+per request, with each transient failure and elapsed time recorded. It retries
+only read transport failures and HTTP 502/503/504. Missing objects, authorization
+errors, application HTTP 500 responses, corrupt payloads and responses beyond
+the deadline still fail. All original persistence assertions remain intact;
+installation/upgrade/rollback use their original request deadlines. This does
+not claim a production latency SLO or alter the production S3 client.
+
+The Kubernetes recovery and load suites pass all 67 tests on both local Python
+3.11 and 3.13. Negative cases prove that corrupt payloads, fatal statuses,
+permanent outages and late successful responses are not accepted. The new
+MinIO readiness URL also returns success on the built local fixture.
