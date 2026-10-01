@@ -1,0 +1,14 @@
+[
+  {
+    "pr_head": "d7873e90bd85e89506a05406ee36c9e362651f4a",
+    "tested_merge_commit": "45ec6e1d430237cded9597f7bf9e730a6c00f223",
+    "tree": "4c6dd3fcd067c6efc08b6d1b03053d69ce33e138",
+    "identical_trees": true
+  },
+  {
+    "pr_head": "1088c73144a65a3c15304734e1ecb98aec1973ad",
+    "tested_merge_commit": "cca18f54cffa6fbdc0e0499aa09ee5e025ca25ae",
+    "tree": "af0048ae6dac412aebeaec59670d956c77bb668f",
+    "identical_trees": true
+  }
+]
