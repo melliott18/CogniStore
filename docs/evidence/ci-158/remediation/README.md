@@ -55,3 +55,39 @@ this host failure is not an application-test failure. Full-suite and hosted
 results, exact final revisions and read-back protection evidence are recorded
 in the qualification follow-up after execution. Local passes alone do not
 satisfy hosted current-main qualification, live-cloud or frozen-candidate gates.
+
+## Follow-up validation and enforcement
+
+Main protection was applied on 2026-10-01 and read back independently:
+`protection-readback.json` confirms all 15 GitHub Actions contexts,
+strict/up-to-date checks, administrator enforcement and PR requirements.
+Legacy branch protection supplies enforcement; separate rulesets remain empty.
+A synthetic new token at a historically exempted location is still detected
+(`secret-negative-control.json`).
+
+The full local default suite at `d7873e9` passed: 6,488 passed, 322 skipped,
+zero failures/errors, 89.53% line coverage and 78.70% branch coverage. See
+`local-default-summary.json` for exact skip reasons and command; compressed
+JUnit/coverage and targeted reports are retained alongside it. Counts from
+these overlapping suites must not be summed.
+
+The first PR campaign found a stale MinIO tag in CI's non-root assertion after
+all images built successfully. The assertion now uses the same tag as Compose;
+the non-root check also passes locally. Its original failure is retained in
+`pr-d7873e9-container-failure.log.gz`. This failed attempt is not a qualified
+revision, regardless of the other passing jobs.
+
+The isolated local Compose integration profile passed (412 passed, 62 skipped;
+synthetic PostgreSQL/NATS/MinIO/Azurite services, no live-cloud credentials).
+`docker/verify_shutdown.sh` also passed: the interrupted-move journal survived
+worker shutdown and restart. Both disposable Compose projects were removed
+with their temporary volumes after validation. Their logs are retained here.
+The first hosted default-suite artifact independently records 6,508 passed,
+302 skipped, zero failures/errors at `d7873e9`.
+
+The Python matrix timeout is increased from 20 to 30 minutes to accommodate
+its existing 13–15 minute unit/conformance suite, the new MinIO source build,
+and the previously blocked service integrations. Test commands, coverage
+thresholds and checks remain unchanged. Kubernetes acceptance at `d7873e9`
+passed install/upgrade/rollback/persistence/autoscaling; its run is
+https://github.com/melliott18/CogniStore/actions/runs/36903004174.

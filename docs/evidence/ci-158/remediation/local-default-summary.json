@@ -1,0 +1,26 @@
+{
+  "source_revision": "d7873e90bd85e89506a05406ee36c9e362651f4a",
+  "environment": "macOS arm64, Python 3.13; no optional isolated services for default suite",
+  "command": "python -m pytest --cov=cognistore --cov-branch --cov-report=xml:test-results/158/coverage.xml --junitxml=test-results/158/default.xml",
+  "passed": 6488,
+  "skipped": 322,
+  "failures": 0,
+  "errors": 0,
+  "coverage_line_rate": "0.8953",
+  "coverage_branch_rate": "0.787",
+  "skip_reasons": {
+    "collection skipped": 1,
+    "backend does not advertise range writes": 2,
+    "COGNISTORE_TEST_POSTGRES_DSN is not configured": 192,
+    "COGNISTORE_AZURITE_CONNECTION_STRING is not configured": 27,
+    "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+    "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+    "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+    "set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+    "set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 10,
+    "could not import 'httptools': No module named 'httptools'": 10,
+    "Helm is required for chart contract tests": 23,
+    "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+    "Helm is required for staging render tests": 5
+  }
+}
