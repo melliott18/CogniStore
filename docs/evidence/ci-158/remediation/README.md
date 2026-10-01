@@ -91,3 +91,22 @@ and the previously blocked service integrations. Test commands, coverage
 thresholds and checks remain unchanged. Kubernetes acceptance at `d7873e9`
 passed install/upgrade/rollback/persistence/autoscaling; its run is
 https://github.com/melliott18/CogniStore/actions/runs/36903004174.
+
+## Capacity-window regression discovered during the rerun
+
+At `1088c73`, 14 of 15 hosted jobs passed. Python 3.11 exposed a test timing
+assumption: two 130 ms synthetic moves were expected to finish in exactly
+three 100 ms windows, but scheduling delay legitimately required a fourth.
+The campaign correctly extended its window; the test incorrectly required
+an exact wall-clock outcome. The failure log is preserved here.
+
+The regression now controls movement completion with asyncio events and
+keeps the real request generator with an injected deterministic clock. It
+still requires exactly three windows, contiguous original sequence/arrival
+slots, unshifted common clock anchors, expected request identities/payload
+sizes, both movement directions and completed evidence. A delayed-dispatch
+case exceeds the old timing margin without changing those assertions.
+Production campaign behavior is unchanged. The campaign/workload suite has
+57 passing tests, and 10 independent repetitions passed both dispatch cases
+(20 targeted cases); Ruff also passes. This failure is repaired, not waived
+or hidden by a retry.
