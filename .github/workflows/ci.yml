@@ -60,7 +60,8 @@ jobs:
   tests:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Unit suites can take 15 minutes; allow the source build and integrations.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -118,6 +119,7 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         run: |
+          docker build --target minio --tag cognistore-minio:qualification .
           docker run --detach --rm \
             --name cognistore-nats \
             --publish 4222:4222 \
@@ -129,7 +131,7 @@ jobs:
             --publish 9000:9000 \
             --env MINIO_ROOT_USER=minioadmin \
             --env MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e \
+            cognistore-minio:qualification \
             server /data
           docker run --detach --rm \
             --name cognistore-postgres \
@@ -482,7 +484,7 @@ jobs:
             'from cognistore.core.indexer import Indexer; result = Indexer().index_bytes(b"plain text", filename="fixture.bin"); assert result.mime == "text/plain"; assert result.mime_detection.detector == "libmagic"'
           docker run --rm --entrypoint sh cognistore/nats:2.10.26 -c \
             'test "$(id -u)" -ne 0'
-          docker run --rm --entrypoint sh cognistore/minio:2025-04-22 -c \
+          docker run --rm --entrypoint sh cognistore/minio:2025-10-15-source -c \
             'test "$(id -u)" -ne 0'
 
       - name: Verify development volume ownership

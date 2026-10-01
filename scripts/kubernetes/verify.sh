@@ -45,6 +45,8 @@ if [[ "${COGNISTORE_KUBE_SKIP_BUILD:-0}" != 1 ]]; then
   docker build --target runtime --tag cognistore:helm-acceptance .
 fi
 kind load docker-image --name "$cluster" cognistore:helm-acceptance
+docker build --target minio --tag cognistore-minio:qualification .
+kind load docker-image --name "$cluster" cognistore-minio:qualification
 kubectl create namespace "$namespace"
 python3 scripts/kubernetes/fixtures.py | kubectl -n "$namespace" apply -f -
 kubectl -n "$namespace" apply -f scripts/kubernetes/prometheus.yaml
@@ -125,7 +127,7 @@ for dependency in postgres nats minio; do
   kubectl -n "$namespace" rollout status "deployment/$dependency" --timeout=180s
 done
 forward
-"${exercise[@]}" verify --base-url "$base_url" --output "$output/invariants.json"
+"${exercise[@]}" verify --base-url "$base_url" --output "$output/invariants.json" --recover-backends
 "${exercise[@]}" autoscale --base-url "$base_url" --output "$output/autoscaling.json" --invariants "$output/invariants.json"
 "${exercise[@]}" security --base-url "$base_url"
 helm history acceptance --namespace "$namespace" -o json >"$output/helm-history.json"

@@ -35,7 +35,7 @@ def downgrade() -> None:
     # Releasing a hold does not authorize erasing its lifecycle evidence.
     connection = op.get_bind()
     if connection.dialect.name == "postgresql":
-        schema = connection.exec_driver_sql("SELECT current_schema()").scalar_one()
+        schema: str = connection.exec_driver_sql("SELECT current_schema()").scalar_one()
         lock_key = int.from_bytes(hashlib.sha256(
             ("cognistore-legal-holds:" + schema).encode()
         ).digest()[:8], "big", signed=True)

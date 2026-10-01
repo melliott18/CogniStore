@@ -1,23 +1,10 @@
 name: Kubernetes acceptance
 
+# Required checks must report on every PR, including documentation-only changes.
 on:
   pull_request:
-    paths:
-      - helm/**
-      - scripts/kubernetes/**
-      - cognistore/**
-      - Dockerfile
-      - pyproject.toml
-      - .github/workflows/kubernetes.yml
   push:
     branches: [main]
-    paths:
-      - helm/**
-      - scripts/kubernetes/**
-      - cognistore/**
-      - Dockerfile
-      - pyproject.toml
-      - .github/workflows/kubernetes.yml
   workflow_dispatch:
 
 permissions:

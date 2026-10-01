@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 
-def dependency(name, image, ports, *, args=(), env=None, uid=10001, mount="/data"):
+def dependency(name, image, ports, *, args=(), env=None, uid=10001, mount="/data", health_path=None):
     labels = {"app": name}
     return [
         {"apiVersion": "v1", "kind": "Service", "metadata": {"name": name},
@@ -31,7 +31,8 @@ def dependency(name, image, ports, *, args=(), env=None, uid=10001, mount="/data
                                                               "capabilities": {"drop": ["ALL"]}},
                                           "resources": {"requests": {"cpu": "25m", "memory": "64Mi"},
                                                         "limits": {"memory": "512Mi"}},
-                                          "readinessProbe": {"tcpSocket": {"port": ports[0]},
+                                          "readinessProbe": {**({"httpGet": {"port": ports[0], "path": health_path}}
+                                                                if health_path else {"tcpSocket": {"port": ports[0]}}),
                                                              "periodSeconds": 2},
                                           "volumeMounts": [{"name": "data", "mountPath": mount}]}],
                           "volumes": [{"name": "data", "persistentVolumeClaim": {
@@ -53,8 +54,8 @@ def main():
         [4222, 8222], args=["-js", "-sd", "/data", "-m", "8222"],
     ))
     items.extend(dependency(
-        "minio", "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e",
-        [9000], args=["server", "/data"],
+        "minio", "cognistore-minio:qualification",
+        [9000], args=["server", "/data"], health_path="/minio/health/ready",
         env={"MINIO_ROOT_USER": "cognistore", "MINIO_ROOT_PASSWORD": "kind-test-only"},
     ))
     drivers = """tiers:

@@ -200,25 +200,29 @@ def test_cli_status_reports_tier_encryption_without_key_ids(tmp_path, monkeypatc
     assert str(tmp_path) not in json.dumps(status)
 
 
-def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch):
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch, status):
     import requests
     from opentelemetry.exporter.otlp.proto.http import trace_exporter
 
     from cognistore import observability
 
     captured = []
+    sent = []
     original = trace_exporter.OTLPSpanExporter
 
     def exporter(**kwargs):
         result = original(**kwargs)
-        captured.append(result)
+        # The injected Session is our transport contract; SDK internals change.
+        captured.append(kwargs["session"])
         return result
 
     class Redirect(requests.adapters.BaseAdapter):
         def send(self, request, **kwargs):
+            sent.append(request)
             assert request.url.startswith("https://")
             response = requests.Response()
-            response.status_code = 307
+            response.status_code = status
             response.headers["Location"] = "http://plaintext.invalid/trace"
             response.url = request.url
             response.request = request
@@ -238,10 +242,12 @@ def test_telemetry_redirect_cannot_forward_payload_to_plaintext(monkeypatch):
     observability.configure_observability()
     try:
         assert len(captured) == 1
-        session = captured[0]._session
+        session = captured[0]
         session.mount("https://", Redirect())
         session.mount("http://", Redirect())
         with pytest.raises(requests.TooManyRedirects):
             session.post("https://collector.invalid/v1/traces", data=b"private payload")
+        assert len(sent) == 1
+        assert sent[0].body == b"private payload"
     finally:
         observability._provider.shutdown()

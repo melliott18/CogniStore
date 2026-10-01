@@ -281,22 +281,58 @@ def test_background_drain_timeout_latches_and_records_incomplete_phase(runner, m
     assert not runner.campaign["phases"]["nominal"]["completed"]
 
 
-def test_capacity_movement_extends_load_with_contiguous_original_slots(runner, monkeypatch):
+@pytest.mark.parametrize("dispatch_delay", [0, .15])
+def test_capacity_movement_extends_load_with_contiguous_original_slots(runner, monkeypatch, dispatch_delay):
     monkeypatch.setattr(campaign, "CAPACITY_EXTENSION", .1)
     service = Service()
     service.objects = 200000
     directions = []
+    anchors = []
+    forward_complete = asyncio.Event()
+    reverse_started = asyncio.Event()
+    reverse_complete = asyncio.Event()
+    movement_complete = asyncio.Event()
+
     async def move(direction):
         directions.append(direction)
-        await asyncio.sleep(.13)
+        if direction == "hot-to-warm":
+            await forward_complete.wait()
+        else:
+            reverse_started.set()
+            await reverse_complete.wait()
+            movement_complete.set()
         return {"status": "passed"}
+
+    original_run = workload.run
+
+    async def segment(settings, transport, record, *, start_time):
+        anchors.append(start_time)
+        assert settings.offered_count == 1
+        await asyncio.sleep(dispatch_delay)
+        # Keep the real request generator, but give it a deterministic clock.
+        # Scheduler lateness is covered separately by test_load_workload.
+        summary = await original_run(settings, transport, record,
+                                     clock=lambda: start_time, start_time=start_time)
+        if len(anchors) == 2:
+            forward_complete.set()
+            await reverse_started.wait()
+        elif len(anchors) == 3:
+            reverse_complete.set()
+            await movement_complete.wait()
+        return summary
+
+    monkeypatch.setattr(campaign.load_workload, "run", segment)
     service.move_all = move
-    asyncio.run(runner._phase(service, None, "capacity", .1, background=False, capacity_roundtrip=True))
+    async def scenario():
+        await asyncio.wait_for(runner._phase(service, None, "capacity", .1,
+                                            background=False, capacity_roundtrip=True), 10)
+    asyncio.run(scenario())
     rows = records(runner, "foreground.jsonl")
     assert directions == ["hot-to-warm", "warm-to-hot"]
     assert runner.campaign["phases"]["capacity"]["duration_seconds"] == pytest.approx(.3)
     assert [row["sequence"] for row in rows] == list(range(3))
     assert [row["scheduled_seconds"] for row in rows] == pytest.approx([0, .1, .2])
+    assert [anchor - anchors[0] for anchor in anchors] == pytest.approx([0, .1, .2])
     assert service.requests == [workload.request_for_sequence(i) for i in range(3)]
     for row in rows:
         assert row["size_bytes"] == workload.request_for_sequence(row["sequence"]).size_bytes

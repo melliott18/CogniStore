@@ -1,19 +1,10 @@
 name: Terraform reference
 
+# Required checks must report on every PR, including documentation-only changes.
 on:
   pull_request:
-    paths:
-      - examples/terraform/**
-      - scripts/terraform/**
-      - helm/**
-      - .github/workflows/terraform.yml
   push:
     branches: [main]
-    paths:
-      - examples/terraform/**
-      - scripts/terraform/**
-      - helm/**
-      - .github/workflows/terraform.yml
   workflow_dispatch:
 
 permissions:

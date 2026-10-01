@@ -2,7 +2,15 @@
 
 ARG PYTHON_IMAGE=python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
 ARG NATS_IMAGE=nats:2.10.26-alpine@sha256:d69eb29526c1d98afdfb2e2434763bef77b5f3c83e2e24769c13a4d104be475e
-ARG MINIO_IMAGE=quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+ARG GO_IMAGE=golang:1.24.9-bookworm@sha256:737b40b61ce956d738bed59f18ba854d8d67e7a4c4fa63f64437f4c70247ac5b
+
+# Upstream removed the public MinIO images and binary downloads. Build the
+# isolated S3 fixture from the verified source archive; never use a mutable mirror.
+FROM ${GO_IMAGE} AS minio-builder
+WORKDIR /src
+ADD --checksum=sha256:45521908307306e925c98d629e1c17d78c8b72b6ee242b1bfb1409f7d8ee5841 https://codeload.github.com/minio/minio/tar.gz/9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a /tmp/minio.tar.gz
+RUN tar -xzf /tmp/minio.tar.gz --strip-components=1 \
+    && CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/minio .
 
 # The upstream service images default to root. These thin targets prepare the
 # persistent data paths during the build, then run the services as an
@@ -12,11 +20,22 @@ USER 0:0
 RUN mkdir -p /data && chown 10001:10001 /data
 USER 10001:10001
 
-FROM ${MINIO_IMAGE} AS minio
+FROM ${PYTHON_IMAGE} AS minio
+LABEL org.opencontainers.image.source="https://github.com/minio/minio" \
+      org.opencontainers.image.revision="9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a" \
+      org.opencontainers.image.version="RELEASE.2025-10-15T17-29-55Z" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
+COPY --from=minio-builder /out/minio /usr/bin/minio
+COPY --from=minio-builder /src/LICENSE /usr/share/licenses/minio/LICENSE
 USER 0:0
-RUN mkdir -p /data && chown 10001:10001 /data
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /data && chown 10001:10001 /data
 ENV HOME=/tmp
 USER 10001:10001
+ENTRYPOINT ["/usr/bin/minio"]
+CMD ["server", "/data"]
 
 FROM ${PYTHON_IMAGE} AS python-base
 
