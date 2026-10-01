@@ -36,3 +36,7 @@ ad20be8fa1d1f00224064d65324527d2a200dc52:tests/unit/test_admin_repairs.py:generi
 115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:186
 115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:191
 115adfd5e077890449738851dd2208de30ae7061:tests/unit/test_policy_stability.py:generic-api-key:193
+
+# Publication review line 3 is the verified Git object ID of audited main, not a token.
+docs/evidence/publication-2026-09-30/review.json:sourcegraph-access-token:3
+21c5bbdbc15e422028dedae22f871d2f5f44a95c:docs/evidence/publication-2026-09-30/review.json:sourcegraph-access-token:3

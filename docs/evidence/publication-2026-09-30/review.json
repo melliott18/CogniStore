@@ -1,0 +1,102 @@
+{
+  "recorded_at_utc": "2026-09-30T17:56:53.343355+00:00",
+  "source_revision": "a48d7d7ce00bb8a9e4a55531b723fa899953410d",
+  "purpose": "Source-publication readiness; not production or release qualification",
+  "result": "No unresolved credential or customer-data disclosure finding in the reviewed content",
+  "scanner": {
+    "name": "gitleaks",
+    "version": "8.30.1",
+    "rules": "built-in defaults; repository and inline suppressions bypassed; redacted output",
+    "exit_codes": "Scans with candidates exited 1; contextual triage resolved every candidate as non-secret."
+  },
+  "git": {
+    "commits": 275,
+    "distinct_blobs": 2518,
+    "pull_request_heads": 103,
+    "current_main_paths": 1155,
+    "current_main_compressed_paths": 235,
+    "historical_compressed_blobs_additionally_expanded": 35,
+    "scan_commands": [
+      "gitleaks git REPOSITORY --log-opts=--all",
+      "gitleaks dir EXPORTED_MAIN",
+      "gitleaks dir HISTORICAL_UNIQUE_BLOBS",
+      "gitleaks dir HISTORICAL_DECOMPRESSED_ARCHIVES",
+      "gitleaks dir ADDITIONAL_PR_BLOBS"
+    ],
+    "common_arguments": [
+      "--redact=100",
+      "--config DEFAULT_RULES_CONFIG",
+      "--gitleaks-ignore-path EMPTY_FILE",
+      "--ignore-gitleaks-allow",
+      "--max-archive-depth=3"
+    ],
+    "candidates_by_scan": [
+      136,
+      91,
+      135,
+      0,
+      1
+    ],
+    "candidate_counts_overlap": true,
+    "dispositions": [
+      "source/provenance SHA256 digests",
+      "test idempotency values",
+      "disposable local Azurite fixture",
+      "Go module checksums",
+      "public Python base-image GPG fingerprints"
+    ],
+    "unresolved_findings": 0
+  },
+  "github_discussions": {
+    "issue_and_pr_titles_and_bodies": 184,
+    "issue_comments": 24,
+    "review_comments": 0,
+    "review": "Full-content pattern scans and contextual inspection of flagged content and non-GitHub links",
+    "actionable_disclosures": 0
+  },
+  "github_actions_history": {
+    "listed_runs": 342,
+    "downloaded_log_archives": 256,
+    "unavailable_log_archives": 86,
+    "unavailable_log_result": "HTTP 404; inventory conclusion failure; no inference about absent content or reason",
+    "listed_artifacts": 160,
+    "downloaded_artifacts": 160,
+    "expanded_files": 2030,
+    "expanded_bytes": 240169776,
+    "scan_command": "gitleaks dir EXPANDED_DOWNLOADS --config DEFAULT_RULES_CONFIG --gitleaks-ignore-path EMPTY_FILE --ignore-gitleaks-allow --redact --max-archive-depth 5",
+    "candidate_count": 16,
+    "disposition": "All sourcegraph-access-token matches were SARIF commitSha fields, verified with git cat-file -t as existing CogniStore commits.",
+    "confirmed_secrets": 0
+  },
+  "source_review": {
+    "license": "MIT",
+    "maturity": "Alpha; production qualification incomplete",
+    "workflows": "All four use standard ubuntu-24.04 runners, explicit read-only permissions and pinned actions; no privileged fork trigger, self-hosted runner, real-cloud deployment, repository-secret reference or publishing step found.",
+    "assets": "Synthetic fixture/sample data and existing notices reviewed; python-docx default-template attribution clarified by accompanying documentation change."
+  },
+  "privacy_metadata": "Existing Git history/evidence includes maintainer name/email, local home paths and machine hostname. These remain visible as ordinary development metadata.",
+  "repository_settings_verified": {
+    "visibility": "public",
+    "private_vulnerability_reporting": true,
+    "secret_scanning": "enabled",
+    "secret_scanning_push_protection": "enabled",
+    "fork_pr_approval": "all_external_contributors",
+    "default_workflow_permissions": "read",
+    "can_approve_pull_request_reviews": false,
+    "self_hosted_runners": 0,
+    "rulesets": [],
+    "main_branch_protection": "not protected (HTTP 404); no protection changes made",
+    "releases": "One draft release retained as draft; no release published"
+  },
+  "validation": {
+    "documentation": "git diff --check; 89 local link targets checked; copied python-docx MIT notice identical; workflow executable content unchanged",
+    "hosted_ci": "No fresh run executed as part of the exposure audit; publication authorizes subsequent hosted CI. Historical skipped runs remain skipped."
+  },
+  "limitations": [
+    "Pattern scanning and focused manual review do not prove absence of all sensitive data.",
+    "Unreachable or superseded server-only Git objects not exposed through fetched refs were not enumerable.",
+    "86 historical log archives were unavailable for review.",
+    "Draft-release binary assets were not published or audited by this exposure review.",
+    "This review does not qualify the production candidate or clear its recorded security advisories."
+  ]
+}
