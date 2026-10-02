@@ -1,0 +1,25 @@
+name: cognistore
+services:
+  gcs:
+    build:
+      context: https://github.com/fsouza/fake-gcs-server.git#3c29d20789f6475f65d2554ad6898c4afd7124bb
+      dockerfile: Dockerfile
+    command:
+      - -scheme
+      - http
+      - -backend
+      - memory
+      - -external-url
+      - http://127.0.0.1:4443
+    image: cognistore/gcs-emulator:3c29d20789f6
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 4443
+        published: "4443"
+        protocol: tcp
+networks:
+  default:
+    name: cognistore_default

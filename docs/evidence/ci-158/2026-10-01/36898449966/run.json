@@ -1,0 +1,85 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "event": "workflow_dispatch",
+  "headSha": "fae9f64811c477703ac25e04ab938be038677d16",
+  "jobs": [
+    {
+      "completedAt": "2026-10-01T17:25:38Z",
+      "conclusion": "failure",
+      "databaseId": 110491285975,
+      "name": "Install, upgrade, rollback and autoscale",
+      "startedAt": "2026-10-01T17:18:53Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-01T17:18:55Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-01T17:18:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:18:56Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 2,
+          "startedAt": "2026-10-01T17:18:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:18:57Z",
+          "conclusion": "success",
+          "name": "Install pinned kind and Helm",
+          "number": 3,
+          "startedAt": "2026-10-01T17:18:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:19:04Z",
+          "conclusion": "success",
+          "name": "Verify chart security and migration contracts",
+          "number": 4,
+          "startedAt": "2026-10-01T17:18:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:25:35Z",
+          "conclusion": "failure",
+          "name": "Run clean-cluster acceptance",
+          "number": 5,
+          "startedAt": "2026-10-01T17:19:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:25:36Z",
+          "conclusion": "success",
+          "name": "Upload Kubernetes acceptance evidence",
+          "number": 6,
+          "startedAt": "2026-10-01T17:25:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:25:36Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "number": 12,
+          "startedAt": "2026-10-01T17:25:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T17:25:36Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-01T17:25:36Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/36898449966/job/110491285975"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/melliott18/CogniStore/actions/runs/36898449966"
+}

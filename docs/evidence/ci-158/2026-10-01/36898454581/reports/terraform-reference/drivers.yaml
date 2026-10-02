@@ -1,0 +1,9 @@
+# Buckets are supplied with each API operation, not in the tier configuration.
+# Use only the bucket names in Terraform's object-storage output.
+tiers:
+  object:
+    driver: s3
+    region_name: us-east-1
+    server_side_encryption: aws:kms
+    kms_key_id: arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000072
+    auto_create_bucket: false

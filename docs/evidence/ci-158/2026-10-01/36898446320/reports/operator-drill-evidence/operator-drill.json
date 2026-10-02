@@ -1,0 +1,520 @@
+{
+  "backup": {
+    "catalog": {
+      "integrity_check": "ok",
+      "journal_mode": "delete",
+      "logical_sha256": "d51c33ef5efb4f21d5abc6a58d347c151ffcdd2be0602a5049304d3949ed087e",
+      "migration": "0014_legal_holds"
+    },
+    "file_sha256": {
+      "catalog.sqlite3": "4af72ce3b836c88f4bd7ee9cfbb280f7c02714b685cbb11ed47e83439e3935e6",
+      "drivers.json": "a8dfb56dbc4196e0a2c719b76d562a4e633ea7c72a3abe608f03bb1be0110e35",
+      "hot/operator-demo/demo/welcome.txt": "8378d0aadcd83e13c2ef2fb444b64ccceee42b618b1a068ac1b00b9e33d31960",
+      "tenants.json": "de4307621e57f851020b453ea04e659c1c13dfeb8cac1bbe4aabfc6845924ce4"
+    },
+    "method": "quiesced SQLite backup API plus both complete POSIX tier trees",
+    "quiescence": "Only synchronous CLI subprocesses; all exited before capture; no API, worker, scheduler, or other fixture writer was started."
+  },
+  "checks": [
+    "runtime is in a fresh venv",
+    "CLI uses the installed package, outside the checkout",
+    "venv does not inherit system site packages",
+    "upload disposable object: CLI returned no error",
+    "retrieve disposable object: CLI returned no error",
+    "first upload/download preserves all bytes",
+    "list hot tier: CLI returned no error",
+    "tier listing contains the uploaded object",
+    "index the object inline: CLI returned no error",
+    "scan first successful state: CLI returned no error",
+    "first successful state is completely scanned and consistent",
+    "SQLite backup preserves all logical catalog rows",
+    "backup preserves hot tier files",
+    "backup preserves warm tier files",
+    "restored catalog matches the backup before any writes",
+    "scan restored state: CLI returned no error",
+    "restored catalog and tier roots are consistent",
+    "retrieve restored object: CLI returned no error",
+    "restored object SHA-256 matches",
+    "detect abandoned move: CLI returned no error",
+    "scanner detects the synthetic partial move",
+    "preview repair without writes: CLI returned no error",
+    "dry-run plans exactly one eligible move",
+    "dry-run changes no catalog, tier files, or incident report bytes",
+    "record reviewed repair plan: CLI returned no error",
+    "audited plan remains eligible",
+    "audited plan preserves source state",
+    "explicitly execute eligible repair: CLI returned no error",
+    "enabled repair completes move",
+    "repeat repair idempotently: CLI returned no error",
+    "repeat repair is already resolved",
+    "repair reuses the original job and commits the warm placement",
+    "verified source cleanup completed",
+    "repaired destination SHA-256 matches original bytes",
+    "scan repaired state: CLI returned no error",
+    "fresh scan confirms repaired state is consistent",
+    "recovery drill leaves the backup immutable"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/opt/hostedtoolcache/Python/3.14.7/x64/bin/python",
+        "-m",
+        "venv",
+        "/home/runner/work/_temp/cognistore-operator-drill/venv"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "create fresh virtual environment",
+      "seconds": 2.542,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/python",
+        "-m",
+        "pip",
+        "--isolated",
+        "--disable-pip-version-check",
+        "install",
+        "--no-input",
+        "--progress-bar",
+        "off",
+        "/home/runner/work/_temp/cognistore-operator-drill/source"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "install captured source non-editably",
+      "log": {
+        "file": "operator-drill.install.log.gz",
+        "sha256": "812db6f7a9b1fbbe54701c96a350ecf90ad0097858b1f10dcb67c9f0f70ba72b"
+      },
+      "seconds": 11.273
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/python",
+        "-m",
+        "pip",
+        "--disable-pip-version-check",
+        "freeze",
+        "--all"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "capture installed distributions",
+      "seconds": 0.205,
+      "stderr": "",
+      "stdout": "alembic==1.20.0\nannotated-doc==0.0.5\nannotated-types==0.8.0\nanyio==4.15.1\nboto3==1.43.106\nbotocore==1.43.106\ncertifi==2026.7.22\ncffi==2.1.1\ncharset-normalizer==3.5.2\nclick==8.5.0\ncognistore @ file:///home/runner/work/_temp/cognistore-operator-drill/source\ncryptography==50.0.2\nfastapi==0.141.1\ngoogle-auth==2.59.1\ngoogleapis-common-protos==1.75.5\nh11==0.16.0\nhttpcore==1.0.9\nhttpx==0.28.1\nidna==3.20\njmespath==1.1.0\nlxml==6.1.3\nMako==1.4.3\nMarkupSafe==3.0.3\nnats-py==2.16.0\nopentelemetry-api==1.45.0\nopentelemetry-exporter-http-transport==0.66b0\nopentelemetry-exporter-otlp-common==0.66b0\nopentelemetry-exporter-otlp-proto-common==1.45.0\nopentelemetry-exporter-otlp-proto-http==1.45.0\nopentelemetry-proto==1.45.0\nopentelemetry-sdk==1.45.0\nopentelemetry-semantic-conventions==0.66b0\npip==26.2.1\nprometheus_client==0.26.0\nprotobuf==7.36.2\npsycopg==3.3.6\npsycopg-binary==3.3.6\npyasn1==0.6.4\npyasn1_modules==0.4.2\npycparser==3.0\npydantic==2.13.5\npydantic_core==2.46.5\nPyJWT==2.15.1\npypdf==6.19.0\npython-dateutil==2.9.0.post0\npython-docx==1.2.0\npython-magic==0.4.27\nPyYAML==6.0.3\nrequests==2.34.2\ns3transfer==0.19.2\nsix==1.17.0\nSQLAlchemy==2.1.1\nstarlette==1.7.0\ntantivy==0.26.2\ntyping-inspection==0.4.4\ntyping_extensions==4.16.0\nurllib3==2.8.0\nuvicorn==0.52.4\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/python",
+        "-I",
+        "-c",
+        "import cognistore,json,platform,sqlite3,sys; print(json.dumps({'python':sys.version,'platform':platform.platform(),'machine':platform.machine(),'sqlite':sqlite3.sqlite_version,'package_file':cognistore.__file__,'prefix':sys.prefix,'base_prefix':sys.base_prefix}))"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "verify installed runtime",
+      "seconds": 0.028,
+      "stderr": "",
+      "stdout": "{\"python\": \"3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]\", \"platform\": \"Linux-6.17.0-1022-azure-x86_64-with-glibc2.39\", \"machine\": \"x86_64\", \"sqlite\": \"3.45.1\", \"package_file\": \"/home/runner/work/_temp/cognistore-operator-drill/venv/lib/python3.14/site-packages/cognistore/__init__.py\", \"prefix\": \"/home/runner/work/_temp/cognistore-operator-drill/venv\", \"base_prefix\": \"/opt/hostedtoolcache/Python/3.14.7/x64\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "put",
+        "operator-demo",
+        "demo/welcome.txt",
+        "/home/runner/work/_temp/cognistore-operator-drill/input.txt"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "upload disposable object",
+      "seconds": 0.917,
+      "stderr": "",
+      "stdout": "{\"bucket\": \"operator-demo\", \"command\": \"put\", \"dry_run\": false, \"file\": \"/home/runner/work/_temp/cognistore-operator-drill/input.txt\", \"key\": \"demo/welcome.txt\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"size\": 73, \"status\": \"completed\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "get",
+        "operator-demo",
+        "demo/welcome.txt",
+        "/home/runner/work/_temp/cognistore-operator-drill/download.txt"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "retrieve disposable object",
+      "seconds": 0.868,
+      "stderr": "",
+      "stdout": "{\"bucket\": \"operator-demo\", \"command\": \"get\", \"dry_run\": false, \"key\": \"demo/welcome.txt\", \"out\": \"/home/runner/work/_temp/cognistore-operator-drill/download.txt\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"size\": 73, \"status\": \"completed\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "ls-tier",
+        "hot",
+        "operator-demo",
+        "--prefix",
+        "demo/"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "list hot tier",
+      "seconds": 0.835,
+      "stderr": "",
+      "stdout": "{\"bucket\": \"operator-demo\", \"command\": \"ls-tier\", \"count\": 1, \"dry_run\": false, \"keys\": [\"demo/welcome.txt\"], \"prefix\": \"demo/\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"tier\": \"hot\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "catalog-scan",
+        "hot",
+        "operator-demo",
+        "--prefix",
+        "demo/",
+        "--sync"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "index the object inline",
+      "seconds": 1.487,
+      "stderr": "",
+      "stdout": "{\"command\": \"catalog-scan\", \"count\": 1, \"dry_run\": false, \"objects\": [{\"bucket\": \"operator-demo\", \"key\": \"demo/welcome.txt\", \"size\": 73, \"tier\": \"hot\"}], \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"completed\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-scan",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/clean.sqlite3"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "scan first successful state",
+      "seconds": 1.324,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-scan\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/clean.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"audit_checkpoint\": {\"algorithm\": \"sha256-v1\", \"entry_hash\": \"9f6ee17ef03859f540962bf881f21343a833cb91509ea7372c5ea77512fb275b\", \"scan_id\": \"d6406eb9-56f4-4812-8b96-63da3fba4267\", \"sequence\": 8, \"tenant_id\": \"demo\"}, \"checked\": 1, \"complete\": true, \"consistent\": true, \"finding_count\": 0, \"finished_at\": \"2026-10-01T17:19:48.246302+00:00\", \"inventory_keys\": 1, \"phase\": \"completed\", \"read_only\": true, \"reason_counts\": {}, \"scan_id\": \"d6406eb9-56f4-4812-8b96-63da3fba4267\", \"schema\": \"cognistore.consistency\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"severity_counts\": {}, \"started_at\": \"2026-10-01T17:19:47.835920+00:00\", \"version\": 2}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored/catalog.sqlite3",
+        "--json",
+        "consistency-scan",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/restored.sqlite3"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "scan restored state",
+      "seconds": 1.377,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-scan\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/restored.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"audit_checkpoint\": {\"algorithm\": \"sha256-v1\", \"entry_hash\": \"ec56f97e2e5dd7ce68468974f169c6c0f77ec05b52179e0861df6ebcdb0f204c\", \"scan_id\": \"1c78741a-6f66-4937-b953-b1ec152ffbba\", \"sequence\": 8, \"tenant_id\": \"demo\"}, \"checked\": 1, \"complete\": true, \"consistent\": true, \"finding_count\": 0, \"finished_at\": \"2026-10-01T17:19:49.703990+00:00\", \"inventory_keys\": 1, \"phase\": \"completed\", \"read_only\": true, \"reason_counts\": {}, \"scan_id\": \"1c78741a-6f66-4937-b953-b1ec152ffbba\", \"schema\": \"cognistore.consistency\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"severity_counts\": {}, \"started_at\": \"2026-10-01T17:19:49.193982+00:00\", \"version\": 2}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored/catalog.sqlite3",
+        "--json",
+        "get",
+        "operator-demo",
+        "demo/welcome.txt",
+        "/home/runner/work/_temp/cognistore-operator-drill/restored-download.txt"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "retrieve restored object",
+      "seconds": 0.903,
+      "stderr": "",
+      "stdout": "{\"bucket\": \"operator-demo\", \"command\": \"get\", \"dry_run\": false, \"key\": \"demo/welcome.txt\", \"out\": \"/home/runner/work/_temp/cognistore-operator-drill/restored-download.txt\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"size\": 73, \"status\": \"completed\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/python",
+        "-I",
+        "-c",
+        "import json,sys\nfrom pathlib import Path\nfrom cognistore.core.sqlite_catalog import SQLiteCatalog\nfrom cognistore.drivers.posix_driver import PosixDriver\nroot=Path(sys.argv[1]); bucket=sys.argv[2]; key=sys.argv[3]; job=sys.argv[4]\ndriver=PosixDriver(root/'hot'); catalog=SQLiteCatalog(root/'catalog.sqlite3')\ntry:\n    record=catalog.get(bucket,key)\n    catalog.claim_move_job(job,src_tier='hot',dst_tier='warm',bucket=bucket,key=key,\n        expected_size=record.size,source_metadata=driver.stat_object(bucket,key),\n        owner_id='synthetic-abandoned-worker',now='2020-01-01T00:00:00.000000Z',\n        lease_expires_at='2020-01-01T00:01:00.000000Z')\n    print(json.dumps({'synthetic':True,'job':job,'state':'prepared','lease':'expired'}))\nfinally:\n    catalog.close()\n",
+        "/home/runner/work/_temp/cognistore-operator-drill/live",
+        "operator-demo",
+        "demo/welcome.txt",
+        "operator-drill-expired-move"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "inject synthetic expired pending move",
+      "seconds": 0.639,
+      "stderr": "",
+      "stdout": "{\"synthetic\": true, \"job\": \"operator-drill-expired-move\", \"state\": \"prepared\", \"lease\": \"expired\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-scan",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "detect abandoned move",
+      "seconds": 1.184,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-scan\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"audit_checkpoint\": {\"algorithm\": \"sha256-v1\", \"entry_hash\": \"278721502c47188de1c0c06e9099ccd01ed566a2a1fcda8e5326a91378f8663f\", \"scan_id\": \"c65b2820-6129-44ea-b338-e279fcad5cd9\", \"sequence\": 9, \"tenant_id\": \"demo\"}, \"checked\": 1, \"complete\": true, \"consistent\": false, \"finding_count\": 1, \"finished_at\": \"2026-10-01T17:19:52.435960+00:00\", \"inventory_keys\": 1, \"phase\": \"completed\", \"read_only\": true, \"reason_counts\": {\"partial_job\": 1}, \"scan_id\": \"c65b2820-6129-44ea-b338-e279fcad5cd9\", \"schema\": \"cognistore.consistency\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"severity_counts\": {\"warning\": 1}, \"started_at\": \"2026-10-01T17:19:52.101775+00:00\", \"version\": 2}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-repair",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3",
+        "--dry-run"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "preview repair without writes",
+      "seconds": 1.04,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-repair\", \"dry_run\": true, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"planned\", \"summary\": {\"actions\": [{\"action\": \"resume_move\", \"bucket\": \"operator-demo\", \"destination_tier\": \"warm\", \"expected_size\": 73, \"job_id\": \"operator-drill-expired-move\", \"key\": \"demo/welcome.txt\", \"phase\": \"prepared\", \"reason\": \"verified_partial_job\", \"repair_id\": \"e3d92cf6a53866539bddbae339d6ac7399b54a616713fc3e10c05832923e2a5a\", \"source_tier\": \"hot\", \"status\": \"planned\"}], \"counts\": {\"planned\": 1}, \"plan_only\": true, \"schema\": \"cognistore.consistency.repair\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"version\": 1}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-repair",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "record reviewed repair plan",
+      "seconds": 1.089,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-repair\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"planned\", \"summary\": {\"actions\": [{\"action\": \"resume_move\", \"bucket\": \"operator-demo\", \"destination_tier\": \"warm\", \"expected_size\": 73, \"job_id\": \"operator-drill-expired-move\", \"key\": \"demo/welcome.txt\", \"phase\": \"prepared\", \"reason\": \"verified_partial_job\", \"repair_id\": \"e3d92cf6a53866539bddbae339d6ac7399b54a616713fc3e10c05832923e2a5a\", \"source_tier\": \"hot\", \"status\": \"planned\"}], \"counts\": {\"planned\": 1}, \"plan_only\": true, \"schema\": \"cognistore.consistency.repair\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"version\": 1}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-repair",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3",
+        "--enable-repair"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "explicitly execute eligible repair",
+      "seconds": 3.908,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-repair\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"actions\": [{\"action\": \"resume_move\", \"bucket\": \"operator-demo\", \"destination_tier\": \"warm\", \"expected_size\": 73, \"job_id\": \"operator-drill-expired-move\", \"key\": \"demo/welcome.txt\", \"phase\": \"prepared\", \"reason\": \"move_completed\", \"repair_id\": \"e3d92cf6a53866539bddbae339d6ac7399b54a616713fc3e10c05832923e2a5a\", \"source_tier\": \"hot\", \"status\": \"completed\"}], \"counts\": {\"completed\": 1}, \"plan_only\": false, \"schema\": \"cognistore.consistency.repair\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"version\": 1}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-repair",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3",
+        "--enable-repair"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "repeat repair idempotently",
+      "seconds": 1.084,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-repair\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/incident.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"actions\": [{\"action\": \"none\", \"bucket\": \"operator-demo\", \"job_id\": null, \"key\": \"demo/welcome.txt\", \"reason\": \"no_discrepancy\", \"status\": \"resolved\"}], \"counts\": {\"resolved\": 1}, \"plan_only\": false, \"schema\": \"cognistore.consistency.repair\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"version\": 1}}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/python",
+        "-I",
+        "-c",
+        "import json,sys\nfrom pathlib import Path\nfrom cognistore.core.sqlite_catalog import SQLiteCatalog\ncatalog=SQLiteCatalog(Path(sys.argv[1])/'catalog.sqlite3',read_only=True)\ntry:\n    jobs=catalog.list_move_jobs(); record=catalog.get(sys.argv[2],sys.argv[3])\n    print(json.dumps({'jobs':[{'id':j.idempotency_key,'state':j.state.value} for j in jobs],\n                      'tier':record.tier}))\nfinally:\n    catalog.close()\n",
+        "/home/runner/work/_temp/cognistore-operator-drill/live",
+        "operator-demo",
+        "demo/welcome.txt"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "verify original move journal",
+      "seconds": 0.437,
+      "stderr": "",
+      "stdout": "{\"jobs\": [{\"id\": \"operator-drill-expired-move\", \"state\": \"completed\"}], \"tier\": \"warm\"}\n"
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/cognistore-operator-drill/venv/bin/cognistore",
+        "--no-config",
+        "--drivers",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/drivers.json",
+        "--catalog-db",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/catalog.sqlite3",
+        "--json",
+        "consistency-scan",
+        "--tenant",
+        "demo",
+        "--scope-config",
+        "/home/runner/work/_temp/cognistore-operator-drill/live/tenants.json",
+        "--report",
+        "/home/runner/work/_temp/cognistore-operator-drill/reports/repaired.sqlite3"
+      ],
+      "cwd": "/home/runner/work/_temp/cognistore-operator-drill",
+      "exit_code": 0,
+      "label": "scan repaired state",
+      "seconds": 1.493,
+      "stderr": "",
+      "stdout": "{\"command\": \"consistency-scan\", \"dry_run\": false, \"report\": \"/home/runner/work/_temp/cognistore-operator-drill/reports/repaired.sqlite3\", \"schema\": \"cognistore.cli\", \"schema_version\": 1, \"status\": \"success\", \"summary\": {\"audit_checkpoint\": {\"algorithm\": \"sha256-v1\", \"entry_hash\": \"7a85489cadd1b603890a61779e5417450af84f5ec0d2aa8d63e226945425f542\", \"scan_id\": \"99096e92-a9a9-4310-aa58-ba195c51a0f1\", \"sequence\": 9, \"tenant_id\": \"demo\"}, \"checked\": 1, \"complete\": true, \"consistent\": true, \"finding_count\": 0, \"finished_at\": \"2026-10-01T17:20:01.486487+00:00\", \"inventory_keys\": 1, \"phase\": \"completed\", \"read_only\": true, \"reason_counts\": {}, \"scan_id\": \"99096e92-a9a9-4310-aa58-ba195c51a0f1\", \"schema\": \"cognistore.consistency\", \"scope\": {\"bucket\": \"operator-demo\", \"prefix\": \"demo/\", \"tenant_id\": \"demo\", \"tiers\": [\"hot\", \"warm\"]}, \"severity_counts\": {}, \"started_at\": \"2026-10-01T17:20:00.875521+00:00\", \"version\": 2}}\n"
+    }
+  ],
+  "completed_at": "2026-10-01T17:20:01.674989+00:00",
+  "environment": {
+    "COGNISTORE_SECURITY_PROFILE": "development",
+    "PYTHONPATH": "removed",
+    "config": "--no-config",
+    "inherited_cognistore_variables": "removed"
+  },
+  "fixture": {
+    "bucket": "operator-demo",
+    "key": "demo/welcome.txt",
+    "sha256": "8378d0aadcd83e13c2ef2fb444b64ccceee42b618b1a068ac1b00b9e33d31960",
+    "size": 73
+  },
+  "harness_python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+  "host": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "incident": {
+    "idempotency_key": "operator-drill-expired-move",
+    "post_repair_state": {
+      "jobs": [
+        {
+          "id": "operator-drill-expired-move",
+          "state": "completed"
+        }
+      ],
+      "tier": "warm"
+    },
+    "type": "synthetic expired prepared move"
+  },
+  "limits": [
+    "Local POSIX/SQLite development profile; not production qualification.",
+    "No PostgreSQL, NATS, Kubernetes, cloud backend, TLS, OIDC, or encryption drill.",
+    "New venv and isolated config on the existing OS account, not a new OS user.",
+    "Synthetic abandoned journal; no live worker was killed.",
+    "Unpinned dependency resolution may change; installed versions are archived."
+  ],
+  "requirements": {
+    "file": "operator-drill.requirements.txt",
+    "sha256": "a5ac0f1f005b57724590c8f17a23752f529b9f9aa3f7606a70c1875df5d3bcf5"
+  },
+  "runtime": {
+    "base_prefix": "/opt/hostedtoolcache/Python/3.14.7/x64",
+    "machine": "x86_64",
+    "package_file": "/home/runner/work/_temp/cognistore-operator-drill/venv/lib/python3.14/site-packages/cognistore/__init__.py",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "prefix": "/home/runner/work/_temp/cognistore-operator-drill/venv",
+    "python": "3.14.7 (main, Aug  6 2026, 02:19:46) [GCC 13.3.0]",
+    "sqlite": "3.45.1"
+  },
+  "schema_version": 1,
+  "source": {
+    "base_revision": "fae9f64811c477703ac25e04ab938be038677d16",
+    "git_status_at_capture": "",
+    "manifest": "operator-drill.source-sha256.json",
+    "manifest_sha256": "d51e5f5e354874f7f7c7734ba339372d932ab7bbd718d5956ad28f8904eba2d1",
+    "note": "Captured package/build inputs installed non-editably; base commit alone does not reproduce any dirty files listed above."
+  },
+  "status": "passed"
+}

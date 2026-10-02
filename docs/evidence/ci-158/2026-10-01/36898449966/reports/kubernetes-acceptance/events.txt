@@ -1,0 +1,44 @@
+LAST SEEN   TYPE      REASON                  OBJECT                                        MESSAGE
+5m10s       Normal    SuccessfulCreate        replicaset/postgres-5c6445b647                Created pod: postgres-5c6445b647-xnwwp
+5m10s       Normal    WaitForFirstConsumer    persistentvolumeclaim/postgres                waiting for first consumer to be created before binding
+5m10s       Normal    ScalingReplicaSet       deployment/nats                               Scaled up replica set nats-658f6b4b56 from 0 to 1
+5m10s       Normal    Scheduled               pod/acceptance-prometheus-6d8f77c445-8qk8x    Successfully assigned cognistore-acceptance/acceptance-prometheus-6d8f77c445-8qk8x to cognistore-acceptance-2566-control-plane
+5m10s       Normal    WaitForFirstConsumer    persistentvolumeclaim/nats                    waiting for first consumer to be created before binding
+5m10s       Normal    SuccessfulCreate        replicaset/acceptance-prometheus-6d8f77c445   Created pod: acceptance-prometheus-6d8f77c445-8qk8x
+5m10s       Normal    ScalingReplicaSet       deployment/acceptance-prometheus              Scaled up replica set acceptance-prometheus-6d8f77c445 from 0 to 1
+5m10s       Normal    SuccessfulCreate        replicaset/minio-7dbd9f6bf                    Created pod: minio-7dbd9f6bf-9txvf
+5m10s       Normal    Provisioning            persistentvolumeclaim/postgres                External provisioner is provisioning volume for claim "cognistore-acceptance/postgres"
+5m10s       Normal    ExternalProvisioning    persistentvolumeclaim/postgres                Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+5m10s       Normal    ScalingReplicaSet       deployment/postgres                           Scaled up replica set postgres-5c6445b647 from 0 to 1
+5m10s       Normal    ExternalProvisioning    persistentvolumeclaim/nats                    Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+5m10s       Normal    Pulling                 pod/acceptance-prometheus-6d8f77c445-8qk8x    Pulling image "prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0"
+5m10s       Normal    Provisioning            persistentvolumeclaim/nats                    External provisioner is provisioning volume for claim "cognistore-acceptance/nats"
+5m10s       Normal    SuccessfulCreate        replicaset/nats-658f6b4b56                    Created pod: nats-658f6b4b56-9k84x
+5m10s       Normal    WaitForFirstConsumer    persistentvolumeclaim/minio                   waiting for first consumer to be created before binding
+5m10s       Normal    ScalingReplicaSet       deployment/minio                              Scaled up replica set minio-7dbd9f6bf from 0 to 1
+5m10s       Normal    ExternalProvisioning    persistentvolumeclaim/minio                   Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+5m10s       Normal    Provisioning            persistentvolumeclaim/minio                   External provisioner is provisioning volume for claim "cognistore-acceptance/minio"
+5m8s        Normal    Started                 pod/acceptance-prometheus-6d8f77c445-8qk8x    Started container prometheus
+5m8s        Normal    Created                 pod/acceptance-prometheus-6d8f77c445-8qk8x    Created container: prometheus
+5m8s        Normal    Pulled                  pod/acceptance-prometheus-6d8f77c445-8qk8x    Successfully pulled image "prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0" in 1.96s (1.96s including waiting). Image size: 109369379 bytes.
+5m7s        Normal    ProvisioningSucceeded   persistentvolumeclaim/postgres                Successfully provisioned volume pvc-52fa10ea-1844-475a-9674-be882330e567
+5m7s        Normal    ProvisioningSucceeded   persistentvolumeclaim/nats                    Successfully provisioned volume pvc-084fca2a-817d-4a64-af98-96053a93ee46
+5m7s        Normal    ProvisioningSucceeded   persistentvolumeclaim/minio                   Successfully provisioned volume pvc-76ea5052-f217-455c-a784-41178e81bc94
+5m6s        Normal    Scheduled               pod/nats-658f6b4b56-9k84x                     Successfully assigned cognistore-acceptance/nats-658f6b4b56-9k84x to cognistore-acceptance-2566-control-plane
+5m6s        Normal    Pulling                 pod/nats-658f6b4b56-9k84x                     Pulling image "nats:2.10.26-alpine@sha256:d69eb29526c1d98afdfb2e2434763bef77b5f3c83e2e24769c13a4d104be475e"
+5m6s        Normal    Scheduled               pod/postgres-5c6445b647-xnwwp                 Successfully assigned cognistore-acceptance/postgres-5c6445b647-xnwwp to cognistore-acceptance-2566-control-plane
+5m6s        Normal    Pulling                 pod/postgres-5c6445b647-xnwwp                 Pulling image "pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+5m6s        Normal    Scheduled               pod/minio-7dbd9f6bf-9txvf                     Successfully assigned cognistore-acceptance/minio-7dbd9f6bf-9txvf to cognistore-acceptance-2566-control-plane
+5m1s        Normal    Pulled                  pod/postgres-5c6445b647-xnwwp                 Successfully pulled image "pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b" in 4.64s (4.64s including waiting). Image size: 156193044 bytes.
+5m1s        Normal    Created                 pod/postgres-5c6445b647-xnwwp                 Created container: postgres
+5m1s        Normal    Started                 pod/postgres-5c6445b647-xnwwp                 Started container postgres
+5m1s        Warning   Unhealthy               pod/postgres-5c6445b647-xnwwp                 Readiness probe failed: dial tcp 10.244.0.9:5432: connect: connection refused
+5m          Normal    Created                 pod/nats-658f6b4b56-9k84x                     Created container: nats
+5m          Normal    Pulled                  pod/nats-658f6b4b56-9k84x                     Successfully pulled image "nats:2.10.26-alpine@sha256:d69eb29526c1d98afdfb2e2434763bef77b5f3c83e2e24769c13a4d104be475e" in 945ms (5.54s including waiting). Image size: 10038801 bytes.
+5m          Normal    Started                 pod/nats-658f6b4b56-9k84x                     Started container nats
+4m17s       Warning   Failed                  pod/minio-7dbd9f6bf-9txvf                     Failed to pull image "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": failed to pull and unpack image "quay.io/minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": failed to resolve reference "quay.io/minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": unexpected status from HEAD request to https://quay.io/v2/minio/minio/manifests/sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e: 401 Unauthorized
+2m5s        Warning   Failed                  pod/minio-7dbd9f6bf-9txvf                     Failed to pull image "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": failed to pull and unpack image "quay.io/minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": failed to resolve reference "quay.io/minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e": unexpected status from HEAD request to https://quay.io/v2/minio/minio/manifests/sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e: 401 UNAUTHORIZED
+2m5s        Warning   Failed                  pod/minio-7dbd9f6bf-9txvf                     Error: ErrImagePull
+2m5s        Normal    Pulling                 pod/minio-7dbd9f6bf-9txvf                     Pulling image "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e"
+68s         Warning   Failed                  pod/minio-7dbd9f6bf-9txvf                     Error: ImagePullBackOff
+4s          Normal    BackOff                 pod/minio-7dbd9f6bf-9txvf                     Back-off pulling image "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e"

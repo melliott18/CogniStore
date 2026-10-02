@@ -1,5 +1,7 @@
 # Hosted CI qualification attempt — #158
 
+**Update, 2026-10-01:** hosted execution resumed. The [fresh campaign](2026-10-01/README.md) records actual runtime/deployment results and ticket dispositions. The failed account-startup attempt below is preserved as historical evidence.
+
 **Status: blocked; hosted qualification is incomplete.** On 2026-09-20 UTC,
 all three workflows were freshly dispatched on `main` revision
 [`2cce6ff4d43fd287ad008197f1e17f168c3580c4`](https://github.com/melliott18/CogniStore/commit/2cce6ff4d43fd287ad008197f1e17f168c3580c4).

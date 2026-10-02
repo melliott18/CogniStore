@@ -1,0 +1,816 @@
+---
+# Source: cognistore/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cognistore
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore
+      app.kubernetes.io/name: cognistore
+  policyTypes: [Ingress, Egress]
+  ingress: 
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: REPLACE_WITH_INGRESS_NAMESPACE
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: REPLACE_WITH_INGRESS_CONTROLLER_LABEL
+      ports:
+      - port: 8080
+        protocol: TCP
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: smoke
+            app.kubernetes.io/instance: cognistore
+      ports:
+      - port: 8080
+        protocol: TCP
+  egress: 
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - ports:
+      - port: 5432
+        protocol: TCP
+      to:
+      - ipBlock:
+          cidr: 10.72.64.0/24
+      - ipBlock:
+          cidr: 10.72.65.0/24
+      - ipBlock:
+          cidr: 10.72.66.0/24
+    - ports:
+      - port: 4222
+        protocol: TCP
+      to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/instance: cognistore-nats
+            app.kubernetes.io/name: nats
+    - ports:
+      - port: 8080
+        protocol: TCP
+      to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: api
+            app.kubernetes.io/instance: cognistore
+    - ports:
+      - port: 443
+        protocol: TCP
+      to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+          except:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+          - 169.254.0.0/16
+---
+# Source: cognistore/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cognistore-api
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore
+      app.kubernetes.io/component: api
+---
+# Source: cognistore/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cognistore
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/cognistore-test-workload
+    eks.amazonaws.com/sts-regional-endpoints: "true"
+automountServiceAccountToken: false
+---
+# Source: cognistore/templates/services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cognistore-api
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Source: cognistore/templates/services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cognistore-worker
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+    app.kubernetes.io/component: worker
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/component: worker
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+# Source: cognistore/templates/deployments.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognistore-api
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+    app.kubernetes.io/component: api
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cognistore
+        app.kubernetes.io/instance: cognistore
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: "cognistore-0.1.0"
+        app.kubernetes.io/component: api
+      annotations:
+        cognistore.io/config-revision: "1"
+    spec:
+      serviceAccountName: cognistore
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: api
+          image: "example.invalid/cognistore@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            limits:
+              cpu: "2"
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          envFrom:
+            - secretRef:
+                name: cognistore-credentials
+          env:
+            - name: COGNISTORE_SECURITY_PROFILE
+              value: "production"
+            - name: COGNISTORE_DRIVERS
+              value: /etc/cognistore/config/drivers.yaml
+            - name: COGNISTORE_LOG_FORMAT
+              value: json
+            - name: COGNISTORE_JOB_STREAM
+              value: "COGNISTORE_JOBS"
+            - name: COGNISTORE_JOB_SUBJECT
+              value: "cognistore.jobs"
+            - name: COGNISTORE_JOB_CONSUMER
+              value: "cognistore-workers"
+            - name: HOME
+              value: /tmp
+            - name: COGNISTORE_ENCRYPTION_CONFIG
+              value: /etc/cognistore/config/encryption.json
+            - name: COGNISTORE_AUTHORIZATION_POLICY
+              value: /etc/cognistore/config/authorization.json
+            - name: COGNISTORE_TENANT_POLICY
+              value: /etc/cognistore/config/tenants.json
+            - name: COGNISTORE_AUTH_ISSUER
+              value: "https://REPLACE_WITH_ISSUER"
+            - name: COGNISTORE_AUTH_AUDIENCE
+              value: "REPLACE_WITH_AUDIENCE"
+            - name: COGNISTORE_AUTH_JWKS_URI
+              value: "https://REPLACE_WITH_JWKS_HOST_AND_PATH"
+            - name: COGNISTORE_TLS_CA_FILE
+              value: /etc/cognistore/tls/ca.crt
+            - name: PGSSLROOTCERT
+              value: /etc/cognistore/tls/ca.crt
+            - name: COGNISTORE_API_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_API_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: COGNISTORE_HEALTH_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_HEALTH_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: AWS_ROLE_ARN
+              value: arn:aws:iam::111122223333:role/cognistore-test-workload
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/cognistore-aws/token
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: regional
+            - name: OTEL_SERVICE_NAME
+              value: cognistore-api
+          command: [cognistore-api]
+          args: [--host, "0.0.0.0", --port, "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 5
+            timeoutSeconds: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cognistore/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: tls
+              mountPath: /etc/cognistore/tls
+              readOnly: true
+            - mountPath: /var/run/cognistore-aws
+              name: aws-identity
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: cognistore-config
+            defaultMode: 0440
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+        - name: tls
+          secret:
+            secretName: cognistore-tls
+            defaultMode: 0440
+        - name: aws-identity
+          projected:
+            defaultMode: 288
+            sources:
+            - serviceAccountToken:
+                audience: sts.amazonaws.com
+                expirationSeconds: 86400
+                path: token
+---
+# Source: cognistore/templates/deployments.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognistore-worker
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: cognistore
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cognistore
+        app.kubernetes.io/instance: cognistore
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: "cognistore-0.1.0"
+        app.kubernetes.io/component: worker
+      annotations:
+        cognistore.io/config-revision: "1"
+    spec:
+      serviceAccountName: cognistore
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: "example.invalid/cognistore@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            limits:
+              cpu: "2"
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          envFrom:
+            - secretRef:
+                name: cognistore-credentials
+          env:
+            - name: COGNISTORE_SECURITY_PROFILE
+              value: "production"
+            - name: COGNISTORE_DRIVERS
+              value: /etc/cognistore/config/drivers.yaml
+            - name: COGNISTORE_LOG_FORMAT
+              value: json
+            - name: COGNISTORE_JOB_STREAM
+              value: "COGNISTORE_JOBS"
+            - name: COGNISTORE_JOB_SUBJECT
+              value: "cognistore.jobs"
+            - name: COGNISTORE_JOB_CONSUMER
+              value: "cognistore-workers"
+            - name: HOME
+              value: /tmp
+            - name: COGNISTORE_ENCRYPTION_CONFIG
+              value: /etc/cognistore/config/encryption.json
+            - name: COGNISTORE_AUTHORIZATION_POLICY
+              value: /etc/cognistore/config/authorization.json
+            - name: COGNISTORE_TENANT_POLICY
+              value: /etc/cognistore/config/tenants.json
+            - name: COGNISTORE_AUTH_ISSUER
+              value: "https://REPLACE_WITH_ISSUER"
+            - name: COGNISTORE_AUTH_AUDIENCE
+              value: "REPLACE_WITH_AUDIENCE"
+            - name: COGNISTORE_AUTH_JWKS_URI
+              value: "https://REPLACE_WITH_JWKS_HOST_AND_PATH"
+            - name: COGNISTORE_TLS_CA_FILE
+              value: /etc/cognistore/tls/ca.crt
+            - name: PGSSLROOTCERT
+              value: /etc/cognistore/tls/ca.crt
+            - name: COGNISTORE_API_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_API_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: COGNISTORE_HEALTH_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_HEALTH_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: AWS_ROLE_ARN
+              value: arn:aws:iam::111122223333:role/cognistore-test-workload
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/cognistore-aws/token
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: regional
+            - name: OTEL_SERVICE_NAME
+              value: cognistore-worker
+          command: [cognistore]
+          args:
+            - --no-config
+            - --drivers
+            - /etc/cognistore/config/drivers.yaml
+            - --job-stream
+            - "COGNISTORE_JOBS"
+            - --job-subject
+            - "cognistore.jobs"
+            - --job-consumer
+            - "cognistore-workers"
+            - worker
+            - --disable-scheduled-jobs
+            - --authorization-policy
+            - /etc/cognistore/config/authorization.json
+            - --tenant-policy
+            - /etc/cognistore/config/tenants.json
+            - --health-host
+            - "0.0.0.0"
+            - --health-port
+            - "8081"
+            - --max-in-flight
+            - "8"
+            - --shutdown-grace
+            - "30"
+            - --settlement-timeout
+            - "5"
+          ports:
+            - name: http
+              containerPort: 8081
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              scheme: HTTPS
+            periodSeconds: 5
+            timeoutSeconds: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cognistore/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: tls
+              mountPath: /etc/cognistore/tls
+              readOnly: true
+            - mountPath: /var/run/cognistore-aws
+              name: aws-identity
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: cognistore-config
+            defaultMode: 0440
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+        - name: tls
+          secret:
+            secretName: cognistore-tls
+            defaultMode: 0440
+        - name: aws-identity
+          projected:
+            defaultMode: 288
+            sources:
+            - serviceAccountToken:
+                audience: sts.amazonaws.com
+                expirationSeconds: 86400
+                path: token
+---
+# Source: cognistore/templates/autoscaling.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cognistore-api
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cognistore-api
+  minReplicas: 2
+  maxReplicas: 6
+  behavior:
+    scaleDown:
+      policies:
+      - periodSeconds: 60
+        type: Percent
+        value: 25
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      policies:
+      - periodSeconds: 60
+        type: Percent
+        value: 100
+      stabilizationWindowSeconds: 0
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 70
+          type: Utilization
+      type: Resource
+---
+# Source: cognistore/templates/tests/smoke.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cognistore-smoke
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+    app.kubernetes.io/component: smoke
+  annotations:
+    helm.sh/hook: test
+    # Retain success until the next test so `helm test --logs` can read it.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: smoke
+      image: "example.invalid/cognistore@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      resources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: "1", memory: 256Mi}
+      command: [python, -c]
+      args:
+        - |
+          import ssl, urllib.request
+          context = ssl.create_default_context(cafile='/etc/cognistore/tls/ca.crt')
+          base = 'https://cognistore-api.cognistore.svc:8080'
+          for path in ('/healthz', '/readyz', '/ui/'):
+              with urllib.request.urlopen(base + path, context=context, timeout=10) as response:
+                  assert response.status == 200, path
+          print('API, readiness, and administration UI smoke checks passed')
+      volumeMounts:
+        - name: config
+          mountPath: /etc/cognistore/config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: tls
+          mountPath: /etc/cognistore/tls
+          readOnly: true
+        - mountPath: /var/run/cognistore-aws
+          name: aws-identity
+          readOnly: true
+  volumes:
+    - name: config
+      secret:
+        secretName: cognistore-config
+        defaultMode: 0440
+    - name: tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 256Mi
+    - name: tls
+      secret:
+        secretName: cognistore-tls
+        defaultMode: 0440
+    - name: aws-identity
+      projected:
+        defaultMode: 288
+        sources:
+        - serviceAccountToken:
+            audience: sts.amazonaws.com
+            expirationSeconds: 86400
+            path: token
+---
+# Source: cognistore/templates/migration.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cognistore-migrate
+  labels:
+    app.kubernetes.io/name: cognistore
+    app.kubernetes.io/instance: cognistore
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: "cognistore-0.1.0"
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cognistore
+        app.kubernetes.io/instance: cognistore
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: "cognistore-0.1.0"
+        app.kubernetes.io/component: migration
+    spec:
+      # The release ServiceAccount does not exist during pre-install. No API access.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "example.invalid/cognistore@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          command: [python, -c]
+          args:
+            - |
+              import json, os
+              from cognistore.auth.tenancy import TenantResolver
+              from cognistore.db import open_catalog
+              locator = os.environ['COGNISTORE_CATALOG_DB']
+              if not locator.startswith(('postgresql://', 'postgres://', 'postgresql+psycopg://')):
+                  raise SystemExit('Kubernetes deployment requires PostgreSQL')
+              catalog = open_catalog(locator)
+              try:
+                  policy_path = os.environ.get('COGNISTORE_TENANT_POLICY')
+                  if policy_path:
+                      with open(policy_path) as source:
+                          policy = json.load(source)
+                      TenantResolver.from_dict(policy)
+                      for tenant_id in sorted({entry['tenant_id'] for entry in policy['bindings']}):
+                          catalog.for_tenant(tenant_id)
+              finally:
+                  catalog.close()
+              print('Catalog migration complete')
+          envFrom:
+            - secretRef:
+                name: cognistore-credentials
+          env:
+            - name: COGNISTORE_SECURITY_PROFILE
+              value: "production"
+            - name: COGNISTORE_DRIVERS
+              value: /etc/cognistore/config/drivers.yaml
+            - name: COGNISTORE_LOG_FORMAT
+              value: json
+            - name: COGNISTORE_JOB_STREAM
+              value: "COGNISTORE_JOBS"
+            - name: COGNISTORE_JOB_SUBJECT
+              value: "cognistore.jobs"
+            - name: COGNISTORE_JOB_CONSUMER
+              value: "cognistore-workers"
+            - name: HOME
+              value: /tmp
+            - name: COGNISTORE_ENCRYPTION_CONFIG
+              value: /etc/cognistore/config/encryption.json
+            - name: COGNISTORE_AUTHORIZATION_POLICY
+              value: /etc/cognistore/config/authorization.json
+            - name: COGNISTORE_TENANT_POLICY
+              value: /etc/cognistore/config/tenants.json
+            - name: COGNISTORE_AUTH_ISSUER
+              value: "https://REPLACE_WITH_ISSUER"
+            - name: COGNISTORE_AUTH_AUDIENCE
+              value: "REPLACE_WITH_AUDIENCE"
+            - name: COGNISTORE_AUTH_JWKS_URI
+              value: "https://REPLACE_WITH_JWKS_HOST_AND_PATH"
+            - name: COGNISTORE_TLS_CA_FILE
+              value: /etc/cognistore/tls/ca.crt
+            - name: PGSSLROOTCERT
+              value: /etc/cognistore/tls/ca.crt
+            - name: COGNISTORE_API_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_API_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: COGNISTORE_HEALTH_TLS_CERTFILE
+              value: /etc/cognistore/tls/tls.crt
+            - name: COGNISTORE_HEALTH_TLS_KEYFILE
+              value: /etc/cognistore/tls/tls.key
+            - name: AWS_ROLE_ARN
+              value: arn:aws:iam::111122223333:role/cognistore-test-workload
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/cognistore-aws/token
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: regional
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cognistore/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: tls
+              mountPath: /etc/cognistore/tls
+              readOnly: true
+            - mountPath: /var/run/cognistore-aws
+              name: aws-identity
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: cognistore-config
+            defaultMode: 0440
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+        - name: tls
+          secret:
+            secretName: cognistore-tls
+            defaultMode: 0440
+        - name: aws-identity
+          projected:
+            defaultMode: 288
+            sources:
+            - serviceAccountToken:
+                audience: sts.amazonaws.com
+                expirationSeconds: 86400
+                path: token

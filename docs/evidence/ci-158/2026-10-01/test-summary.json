@@ -1,0 +1,177 @@
+[
+  {
+    "run_id": "36898454581",
+    "report": "artifacts/terraform-reference/terraform.xml",
+    "cases": 6,
+    "passed": 6,
+    "failures": [],
+    "skipped": 0,
+    "skip_reasons": {}
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/default-full-suite-test-reports/default.xml",
+    "cases": 6806,
+    "passed": 6503,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 302,
+    "skip_reasons": {
+      ": collection skipped": 1,
+      "pytest.skip: backend does not advertise range writes": 2,
+      "pytest.skip: COGNISTORE_TEST_POSTGRES_DSN is not configured": 192,
+      "pytest.skip: COGNISTORE_AZURITE_CONNECTION_STRING is not configured": 27,
+      "pytest.skip: Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+      "pytest.skip: COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "pytest.skip: COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+      "pytest.skip: set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+      "pytest.skip: set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 10,
+      "pytest.skip: could not import 'httptools': No module named 'httptools'": 10,
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/gcs-emulator-test-reports/gcs.xml",
+    "cases": 23,
+    "passed": 20,
+    "failures": [],
+    "skipped": 3,
+    "skip_reasons": {
+      "pytest.skip: backend does not advertise range writes": 1,
+      "pytest.xfail: fake-gcs-server 3c29d207 ignores ifGenerationMatch on media GET; live path checks it": 1,
+      "pytest.skip: COGNISTORE_GCS_LIVE_BUCKET is not set": 1
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.10/coverage.xml",
+    "line_rate": "0.8904",
+    "branch_rate": "0.7797"
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.10/test-results/unit.xml",
+    "cases": 6337,
+    "passed": 6325,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 11,
+    "skip_reasons": {
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8,
+      "pytest.skip: backend does not advertise range writes": 2
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.11/coverage.xml",
+    "line_rate": "0.8904",
+    "branch_rate": "0.7796"
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.11/test-results/unit.xml",
+    "cases": 6337,
+    "passed": 6325,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 11,
+    "skip_reasons": {
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8,
+      "pytest.skip: backend does not advertise range writes": 2
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.12/coverage.xml",
+    "line_rate": "0.8905",
+    "branch_rate": "0.7796"
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.12/test-results/unit.xml",
+    "cases": 6337,
+    "passed": 6325,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 11,
+    "skip_reasons": {
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8,
+      "pytest.skip: backend does not advertise range writes": 2
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.13/coverage.xml",
+    "line_rate": "0.8905",
+    "branch_rate": "0.7796"
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.13/test-results/unit.xml",
+    "cases": 6337,
+    "passed": 6325,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 11,
+    "skip_reasons": {
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8,
+      "pytest.skip: backend does not advertise range writes": 2
+    }
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.14/coverage.xml",
+    "line_rate": "0.8905",
+    "branch_rate": "0.7793"
+  },
+  {
+    "run_id": "36898446320",
+    "report": "artifacts/test-reports-python-3.14/test-results/unit.xml",
+    "cases": 6337,
+    "passed": 6325,
+    "failures": [
+      {
+        "test": "tests.unit.test_encryption_policy.test_telemetry_redirect_cannot_forward_payload_to_plaintext",
+        "kind": "failure",
+        "message": "AttributeError: 'OTLPSpanExporter' object has no attribute '_session'"
+      }
+    ],
+    "skipped": 11,
+    "skip_reasons": {
+      "pytest.skip: set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+      "pytest.skip: native POSIX regression requires a case-insensitive temporary volume": 8,
+      "pytest.skip: backend does not advertise range writes": 2
+    }
+  }
+]
