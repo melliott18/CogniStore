@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-02T14:37:01.570525+00:00",
+  "release_id": 401880587,
+  "release_api_url": "https://api.github.com/repos/melliott18/CogniStore/releases/401880587",
+  "release_url": "https://github.com/melliott18/CogniStore/releases/tag/untagged-73337b73049b40fb3023",
+  "tag_name": "candidate-0.1.1rc1-20261002-b7e2b3f",
+  "draft": true,
+  "prerelease": true,
+  "source_commit": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+  "assets": [
+    {
+      "id": 605762500,
+      "name": "cognistore-candidate-0.1.1rc1-b7e2b3f6fb3f-62cc2900a109.tar.gz",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/605762500",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-73337b73049b40fb3023/cognistore-candidate-0.1.1rc1-b7e2b3f6fb3f-62cc2900a109.tar.gz",
+      "digest": "sha256:462538a20d4703a8f7b67ea82902e911aa844f7561d28727570e3a210d8907e1",
+      "size": 234031973,
+      "state": "uploaded"
+    },
+    {
+      "id": 605790765,
+      "name": "cognistore-qualification-20261002-b7e2b3f.tar.gz",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/605790765",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-73337b73049b40fb3023/cognistore-qualification-20261002-b7e2b3f.tar.gz",
+      "digest": "sha256:7c98902167b552882de3b25cf05625709ca18724a94d169828ed2694c9003db1",
+      "size": 228363067,
+      "state": "uploaded"
+    },
+    {
+      "id": 605790766,
+      "name": "SHA256SUMS",
+      "url": "https://api.github.com/repos/melliott18/CogniStore/releases/assets/605790766",
+      "browser_download_url": "https://github.com/melliott18/CogniStore/releases/download/untagged-73337b73049b40fb3023/SHA256SUMS",
+      "digest": "sha256:24a776b69b9b58aeae8f353fe2da7a23220d099909404221f4bb0dc42967ea79",
+      "size": 244,
+      "state": "uploaded"
+    }
+  ],
+  "verification": "All remote server SHA-256 digests and sizes match local assets. Both archive member sets and every file content verified locally; no full remote download round trip claimed.",
+  "archives": [
+    {
+      "members_verified": 127,
+      "sha256": "462538a20d4703a8f7b67ea82902e911aa844f7561d28727570e3a210d8907e1",
+      "bytes": 234031973
+    },
+    {
+      "members_verified": 184,
+      "bytes": 228363067,
+      "sha256": "7c98902167b552882de3b25cf05625709ca18724a94d169828ed2694c9003db1"
+    }
+  ],
+  "access": "Authenticated repository collaborator access required while draft; gh release download with recorded tag.",
+  "retention": "At least 90 days after pilot exit and longer for unresolved findings. No automatic expiry configured. Do not replace assets or delete the draft.",
+  "qualification_claim": false,
+  "registry_manifest_digest": null,
+  "note": "Draft asset storage is mutable. Hashes identify the retained bytes; this is not registry publication or deployment."
+}

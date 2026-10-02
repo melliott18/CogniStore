@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "as_of_local": "2026-10-02",
+  "timezone": "America/Los_Angeles",
+  "source_commit": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+  "candidate_id": "0.1.1rc1-b7e2b3f6fb3f-62cc2900a109",
+  "runtime_image_id": "sha256:62cc2900a1091daa005ae12d70f4e15884f4b04392403ddaaa06e21cdd0e50b6",
+  "overall_status": "blocked-release-qualification",
+  "issue_160_state": "OPEN",
+  "previous_candidate_status": "not-promotable: 3 of 10 newer HTTP upload tests failed",
+  "checks": {
+    "hosted_assembly": "passed: 37016575224 attempt 1",
+    "fresh_source_hosted": "15/15 passed; CI 37016700161, Kubernetes 37016703919, Terraform 37016708802; attempt 1 each",
+    "installed_smoke": "48 passed",
+    "original_regressions": "287 passed, 8 native-filesystem skips",
+    "upload_worker_regressions": "49 passed, 10 optional protocol cases deselected",
+    "installed_service_integrations": "386 passed, 35 skipped",
+    "image_analysis": "296 raw findings; 139 normalized; 5 critical, 22 high, 57 medium, 53 low, 2 unknown; no accepted exceptions",
+    "bandit_and_top_level_dependency_audit": "passed; excludes native and vendored image findings"
+  },
+  "failed_attempts": [
+    "Previous candidate upload regression: 3 failures, 7 passes, 10 deselected",
+    "Successor integration attempt 1: collection blocked by missing OpenAPI test-helper dependency; repaired in separately locked test-tool prefix, then runtime inventory reverified"
+  ],
+  "remaining_gates": [
+    "Image remediation or named, bounded reviewed applicability/risk dispositions",
+    "Accepted specification and named owners #159",
+    "Actual isolated target environment and rendered configuration/security controls #161",
+    "Selected registry transfer and verified immutable manifest digest",
+    "Applicable target-environment UAT/recovery/load/pilot gates"
+  ],
+  "evidence_boundaries": [
+    "Hosted source environments resolve dependencies independently; installed-artifact tests use retained runtime and recorded harness layers.",
+    "Local service fixtures are native arm64; client runtime linux/amd64 emulated on Docker/macOS. No production or cloud environment tested.",
+    "No Azure/GCS or production semantic-provider composition selected. Sample search tests do not qualify a production model.",
+    "Overlapping suite totals are not summed.",
+    "Historical reports and both frozen bundle bytes remain unchanged.",
+    "Docker service-log stderr was not retained; full pytest output and JUnit are retained.",
+    "No named owner acceptance or vulnerability waiver was inferred from prior ticket closure."
+  ],
+  "repository_validation": {
+    "json_xml_documents_parsed": 41,
+    "local_markdown_targets_resolved": 72,
+    "historical_candidate_directories_unchanged": true,
+    "whitespace_check": "passed",
+    "local_secret_review": "Three exact false-positive repository fingerprints verified: one source migration digest and two public signing-key copies; no broad rule/file exclusions."
+  }
+}

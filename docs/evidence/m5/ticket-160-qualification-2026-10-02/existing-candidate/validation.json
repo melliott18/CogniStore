@@ -1,0 +1,32 @@
+{
+  "source": "04ee37a499d58695645d739971fadc72ab5af459",
+  "runtime_image": "sha256:6e818b49e7e92735efb278dac5a029e4f299a9def255076e45a7d775f94d143d",
+  "qualification_image": "sha256:cf7a9febb5380fb48f0e4a0ae74cf81c0b3c7fd68de35cd661cee5e071a00ab0",
+  "test_source": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+  "test_sha256": "e2f891ef03560e8d4bb8d530f440c0599618cbc82455de25b46f892565e7ba84",
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--platform",
+    "linux/amd64",
+    "--network",
+    "none",
+    "--mount",
+    "type=bind,source=/Users/mitchell/.codex/artifacts/cognistore-160-qualification-20261002/existing-candidate/test_upload_limits.py,target=/qualification/tests/integration/test_upload_limits.py,readonly",
+    "--mount",
+    "type=bind,source=/Users/mitchell/.codex/artifacts/cognistore-160-qualification-20261002/existing-candidate,target=/reports",
+    "sha256:cf7a9febb5380fb48f0e4a0ae74cf81c0b3c7fd68de35cd661cee5e071a00ab0",
+    "python",
+    "-m",
+    "pytest",
+    "tests/integration/test_upload_limits.py",
+    "-k",
+    "h11",
+    "--junitxml=/reports/upload-regressions.xml"
+  ],
+  "started_at": "2026-10-02T13:57:12.737935+00:00",
+  "scope": "Frozen installed wheel/runtime in retained qualification image; new regression module; synthetic loopback HTTP, POSIX and SQLite; network disabled. No rebuild or dependency resolution.",
+  "exit_code": 1,
+  "finished_at": "2026-10-02T13:57:24.079470+00:00"
+}
