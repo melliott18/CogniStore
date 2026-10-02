@@ -308,3 +308,8 @@ docs/evidence/m5/ticket-160-qualification-2026-10-02/manifest.json:generic-api-k
 # Public Python base-image signing fingerprint in exact test-harness provenance.
 docs/evidence/m5/ticket-160-qualification-2026-10-02/installed-checks/harness-provenance.json:generic-api-key:41
 docs/evidence/m5/ticket-160-qualification-2026-10-02/installed-checks/harness-provenance.json:generic-api-key:80
+
+# Commit-bound counterparts of the three source/image provenance findings above.
+325aff515f78396247021b125bc31f4e691a711b:docs/evidence/m5/ticket-160-qualification-2026-10-02/manifest.json:generic-api-key:163
+325aff515f78396247021b125bc31f4e691a711b:docs/evidence/m5/ticket-160-qualification-2026-10-02/installed-checks/harness-provenance.json:generic-api-key:41
+325aff515f78396247021b125bc31f4e691a711b:docs/evidence/m5/ticket-160-qualification-2026-10-02/installed-checks/harness-provenance.json:generic-api-key:80
