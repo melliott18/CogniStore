@@ -1,0 +1,58 @@
+[
+  {
+    "path": "existing-candidate/upload-regressions.xml",
+    "counts": {
+      "passed": 7,
+      "failed": 3
+    },
+    "skip_reasons": {}
+  },
+  {
+    "path": "hosted/37016575224/artifacts/release-candidate-b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6-1/release-candidate/reports/regressions.xml",
+    "counts": {
+      "passed": 287,
+      "skipped": 8
+    },
+    "skip_reasons": {
+      "native POSIX regression requires a case-insensitive temporary volume": 8
+    }
+  },
+  {
+    "path": "hosted/37016708802/reports/terraform-reference/terraform.xml",
+    "counts": {
+      "passed": 6
+    },
+    "skip_reasons": {}
+  },
+  {
+    "path": "installed-checks/fix-regressions.xml",
+    "counts": {
+      "passed": 49
+    },
+    "skip_reasons": {}
+  },
+  {
+    "path": "installed-checks/integration-attempt-1/integration.xml",
+    "counts": {
+      "skipped": 1,
+      "errors": 1
+    },
+    "skip_reasons": {
+      "collection skipped": 1
+    }
+  },
+  {
+    "path": "installed-checks/integration.xml",
+    "counts": {
+      "skipped": 35,
+      "passed": 386
+    },
+    "skip_reasons": {
+      "collection skipped": 1,
+      "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+      "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+      "backend does not advertise range writes": 1,
+      "could not import 'httptools': No module named 'httptools'": 10
+    }
+  }
+]

@@ -1,0 +1,94 @@
+{
+  "runtime_image_id": "sha256:62cc2900a1091daa005ae12d70f4e15884f4b04392403ddaaa06e21cdd0e50b6",
+  "runtime_layers": [
+    "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+    "sha256:16df0073c13c96653ee2b601b16e514321513eb4af983de156c2d4e17df8a5d9",
+    "sha256:9639007baab8a136bc468bd5d757fdf79cf5d77b6ff2a87889071252e334fab3",
+    "sha256:abca6d63c9dbe51fa3bc42e75e0387da12803ef64430ad151814e468d5e1c203",
+    "sha256:0c5d19ba63f1c67cb16e74a5cc97a633e72b166e9068c1e0e0d3406944562dc5",
+    "sha256:fa36abcc3eed960690a8d12b2298d1b5a31cb8c7e6f4a1f3ecbb2a739b5b2d7e",
+    "sha256:cea4e109d57e616ccdde49faa0b9dd3fd222b0e0d00dabd2e5b7511bb3f31bff",
+    "sha256:482fd33aa3e217df231f1ceeb1492f5515a8193bc1befb4c85e1adb7930de116",
+    "sha256:9c310d979892e59bf9fee5a30cf1d3153d8262c04ed366fb960b3f5f936efcb2",
+    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+  ],
+  "harnesses": [
+    {
+      "image_id": "sha256:d645b4fb3ec185b927cc3683ab20c587f76c8eaa67d16cb51806aff136363094",
+      "runtime_layers_preserved": true,
+      "layers": [
+        "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+        "sha256:16df0073c13c96653ee2b601b16e514321513eb4af983de156c2d4e17df8a5d9",
+        "sha256:9639007baab8a136bc468bd5d757fdf79cf5d77b6ff2a87889071252e334fab3",
+        "sha256:abca6d63c9dbe51fa3bc42e75e0387da12803ef64430ad151814e468d5e1c203",
+        "sha256:0c5d19ba63f1c67cb16e74a5cc97a633e72b166e9068c1e0e0d3406944562dc5",
+        "sha256:fa36abcc3eed960690a8d12b2298d1b5a31cb8c7e6f4a1f3ecbb2a739b5b2d7e",
+        "sha256:cea4e109d57e616ccdde49faa0b9dd3fd222b0e0d00dabd2e5b7511bb3f31bff",
+        "sha256:482fd33aa3e217df231f1ceeb1492f5515a8193bc1befb4c85e1adb7930de116",
+        "sha256:9c310d979892e59bf9fee5a30cf1d3153d8262c04ed366fb960b3f5f936efcb2",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        "sha256:915732818622d6188107a5d7451e8a0abb3a9270abbf5ed1e7be45236a93a7cc",
+        "sha256:874caa52c60692249335e2c3e1fe89609aa44de271598b27a9f615b526c94769",
+        "sha256:1a233aa1ad749b9073d49c18644f74548377df081012cfd58da5d3cb3abb70c4",
+        "sha256:fe83cbdac540bcc2df152d7cdaaa29f0471024764cd865ea95cd064594a55a38",
+        "sha256:ad302af8c38a0e11907d139a169b4f55c56d39d2d6672e432d0193d733bbe965",
+        "sha256:164cdc1f4feac84138866bcf22c17ef1e2a2a32ac2dab157e7ff1f02832a401c",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+      ],
+      "environment": [
+        "PATH=/opt/test-tools/bin:/opt/cognistore/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG=C.UTF-8",
+        "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+        "PYTHON_VERSION=3.12.14",
+        "PYTHON_SHA256=5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a",
+        "PIP_DISABLE_PIP_VERSION_CHECK=1",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONUNBUFFERED=1",
+        "PYTHONPATH=/opt/cognistore/lib/python3.12/site-packages",
+        "COGNISTORE_SECURITY_PROFILE=development"
+      ],
+      "working_directory": "/qualification"
+    },
+    {
+      "image_id": "sha256:65221f43bf14ead9542b71354ce0734cd7e71b4c6ea5010114d8b33052517ec5",
+      "runtime_layers_preserved": true,
+      "layers": [
+        "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+        "sha256:16df0073c13c96653ee2b601b16e514321513eb4af983de156c2d4e17df8a5d9",
+        "sha256:9639007baab8a136bc468bd5d757fdf79cf5d77b6ff2a87889071252e334fab3",
+        "sha256:abca6d63c9dbe51fa3bc42e75e0387da12803ef64430ad151814e468d5e1c203",
+        "sha256:0c5d19ba63f1c67cb16e74a5cc97a633e72b166e9068c1e0e0d3406944562dc5",
+        "sha256:fa36abcc3eed960690a8d12b2298d1b5a31cb8c7e6f4a1f3ecbb2a739b5b2d7e",
+        "sha256:cea4e109d57e616ccdde49faa0b9dd3fd222b0e0d00dabd2e5b7511bb3f31bff",
+        "sha256:482fd33aa3e217df231f1ceeb1492f5515a8193bc1befb4c85e1adb7930de116",
+        "sha256:9c310d979892e59bf9fee5a30cf1d3153d8262c04ed366fb960b3f5f936efcb2",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        "sha256:915732818622d6188107a5d7451e8a0abb3a9270abbf5ed1e7be45236a93a7cc",
+        "sha256:874caa52c60692249335e2c3e1fe89609aa44de271598b27a9f615b526c94769",
+        "sha256:1a233aa1ad749b9073d49c18644f74548377df081012cfd58da5d3cb3abb70c4",
+        "sha256:66ba99a0c2a6a5e452a26abbe52f147ea26f3634c4c7a53a51637d1d800ab7fd",
+        "sha256:2d69c779d75ae08b25e079cb4f29ff32f4a2fd1e6fbf515dda4ecea5a5d16386",
+        "sha256:4ce0e01df95400c0e9d54b4bc0b98a54e23653d391a780055bf2d0fba42edff3",
+        "sha256:35dfb6daa2eed86b2ecc9e322caed8ecf5e75fab35d87986af881fe551a4920f",
+        "sha256:9ea0b12a187ab76d77462a2342a548c8c1b403b3175d33f2c9d3425b8da0f7c8",
+        "sha256:e0dc5568d3d320aacefea4938c83fd85fbe3c07777d952ea9a4db22b01164471",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+      ],
+      "environment": [
+        "PATH=/opt/test-tools/bin:/opt/cognistore/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG=C.UTF-8",
+        "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+        "PYTHON_VERSION=3.12.14",
+        "PYTHON_SHA256=5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a",
+        "PIP_DISABLE_PIP_VERSION_CHECK=1",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONUNBUFFERED=1",
+        "PYTHONPATH=/opt/cognistore/lib/python3.12/site-packages",
+        "COGNISTORE_SECURITY_PROFILE=development"
+      ],
+      "working_directory": "/qualification"
+    }
+  ],
+  "tools_source": "Frozen assembly tools.lock; separately frozen extra-test-tools.lock for OpenAPI test helper; no runtime package replacement",
+  "dockerfile_sha256": "450857877b33879da34a138bd20c32474f3b70bc0fc78d8631ff6dc515d12715"
+}

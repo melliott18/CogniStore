@@ -1,0 +1,27 @@
+{
+  "candidate_id": "0.1.1rc1-b7e2b3f6fb3f-62cc2900a109",
+  "runtime_image_id": "sha256:62cc2900a1091daa005ae12d70f4e15884f4b04392403ddaaa06e21cdd0e50b6",
+  "harness_image_id": "sha256:d645b4fb3ec185b927cc3683ab20c587f76c8eaa67d16cb51806aff136363094",
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--platform",
+    "linux/amd64",
+    "--network",
+    "none",
+    "--mount",
+    "type=bind,source=/Users/mitchell/.codex/artifacts/cognistore-160-qualification-20261002/installed-checks,target=/reports",
+    "sha256:d645b4fb3ec185b927cc3683ab20c587f76c8eaa67d16cb51806aff136363094",
+    "-m",
+    "pytest",
+    "tests/integration/test_upload_limits.py",
+    "tests/unit/test_worker_runtime.py",
+    "-k",
+    "not httptools",
+    "--junitxml=/reports/fix-regressions.xml"
+  ],
+  "started_at": "2026-10-02T14:06:35.842971+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-02T14:06:48.093141+00:00"
+}

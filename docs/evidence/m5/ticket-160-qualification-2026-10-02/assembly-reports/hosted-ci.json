@@ -1,0 +1,49 @@
+{
+  "gates": [
+    {
+      "conclusion": "success",
+      "event": "push",
+      "head_sha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "required": true,
+      "run_attempt": 1,
+      "run_id": 36913846345,
+      "scope": "source-revision; independently resolved hosted environments",
+      "status": "passed",
+      "updated_at": "2026-10-01T19:46:56Z",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/36913846345",
+      "workflow": "ci.yml"
+    },
+    {
+      "conclusion": "success",
+      "event": "push",
+      "head_sha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "required": true,
+      "run_attempt": 1,
+      "run_id": 36913846462,
+      "scope": "source-revision; independently resolved hosted environments",
+      "status": "passed",
+      "updated_at": "2026-10-01T19:36:26Z",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/36913846462",
+      "workflow": "kubernetes.yml"
+    },
+    {
+      "conclusion": "success",
+      "event": "push",
+      "head_sha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "required": true,
+      "run_attempt": 1,
+      "run_id": 36913846163,
+      "scope": "source-revision; independently resolved hosted environments",
+      "status": "passed",
+      "updated_at": "2026-10-01T19:23:11Z",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/36913846163",
+      "workflow": "terraform.yml"
+    }
+  ],
+  "qualification_claim": false,
+  "repository": "melliott18/CogniStore",
+  "schema_version": 1,
+  "source_sha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+  "status": "passed",
+  "workflow_run_url": "https://github.com/melliott18/CogniStore/actions/runs/37016575224/attempts/1"
+}

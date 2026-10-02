@@ -1,0 +1,42 @@
+{
+  "candidate_id": "0.1.1rc1-b7e2b3f6fb3f-62cc2900a109",
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--platform",
+    "linux/amd64",
+    "--network",
+    "cognistore-160-20261002",
+    "--mount",
+    "type=bind,source=/Users/mitchell/.codex/artifacts/cognistore-160-qualification-20261002/installed-checks,target=/reports",
+    "-e",
+    "COGNISTORE_TEST_POSTGRES_DSN=postgresql://cognistore:cognistore-test-only@postgres:5432/postgres",
+    "-e",
+    "COGNISTORE_NATS_URL=nats://nats:4222",
+    "-e",
+    "COGNISTORE_MINIO_ENDPOINT_URL=http://minio:9000",
+    "-e",
+    "COGNISTORE_MINIO_ACCESS_KEY=minioadmin",
+    "-e",
+    "COGNISTORE_MINIO_SECRET_KEY=minioadmin",
+    "-e",
+    "COGNISTORE_MINIO_REGION=us-east-1",
+    "-e",
+    "COGNISTORE_REQUIRE_LIBMAGIC=1",
+    "sha256:d645b4fb3ec185b927cc3683ab20c587f76c8eaa67d16cb51806aff136363094",
+    "-m",
+    "pytest",
+    "tests/integration",
+    "--junitxml=/reports/integration.xml"
+  ],
+  "started_at": "2026-10-02T14:08:09.620603+00:00",
+  "scope": "Exact installed runtime in derived test-tool harness; isolated PostgreSQL/pgvector16, NATS JetStream and MinIO fixtures on internal Docker network; no published ports or production access.",
+  "service_images": [
+    "sha256:2dbfde49c067cafff2a69e7019423181adca6328b94f197ac93fbb01a96a3a9d",
+    "sha256:b6700a7a44644d35a74467c9dcbbe2492e70d661075b7755d96a3cbae0229ff7",
+    "sha256:888da0303c5a3b6ccbc2d1523a4c492f4883e525382a796185ca29695e8148f1"
+  ],
+  "exit_code": 2,
+  "finished_at": "2026-10-02T14:08:14.500299+00:00"
+}

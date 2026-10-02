@@ -14,7 +14,7 @@ Provisional local #160 assembly evidence is retained below. Historical
 | [#156](https://github.com/melliott18/CogniStore/issues/156) | Fix commit and namespace isolation/legal-hold regression reports | [Recorded below](#ticket-156-reserved-storage-namespace-aliases); local results and limitations retained |
 | [#157](https://github.com/melliott18/CogniStore/issues/157) | Fix commit and overlapping DELETE/PUT regression reports | [Local fix and merge regressions retained](157-put-delete-ordering.md); hosted qualification remains separate |
 | [#158](https://github.com/melliott18/CogniStore/issues/158) | Hosted runtime matrix on the exact candidate | [Hosted runs blocked before execution](../ci-158/README.md); qualification incomplete |
-| [#160](https://github.com/melliott18/CogniStore/issues/160) | Immutable source/image/dependency/provider/configuration manifest and exact-artifact checks | [Clean-main candidate refresh](ticket-160-refresh-2026-09-29/README.md); administratively closed, candidate remains unqualified |
+| [#160](https://github.com/melliott18/CogniStore/issues/160) | Immutable source/image/dependency/provider/configuration manifest and exact-artifact checks | [October 2 qualification campaign](ticket-160-qualification-2026-10-02/README.md); reopened, source/installed checks pass but release gates remain blocked |
 | [#161](https://github.com/melliott18/CogniStore/issues/161) | Isolated environment identity, production controls, versioned configuration, storage/memory/queue bounds and private telemetry | [Preparation and local checks](ticket-161/README.md); actual deployment and all live gates pending |
 | [#162](https://github.com/melliott18/CogniStore/issues/162) | Candidate/environment-bound security and consistency audit, residual risks and signed decision | [Local audit and repaired XML evidence](ticket-162/README.md); owner-directed ticket closure after evidence repair; exact candidate/live staging signoff pending |
 | [#163](https://github.com/melliott18/CogniStore/issues/163) | Per-interface/role/tenant manual acceptance matrix, actual browser evidence and corpus manifests | [Local acceptance kit and rehearsal](ticket-163/README.md); [upload failure fix and rerun](ticket-163-upload-fix/README.md); selected staging qualification remains pending |
@@ -175,45 +175,36 @@ M5 release gates or a new live-service/platform matrix.
 From `docs/evidence/m5/ticket-156`, verify the retained reports with
 `shasum -a 256 -c SHA256SUMS`.
 
-## Ticket #160: release candidate assembly
+## Ticket #160: release candidate assembly and qualification
 
-The [2026-09-29 refresh](ticket-160-refresh-2026-09-29/README.md) assembles
-candidate `0.1.1rc1-04ee37a499d5-6e818b49e7e9` from clean `origin/main`
-source `04ee37a499d58695645d739971fadc72ab5af459`, including the later scanner
-and worker/telemetry changes. Its Linux amd64 image configuration digest is
-`sha256:6e818b49e7e92735efb278dac5a029e4f299a9def255076e45a7d775f94d143d`.
-This supersedes the earlier branch candidate for current local analysis;
-the [historical #160 evidence](ticket-160/README.md) remains unchanged.
-#160 is administratively closed. The candidate remains `assembled-unqualified`.
+The [October 2 qualification campaign](ticket-160-qualification-2026-10-02/README.md)
+reopened #160. The previous frozen image failed three newer real-HTTP upload
+regressions. Its bytes and the [September 29 evidence](ticket-160-refresh-2026-09-29/README.md)
+remain unchanged; the earlier administrative closure was not release acceptance.
 
-The refreshed image passed 48 installed smoke checks and 287 installed-wheel
-regressions, with eight native case-insensitive-filesystem cases skipped.
-Supplemental regressions passed 179 cases, with 12 PostgreSQL cases deselected.
-Bandit and the frozen top-level Python dependency audit passed. These scoped
-local results do not establish the selected PostgreSQL/S3/JetStream environment
-or its production controls.
+Successor `0.1.1rc1-b7e2b3f6fb3f-62cc2900a109` was assembled on GitHub from
+clean main `b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6`. All 15 fresh CI,
+Kubernetes and Terraform checks passed on that same source. Hosted assembly
+passed 48 installed smoke checks and 287 original regressions, with eight
+native-filesystem skips. Against the downloaded frozen runtime, 49 upload/worker
+regressions passed and 386 integrations passed with isolated PostgreSQL, NATS
+and MinIO, with 35 explained skips. These overlapping suites are not summed.
 
-Trivy 0.74, using a database updated `2026-09-30T01:15:45Z`, reports 286 raw
-package findings, normalized to 133 source-package/advisory records and 133
-distinct advisory IDs: **5 critical, 19 high, 50 medium, 56 low and 3 unknown**.
-All 107 native package versions match the historical inventory. Differences
-between scanner outputs and counts are not evidence of remediation. Findings
-remain unresolved; the refresh record retains the exact scan and disposition.
+The exact runtime configuration digest is
+`sha256:62cc2900a1091daa005ae12d70f4e15884f4b04392403ddaaa06e21cdd0e50b6`.
+Fresh Trivy 0.75.0 analysis retains 139 normalized source-package/advisory records
+(296 raw occurrences), including 5 critical and 22 high. Component applicability
+is documented; no security exception or production approval is granted.
 
-The [release candidate guide](../../release_candidate.md) defines the frozen
-bundle, exact-artifact reuse, metadata-only provider composition and change
-control. The refreshed record binds source/tree, image archive, wheel/locks,
-Python/native inventories, migrations and sanitized configuration, and gives
-the bundle-retention handoff. A local image configuration digest is not a
-registry manifest digest; the registry-transfer identity remains a separate gate.
+**Release qualification remains blocked.** Image findings require remediation
+or bounded reviewed disposition. Named owner/specification acceptance, accepted
+#161 configuration/environment, verified registry manifest identity and the
+applicable target-environment UAT/recovery/load/pilot gates remain outstanding.
+The retained full candidate and qualification archives, run identities, exact
+commands, failed attempts, hashes and limitations are linked from the campaign.
 
-**Release qualification remains incomplete.** Named owner/specification
-acceptance, accepted #161 configuration/environment, image-security disposition,
-registry identity and downstream audit/UAT/recovery/load/pilot gates remain
-outstanding. The September 23 #162 exception accepted only the documented
-external safeguard interruption; it did not waive reported image findings or
-unperformed live checks. No deployment or pilot entry is approved here.
-
-Hosted CI: `skipped: user instruction; known GitHub billing/spending restriction`.
-No workflow was dispatched, rerun or polled for this refresh; the explicit
-hosted qualification requirement remains unmet.
+The [release candidate guide](../../release_candidate.md) defines artifact reuse
+and change control. Source-level hosted jobs resolve their own dependencies;
+they do not replace the distinct installed-runtime checks. Historical hosted
+skips remain unchanged. This campaign records fresh execution under the public
+repository CI resumption policy, not a retrospective passing label.

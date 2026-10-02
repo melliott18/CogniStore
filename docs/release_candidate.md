@@ -7,28 +7,25 @@ amd64, Debian bookworm, CPython 3.12, native libmagic, POSIX hot storage, native
 AWS S3 warm storage, PostgreSQL and NATS JetStream. The package version for
 this candidate series is `0.1.1rc1`.
 
-**Status: locally rebuilt candidate; release qualification incomplete.** The
-[2026-09-29 evidence refresh](evidence/m5/ticket-160-refresh-2026-09-29/README.md)
-records the clean-main candidate, installed-artifact checks and current image
-analysis. It supersedes the earlier branch candidate for current local analysis;
-the [historical evidence](evidence/m5/ticket-160/README.md) remains preserved.
-#160 is administratively closed, while the candidate remains
-`assembled-unqualified`.
+**Status: hosted candidate assembled; release qualification incomplete.** The
+[2026-10-02 qualification campaign](evidence/m5/ticket-160-qualification-2026-10-02/README.md)
+records the successor built on hosted CI, fresh same-source checks, installed
+service integrations and image analysis. The earlier frozen image failed newer
+upload regressions; the [historical evidence](evidence/m5/ticket-160/README.md) remains preserved.
+#160 is reopened. Source and installed checks pass, while the candidate remains
+`assembled-unqualified` because security and target-environment gates are unmet.
 
-Named owner acceptance of the pilot specification remains pending, and the
-[#158 hosted CI record](evidence/ci-158/README.md) records jobs blocked before
-runner assignment by an account billing/spending-limit restriction. Those are
-release blockers. A successful local build, branch check, smoke test, or ticket
-closure does not satisfy either gate. This procedure grants no deployment,
-registry publication, customer traffic, or pilot-entry authorization.
+Named owner acceptance of the pilot specification remains pending. Hosted CI
+has resumed on the public repository: the October 2 campaign passed all 15
+required source checks and candidate assembly. Image security, accepted target
+configuration/environment, registry identity and the applicable production gates
+remain unmet. A passing hosted badge or ticket closure does not clear them.
+This procedure grants no deployment, customer traffic or pilot-entry approval.
 
-**Hosted CI resumption is authorized after publication.** On 2026-09-30 the
-user requested making the repository public to use hosted CI. Once visibility
-is public, follow the [CI runbook](ci_runbook.md) to collect fresh results;
-before that change, the earlier suspension remains in effect. Publication
-does not establish billing recovery, successful checks or release qualification.
+Follow the [CI runbook](ci_runbook.md) for fresh checks on the selected revision.
 Historical records retain
-`skipped: user instruction; known GitHub billing/spending restriction`.
+`skipped: user instruction; known GitHub billing/spending restriction`;
+those outcomes are not retroactively relabeled as passing.
 
 ## Selected product behavior
 
@@ -282,7 +279,7 @@ threshold retrospectively, or edit a passing report to describe a new input.
 Use the [M5 evidence index](evidence/m5/README.md#ticket-160-release-candidate-assembly)
 to record manifest, bundle and report checksums, immutable storage locations,
 source/image/configuration/environment identities and explicit limitations.
-The [current refresh record](evidence/m5/ticket-160-refresh-2026-09-29/README.md)
+The [current qualification record](evidence/m5/ticket-160-qualification-2026-10-02/README.md)
 provides the current candidate identities, security disposition and artifact
 handoff; historical reports retain their original source/image scope.
 Retain all needed artifacts for at least 90 days after the pilot exit decision,

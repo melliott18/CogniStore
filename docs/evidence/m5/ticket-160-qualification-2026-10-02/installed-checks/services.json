@@ -1,0 +1,50 @@
+{
+  "network": "cognistore-160-20261002",
+  "internal_network": true,
+  "services": [
+    {
+      "container_name": "cognistore-160-pg",
+      "image_id": "sha256:2dbfde49c067cafff2a69e7019423181adca6328b94f197ac93fbb01a96a3a9d",
+      "platform": "linux/arm64",
+      "repo_digests": [
+        "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+      ],
+      "labels": null,
+      "ports_published": {},
+      "ephemeral_tmpfs": {
+        "/var/lib/postgresql/data": "rw,nosuid,size=1073741824"
+      }
+    },
+    {
+      "container_name": "cognistore-160-nats",
+      "image_id": "sha256:b6700a7a44644d35a74467c9dcbbe2492e70d661075b7755d96a3cbae0229ff7",
+      "platform": "linux/arm64",
+      "repo_digests": [
+        "nats@sha256:d69eb29526c1d98afdfb2e2434763bef77b5f3c83e2e24769c13a4d104be475e"
+      ],
+      "labels": null,
+      "ports_published": {},
+      "ephemeral_tmpfs": {
+        "/data": "rw,nosuid,size=268435456"
+      }
+    },
+    {
+      "container_name": "cognistore-160-minio",
+      "image_id": "sha256:888da0303c5a3b6ccbc2d1523a4c492f4883e525382a796185ca29695e8148f1",
+      "platform": "linux/arm64",
+      "repo_digests": [],
+      "labels": {
+        "org.opencontainers.image.licenses": "AGPL-3.0-or-later",
+        "org.opencontainers.image.revision": "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a",
+        "org.opencontainers.image.source": "https://github.com/minio/minio",
+        "org.opencontainers.image.version": "RELEASE.2025-10-15T17-29-55Z"
+      },
+      "ports_published": {},
+      "ephemeral_tmpfs": {
+        "/data": "rw,uid=10001,gid=10001,nosuid,size=1073741824"
+      }
+    }
+  ],
+  "scope": "Temporary local synthetic fixtures; native arm64 services with amd64 candidate on Docker/macOS. Not production configuration.",
+  "service_log_capture": "Only stdout was retained from Docker service logs; stderr was not retained before cleanup. Complete pytest output and JUnit are retained separately."
+}

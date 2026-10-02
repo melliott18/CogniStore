@@ -1,0 +1,29 @@
+{
+  "changes": {
+    "boto3": {
+      "before": "1.43.105",
+      "after": "1.43.107"
+    },
+    "botocore": {
+      "before": "1.43.105",
+      "after": "1.43.107"
+    },
+    "charset-normalizer": {
+      "before": "3.5.1",
+      "after": "3.5.2"
+    },
+    "cryptography": {
+      "before": "50.0.1",
+      "after": "50.0.2"
+    },
+    "google-auth": {
+      "before": "2.59.0",
+      "after": "2.59.1"
+    },
+    "sqlalchemy": {
+      "before": "2.1.1",
+      "after": "2.1.2"
+    }
+  },
+  "native_inventory_identical": true
+}

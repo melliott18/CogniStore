@@ -1,0 +1,1873 @@
+{
+  "source_revision": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+  "reviewed_at": "2026-10-02T14:25:09.402225+00:00",
+  "status": "all-15-source-checks-passed",
+  "run_ids": [
+    37016700161,
+    37016703919,
+    37016708802
+  ],
+  "runs": [
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "event": "workflow_dispatch",
+      "headSha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "jobs": [
+        {
+          "completedAt": "2026-10-02T14:00:42Z",
+          "conclusion": "success",
+          "databaseId": 110869233747,
+          "name": "Build and install package",
+          "startedAt": "2026-10-02T13:59:18Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:20Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:22Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:25Z",
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:30Z",
+              "conclusion": "success",
+              "name": "Install packaging tools",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:34Z",
+              "conclusion": "success",
+              "name": "Build wheel and source distribution",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:30Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:35Z",
+              "conclusion": "success",
+              "name": "Verify distribution metadata",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:34Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:56Z",
+              "conclusion": "success",
+              "name": "Verify wheel installation from outside the checkout",
+              "number": 7,
+              "startedAt": "2026-10-02T13:59:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:35Z",
+              "conclusion": "success",
+              "name": "Exercise clean operator installation, backup/restore, and repair",
+              "number": 8,
+              "startedAt": "2026-10-02T13:59:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:37Z",
+              "conclusion": "success",
+              "name": "Upload operator drill evidence",
+              "number": 9,
+              "startedAt": "2026-10-02T14:00:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:39Z",
+              "conclusion": "success",
+              "name": "Upload verified distributions",
+              "number": 10,
+              "startedAt": "2026-10-02T14:00:37Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:39Z",
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 19,
+              "startedAt": "2026-10-02T14:00:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:39Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 20,
+              "startedAt": "2026-10-02T14:00:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "startedAt": "2026-10-02T14:00:39Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233747"
+        },
+        {
+          "completedAt": "2026-10-02T14:08:19Z",
+          "conclusion": "success",
+          "databaseId": 110869233851,
+          "name": "Container images and Compose integration",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:19Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:20Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Validate Compose configuration",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:36Z",
+              "conclusion": "success",
+              "name": "Build stack images",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:39Z",
+              "conclusion": "success",
+              "name": "Verify image isolation and non-root users",
+              "number": 5,
+              "startedAt": "2026-10-02T14:01:36Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:39Z",
+              "conclusion": "success",
+              "name": "Verify development volume ownership",
+              "number": 6,
+              "startedAt": "2026-10-02T14:01:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:06:58Z",
+              "conclusion": "success",
+              "name": "Run Compose integration profile",
+              "number": 7,
+              "startedAt": "2026-10-02T14:01:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:07:49Z",
+              "conclusion": "success",
+              "name": "Verify interrupted move diagnostics survive restart",
+              "number": 8,
+              "startedAt": "2026-10-02T14:06:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:14Z",
+              "conclusion": "success",
+              "name": "Run reduced move qualification",
+              "number": 9,
+              "startedAt": "2026-10-02T14:07:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:15Z",
+              "conclusion": "success",
+              "name": "Export move qualification evidence",
+              "number": 10,
+              "startedAt": "2026-10-02T14:08:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:16Z",
+              "conclusion": "success",
+              "name": "Upload move qualification evidence",
+              "number": 11,
+              "startedAt": "2026-10-02T14:08:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:16Z",
+              "conclusion": "skipped",
+              "name": "Show Compose logs after a failure",
+              "number": 12,
+              "startedAt": "2026-10-02T14:08:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:16Z",
+              "conclusion": "success",
+              "name": "Tear down Compose services and volumes",
+              "number": 13,
+              "startedAt": "2026-10-02T14:08:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:17Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:08:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:17Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:08:17Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233851"
+        },
+        {
+          "completedAt": "2026-10-02T14:00:14Z",
+          "conclusion": "success",
+          "databaseId": 110869233872,
+          "name": "Dependency and static security scans",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:25Z",
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:55Z",
+              "conclusion": "success",
+              "name": "Install project and security tools",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:04Z",
+              "conclusion": "success",
+              "name": "Audit Python dependencies",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:06Z",
+              "conclusion": "success",
+              "name": "Audit installed development dependencies",
+              "number": 6,
+              "startedAt": "2026-10-02T14:00:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:11Z",
+              "conclusion": "success",
+              "name": "Scan Python source with Bandit",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:11Z",
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 13,
+              "startedAt": "2026-10-02T14:00:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:11Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 14,
+              "startedAt": "2026-10-02T14:00:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:12Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-02T14:00:11Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233872"
+        },
+        {
+          "completedAt": "2026-10-02T14:17:35Z",
+          "conclusion": "success",
+          "databaseId": 110869233882,
+          "name": "Tests (Python 3.13)",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:25Z",
+              "conclusion": "success",
+              "name": "Set up Python 3.13",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:35Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:56Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:58Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:11:05Z",
+              "conclusion": "success",
+              "name": "Run unit and conformance tests",
+              "number": 7,
+              "startedAt": "2026-10-02T13:59:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:16Z",
+              "conclusion": "success",
+              "name": "Start isolated integration services",
+              "number": 8,
+              "startedAt": "2026-10-02T14:11:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:16Z",
+              "conclusion": "success",
+              "name": "Record integration service image identities",
+              "number": 9,
+              "startedAt": "2026-10-02T14:13:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:25Z",
+              "conclusion": "success",
+              "name": "Run integration tests",
+              "number": 10,
+              "startedAt": "2026-10-02T14:13:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:31Z",
+              "conclusion": "success",
+              "name": "Enforce coverage threshold",
+              "number": 11,
+              "startedAt": "2026-10-02T14:17:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:32Z",
+              "conclusion": "success",
+              "name": "Upload test and coverage reports",
+              "number": 12,
+              "startedAt": "2026-10-02T14:17:31Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:32Z",
+              "conclusion": "skipped",
+              "name": "Show integration service logs after a failure",
+              "number": 13,
+              "startedAt": "2026-10-02T14:17:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:32Z",
+              "conclusion": "success",
+              "name": "Post Set up Python 3.13",
+              "number": 25,
+              "startedAt": "2026-10-02T14:17:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:32Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:17:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:32Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:17:32Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233882"
+        },
+        {
+          "completedAt": "2026-10-02T14:00:10Z",
+          "conclusion": "success",
+          "databaseId": 110869233898,
+          "name": "Lint and type check",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:19Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:20Z",
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:48Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:48Z",
+              "conclusion": "success",
+              "name": "Run Ruff",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:48Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:04Z",
+              "conclusion": "success",
+              "name": "Run mypy",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:48Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:08Z",
+              "conclusion": "success",
+              "name": "Verify deterministic OpenAPI contract",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:09Z",
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 13,
+              "startedAt": "2026-10-02T14:00:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:09Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 14,
+              "startedAt": "2026-10-02T14:00:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:09Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-02T14:00:09Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233898"
+        },
+        {
+          "completedAt": "2026-10-02T14:01:15Z",
+          "conclusion": "success",
+          "databaseId": 110869233918,
+          "name": "GCS HTTP emulator",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:25Z",
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:56Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:58Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:06Z",
+              "conclusion": "success",
+              "name": "Build and start pinned GCS emulator",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:10Z",
+              "conclusion": "success",
+              "name": "Run GCS integration conformance",
+              "number": 7,
+              "startedAt": "2026-10-02T14:01:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:11Z",
+              "conclusion": "success",
+              "name": "Upload GCS test evidence",
+              "number": 8,
+              "startedAt": "2026-10-02T14:01:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:11Z",
+              "conclusion": "skipped",
+              "name": "Show emulator logs after a failure",
+              "number": 9,
+              "startedAt": "2026-10-02T14:01:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:11Z",
+              "conclusion": "success",
+              "name": "Stop GCS emulator",
+              "number": 10,
+              "startedAt": "2026-10-02T14:01:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:11Z",
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 19,
+              "startedAt": "2026-10-02T14:01:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:12Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 20,
+              "startedAt": "2026-10-02T14:01:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:01:12Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "startedAt": "2026-10-02T14:01:12Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869233918"
+        },
+        {
+          "completedAt": "2026-10-02T13:59:41Z",
+          "conclusion": "success",
+          "databaseId": 110869234007,
+          "name": "Prometheus rules and operational alerts",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:19Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:20Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:40Z",
+              "conclusion": "success",
+              "name": "Validate Compose, Prometheus configuration, and synthetic breach/recovery fixtures",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:40Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:40Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:40Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-10-02T13:59:40Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234007"
+        },
+        {
+          "completedAt": "2026-10-02T14:08:20Z",
+          "conclusion": "success",
+          "databaseId": 110869234013,
+          "name": "Default full test suite",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:20Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Set up Python",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:27Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:54Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:27Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:54Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:54Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:17Z",
+              "conclusion": "success",
+              "name": "Run documented default full-suite command",
+              "number": 7,
+              "startedAt": "2026-10-02T13:59:54Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:18Z",
+              "conclusion": "success",
+              "name": "Upload default full-suite test evidence",
+              "number": 8,
+              "startedAt": "2026-10-02T14:08:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:18Z",
+              "conclusion": "success",
+              "name": "Post Set up Python",
+              "number": 15,
+              "startedAt": "2026-10-02T14:08:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:18Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 16,
+              "startedAt": "2026-10-02T14:08:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:08:19Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 17,
+              "startedAt": "2026-10-02T14:08:18Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234013"
+        },
+        {
+          "completedAt": "2026-10-02T13:59:28Z",
+          "conclusion": "success",
+          "databaseId": 110869234031,
+          "name": "Secret scan",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:19Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:22Z",
+              "conclusion": "success",
+              "name": "Check out complete history",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:25Z",
+              "conclusion": "success",
+              "name": "Scan commits for secrets",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:26Z",
+              "conclusion": "success",
+              "name": "Post Check out complete history",
+              "number": 6,
+              "startedAt": "2026-10-02T13:59:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:26Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-10-02T13:59:26Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234031"
+        },
+        {
+          "completedAt": "2026-10-02T14:13:02Z",
+          "conclusion": "success",
+          "databaseId": 110869234118,
+          "name": "Tests (Python 3.14)",
+          "startedAt": "2026-10-02T13:59:17Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:19Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:21Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:23Z",
+              "conclusion": "success",
+              "name": "Set up Python 3.14",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:32Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:01Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:02Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T14:00:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:07:03Z",
+              "conclusion": "success",
+              "name": "Run unit and conformance tests",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:02Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:09:08Z",
+              "conclusion": "success",
+              "name": "Start isolated integration services",
+              "number": 8,
+              "startedAt": "2026-10-02T14:07:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:09:08Z",
+              "conclusion": "success",
+              "name": "Record integration service image identities",
+              "number": 9,
+              "startedAt": "2026-10-02T14:09:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:53Z",
+              "conclusion": "success",
+              "name": "Run integration tests",
+              "number": 10,
+              "startedAt": "2026-10-02T14:09:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:58Z",
+              "conclusion": "success",
+              "name": "Enforce coverage threshold",
+              "number": 11,
+              "startedAt": "2026-10-02T14:12:53Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:00Z",
+              "conclusion": "success",
+              "name": "Upload test and coverage reports",
+              "number": 12,
+              "startedAt": "2026-10-02T14:12:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:00Z",
+              "conclusion": "skipped",
+              "name": "Show integration service logs after a failure",
+              "number": 13,
+              "startedAt": "2026-10-02T14:13:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:00Z",
+              "conclusion": "success",
+              "name": "Post Set up Python 3.14",
+              "number": 25,
+              "startedAt": "2026-10-02T14:13:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:00Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:13:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:00Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:13:00Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234118"
+        },
+        {
+          "completedAt": "2026-10-02T14:22:14Z",
+          "conclusion": "success",
+          "databaseId": 110869234132,
+          "name": "Tests (Python 3.12)",
+          "startedAt": "2026-10-02T13:59:43Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:45Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:44Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:46Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:45Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:48Z",
+              "conclusion": "success",
+              "name": "Set up Python 3.12",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:54Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:48Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:17Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:54Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:19Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T14:00:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:14:20Z",
+              "conclusion": "success",
+              "name": "Run unit and conformance tests",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:05Z",
+              "conclusion": "success",
+              "name": "Start isolated integration services",
+              "number": 8,
+              "startedAt": "2026-10-02T14:14:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:17:05Z",
+              "conclusion": "success",
+              "name": "Record integration service image identities",
+              "number": 9,
+              "startedAt": "2026-10-02T14:17:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:05Z",
+              "conclusion": "success",
+              "name": "Run integration tests",
+              "number": 10,
+              "startedAt": "2026-10-02T14:17:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:12Z",
+              "conclusion": "success",
+              "name": "Enforce coverage threshold",
+              "number": 11,
+              "startedAt": "2026-10-02T14:22:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:12Z",
+              "conclusion": "success",
+              "name": "Upload test and coverage reports",
+              "number": 12,
+              "startedAt": "2026-10-02T14:22:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:12Z",
+              "conclusion": "skipped",
+              "name": "Show integration service logs after a failure",
+              "number": 13,
+              "startedAt": "2026-10-02T14:22:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:13Z",
+              "conclusion": "success",
+              "name": "Post Set up Python 3.12",
+              "number": 25,
+              "startedAt": "2026-10-02T14:22:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:13Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:22:13Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:22:13Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:22:13Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234132"
+        },
+        {
+          "completedAt": "2026-10-02T14:21:03Z",
+          "conclusion": "success",
+          "databaseId": 110869234186,
+          "name": "Tests (Python 3.10)",
+          "startedAt": "2026-10-02T13:59:30Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:31Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:30Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:32Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:31Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:35Z",
+              "conclusion": "success",
+              "name": "Set up Python 3.10",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:42Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:15Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T13:59:42Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:16Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T14:00:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:13:44Z",
+              "conclusion": "success",
+              "name": "Run unit and conformance tests",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:15:59Z",
+              "conclusion": "success",
+              "name": "Start isolated integration services",
+              "number": 8,
+              "startedAt": "2026-10-02T14:13:44Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:15:59Z",
+              "conclusion": "success",
+              "name": "Record integration service image identities",
+              "number": 9,
+              "startedAt": "2026-10-02T14:15:59Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:20:51Z",
+              "conclusion": "success",
+              "name": "Run integration tests",
+              "number": 10,
+              "startedAt": "2026-10-02T14:15:59Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:00Z",
+              "conclusion": "success",
+              "name": "Enforce coverage threshold",
+              "number": 11,
+              "startedAt": "2026-10-02T14:20:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:00Z",
+              "conclusion": "success",
+              "name": "Upload test and coverage reports",
+              "number": 12,
+              "startedAt": "2026-10-02T14:21:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:01Z",
+              "conclusion": "skipped",
+              "name": "Show integration service logs after a failure",
+              "number": 13,
+              "startedAt": "2026-10-02T14:21:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:01Z",
+              "conclusion": "success",
+              "name": "Post Set up Python 3.10",
+              "number": 25,
+              "startedAt": "2026-10-02T14:21:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:01Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:21:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:21:01Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:21:01Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234186"
+        },
+        {
+          "completedAt": "2026-10-02T14:19:07Z",
+          "conclusion": "success",
+          "databaseId": 110869234187,
+          "name": "Tests (Python 3.11)",
+          "startedAt": "2026-10-02T13:59:49Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T13:59:50Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T13:59:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:52Z",
+              "conclusion": "success",
+              "name": "Check out repository",
+              "number": 2,
+              "startedAt": "2026-10-02T13:59:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T13:59:54Z",
+              "conclusion": "success",
+              "name": "Set up Python 3.11",
+              "number": 3,
+              "startedAt": "2026-10-02T13:59:52Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:00Z",
+              "conclusion": "success",
+              "name": "Install libmagic",
+              "number": 4,
+              "startedAt": "2026-10-02T13:59:54Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:22Z",
+              "conclusion": "success",
+              "name": "Install project and development tools",
+              "number": 5,
+              "startedAt": "2026-10-02T14:00:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:22Z",
+              "conclusion": "success",
+              "name": "Record test runtime and configuration",
+              "number": 6,
+              "startedAt": "2026-10-02T14:00:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:10Z",
+              "conclusion": "success",
+              "name": "Run unit and conformance tests",
+              "number": 7,
+              "startedAt": "2026-10-02T14:00:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:14:25Z",
+              "conclusion": "success",
+              "name": "Start isolated integration services",
+              "number": 8,
+              "startedAt": "2026-10-02T14:12:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:14:25Z",
+              "conclusion": "success",
+              "name": "Record integration service image identities",
+              "number": 9,
+              "startedAt": "2026-10-02T14:14:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:18:55Z",
+              "conclusion": "success",
+              "name": "Run integration tests",
+              "number": 10,
+              "startedAt": "2026-10-02T14:14:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:04Z",
+              "conclusion": "success",
+              "name": "Enforce coverage threshold",
+              "number": 11,
+              "startedAt": "2026-10-02T14:18:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:04Z",
+              "conclusion": "success",
+              "name": "Upload test and coverage reports",
+              "number": 12,
+              "startedAt": "2026-10-02T14:19:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:04Z",
+              "conclusion": "skipped",
+              "name": "Show integration service logs after a failure",
+              "number": 13,
+              "startedAt": "2026-10-02T14:19:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:05Z",
+              "conclusion": "success",
+              "name": "Post Set up Python 3.11",
+              "number": 25,
+              "startedAt": "2026-10-02T14:19:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:05Z",
+              "conclusion": "success",
+              "name": "Post Check out repository",
+              "number": 26,
+              "startedAt": "2026-10-02T14:19:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:19:05Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 27,
+              "startedAt": "2026-10-02T14:19:05Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161/job/110869234187"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/37016700161"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "event": "workflow_dispatch",
+      "headSha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "jobs": [
+        {
+          "completedAt": "2026-10-02T14:13:01Z",
+          "conclusion": "success",
+          "databaseId": 110869242445,
+          "name": "Install, upgrade, rollback and autoscale",
+          "startedAt": "2026-10-02T14:00:13Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T14:00:14Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T14:00:13Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:16Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "number": 2,
+              "startedAt": "2026-10-02T14:00:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:18Z",
+              "conclusion": "success",
+              "name": "Install pinned kind and Helm",
+              "number": 3,
+              "startedAt": "2026-10-02T14:00:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:23Z",
+              "conclusion": "success",
+              "name": "Verify chart security and migration contracts",
+              "number": 4,
+              "startedAt": "2026-10-02T14:00:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:57Z",
+              "conclusion": "success",
+              "name": "Run clean-cluster acceptance",
+              "number": 5,
+              "startedAt": "2026-10-02T14:00:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:58Z",
+              "conclusion": "success",
+              "name": "Upload Kubernetes acceptance evidence",
+              "number": 6,
+              "startedAt": "2026-10-02T14:12:57Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:58Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "number": 12,
+              "startedAt": "2026-10-02T14:12:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:12:58Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-10-02T14:12:58Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016703919/job/110869242445"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/37016703919"
+    },
+    {
+      "attempt": 1,
+      "conclusion": "success",
+      "event": "workflow_dispatch",
+      "headSha": "b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6",
+      "jobs": [
+        {
+          "completedAt": "2026-10-02T14:00:38Z",
+          "conclusion": "success",
+          "databaseId": 110869260474,
+          "name": "Mocked production plan and Helm handoff",
+          "startedAt": "2026-10-02T14:00:16Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-02T14:00:17Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-02T14:00:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:18Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "number": 2,
+              "startedAt": "2026-10-02T14:00:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:20Z",
+              "conclusion": "success",
+              "name": "Install pinned Terraform and Helm",
+              "number": 3,
+              "startedAt": "2026-10-02T14:00:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:35Z",
+              "conclusion": "success",
+              "name": "Validate Terraform and render production Helm output",
+              "number": 4,
+              "startedAt": "2026-10-02T14:00:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:37Z",
+              "conclusion": "success",
+              "name": "Upload validation evidence",
+              "number": 5,
+              "startedAt": "2026-10-02T14:00:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:37Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "number": 10,
+              "startedAt": "2026-10-02T14:00:37Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-02T14:00:37Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "startedAt": "2026-10-02T14:00:37Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/melliott18/CogniStore/actions/runs/37016708802/job/110869260474"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/melliott18/CogniStore/actions/runs/37016708802"
+    }
+  ],
+  "expected_contexts": [
+    "Build and install package",
+    "Container images and Compose integration",
+    "Default full test suite",
+    "Dependency and static security scans",
+    "GCS HTTP emulator",
+    "Install, upgrade, rollback and autoscale",
+    "Lint and type check",
+    "Mocked production plan and Helm handoff",
+    "Prometheus rules and operational alerts",
+    "Secret scan",
+    "Tests (Python 3.10)",
+    "Tests (Python 3.11)",
+    "Tests (Python 3.12)",
+    "Tests (Python 3.13)",
+    "Tests (Python 3.14)"
+  ],
+  "reports": [
+    {
+      "file": "37016575224/artifacts/release-candidate-b7e2b3f6fb3f3fefe4b0e9d2f155204ee2bb71b6-1/release-candidate/reports/regressions.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 287,
+        "skipped": 8
+      },
+      "skip_reasons": {
+        "native POSIX regression requires a case-insensitive temporary volume": 8
+      }
+    },
+    {
+      "file": "37016700161/reports/default-full-suite-test-reports/default.xml",
+      "type": "junit",
+      "counts": {
+        "skipped": 302,
+        "passed": 6519
+      },
+      "skip_reasons": {
+        "collection skipped": 1,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_TEST_POSTGRES_DSN is not configured": 192,
+        "COGNISTORE_AZURITE_CONNECTION_STRING is not configured": 27,
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "set COGNISTORE_MINIO_ENDPOINT_URL to an isolated MinIO service": 1,
+        "set COGNISTORE_NATS_URL to an isolated JetStream-enabled NATS server": 10,
+        "could not import 'httptools': No module named 'httptools'": 10,
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8
+      }
+    },
+    {
+      "file": "37016700161/reports/gcs-emulator-test-reports/gcs.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 20,
+        "skipped": 2,
+        "xfail": 1
+      },
+      "skip_reasons": {
+        "backend does not advertise range writes": 1,
+        "fake-gcs-server 3c29d207 ignores ifGenerationMatch on media GET; live path checks it": 1,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.10/coverage.xml",
+      "type": "coverage",
+      "line_percent": 91.14999999999999,
+      "branch_percent": 80.92,
+      "combined_percent": 88.62833905568948
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.10/test-results/integration.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 412,
+        "skipped": 62
+      },
+      "skip_reasons": {
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.10/test-results/unit.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6341,
+        "skipped": 11
+      },
+      "skip_reasons": {
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8,
+        "backend does not advertise range writes": 2
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.11/coverage.xml",
+      "type": "coverage",
+      "line_percent": 91.14999999999999,
+      "branch_percent": 80.92,
+      "combined_percent": 88.62833905568948
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.11/test-results/integration.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 412,
+        "skipped": 62
+      },
+      "skip_reasons": {
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.11/test-results/unit.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6341,
+        "skipped": 11
+      },
+      "skip_reasons": {
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8,
+        "backend does not advertise range writes": 2
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.12/coverage.xml",
+      "type": "coverage",
+      "line_percent": 91.16,
+      "branch_percent": 80.93,
+      "combined_percent": 88.64294932671001
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.12/test-results/integration.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 412,
+        "skipped": 62
+      },
+      "skip_reasons": {
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.12/test-results/unit.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6341,
+        "skipped": 11
+      },
+      "skip_reasons": {
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8,
+        "backend does not advertise range writes": 2
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.13/coverage.xml",
+      "type": "coverage",
+      "line_percent": 91.14999999999999,
+      "branch_percent": 80.91000000000001,
+      "combined_percent": 88.63320914602966
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.13/test-results/integration.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 412,
+        "skipped": 62
+      },
+      "skip_reasons": {
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.13/test-results/unit.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6341,
+        "skipped": 11
+      },
+      "skip_reasons": {
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8,
+        "backend does not advertise range writes": 2
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.14/coverage.xml",
+      "type": "coverage",
+      "line_percent": 91.16,
+      "branch_percent": 80.9,
+      "combined_percent": 88.63320914602966
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.14/test-results/integration.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 412,
+        "skipped": 62
+      },
+      "skip_reasons": {
+        "Live Azure validation requires COGNISTORE_AZURE_LIVE=1": 27,
+        "backend does not advertise range writes": 2,
+        "COGNISTORE_GCS_EMULATOR_ENDPOINT is not set": 22,
+        "COGNISTORE_GCS_LIVE_BUCKET is not set": 1,
+        "could not import 'httptools': No module named 'httptools'": 10
+      }
+    },
+    {
+      "file": "37016700161/reports/test-reports-python-3.14/test-results/unit.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6341,
+        "skipped": 11
+      },
+      "skip_reasons": {
+        "set HELM and COGNISTORE_NATS_CHART to the local nats-2.14.6 chart archive": 1,
+        "native POSIX regression requires a case-insensitive temporary volume": 8,
+        "backend does not advertise range writes": 2
+      }
+    },
+    {
+      "file": "37016708802/reports/terraform-reference/terraform.xml",
+      "type": "junit",
+      "counts": {
+        "passed": 6
+      },
+      "skip_reasons": {}
+    }
+  ],
+  "scope": "Fresh same-source hosted matrix, isolated services/emulators, disposable development kind and mocked Terraform. These resolve their own dependency environments; frozen-runtime evidence is separate. No production cloud or target-environment qualification."
+}
